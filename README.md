@@ -1,0 +1,114 @@
+# ai-skills
+
+A repository of reusable skills for AI coding assistants. Skills are self-contained, well-documented modules that extend Github Copilot, Claude Code, Cursor, Codex, and other AI tools with specialized capabilities.
+
+## What is a Skill?
+
+A skill is a prompt/instruction bundle that teaches an AI assistant how to handle a specific type of task. Think of it like a specialized tool: it has a name, a triggering description, and detailed instructions.
+
+**Example**: The `code-review-staged` skill teaches Claude Code to review Git staged changes with a structured 6-section code review format. When you ask "review staged", Claude automatically loads this skill and executes its workflow.
+
+## Available Skills
+
+| Skill | Description | Use When |
+|---|---|---|
+| 🛠️ [Skill Creator](./skills/skill-creator/) | Create skills/prompts for any AI platform. Includes drafting, test case generation, evaluation, benchmarking, description optimization. Supports Github Copilot, Claude Code, Cursor, Codex, and custom platforms. | Create a new skill, improve triggering, or benchmark skill performance |
+| 🎨 [Figma](./skills/figma/) | Extract design specs from Figma files for implementation. Covers layout, colors, typography, component specs, auto-triggering on Figma links, design-to-code workflows. | Implementing a design from Figma, inspecting colors/spacing, or matching components |
+| 📝 [Code Review (Staged)](./skills/code-review-staged/) | Structured code review for Git staged changes. Tech stack inference, 6-section review, auto-generated commit messages, smart file context reading. | "review staged" or similar code review requests |
+| 🧰 [GH Operations](./skills/gh-operations/) | Use GitHub CLI (`gh`) for issue and pull-request workflows: read/write issues, inspect PRs, create PRs, and read commits. | "use gh", "gh issue", "gh pr", "创建PR", "看PR", or commit lookup requests |
+
+---
+
+## Quick Start
+
+### Install skills
+
+Skills are typically configured at the user level for your AI assistant. To sync all skills to your user config, run:
+
+```bash
+./scripts/setup .copilot   # Github Copilot
+./scripts/setup .claude    # Claude Code
+./scripts/setup .cursor    # Cursor
+```
+
+For project-specific setup, manually copy skills to your repository's skill directory. Example:
+
+```bash
+cp -r skills/skill-name ./your-project/.github/skills/
+# or
+cp -r skills/skill-name ./your-project/.claude/skills/
+```
+
+## Project Structure
+
+```
+ai-skills/
+├── skills/                    # All available skills
+│   ├── skill-creator/        # Create and improve skills
+│   ├── figma/                # Design extraction from Figma
+│   ├── gh-operations/         # GitHub CLI issue/PR/commit workflows
+│   └── code-review-staged/   # Structured code reviews
+├── scripts/
+│   └── setup                 # Installation script for AI assistants
+├── AGENTS.md                 # Developer guidelines for agents
+├── LICENSE                   # MIT License
+└── README.md                 # This file
+```
+
+### Skill Directory Structure
+
+Each skill follows this pattern:
+
+```
+skills/skill-name/
+├── SKILL.md                  # Required: Metadata + instructions
+├── README.md                 # Optional: Overview for humans
+├── scripts/                  # Optional: Helper scripts (Python/Bash)
+├── references/               # Optional: Documentation, guides, schemas
+├── agents/                   # Optional: Prompts for evaluations
+└── assets/                   # Optional: Templates, icons, HTML resources
+```
+
+---
+
+## For Developers
+
+### Adding a New Skill
+
+1. Create a new directory under `skills/`:
+   ```bash
+   mkdir skills/my-skill
+   ```
+
+2. Create `SKILL.md` with required frontmatter:
+   ```yaml
+   ---
+   name: my-skill
+   description: |
+      What this skill does and when to use it.
+     Include trigger keywords for better AI assistant activation.
+   ---
+   
+   # My Skill
+   
+   Detailed instructions, examples, and workflows...
+   ```
+
+3. Commit following this format:
+   ```bash
+   git add .
+   git commit -m "[my-skill] Add initial skill with core workflows"
+   ```
+
+For full development guidelines, see **[AGENTS.md](./AGENTS.md)**.
+
+---
+
+## Contributing
+
+1. **Fork or create a branch** if you want to add a new skill
+2. **Follow** [AGENTS.md](./AGENTS.md) for code style and structure guidelines
+3. **Commit** with descriptive messages in the format: `[skill-name] Brief description`
+4. **Open a pull request** with a summary of the skill's purpose and usage
+
+---
