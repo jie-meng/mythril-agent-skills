@@ -1,4 +1,4 @@
-# ai-skills
+# mythril-agent-skills
 
 A repository of reusable skills for AI coding assistants. Skills are self-contained, well-documented modules that extend Github Copilot, Claude Code, Cursor, Codex, Gemini CLI, Qwen CLI, iFlow CLI, Opencode, Grok CLI, and other AI tools with specialized capabilities.
 
@@ -27,8 +27,8 @@ Some skills require external CLI tools or API credentials (environment variables
 **Quick agent setup** — copy and paste this prompt to your LLM agent (Claude Code, Cursor, Codex, etc.):
 
 ```
-Check and configure ai-skills dependencies (CLI tools, API tokens, environment variables) by reading and following the instructions at:
-https://raw.githubusercontent.com/jie-meng/ai-skills/main/docs/INSTALLATION.md
+Check and configure mythril-agent-skills dependencies (CLI tools, API tokens, environment variables) by reading and following the instructions at:
+https://raw.githubusercontent.com/jie-meng/mythril-agent-skills/main/docs/INSTALLATION.md
 ```
 
 ---
@@ -144,7 +144,7 @@ cp -r skills/skill-name ./your-project/.claude/skills/
 ## Project Structure
 
 ```
-ai-skills/
+mythril-agent-skills/
 ├── skills/                    # All available skills
 │   ├── skill-creator/        # Create and improve skills
 │   ├── figma/                # Design extraction from Figma

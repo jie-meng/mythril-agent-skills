@@ -1,8 +1,8 @@
-# AGENTS.md — Development Guidelines for ai-skills Repository
+# AGENTS.md — Development Guidelines for mythril-agent-skills Repository
 
 ## Project Overview
 
-**ai-skills** is a repository of reusable skills for AI coding assistants (Github Copilot, Claude Code, Cursor, Codex, Gemini CLI, Qwen CLI, iFlow CLI, Opencode, Grok CLI). Each skill is a self-contained directory with a `SKILL.md` that defines its metadata, triggering description, and instructions.
+**mythril-agent-skills** is a repository of reusable skills for AI coding assistants (Github Copilot, Claude Code, Cursor, Codex, Gemini CLI, Qwen CLI, iFlow CLI, Opencode, Grok CLI). Each skill is a self-contained directory with a `SKILL.md` that defines its metadata, triggering description, and instructions.
 
 Tech Stack:
 - **Primary Language**: Python 3.10+
