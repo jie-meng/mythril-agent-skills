@@ -1,6 +1,6 @@
 # mythril-agent-skills
 
-A collection of reusable skills for AI coding assistants. Skills are self-contained, well-documented modules that extend Github Copilot, Claude Code, Cursor, Codex, Gemini CLI, Qwen CLI, iFlow CLI, Opencode, Grok CLI, and other AI tools with specialized capabilities.
+A unified skill management system for multi-agent AI coding assistants. This package provides a curated collection of reusable skills plus a centralized CLI toolkit to install, configure, and maintain them across Github Copilot, Claude Code, Cursor, Codex, Gemini CLI ...
 
 ## What is a Skill?
 
