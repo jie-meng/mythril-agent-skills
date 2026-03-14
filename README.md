@@ -13,10 +13,10 @@ A skill is a prompt/instruction bundle that teaches an AI assistant how to handl
 | Skill | Description | Use When |
 |---|---|---|
 | [Skill Creator](./mythril_agent_skills/skills/skill-creator/) | Create skills/prompts for any AI platform. Includes drafting, test case generation, evaluation, benchmarking, description optimization. | Create a new skill, improve triggering, or benchmark skill performance |
-| [Figma](./mythril_agent_skills/skills/figma/) | Extract design specs from Figma files for implementation. Covers layout, colors, typography, component specs, auto-triggering on Figma links. | Implementing a design from Figma, inspecting colors/spacing, or matching components |
-| [Code Review (Staged)](./mythril_agent_skills/skills/code-review-staged/) | Structured code review for Git staged changes. Tech stack inference, 6-section review, auto-generated commit messages. | "review staged" or similar code review requests |
-| [GH Operations](./mythril_agent_skills/skills/gh-operations/) | Use GitHub CLI (`gh`) for issue and pull-request workflows: read/write issues, inspect PRs, create PRs, and read commits. | "use gh", "gh issue", "gh pr", or commit lookup requests |
 | [Jira](./mythril_agent_skills/skills/jira/) | Use Jira REST API (via bundled Python script) for issue, sprint, and board workflows. No CLI tools needed. | "jira issue", "jira card", "PROJ-123", or sprint/board requests |
+| [Figma](./mythril_agent_skills/skills/figma/) | Extract design specs from Figma files for implementation. Covers layout, colors, typography, component specs, auto-triggering on Figma links. | Implementing a design from Figma, inspecting colors/spacing, or matching components |
+| [GH Operations](./mythril_agent_skills/skills/gh-operations/) | Use GitHub CLI (`gh`) for issue and pull-request workflows: read/write issues, inspect PRs, create PRs, and read commits. | "use gh", "gh issue", "gh pr", or commit lookup requests |
+| [Code Review (Staged)](./mythril_agent_skills/skills/code-review-staged/) | Structured code review for Git staged changes. Tech stack inference, 6-section review, auto-generated commit messages. | "review staged" or similar code review requests |
 
 ---
 
