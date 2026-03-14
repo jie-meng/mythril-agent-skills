@@ -24,8 +24,9 @@ A skill is a prompt/instruction bundle that teaches an AI assistant how to handl
 
 Choose the path that fits your needs:
 
-### Option A: Install via pip (recommended for most users)
+### Option A: Use skills (install via pip)
 
+If you just want to install and use existing skills, start here.
 Install the package from PyPI — no need to clone the repository:
 
 ```bash
@@ -66,9 +67,9 @@ The checker will:
 - Prompt for missing API keys/tokens and save them to your shell config file
 - Verify authentication status (e.g. `gh auth status`)
 
-### Option B: Clone the repository (for developers)
+### Option B: Build skills (clone the repository)
 
-Clone if you want to create new skills, modify existing ones, or contribute:
+If you want to create or modify skills (or contribute changes), clone the repo:
 
 ```bash
 git clone https://github.com/jie-meng/mythril-agent-skills.git
