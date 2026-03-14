@@ -196,9 +196,10 @@ mythril-agent-skills/
 │       ├── gh-operations/       # GitHub CLI issue/PR/commit workflows
 │       ├── jira/                # Jira REST API issue/sprint/board workflows
 │       └── code-review-staged/  # Structured code reviews
-├── scripts/                     # Backward-compatible wrappers
+├── scripts/                     # Dev scripts & backward-compatible wrappers
 ├── docs/
-│   └── INSTALLATION.md          # Full dependency reference
+│   ├── INSTALLATION.md          # Full dependency reference
+│   └── PUBLISHING.md            # PyPI publishing & testing guide
 ├── pyproject.toml               # Package configuration
 ├── AGENTS.md                    # Developer guidelines for agents
 ├── LICENSE                      # Apache 2.0 License
@@ -249,6 +250,15 @@ mythril_agent_skills/skills/skill-name/
    git add .
    git commit -m "[my-skill] Add initial skill with core workflows"
    ```
+
+### Publishing to PyPI
+
+```bash
+python3 scripts/publish.py          # Publish to PyPI
+python3 scripts/publish.py --test   # Publish to TestPyPI first
+```
+
+For the full publishing workflow, version management, and pre-release testing steps, see **[docs/PUBLISHING.md](./docs/PUBLISHING.md)**.
 
 For full development guidelines, see **[AGENTS.md](./AGENTS.md)**.
 
