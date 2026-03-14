@@ -8,33 +8,39 @@ Tech Stack:
 - **Primary Language**: Python 3.10+
 - **Configuration**: YAML (frontmatter in SKILL.md)
 - **Documentation**: Markdown
-- **Script Language**: Bash (setup/deployment)
+- **Setup Script**: Python (curses-based interactive installer)
 
 ---
 
 ## Setup Script
 
-`./scripts/setup-skills` syncs all skills from `./skills/` to your AI assistant's user-level configuration directory.
+`scripts/setup_skills.py` is a Python curses-based interactive installer that syncs selected skills from `./skills/` to your AI assistant's user-level configuration directory. It supports macOS, Linux, and Windows (auto-installs `windows-curses` on Windows if needed).
 
-### Interactive menu (no arguments)
+### Interactive mode (no arguments)
 
 ```bash
-./scripts/setup-skills
+python3 scripts/setup_skills.py
 ```
 
-Displays a numbered menu of supported tools. Enter a number to install, or `0` for all. When installing all, tools whose config directory (`~/.claude`, `~/.cursor`, etc.) does not exist are skipped with a warning.
+Launches two interactive multi-select screens:
+1. **Select AI tools** — choose which tools to install skills to (Up/Down move, Space toggle, `a` all/none, Enter confirm)
+2. **Select skills** — choose which skills to install (same controls)
+
+Tools whose config directory (`~/.claude`, `~/.cursor`, etc.) does not exist are skipped with a warning.
 
 ### Direct target
 
 ```bash
-./scripts/setup-skills .copilot   # Github Copilot
-./scripts/setup-skills .claude    # Claude Code
-./scripts/setup-skills .cursor    # Cursor
+python3 scripts/setup_skills.py .copilot   # Github Copilot
+python3 scripts/setup_skills.py .claude    # Claude Code
+python3 scripts/setup_skills.py .cursor    # Cursor
 ```
 
-Copies all skill directories into `~/<target-dir>/skills/`, creating it if needed, and reports which skills were added or updated.
+Skips tool selection and goes directly to skill selection. Copies selected skill directories into `~/<target-dir>/skills/`, creating it if needed, and reports which skills were added or updated.
 
 ### Supported tools
+
+All config directories are relative to the user home directory (`~` on macOS/Linux, `%USERPROFILE%` on Windows).
 
 | # | Tool | Config directory | Skills path |
 |---|---|---|---|

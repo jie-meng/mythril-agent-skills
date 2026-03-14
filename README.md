@@ -37,48 +37,59 @@ https://raw.githubusercontent.com/jie-meng/ai-skills/main/docs/INSTALLATION.md
 
 ### Install skills
 
-The setup script syncs all skills from this repository to your AI assistant's user-level configuration directory. It supports two modes:
+The setup script syncs skills from this repository to your AI assistant's user-level configuration directory. It provides an interactive curses-based multi-select UI so you can choose exactly which tools and skills to install.
 
-#### Interactive menu (recommended)
+**Requirements**: Python 3.10+ (pre-installed on macOS and most Linux distros; on Windows, `windows-curses` is auto-installed if needed).
 
-Run without arguments to pick a tool from the menu:
+**Platforms**: macOS, Linux, Windows.
+
+#### Interactive mode (recommended)
+
+Run without arguments to launch the interactive installer:
 
 ```bash
-./scripts/setup-skills
+python3 scripts/setup_skills.py
 ```
 
+The installer guides you through two selection screens:
+
+1. **Select AI tools** — choose which tools to install skills to
+2. **Select skills** — choose which skills to install
+
+Both screens use an interactive multi-select UI:
+
 ```
-Select an AI tool to install skills:
+Select skills to install:
+Up/Down move | Space toggle | a all/none | Enter confirm | q quit
 
-  1. Copilot CLI
-  2. Claude Code
-  3. Cursor
-  4. Codex
-  5. Gemini CLI
-  6. Qwen CLI
-  7. iFlow CLI
-  8. Opencode
+  [x]  Select All / Deselect All
+  ------------------------------------
+  [x]  code-review-staged
+  [x]  figma
+  [x]  gh-operations
+  [x]  jira
+  [x]  skill-creator
 
-  0. All
-
-Enter your choice:
+  5/5 selected
 ```
 
-Choose `0` to install to all detected tools at once. Tools that are not installed on your machine will be skipped with a warning.
+Tools that are not installed on your machine will be skipped with a warning.
 
 #### Direct target
 
-Specify the target directory name explicitly:
+Specify the target directory name to skip tool selection (skill selection still appears):
 
 ```bash
-./scripts/setup-skills .copilot   # Github Copilot
-./scripts/setup-skills .claude    # Claude Code
-./scripts/setup-skills .cursor    # Cursor
+python3 scripts/setup_skills.py .copilot   # Github Copilot
+python3 scripts/setup_skills.py .claude    # Claude Code
+python3 scripts/setup_skills.py .cursor    # Cursor
 ```
 
 ### Supported tools and skills paths
 
-| # | Tool | User-level skills path |
+All config directories are relative to the user home directory (`~` on macOS/Linux, `%USERPROFILE%` on Windows).
+
+| # | Tool | Skills path |
 |---|---|---|
 | 1 | Copilot CLI / VS Code | `~/.copilot/skills/` |
 | 2 | Claude Code | `~/.claude/skills/` |
@@ -112,7 +123,7 @@ ai-skills/
 ├── docs/
 │   └── INSTALLATION.md       # CLI dependency installation guide
 ├── scripts/
-│   └── setup-skills            # Installation script for AI assistants
+│   └── setup_skills.py         # Interactive installer with multi-select UI
 ├── AGENTS.md                 # Developer guidelines for agents
 ├── LICENSE                   # MIT License
 └── README.md                 # This file
