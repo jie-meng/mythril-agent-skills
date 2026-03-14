@@ -2,6 +2,7 @@
 name: code-review-pr
 description: >
   Comprehensive structured code review for GitHub Pull Requests with deep repository context awareness.
+  GitHub ONLY — does NOT support GitLab, Gitee, Bitbucket, or other platforms.
   Trigger when user requests: 'review PR', 'review this PR', 'PR review', 'PR CR', '审查PR', '看这个PR',
   'review pull request', 'help me review', or provides a GitHub PR URL and asks for review.
   Fetches PR metadata, diff, full file contents of modified files, project structure, and coding
@@ -20,6 +21,8 @@ description: >
 
 **This skill reviews remote GitHub PRs (not local staged changes).**
 For local staged changes, use `code-review-staged` instead.
+
+**GitHub ONLY.** This skill does NOT support GitLab, Gitee, Bitbucket, or other git hosting platforms. If the user provides a non-GitHub URL, inform them immediately and stop.
 
 # Requirements
 
@@ -46,13 +49,22 @@ For local staged changes, use `code-review-staged` instead.
 
 The skill executes these steps:
 
-## Step 1: Parse PR Reference
+## Step 1: Parse PR Reference and Validate Platform
 
 Accept PR input in any of these formats:
 - Full URL: `https://github.com/owner/repo/pull/123`
 - GitHub Enterprise URL: `https://github-host/owner/repo/pull/123`
 - PR number (when inside a repo): `123`
 - PR number with repo: `owner/repo#123`
+
+**Platform validation (do this FIRST if a URL is provided):**
+If the URL contains any of these non-GitHub hosts, **stop immediately** and inform the user that this skill only supports GitHub PRs:
+- `gitlab.com` or any `gitlab.*` domain
+- `gitee.com`
+- `bitbucket.org`
+- Any other non-GitHub git hosting platform
+
+Tell the user: this skill relies on `gh` CLI and only works with GitHub. Suggest they review the PR manually or use platform-specific tools.
 
 Extract: **owner**, **repo**, **PR number**, and optionally **hostname** (for GHE).
 
@@ -298,6 +310,7 @@ After the review is complete:
 
 ## Error Handling
 
+- **Non-GitHub platform**: If user provides a GitLab, Gitee, Bitbucket, or other non-GitHub URL, stop immediately and inform the user this skill only supports GitHub PRs. Do NOT attempt to run `gh` commands against non-GitHub URLs.
 - **`gh` not installed**: Report error and suggest running `skills-check code-review-pr`
 - **`gh` not authenticated**: Report error and suggest `gh auth login`
 - **PR not found**: Verify URL/number and repo access

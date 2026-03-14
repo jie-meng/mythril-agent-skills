@@ -76,7 +76,19 @@ BOLD = "\033[1m"
 DIM = "\033[2m"
 NC = "\033[0m"
 
-CHECKABLE_SKILLS = ["gh-operations", "code-review-pr", "jira", "confluence", "figma"]
+SKILL_GH_OPERATIONS = "gh-operations"
+SKILL_CODE_REVIEW_PR = "code-review-pr"
+SKILL_JIRA = "jira"
+SKILL_CONFLUENCE = "confluence"
+SKILL_FIGMA = "figma"
+
+CHECKABLE_SKILLS = [
+    SKILL_GH_OPERATIONS,
+    SKILL_CODE_REVIEW_PR,
+    SKILL_JIRA,
+    SKILL_CONFLUENCE,
+    SKILL_FIGMA,
+]
 
 
 def _detect_shell_config() -> Path:
@@ -481,15 +493,15 @@ def main() -> None:
 
     all_configured = True
 
-    if "gh-operations" in skills or "code-review-pr" in skills:
+    if SKILL_GH_OPERATIONS in skills or SKILL_CODE_REVIEW_PR in skills:
         if not check_gh_operations(config_path):
             all_configured = False
 
-    if "jira" in skills or "confluence" in skills:
+    if SKILL_JIRA in skills or SKILL_CONFLUENCE in skills:
         if not check_atlassian(config_path):
             all_configured = False
 
-    if "figma" in skills:
+    if SKILL_FIGMA in skills:
         if not check_figma(config_path):
             all_configured = False
 
