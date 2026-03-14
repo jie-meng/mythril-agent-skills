@@ -6,7 +6,7 @@ Automatically installs missing CLI tools (with user confirmation), prompts
 for missing API keys/tokens, and saves them to the user's shell config file.
 
 Usage:
-    skills-check                    # Check all skills
+    skills-check                    # Interactive: select skills to check
     skills-check gh-operations jira # Check specific skills
 """
 
@@ -21,6 +21,54 @@ import subprocess
 import sys
 from pathlib import Path
 
+IS_WINDOWS = platform.system() == "Windows"
+IS_MACOS = platform.system() == "Darwin"
+IS_LINUX = platform.system() == "Linux"
+
+
+# --- Platform bootstrap ---
+
+
+def _enable_windows_ansi() -> None:
+    """Enable ANSI escape sequences on Windows 10+ terminals."""
+    if not IS_WINDOWS:
+        return
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        handle = kernel32.GetStdHandle(-11)
+        mode = ctypes.c_ulong()
+        kernel32.GetConsoleMode(handle, ctypes.byref(mode))
+        kernel32.SetConsoleMode(handle, mode.value | 4)
+    except Exception:
+        pass
+
+
+def _ensure_curses() -> None:
+    """Import curses, auto-installing windows-curses on Windows if needed."""
+    try:
+        import curses as _  # noqa: F401
+    except ImportError:
+        if IS_WINDOWS:
+            print("Installing windows-curses ...")
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", "windows-curses"],
+                stdout=subprocess.DEVNULL,
+            )
+        else:
+            print(
+                "Error: curses module not available. "
+                "Please install Python with curses support."
+            )
+            sys.exit(1)
+
+
+_enable_windows_ansi()
+_ensure_curses()
+
+import curses  # noqa: E402 — must import after _ensure_curses()
+
 GREEN = "\033[0;32m"
 YELLOW = "\033[1;33m"
 RED = "\033[0;31m"
@@ -28,9 +76,7 @@ BOLD = "\033[1m"
 DIM = "\033[2m"
 NC = "\033[0m"
 
-IS_WINDOWS = platform.system() == "Windows"
-IS_MACOS = platform.system() == "Darwin"
-IS_LINUX = platform.system() == "Linux"
+CHECKABLE_SKILLS = ["gh-operations", "jira", "figma"]
 
 
 def _detect_shell_config() -> Path:
@@ -306,15 +352,125 @@ def check_figma(config_path: Path) -> bool:
     return False
 
 
+# --- Curses multi-select UI ---
+
+
+def curses_multi_select(
+    stdscr: curses.window,
+    title: str,
+    items: list[str],
+    preselected: list[bool] | None = None,
+) -> list[int] | None:
+    """Interactive multi-select with arrow keys, space, and enter.
+
+    Returns list of selected indices, or None if user cancelled (q/Esc).
+    """
+    curses.curs_set(0)
+    curses.use_default_colors()
+    curses.init_pair(1, curses.COLOR_CYAN, -1)
+    curses.init_pair(2, curses.COLOR_GREEN, -1)
+    curses.init_pair(3, curses.COLOR_YELLOW, -1)
+
+    selected = list(preselected) if preselected else [True] * len(items)
+    cursor = 0
+    all_item = "Select All / Deselect All"
+    total_items = 1 + len(items)
+
+    def draw() -> None:
+        stdscr.clear()
+        stdscr.addstr(0, 0, title, curses.A_BOLD)
+        hint = "Up/Down move | Space toggle | a all/none | Enter confirm | q quit"
+        stdscr.addstr(1, 0, hint, curses.color_pair(3))
+
+        row = 3
+        all_selected = all(selected)
+        marker = "[x]" if all_selected else "[ ]"
+        attr = curses.A_REVERSE if cursor == 0 else 0
+        try:
+            stdscr.addstr(
+                row, 0, f"  {marker}  {all_item}", attr | curses.color_pair(1)
+            )
+        except curses.error:
+            pass
+
+        row += 1
+        try:
+            stdscr.addstr(row, 0, "  " + "-" * 36, curses.color_pair(1))
+        except curses.error:
+            pass
+
+        row += 1
+        for i, item in enumerate(items):
+            marker = "[x]" if selected[i] else "[ ]"
+            attr = curses.A_REVERSE if cursor == i + 1 else 0
+            color = curses.color_pair(2) if selected[i] else 0
+            try:
+                stdscr.addstr(row + i, 0, f"  {marker}  {item}", attr | color)
+            except curses.error:
+                pass
+
+        count = sum(selected)
+        try:
+            stdscr.addstr(
+                row + len(items) + 1,
+                0,
+                f"  {count}/{len(items)} selected",
+                curses.color_pair(3),
+            )
+        except curses.error:
+            pass
+
+        stdscr.refresh()
+
+    while True:
+        draw()
+        key = stdscr.getch()
+
+        if key == curses.KEY_UP or key == ord("k"):
+            cursor = (cursor - 1) % total_items
+        elif key == curses.KEY_DOWN or key == ord("j"):
+            cursor = (cursor + 1) % total_items
+        elif key == ord(" "):
+            if cursor == 0:
+                new_val = not all(selected)
+                selected = [new_val] * len(items)
+            else:
+                selected[cursor - 1] = not selected[cursor - 1]
+        elif key == ord("a"):
+            new_val = not all(selected)
+            selected = [new_val] * len(items)
+        elif key in (curses.KEY_ENTER, 10, 13):
+            return [i for i, s in enumerate(selected) if s]
+        elif key in (ord("q"), 27):
+            return None
+
+
+def select_skills_interactive() -> list[str] | None:
+    """Launch curses UI to select skills to check. Returns skill names or None."""
+    indices = curses.wrapper(
+        curses_multi_select,
+        "Select skills to check:",
+        CHECKABLE_SKILLS,
+        [True] * len(CHECKABLE_SKILLS),
+    )
+    if indices is None:
+        return None
+    return [CHECKABLE_SKILLS[i] for i in indices]
+
+
 # --- Main ---
 
 
 def main() -> None:
     skills = sys.argv[1:]
     if not skills:
-        return
+        skills_selection = select_skills_interactive()
+        if skills_selection is None or len(skills_selection) == 0:
+            print("No skills selected. Aborted.")
+            return
+        skills = skills_selection
 
-    needs_config = any(s in skills for s in ["gh-operations", "jira", "figma"])
+    needs_config = any(s in skills for s in CHECKABLE_SKILLS)
 
     if not needs_config:
         return

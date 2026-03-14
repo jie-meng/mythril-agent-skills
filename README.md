@@ -71,16 +71,14 @@ Clone if you want to create new skills, modify existing ones, or contribute:
 ```bash
 git clone https://github.com/jie-meng/mythril-agent-skills.git
 cd mythril-agent-skills
-pip install -e .          # Install in development mode
 ```
 
-Then use the same commands (`skills-setup`, `skills-cleanup`, `skills-check`).
-
-You can also run the scripts directly without installing:
+Run the scripts directly — no installation needed:
 
 ```bash
-python3 scripts/skills-setup.py
-python3 scripts/skills-cleanup.py
+python3 scripts/skills-setup.py       # Interactive installer
+python3 scripts/skills-cleanup.py     # Interactive remover
+python3 scripts/skills-check.py       # Dependency checker
 ```
 
 ---
