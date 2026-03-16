@@ -192,7 +192,6 @@ Structure the review into these sections:
 - **No staged changes**: Report that no staged changes found and suggest using `git add`
 - **Not a git repo**: Report and suggest navigating to a git repository
 - **Language detection failure**: Default to English review
-- **Clipboard failure**: *(no longer applicable — clipboard copying removed)*
 - **Large diff (>50 files)**: Warn the user; focus on the most critical files
 
 ## Examples
