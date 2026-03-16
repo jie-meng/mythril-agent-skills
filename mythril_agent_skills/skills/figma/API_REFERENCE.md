@@ -630,13 +630,39 @@ All paint objects have `type`, `visible` (default `true`), and `opacity` (defaul
 
 ## Rate Limits
 
-Updated November 2025. Limits are per-minute per token (or per-month for Viewer seats on Tier 1).
+Updated November 17, 2025. Limits vary by **API tier**, **Figma plan**, and **seat type**. For personal access tokens, limits are per-user, per-plan. For OAuth, per-user, per-plan, per-app.
 
-| Tier | Endpoints | Developer seat |
-|---|---|---|
-| **Tier 1** | GET /files, GET /files/nodes | 10–20/min (Professional–Enterprise) |
-| **Tier 2** | Metadata, components, styles | 25–100/min |
-| **Tier 3** | Comments, images | 50–150/min |
+**CRITICAL**: View/Collab seats on Tier 1 are limited to **6 requests per MONTH** (not per minute). This affects `GET /files`, `GET /files/nodes`, and `GET /images` — the endpoints used by this skill's scripts. If you consistently get 429 errors, check your seat type.
+
+### Tier assignments
+
+| Tier | Endpoints |
+|---|---|
+| **Tier 1** | `GET /v1/files/:key`, `GET /v1/files/:key/nodes`, `GET /v1/images/:key` |
+| **Tier 2** | `GET /v1/files/:key/meta`, components, styles, variables |
+| **Tier 3** | Comments, versions, teams/projects |
+
+### Rate limit table (per minute unless noted)
+
+| Tier | Seat | Starter | Professional | Organization | Enterprise |
+|---|---|---|---|---|---|
+| **Tier 1** | View, Collab | 6/month | 6/month | 6/month | 6/month |
+| | Dev, Full | 10/min | 15/min | 20/min | 20/min |
+| **Tier 2** | View, Collab | 5/min | 5/min | 5/min | 5/min |
+| | Dev, Full | 25/min | 50/min | 100/min | 100/min |
+| **Tier 3** | View, Collab | 10/min | 10/min | 10/min | 10/min |
+| | Dev, Full | 50/min | 100/min | 150/min | 150/min |
+
+### 429 response headers
+
+| Header | Description |
+|---|---|
+| `Retry-After` | Seconds to wait before retrying |
+| `X-Figma-Plan-Tier` | `starter`, `pro`, `org`, `enterprise` |
+| `X-Figma-Rate-Limit-Type` | `high` (Dev/Full seat) or `low` (View/Collab seat) |
+| `X-Figma-Upgrade-Link` | Link to pricing/settings page |
+
+Figma uses a **leaky bucket** algorithm. View/Collab limits may be lower than stated during high traffic.
 
 **Pagination**: Use `page_size` (max 1000) + `cursor` (`before`/`after`) for list endpoints.
 

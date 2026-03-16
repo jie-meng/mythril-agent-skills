@@ -34,6 +34,54 @@ def parse_figma_url(url):
     return file_key, node_id
 
 
+def _handle_rate_limit(e, path):
+    """Parse 429 response headers and print actionable diagnostics."""
+    retry_after = e.headers.get("Retry-After", "")
+    plan_tier = e.headers.get("X-Figma-Plan-Tier", "unknown")
+    limit_type = e.headers.get("X-Figma-Rate-Limit-Type", "unknown")
+    upgrade_link = e.headers.get("X-Figma-Upgrade-Link", "")
+
+    print(f"ERROR: Figma API 429 Rate Limited for {path}", file=sys.stderr)
+    print(f"  Plan tier   : {plan_tier}", file=sys.stderr)
+    print(f"  Limit type  : {limit_type}", file=sys.stderr)
+    if retry_after:
+        print(f"  Retry after : {retry_after}s", file=sys.stderr)
+
+    if limit_type == "low":
+        print("", file=sys.stderr)
+        print(
+            "  Your Figma seat is View or Collab. Tier 1 endpoints (GET /files,",
+            file=sys.stderr,
+        )
+        print(
+            "  /files/nodes, /images) are limited to 6 requests PER MONTH for",
+            file=sys.stderr,
+        )
+        print(
+            "  View/Collab seats (since Nov 2025). This is NOT a per-minute limit.",
+            file=sys.stderr,
+        )
+        print("", file=sys.stderr)
+        print(
+            "  FIX: Upgrade to a Dev or Full seat to get 10–20 requests/minute.",
+            file=sys.stderr,
+        )
+    else:
+        print("", file=sys.stderr)
+        print(
+            "  You have a Dev/Full seat but exceeded per-minute limits.",
+            file=sys.stderr,
+        )
+        if retry_after:
+            print(
+                f"  Wait {retry_after} seconds before retrying.",
+                file=sys.stderr,
+            )
+
+    if upgrade_link:
+        print(f"  Upgrade/settings: {upgrade_link}", file=sys.stderr)
+
+
 def figma_get(path, token, **params):
     url = f"https://api.figma.com{path}"
     if params:
@@ -43,6 +91,9 @@ def figma_get(path, token, **params):
         with urllib.request.urlopen(req, timeout=30) as resp:
             return json.loads(resp.read())
     except urllib.error.HTTPError as e:
+        if e.code == 429:
+            _handle_rate_limit(e, path)
+            sys.exit(1)
         body = e.read().decode(errors="replace")
         print(f"ERROR: Figma API {e.code} for {path}: {body}", file=sys.stderr)
         sys.exit(1)
