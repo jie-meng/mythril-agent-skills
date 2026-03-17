@@ -20,6 +20,7 @@ A skill is a prompt/instruction bundle that teaches an AI assistant how to handl
 | [Code Review (Local Branch Diff)](./mythril_agent_skills/skills/branch-diff-review/) | Context-aware code review for branch differences using pure local git operations. No platform API needed — works with any git repo (GitHub, GitLab, Gitee, Bitbucket, self-hosted, etc.). | "branch diff review", "branch review", "review feat/xxx to main", "compare branches for review" | — |
 | [Code Review (Github PR)](./mythril_agent_skills/skills/github-code-review-pr/) | Context-aware code review for Pull Requests via `gh` CLI. Supports github.com and GitHub Enterprise (any domain). Uses partial clone and sparse checkout for deep repo context. | "review PR", "PR review", any URL containing `/pull/` with a review request | `gh` CLI |
 | [GH Operations](./mythril_agent_skills/skills/gh-operations/) | Use GitHub CLI (`gh`) for issue and pull-request workflows: read/write issues, inspect PRs, create PRs, and read commits. | "use gh", "gh issue", "gh pr", or commit lookup requests | `gh` CLI |
+| [ImageMagick](./mythril_agent_skills/skills/imagemagick/) | Process and manipulate images via ImageMagick CLI. Supports resizing, format conversion, cropping, thumbnails, effects, watermarks, batch processing, and metadata extraction. | "resize image", "convert to webp", "image thumbnail", "batch resize", "compress image", "add watermark", "imagemagick" | `magick` CLI |
 
 ---
 
@@ -198,6 +199,7 @@ mythril-agent-skills/
 │       ├── skill-creator/       # Create and improve skills
 │       ├── figma/               # Design extraction from Figma
 │       ├── gh-operations/       # GitHub CLI issue/PR/commit workflows
+│       ├── imagemagick/          # Image processing via ImageMagick CLI
 │       ├── jira/                # Jira REST API issue/sprint/board workflows
 │       └── code-review-staged/  # Structured code reviews
 ├── scripts/                     # Dev scripts & backward-compatible wrappers

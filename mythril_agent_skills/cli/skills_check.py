@@ -81,6 +81,7 @@ SKILL_CODE_REVIEW_PR = "github-code-review-pr"
 SKILL_JIRA = "jira"
 SKILL_CONFLUENCE = "confluence"
 SKILL_FIGMA = "figma"
+SKILL_IMAGEMAGICK = "imagemagick"
 
 CHECKABLE_SKILLS = [
     SKILL_GH_OPERATIONS,
@@ -88,6 +89,7 @@ CHECKABLE_SKILLS = [
     SKILL_JIRA,
     SKILL_CONFLUENCE,
     SKILL_FIGMA,
+    SKILL_IMAGEMAGICK,
 ]
 
 
@@ -364,6 +366,89 @@ def check_figma(config_path: Path) -> bool:
     return False
 
 
+# --- ImageMagick ---
+
+
+def _install_imagemagick() -> bool:
+    """Attempt to install ImageMagick based on platform."""
+    if IS_MACOS:
+        if shutil.which("brew"):
+            print(f"    {YELLOW}Installing ImageMagick via Homebrew...{NC}")
+            result = subprocess.run(
+                ["brew", "install", "imagemagick"], capture_output=False
+            )
+            return result.returncode == 0
+        else:
+            print(f"    {RED}Homebrew not found.{NC} Install ImageMagick manually:")
+            print("      brew install imagemagick")
+            print("      https://imagemagick.org/script/download.php")
+            return False
+    elif IS_LINUX:
+        if shutil.which("apt-get"):
+            print(f"    {YELLOW}Installing ImageMagick via apt...{NC}")
+            result = subprocess.run(
+                ["sudo", "apt-get", "install", "-y", "imagemagick"],
+                capture_output=False,
+            )
+            return result.returncode == 0
+        elif shutil.which("dnf"):
+            print(f"    {YELLOW}Installing ImageMagick via dnf...{NC}")
+            result = subprocess.run(
+                ["sudo", "dnf", "install", "-y", "ImageMagick"],
+                capture_output=False,
+            )
+            return result.returncode == 0
+        else:
+            print(f"    {RED}No supported package manager found.{NC}")
+            print("      Install manually: https://imagemagick.org/script/download.php")
+            return False
+    elif IS_WINDOWS:
+        if shutil.which("winget"):
+            print(f"    {YELLOW}Installing ImageMagick via winget...{NC}")
+            result = subprocess.run(
+                ["winget", "install", "--id", "ImageMagick.ImageMagick"],
+                capture_output=False,
+            )
+            return result.returncode == 0
+        else:
+            print(f"    {RED}winget not found.{NC} Install ImageMagick manually:")
+            print("      https://imagemagick.org/script/download.php")
+            return False
+    return False
+
+
+def check_imagemagick(config_path: Path) -> bool:
+    """Check and configure ImageMagick CLI."""
+    print(f"\n{BOLD}ImageMagick (magick):{NC}")
+
+    if not shutil.which("magick"):
+        print(f"  Status:   {RED}NOT INSTALLED{NC}")
+        if _confirm("Install ImageMagick now?"):
+            if not _install_imagemagick():
+                return False
+            if not shutil.which("magick"):
+                print(f"    {RED}magick still not found after install.{NC}")
+                return False
+            print(f"    {GREEN}ImageMagick installed successfully.{NC}")
+        else:
+            print(
+                f"    {DIM}Skipped. Install manually: "
+                f"https://imagemagick.org/script/download.php{NC}"
+            )
+            return False
+
+    version = _run_command(["magick", "-version"])
+    if version.returncode == 0:
+        first_line = version.stdout.strip().splitlines()[0] if version.stdout.strip() else ""
+        print(f"  Status:   {GREEN}installed{NC}")
+        if first_line:
+            print(f"  Version:  {DIM}{first_line}{NC}")
+    else:
+        print(f"  Status:   {GREEN}installed{NC}")
+
+    return True
+
+
 # --- Curses multi-select UI ---
 
 
@@ -503,6 +588,10 @@ def main() -> None:
 
     if SKILL_FIGMA in skills:
         if not check_figma(config_path):
+            all_configured = False
+
+    if SKILL_IMAGEMAGICK in skills:
+        if not check_imagemagick(config_path):
             all_configured = False
 
     print()
