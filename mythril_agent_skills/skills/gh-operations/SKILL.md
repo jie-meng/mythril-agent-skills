@@ -1,13 +1,16 @@
 ---
 name: gh-operations
 description: >
-  Use GitHub CLI (`gh`) for common GitHub workflows from terminal. Trigger whenever
-  the user asks to read/write issues, view pull requests, create PRs, read commit
-  details, or says phrases like "use gh", "gh issue", "gh pr", "创建PR", "看PR",
-  "读 commit". Prefer `gh` commands (including `gh api` when needed), return clear
-  action summaries, and handle auth/repo/permission errors explicitly. When users
-  provide full issue/PR URLs, pass the URL directly to `gh` (URL-first) instead
-  of rewriting into issue/PR number plus repo flags.
+  Use GitHub CLI (`gh`) for GitHub issue/PR workflows from terminal. Trigger whenever
+  the user asks to read/write issues, view/create pull requests, add PR comments
+  (including inline line-level review comments), or explicitly asks to use `gh` /
+  GitHub CLI. Typical phrases include "use gh", "gh issue", "gh pr", "创建PR",
+  "看PR", "在PR某行加comment", "行内评论", "对应那一行加评论", "用gh评论PR". Prefer
+  `gh` commands (including `gh api` when needed), return clear action summaries,
+  and handle auth/repo/permission errors explicitly. When users provide full
+  issue/PR URLs, pass the URL directly to `gh` (URL-first) instead of rewriting
+  into issue/PR number plus repo flags. For generic local commit/history reads
+  without GitHub API context, prefer plain `git` commands.
 license: Apache-2.0
 ---
 
@@ -16,9 +19,16 @@ license: Apache-2.0
 Use this skill whenever the user wants GitHub operations through `gh`, especially:
 
 - Issue operations: list, read, create, edit, comment, close, reopen
-- PR operations: list, inspect, review context, create PR
-- Commit operations: read commit details, changed files, and commit history
+- PR operations: list, inspect, review context, create PR, and add comments
+- Inline review comments: comment on a specific file/line in a PR diff
 - Requests mentioning `gh`, GitHub CLI, or command-line GitHub workflows
+
+Scope boundary:
+
+- Generic local commit/history requests (`git log`, `git show`) are usually better
+  handled by plain `git`.
+- Use `gh api` for commit metadata only when the user explicitly requests `gh` or
+  needs GitHub-hosted metadata tied to a remote repository context.
 
 # Workflow
 
@@ -107,9 +117,38 @@ gh pr create --draft --fill
 gh pr create --reviewer monalisa --label enhancement
 ```
 
-## 4) Commit reading (`gh api` + repo context)
+### Comment on PR (general + inline)
 
-When commit-level details are requested, use `gh api`:
+General PR comment:
+
+```bash
+gh pr comment 456 --body "Thanks! Please add a regression test for this branch."
+gh pr comment "https://github.com/OWNER/REPO/pull/456" --body "I left one concern on failure-state handling."
+gh pr comment "https://<github-host>/OWNER/REPO/pull/456" --body "Please clarify expected behavior here."
+```
+
+Inline (line-level) review comment on a PR diff line:
+
+```bash
+HEAD_SHA=$(gh pr view 456 --json headRefOid -q .headRefOid)
+gh api repos/OWNER/REPO/pulls/456/comments \
+  -X POST \
+  -f body='Can we add a success->failure transition test here?' \
+  -f commit_id="$HEAD_SHA" \
+  -f path='path/in/repo/file.swift' \
+  -F line=41 \
+  -f side='RIGHT'
+```
+
+Notes:
+
+- `line` is the line number in the PR diff context for the target side.
+- For enterprise hosts, keep using URL-first reads and authenticated host context.
+
+## 4) Optional: GitHub commit metadata (`gh api` + repo context)
+
+Use this only when commit metadata is needed from GitHub's API (or the user
+explicitly asks for `gh`-based commit operations):
 
 ```bash
 gh api repos/{owner}/{repo}/commits/<sha>
