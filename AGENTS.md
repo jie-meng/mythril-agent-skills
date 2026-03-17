@@ -25,6 +25,8 @@ mythril-agent-skills/
 │   │   └── skills_check.py      # Dependency checker & configurator
 │   └── skills/                  # Bundled skill definitions
 ├── scripts/                     # Backward-compatible wrappers (for dev use)
+│   └── sync-upstream.py         # Fork upstream sync tool
+├── .sync-upstream.yaml          # Upstream sync config (for forks)
 ├── pyproject.toml               # Package configuration
 └── ...
 ```
@@ -101,6 +103,18 @@ python3 scripts/skills-cleanup.py
 python3 scripts/skills-check.py gh-operations jira figma
 python3 scripts/skills-clean-cache.py
 ```
+
+### Fork upstream sync
+
+For users who fork this repository to maintain private skills, a sync script keeps the fork up to date with upstream:
+
+```bash
+python3 scripts/sync-upstream.py              # Interactive sync
+python3 scripts/sync-upstream.py --dry-run     # Preview only
+python3 scripts/sync-upstream.py --force        # No confirmation
+```
+
+Configuration is in `.sync-upstream.yaml` (repo root). The `exclude_skills` list prevents specific skills from being overwritten during sync. See [docs/FORK-SYNC.md](./docs/FORK-SYNC.md) for details.
 
 ### Supported tools
 

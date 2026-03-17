@@ -103,6 +103,32 @@ python3 scripts/skills-cleanup.py     # Interactive remover
 python3 scripts/skills-check.py       # Dependency checker
 ```
 
+### Option C: Fork for private skills
+
+If you want to maintain **your own private skills** while staying up to date with the upstream repository:
+
+1. Fork this repo on GitHub
+2. Add your own skills under `mythril_agent_skills/skills/`
+3. Exclude your custom skills from upstream sync in `.sync-upstream.yaml`:
+
+```yaml
+exclude_skills:
+  - my-custom-skill
+  - jira   # if you've customized an existing skill
+```
+
+4. Sync upstream changes anytime:
+
+```bash
+python3 scripts/sync-upstream.py              # Interactive sync
+python3 scripts/sync-upstream.py --dry-run     # Preview changes only
+python3 scripts/sync-upstream.py --force        # Apply without confirmation
+```
+
+The sync script updates skills, CLI tools, docs, and even itself — while preserving your excluded custom skills.
+
+For the full guide, see **[docs/FORK-SYNC.md](./docs/FORK-SYNC.md)**.
+
 ---
 
 ## How the Installer Works
@@ -205,9 +231,12 @@ mythril-agent-skills/
 │       ├── jira/                # Jira REST API issue/sprint/board workflows
 │       └── code-review-staged/  # Structured code reviews
 ├── scripts/                     # Dev scripts & backward-compatible wrappers
+│   └── sync-upstream.py         # Fork upstream sync tool
 ├── docs/
 │   ├── INSTALLATION.md          # Full dependency reference
-│   └── PUBLISHING.md            # PyPI publishing & testing guide
+│   ├── PUBLISHING.md            # PyPI publishing & testing guide
+│   └── FORK-SYNC.md             # Fork sync guide
+├── .sync-upstream.yaml          # Upstream sync configuration (for forks)
 ├── pyproject.toml               # Package configuration
 ├── AGENTS.md                    # Developer guidelines for agents
 ├── LICENSE                      # Apache 2.0 License
