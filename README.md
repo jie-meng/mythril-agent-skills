@@ -21,6 +21,7 @@ A skill is a prompt/instruction bundle that teaches an AI assistant how to handl
 | [Code Review (Github PR)](./mythril_agent_skills/skills/github-code-review-pr/) | Context-aware code review for Pull Requests via `gh` CLI. Supports github.com and GitHub Enterprise (any domain). Uses partial clone and sparse checkout for deep repo context. | "review PR", "PR review", any URL containing `/pull/` with a review request | `gh` CLI |
 | [GH Operations](./mythril_agent_skills/skills/gh-operations/) | Use GitHub CLI (`gh`) for issue and pull-request workflows: read/write issues, inspect PRs, create PRs, and read commits. | "use gh", "gh issue", "gh pr", or commit lookup requests | `gh` CLI |
 | [ImageMagick](./mythril_agent_skills/skills/imagemagick/) | Process and manipulate images via ImageMagick CLI. Supports resizing, format conversion, cropping, thumbnails, effects, watermarks, batch processing, and metadata extraction. | "resize image", "convert to webp", "image thumbnail", "batch resize", "compress image", "add watermark", "imagemagick" | `magick` CLI |
+| [FFmpeg](./mythril_agent_skills/skills/ffmpeg/) | Process and manipulate video and audio files via FFmpeg CLI. Supports transcoding, format conversion, trimming, merging, resizing, compression, extracting audio, subtitles, GIF creation, and audio format conversion (MP3, WAV, PCM, OGG, AAC, FLAC, OPUS). | "convert video", "compress video", "trim video", "extract audio", "mp3 to wav", "convert audio", "video to gif", "ffmpeg" | `ffmpeg` CLI |
 
 ---
 
@@ -199,7 +200,8 @@ mythril-agent-skills/
 │       ├── skill-creator/       # Create and improve skills
 │       ├── figma/               # Design extraction from Figma
 │       ├── gh-operations/       # GitHub CLI issue/PR/commit workflows
-│       ├── imagemagick/          # Image processing via ImageMagick CLI
+│       ├── ffmpeg/              # Video & audio processing via FFmpeg CLI
+│       ├── imagemagick/         # Image processing via ImageMagick CLI
 │       ├── jira/                # Jira REST API issue/sprint/board workflows
 │       └── code-review-staged/  # Structured code reviews
 ├── scripts/                     # Dev scripts & backward-compatible wrappers

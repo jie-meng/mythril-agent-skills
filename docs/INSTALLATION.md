@@ -5,7 +5,7 @@
 Run the interactive dependency checker — it will detect missing tools, install them, and prompt for API keys:
 
 ```bash
-skills-check gh-operations jira figma
+skills-check gh-operations jira figma imagemagick ffmpeg
 ```
 
 The checker handles everything described in this document automatically.
@@ -135,6 +135,52 @@ export FIGMA_ACCESS_TOKEN="<token>"
 ```bash
 python3 <path-to-skills>/figma/scripts/figma_fetch.py "https://www.figma.com/design/<file-key>/Name"
 ```
+
+---
+
+### ImageMagick (`magick`)
+
+**Required by**: [imagemagick](../mythril_agent_skills/skills/imagemagick/)
+
+Check:
+
+```bash
+magick -version
+```
+
+If `magick` is not installed:
+
+- **macOS**: `brew install imagemagick`
+- **Ubuntu/Debian**: `sudo apt-get install imagemagick`
+- **Fedora/RHEL**: `sudo dnf install ImageMagick`
+- **Windows (winget)**: `winget install --id ImageMagick.ImageMagick`
+- **Windows**: Download from https://imagemagick.org/script/download.php
+
+> On older systems with ImageMagick 6.x, use `convert` instead of `magick`.
+
+---
+
+### FFmpeg (`ffmpeg`, `ffprobe`)
+
+**Required by**: [ffmpeg](../mythril_agent_skills/skills/ffmpeg/)
+
+Check:
+
+```bash
+ffmpeg -version
+ffprobe -version
+```
+
+If `ffmpeg` is not installed:
+
+- **macOS**: `brew install ffmpeg`
+- **Ubuntu/Debian**: `sudo apt-get install ffmpeg`
+- **Fedora/RHEL**: `sudo dnf install ffmpeg-free` (or enable RPM Fusion for full `ffmpeg`)
+- **Windows (scoop)**: `scoop install ffmpeg`
+- **Windows (choco)**: `choco install ffmpeg`
+- **Windows (winget)**: `winget install --id Gyan.FFmpeg`
+
+`ffprobe` is bundled with FFmpeg and should be available automatically after installing `ffmpeg`.
 
 ---
 

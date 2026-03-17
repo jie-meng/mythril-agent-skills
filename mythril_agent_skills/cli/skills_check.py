@@ -82,6 +82,7 @@ SKILL_JIRA = "jira"
 SKILL_CONFLUENCE = "confluence"
 SKILL_FIGMA = "figma"
 SKILL_IMAGEMAGICK = "imagemagick"
+SKILL_FFMPEG = "ffmpeg"
 
 CHECKABLE_SKILLS = [
     SKILL_GH_OPERATIONS,
@@ -90,6 +91,7 @@ CHECKABLE_SKILLS = [
     SKILL_CONFLUENCE,
     SKILL_FIGMA,
     SKILL_IMAGEMAGICK,
+    SKILL_FFMPEG,
 ]
 
 
@@ -194,6 +196,45 @@ def _run_command(
     )
 
 
+# --- Platform install hints ---
+
+_GH_INSTALL_HINTS: dict[str, list[str]] = {
+    "macOS": ["brew install gh"],
+    "Linux (Debian/Ubuntu)": ["sudo apt-get install gh"],
+    "Linux (Fedora/RHEL)": ["sudo dnf install gh"],
+    "Windows (scoop)": ["scoop install gh"],
+    "Windows (choco)": ["choco install gh"],
+    "Windows (winget)": ["winget install --id GitHub.cli"],
+}
+
+_IMAGEMAGICK_INSTALL_HINTS: dict[str, list[str]] = {
+    "macOS": ["brew install imagemagick"],
+    "Linux (Debian/Ubuntu)": ["sudo apt-get install imagemagick"],
+    "Linux (Fedora/RHEL)": ["sudo dnf install ImageMagick"],
+    "Windows (scoop)": ["scoop install imagemagick"],
+    "Windows (choco)": ["choco install imagemagick"],
+    "Windows (winget)": ["winget install --id ImageMagick.ImageMagick"],
+}
+
+_FFMPEG_INSTALL_HINTS: dict[str, list[str]] = {
+    "macOS": ["brew install ffmpeg"],
+    "Linux (Debian/Ubuntu)": ["sudo apt-get install ffmpeg"],
+    "Linux (Fedora/RHEL)": ["sudo dnf install ffmpeg-free"],
+    "Windows (scoop)": ["scoop install ffmpeg"],
+    "Windows (choco)": ["choco install ffmpeg"],
+    "Windows (winget)": ["winget install --id Gyan.FFmpeg"],
+}
+
+
+def _print_install_hints(hints: dict[str, list[str]], url: str) -> None:
+    """Print platform-specific install commands."""
+    print(f"    {BOLD}Install options:{NC}")
+    for platform_name, cmds in hints.items():
+        for cmd in cmds:
+            print(f"      {DIM}{platform_name}:{NC} {cmd}")
+    print(f"      {DIM}More info:{NC} {url}")
+
+
 # --- GitHub CLI ---
 
 
@@ -208,7 +249,7 @@ def _install_gh() -> bool:
             return result.returncode == 0
         else:
             print(f"    {RED}Homebrew not found.{NC} Install gh manually:")
-            print("      https://cli.github.com/")
+            _print_install_hints(_GH_INSTALL_HINTS, "https://cli.github.com/")
             return False
     elif IS_LINUX:
         if shutil.which("apt-get"):
@@ -240,10 +281,22 @@ def _install_gh() -> bool:
             return result.returncode == 0
         else:
             print(f"    {RED}No supported package manager found.{NC}")
-            print("      Install manually: https://cli.github.com/")
+            _print_install_hints(_GH_INSTALL_HINTS, "https://cli.github.com/")
             return False
     elif IS_WINDOWS:
-        if shutil.which("winget"):
+        if shutil.which("scoop"):
+            print(f"    {YELLOW}Installing gh via scoop...{NC}")
+            result = subprocess.run(
+                ["scoop", "install", "gh"], capture_output=False
+            )
+            return result.returncode == 0
+        elif shutil.which("choco"):
+            print(f"    {YELLOW}Installing gh via Chocolatey...{NC}")
+            result = subprocess.run(
+                ["choco", "install", "gh", "-y"], capture_output=False
+            )
+            return result.returncode == 0
+        elif shutil.which("winget"):
             print(f"    {YELLOW}Installing gh via winget...{NC}")
             result = subprocess.run(
                 ["winget", "install", "--id", "GitHub.cli"],
@@ -251,8 +304,8 @@ def _install_gh() -> bool:
             )
             return result.returncode == 0
         else:
-            print(f"    {RED}winget not found.{NC} Install gh manually:")
-            print("      https://cli.github.com/")
+            print(f"    {RED}No package manager found (scoop/choco/winget).{NC}")
+            _print_install_hints(_GH_INSTALL_HINTS, "https://cli.github.com/")
             return False
     return False
 
@@ -271,7 +324,8 @@ def check_gh_operations(config_path: Path) -> bool:
                 return False
             print(f"    {GREEN}gh installed successfully.{NC}")
         else:
-            print(f"    {DIM}Skipped. Install manually: https://cli.github.com/{NC}")
+            print(f"    {DIM}Skipped.{NC} Install manually:")
+            _print_install_hints(_GH_INSTALL_HINTS, "https://cli.github.com/")
             return False
 
     gh_auth = _run_command(["gh", "auth", "status"])
@@ -380,8 +434,10 @@ def _install_imagemagick() -> bool:
             return result.returncode == 0
         else:
             print(f"    {RED}Homebrew not found.{NC} Install ImageMagick manually:")
-            print("      brew install imagemagick")
-            print("      https://imagemagick.org/script/download.php")
+            _print_install_hints(
+                _IMAGEMAGICK_INSTALL_HINTS,
+                "https://imagemagick.org/script/download.php",
+            )
             return False
     elif IS_LINUX:
         if shutil.which("apt-get"):
@@ -400,10 +456,25 @@ def _install_imagemagick() -> bool:
             return result.returncode == 0
         else:
             print(f"    {RED}No supported package manager found.{NC}")
-            print("      Install manually: https://imagemagick.org/script/download.php")
+            _print_install_hints(
+                _IMAGEMAGICK_INSTALL_HINTS,
+                "https://imagemagick.org/script/download.php",
+            )
             return False
     elif IS_WINDOWS:
-        if shutil.which("winget"):
+        if shutil.which("scoop"):
+            print(f"    {YELLOW}Installing ImageMagick via scoop...{NC}")
+            result = subprocess.run(
+                ["scoop", "install", "imagemagick"], capture_output=False
+            )
+            return result.returncode == 0
+        elif shutil.which("choco"):
+            print(f"    {YELLOW}Installing ImageMagick via Chocolatey...{NC}")
+            result = subprocess.run(
+                ["choco", "install", "imagemagick", "-y"], capture_output=False
+            )
+            return result.returncode == 0
+        elif shutil.which("winget"):
             print(f"    {YELLOW}Installing ImageMagick via winget...{NC}")
             result = subprocess.run(
                 ["winget", "install", "--id", "ImageMagick.ImageMagick"],
@@ -411,8 +482,11 @@ def _install_imagemagick() -> bool:
             )
             return result.returncode == 0
         else:
-            print(f"    {RED}winget not found.{NC} Install ImageMagick manually:")
-            print("      https://imagemagick.org/script/download.php")
+            print(f"    {RED}No package manager found (scoop/choco/winget).{NC}")
+            _print_install_hints(
+                _IMAGEMAGICK_INSTALL_HINTS,
+                "https://imagemagick.org/script/download.php",
+            )
             return False
     return False
 
@@ -431,9 +505,10 @@ def check_imagemagick(config_path: Path) -> bool:
                 return False
             print(f"    {GREEN}ImageMagick installed successfully.{NC}")
         else:
-            print(
-                f"    {DIM}Skipped. Install manually: "
-                f"https://imagemagick.org/script/download.php{NC}"
+            print(f"    {DIM}Skipped.{NC} Install manually:")
+            _print_install_hints(
+                _IMAGEMAGICK_INSTALL_HINTS,
+                "https://imagemagick.org/script/download.php",
             )
             return False
 
@@ -445,6 +520,111 @@ def check_imagemagick(config_path: Path) -> bool:
             print(f"  Version:  {DIM}{first_line}{NC}")
     else:
         print(f"  Status:   {GREEN}installed{NC}")
+
+    return True
+
+
+# --- FFmpeg ---
+
+
+def _install_ffmpeg() -> bool:
+    """Attempt to install FFmpeg based on platform."""
+    if IS_MACOS:
+        if shutil.which("brew"):
+            print(f"    {YELLOW}Installing FFmpeg via Homebrew...{NC}")
+            result = subprocess.run(
+                ["brew", "install", "ffmpeg"], capture_output=False
+            )
+            return result.returncode == 0
+        else:
+            print(f"    {RED}Homebrew not found.{NC} Install FFmpeg manually:")
+            _print_install_hints(
+                _FFMPEG_INSTALL_HINTS, "https://ffmpeg.org/download.html"
+            )
+            return False
+    elif IS_LINUX:
+        if shutil.which("apt-get"):
+            print(f"    {YELLOW}Installing FFmpeg via apt...{NC}")
+            result = subprocess.run(
+                ["sudo", "apt-get", "install", "-y", "ffmpeg"],
+                capture_output=False,
+            )
+            return result.returncode == 0
+        elif shutil.which("dnf"):
+            print(f"    {YELLOW}Installing FFmpeg via dnf...{NC}")
+            result = subprocess.run(
+                ["sudo", "dnf", "install", "-y", "ffmpeg-free"],
+                capture_output=False,
+            )
+            return result.returncode == 0
+        else:
+            print(f"    {RED}No supported package manager found.{NC}")
+            _print_install_hints(
+                _FFMPEG_INSTALL_HINTS, "https://ffmpeg.org/download.html"
+            )
+            return False
+    elif IS_WINDOWS:
+        if shutil.which("scoop"):
+            print(f"    {YELLOW}Installing FFmpeg via scoop...{NC}")
+            result = subprocess.run(
+                ["scoop", "install", "ffmpeg"], capture_output=False
+            )
+            return result.returncode == 0
+        elif shutil.which("choco"):
+            print(f"    {YELLOW}Installing FFmpeg via Chocolatey...{NC}")
+            result = subprocess.run(
+                ["choco", "install", "ffmpeg", "-y"], capture_output=False
+            )
+            return result.returncode == 0
+        elif shutil.which("winget"):
+            print(f"    {YELLOW}Installing FFmpeg via winget...{NC}")
+            result = subprocess.run(
+                ["winget", "install", "--id", "Gyan.FFmpeg"],
+                capture_output=False,
+            )
+            return result.returncode == 0
+        else:
+            print(f"    {RED}No package manager found (scoop/choco/winget).{NC}")
+            _print_install_hints(
+                _FFMPEG_INSTALL_HINTS, "https://ffmpeg.org/download.html"
+            )
+            return False
+    return False
+
+
+def check_ffmpeg(config_path: Path) -> bool:
+    """Check and configure FFmpeg CLI."""
+    print(f"\n{BOLD}FFmpeg (ffmpeg / ffprobe):{NC}")
+
+    if not shutil.which("ffmpeg"):
+        print(f"  Status:   {RED}NOT INSTALLED{NC}")
+        if _confirm("Install FFmpeg now?"):
+            if not _install_ffmpeg():
+                return False
+            if not shutil.which("ffmpeg"):
+                print(f"    {RED}ffmpeg still not found after install.{NC}")
+                return False
+            print(f"    {GREEN}FFmpeg installed successfully.{NC}")
+        else:
+            print(f"    {DIM}Skipped.{NC} Install manually:")
+            _print_install_hints(
+                _FFMPEG_INSTALL_HINTS, "https://ffmpeg.org/download.html"
+            )
+            return False
+
+    version = _run_command(["ffmpeg", "-version"])
+    if version.returncode == 0:
+        first_line = version.stdout.strip().splitlines()[0] if version.stdout.strip() else ""
+        print(f"  Status:   {GREEN}installed{NC}")
+        if first_line:
+            print(f"  Version:  {DIM}{first_line}{NC}")
+    else:
+        print(f"  Status:   {GREEN}installed{NC}")
+
+    if not shutil.which("ffprobe"):
+        print(f"  ffprobe:  {YELLOW}NOT FOUND{NC} (usually bundled with ffmpeg)")
+    else:
+        print(f"  ffprobe:  {GREEN}available{NC}")
 
     return True
 
@@ -592,6 +772,10 @@ def main() -> None:
 
     if SKILL_IMAGEMAGICK in skills:
         if not check_imagemagick(config_path):
+            all_configured = False
+
+    if SKILL_FFMPEG in skills:
+        if not check_ffmpeg(config_path):
             all_configured = False
 
     print()
