@@ -43,19 +43,12 @@ def remove_git_dir(root: Path, dry_run: bool) -> None:
 
 
 def init_git(cwd: Path, dry_run: bool) -> None:
-    """Initialize a fresh git repository with an initial commit."""
+    """Initialize a fresh git repository (without committing)."""
     if dry_run:
         print(f"  Would run: git init")
-        print(f"  Would run: git add -A")
-        print(f"  Would run: git commit -m 'Initial commit'")
     else:
         subprocess.run(["git", "init"], cwd=cwd, check=True, capture_output=True)
-        subprocess.run(["git", "add", "-A"], cwd=cwd, check=True, capture_output=True)
-        subprocess.run(
-            ["git", "commit", "-m", "Initial commit"],
-            cwd=cwd, check=True, capture_output=True,
-        )
-        print(f"  Initialized git repo with initial commit.")
+        print(f"  Initialized empty git repo.")
 
 
 def rename_root_dir(root: Path, new_name: str, dry_run: bool) -> Path:
@@ -88,7 +81,7 @@ def main() -> None:
     print(f"  {RED}{BOLD}WARNING: This is a destructive, one-time operation.{NC}")
     print(f"  It will:")
     print(f"    1. Delete .git history (sever link to upstream)")
-    print(f"    2. Run git init with a fresh initial commit")
+    print(f"    2. Run git init (empty repo, no commit)")
     print(f"    3. Optionally rename the root directory")
     print(f"\n  {YELLOW}This cannot be undone. Make sure you are working on a")
     print(f"  fresh clone, not your only copy.{NC}\n")
@@ -154,6 +147,8 @@ def main() -> None:
     if renamed:
         print(f"    {step}. cd .                    # refresh shell path")
         step += 1
+    print(f"    {step}. git add . && git commit -m 'Initial commit'")
+    step += 1
     print(f"    {step}. Create a new repo on GitHub / GitLab / Gitee / etc.")
     step += 1
     print(f"    {step}. git remote add origin <your-repo-url>")

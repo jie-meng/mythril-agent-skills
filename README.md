@@ -118,7 +118,7 @@ python3 scripts/init-fork.py
 
 The init script will:
 - Delete `.git` history (severs the link to upstream)
-- Run `git init` with a fresh initial commit
+- Run `git init` (empty repo — you make the first commit)
 - Optionally rename the root directory
 
 > **Warning**: This is a destructive, one-time operation. Run it on a fresh clone only.

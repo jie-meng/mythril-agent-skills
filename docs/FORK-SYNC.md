@@ -36,7 +36,7 @@ python3 scripts/init-fork.py
 
 The script will:
 1. Delete `.git` history (severs the link to upstream)
-2. Run `git init` with a fresh initial commit
+2. Run `git init` (empty repo — you make the first commit)
 3. Optionally rename the root directory
 
 The Python package name (`mythril_agent_skills`) is kept unchanged so all scripts, imports, and CLI commands continue to work.
