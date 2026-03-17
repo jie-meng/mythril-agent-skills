@@ -6,9 +6,44 @@ This guide explains how to maintain a **private fork** of mythril-agent-skills �
 
 The main [mythril-agent-skills](https://github.com/jie-meng/mythril-agent-skills) repository contains only public, general-purpose skills. If you need **private or organization-specific skills**, you can:
 
-1. Fork the repository
+1. Fork or clone the repository
 2. Add your own skills under `mythril_agent_skills/skills/`
 3. Sync upstream updates — your custom skills with unique names are automatically safe
+
+## Fork vs Independent Clone
+
+| Approach | How | Stay in sync | Best for |
+|---|---|---|---|
+| **GitHub Fork** | Fork on github.com | GitHub "Sync fork" button | Simple additions, staying linked to upstream |
+| **Independent Clone** | Clone + `init-fork.py` | `sync-upstream.py` script | Any platform, full independence |
+
+### GitHub Fork
+
+Fork on github.com and use the **"Sync fork"** button to pull upstream changes. Simple and built-in.
+
+- Works well when you **only add custom skills with unique names** — no conflicts
+- If you've **modified an upstream skill** (e.g., customized `jira`), you may get merge conflicts that need manual resolution
+
+### Independent Clone (init-fork.py)
+
+Clone the repo and run `init-fork.py` to create a fully independent repository:
+
+```bash
+git clone https://github.com/jie-meng/mythril-agent-skills.git
+cd mythril-agent-skills
+python3 scripts/init-fork.py
+```
+
+The script will:
+1. Delete `.git` history (severs the link to upstream)
+2. Run `git init` with a fresh initial commit
+3. Optionally rename the root directory
+
+The Python package name (`mythril_agent_skills`) is kept unchanged so all scripts, imports, and CLI commands continue to work.
+
+> **Warning**: This is a destructive, one-time operation. Run it on a fresh clone only.
+
+After init, use `sync-upstream.py` to selectively pull upstream skill updates.
 
 ## Choosing a Sync Method
 
@@ -16,18 +51,6 @@ The main [mythril-agent-skills](https://github.com/jie-meng/mythril-agent-skills
 |---|---|---|
 | **GitHub Sync Fork** | github.com forks, simple setups | No — may cause merge conflicts |
 | **Sync script** (`sync-upstream.py`) | Any platform; fine-grained control | Yes — use `exclude_skills` to skip them |
-
-### GitHub Sync Fork
-
-If you forked on **github.com**, you can use GitHub's built-in **"Sync fork"** button on your fork's page. This performs a standard git merge/fast-forward.
-
-- Works well when you **only add custom skills with unique names** — no conflicts
-- If you've **modified an upstream skill** (e.g., customized `jira`), you may get merge conflicts that need manual resolution
-- No extra tooling required — just click the button on GitHub
-
-### Sync script
-
-For forks on **GitHub Enterprise, GitLab, Gitee, Bitbucket**, or any other platform — or when you need **selective sync with `exclude_skills`** to protect modified upstream skills — use the bundled sync script.
 
 ## Quick Start (Sync Script)
 
@@ -156,13 +179,20 @@ The script syncs the following paths from upstream:
 
 ## Workflow Recommendations
 
-### Initial Setup
+### Initial Setup (GitHub Fork)
 
 1. Fork the repository on GitHub
 2. Clone your fork locally
 3. Add your custom skills (use unique names — they're automatically safe from sync)
 4. If you've modified any upstream skill, add its name to `exclude_skills` in `.sync-upstream.json`
 5. Commit everything
+
+### Initial Setup (Independent Clone)
+
+1. Clone the original repo: `git clone https://github.com/jie-meng/mythril-agent-skills.git`
+2. Run `python3 scripts/init-fork.py` to detach from upstream
+3. Add your custom skills
+4. Push to your own remote: `git remote add origin <url> && git push -u origin main`
 
 ### Regular Sync Routine
 

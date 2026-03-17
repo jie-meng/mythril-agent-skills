@@ -86,18 +86,42 @@ The checker will:
 - Prompt for missing API keys/tokens and save them to your shell config file
 - Verify authentication status (e.g. `gh auth status`)
 
-### Option B: Fork or clone for customization
+### Option B: GitHub Fork (stay linked to upstream)
 
-If you want to **customize existing skills, create your own, or maintain private skills**, fork or clone the repo:
+If you want to maintain a fork on **github.com** that tracks upstream updates:
 
 ```bash
-# Fork on GitHub first, then clone your fork:
+# Fork on GitHub, then clone your fork:
 git clone https://github.com/<your-username>/mythril-agent-skills.git
-# Or clone the original repo directly:
-git clone https://github.com/jie-meng/mythril-agent-skills.git
-
 cd mythril-agent-skills
 ```
+
+Add your custom skills, then use GitHub's built-in **"Sync fork"** button anytime to pull upstream changes.
+
+- Works well when you **only add custom skills with unique names** — no conflicts
+- If you've **modified an upstream skill** (e.g., customized `jira`), you may get merge conflicts that need manual resolution
+
+### Option C: Independent clone (fully detach from upstream)
+
+If you want a **completely independent repository** — on any platform (GitHub, GitLab, Gitee, Bitbucket, etc.):
+
+```bash
+# 1. Clone the original repo
+git clone https://github.com/jie-meng/mythril-agent-skills.git
+cd mythril-agent-skills
+
+# 2. Detach from upstream (removes .git, creates fresh repo)
+python3 scripts/init-fork.py
+
+# 3. Follow the on-screen instructions to push to your new remote
+```
+
+The init script will:
+- Delete `.git` history (severs the link to upstream)
+- Run `git init` with a fresh initial commit
+- Optionally rename the root directory
+
+> **Warning**: This is a destructive, one-time operation. Run it on a fresh clone only.
 
 Run the scripts directly — no installation needed:
 
@@ -107,19 +131,9 @@ python3 scripts/skills-cleanup.py     # Interactive remover
 python3 scripts/skills-check.py       # Dependency checker
 ```
 
-**Stay up to date with upstream — pick the method that fits your setup:**
+**Stay up to date with upstream (optional):**
 
-#### Method 1: GitHub Sync Fork (GitHub.com forks)
-
-If you forked on **github.com**, you can use GitHub's built-in **"Sync fork"** button on your fork's page to pull in upstream changes. This performs a standard git merge/fast-forward.
-
-- Works well when you **only add custom skills with unique names** — no conflicts
-- If you've **modified an upstream skill** (e.g., customized `jira`), you may get merge conflicts that need manual resolution
-- No extra tooling required
-
-#### Method 2: Sync script (any platform, fine-grained control)
-
-For forks on **GitHub Enterprise, GitLab, Gitee, Bitbucket**, or any other platform — or when you need **selective sync with `exclude_skills`** — use the bundled sync script:
+Use the bundled sync script to selectively pull upstream skill updates:
 
 ```bash
 python3 scripts/sync-upstream.py              # Interactive sync
@@ -241,7 +255,8 @@ mythril-agent-skills/
 │       ├── jira/                # Jira REST API issue/sprint/board workflows
 │       └── code-review-staged/  # Structured code reviews
 ├── scripts/                     # Dev scripts & backward-compatible wrappers
-│   └── sync-upstream.py         # Fork upstream sync tool
+│   ├── sync-upstream.py         # Fork upstream sync tool
+│   └── init-fork.py             # One-time fork initializer (detach + git re-init)
 ├── docs/
 │   ├── INSTALLATION.md          # Full dependency reference
 │   ├── PUBLISHING.md            # PyPI publishing & testing guide

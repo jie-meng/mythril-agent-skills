@@ -25,7 +25,8 @@ mythril-agent-skills/
 │   │   └── skills_check.py      # Dependency checker & configurator
 │   └── skills/                  # Bundled skill definitions
 ├── scripts/                     # Backward-compatible wrappers (for dev use)
-│   └── sync-upstream.py         # Fork upstream sync tool
+│   ├── sync-upstream.py         # Fork upstream sync tool
+│   └── init-fork.py             # One-time fork initializer (detach + git re-init)
 ├── .sync-upstream.json           # Upstream sync config (for forks)
 ├── pyproject.toml               # Package configuration
 └── ...
