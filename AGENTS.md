@@ -245,6 +245,7 @@ def parse_skill_md(skill_path: Path) -> tuple[str, str, str]:
 - Start at H1, don't skip heading levels
 - Fenced code blocks with language tags
 - Relative links for internal references
+- Keep `README.md` content in English only
 
 ---
 
