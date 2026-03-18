@@ -87,11 +87,11 @@ Features:
 
 ### Clean Cache: `skills-clean-cache`
 
-Removes temporary files created by skills at runtime (git clones for PR review, exported images, etc.). All skills store temp files under a unified cache directory: `$(realpath "${TMPDIR:-/tmp}")/mythril-skills-cache/`.
+Removes cached files created by skills at runtime. The cache contains two categories: **temp files** (images, exports — ephemeral) and **repo cache** (shared git clones — long-lived, reusable). The interactive mode lets users choose to clean one or both categories.
 
 ```bash
-skills-clean-cache          # Interactive: list cache contents, confirm before deleting
-skills-clean-cache --force  # Delete without confirmation
+skills-clean-cache          # Interactive: list cache contents, choose what to delete
+skills-clean-cache --force  # Delete everything without confirmation
 ```
 
 ### Backward-compatible wrappers
@@ -193,6 +193,22 @@ Skills that need to download files, clone repos, or create temp artifacts at run
 $(realpath "${TMPDIR:-/tmp}")/mythril-skills-cache/<skill-name>/
 ```
 
+### Shared git repo cache
+
+Skills that need a local clone of a git repository (e.g., `git-repo-reader`, `github-code-review-pr`) MUST use the bundled `scripts/repo_manager.py` script instead of cloning independently. Each skill that needs repo caching bundles an **identical copy** of this script; they all read/write the same shared cache directory (`mythril-skills-cache/git-repo-cache/`) so a repo cloned by one skill is instantly available to another.
+
+```bash
+# Clone or reuse a cached repo (for exploration, reading)
+python3 scripts/repo_manager.py clone "<repo-url>"
+
+# Sync a cached repo with all remote branches up-to-date (for PR review, multi-branch workflows)
+python3 scripts/repo_manager.py sync "<repo-url>"
+```
+
+Cached repos live under `mythril-skills-cache/git-repo-cache/repos/<host>/<owner>/<repo>/`. They are **long-lived** and shared — do NOT delete them after use. The `skills-clean-cache` command lets users selectively clean repo cache vs ephemeral temp files.
+
+**Why copies instead of a shared module**: Skills are installed via `skills-setup` which copies each skill directory independently to `~/.cursor/skills/`, `~/.claude/skills/`, etc. Each skill must be fully self-contained — there is no shared `lib/` directory at the destination. The scripts are identical and zero-dependency (stdlib only), so maintaining copies is straightforward.
+
 ### Cross-platform cache directory creation
 
 Skills run on macOS, Linux, and Windows. Use the appropriate syntax for the user's platform.
@@ -232,6 +248,7 @@ The Python `skills-clean-cache` CLI uses `Path(tempfile.gettempdir()).resolve()`
 ### Cache directory rules
 
 - **Each skill gets its own subdirectory** named after the skill (e.g., `github-code-review-pr/`, `figma/`)
+- **Git repo clones go into the shared `git-repo-cache/`** subdirectory — not per-skill directories. Use `repo_manager.py` (see above).
 - **Within the subdirectory, create random dirs freely** — e.g., `mktemp -d "$CACHE_DIR/XXXXXXXX"`
 - **Default rule for ALL downloads**: if the user did not explicitly provide a destination path, save into the unified cache path above (never ad-hoc locations)
 - **If user explicitly provides a destination path**, follow it; otherwise always use the unified cache path

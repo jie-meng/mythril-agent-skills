@@ -34,11 +34,11 @@ Clone, cache, and read any git repository for code exploration and analysis.
 
 ## How It Works
 
-This skill uses a helper script (`repo_manager.py`) bundled in `scripts/` to handle all repo operations deterministically. The script manages a cache of cloned repos and a mapping file (`repo_map.json`) so repos persist across conversation sessions.
+This skill uses a helper script (`repo_manager.py`) bundled in `scripts/` to handle all repo operations deterministically. The script manages a cache of cloned repos and a mapping file (`repo_map.json`) so repos persist across conversation sessions. The repo cache is shared with other skills (e.g., `github-code-review-pr`) — they use an identical copy of the same script, reading/writing the same cache directory.
 
 All cached repos live under the unified cache directory:
-- **macOS/Linux**: `$(realpath "${TMPDIR:-/tmp}")/mythril-skills-cache/git-repo-reader/`
-- **Windows**: `%TEMP%\mythril-skills-cache\git-repo-reader\`
+- **macOS/Linux**: `$(realpath "${TMPDIR:-/tmp}")/mythril-skills-cache/git-repo-cache/`
+- **Windows**: `%TEMP%\mythril-skills-cache\git-repo-cache\`
 
 The user can clean up all cached repos at any time via `skills-clean-cache`.
 
@@ -58,7 +58,7 @@ Accept URLs in any of these formats:
 Run the helper script to get the repo. The script handles everything: checking the mapping file, reusing existing clones, pulling latest code, or cloning fresh.
 
 ```bash
-python3 <skill-dir>/scripts/repo_manager.py clone "<repo-url>"
+python3 scripts/repo_manager.py clone "<repo-url>"
 ```
 
 The script will:
@@ -66,12 +66,12 @@ The script will:
 2. Check `repo_map.json` for an existing entry
 3. If found and the directory exists → `git pull` to refresh, then return the path
 4. If found but directory is missing → remove stale entry, clone fresh
-5. If not found → clone the repo, add entry to `repo_map.json`
+5. If not found → clone the repo (blobless clone), add entry to `repo_map.json`
 6. Print the local path to stdout on success
 
 If the user asks for a specific branch:
 ```bash
-python3 <skill-dir>/scripts/repo_manager.py clone "<repo-url>" --branch dev
+python3 scripts/repo_manager.py clone "<repo-url>" --branch dev
 ```
 
 ### Step 3: Read and analyze the code
@@ -98,7 +98,7 @@ When the user asks to clean up (e.g., "帮我清理", "clean up the repo", "删�
 - Use the `remove` command with the repo URL:
 
 ```bash
-python3 <skill-dir>/scripts/repo_manager.py remove "<repo-url>"
+python3 scripts/repo_manager.py remove "<repo-url>"
 ```
 
 This deletes the cloned repo directory and removes its entry from `repo_map.json`, leaving other cached repos untouched.
@@ -110,6 +110,7 @@ The `repo_manager.py` script in `scripts/` supports these subcommands:
 | Command | Description |
 |---|---|
 | `clone <url> [--branch B]` | Clone or reuse a cached repo. Prints the local path. |
+| `sync <url>` | Clone or refresh a repo with all remote branches up-to-date. For multi-branch workflows (e.g., PR review). |
 | `lookup <url>` | Look up cached path for a URL without cloning. Prints path or exits 1. |
 | `remove <url>` | Delete a cached repo and its mapping entry. |
 | `list` | List all cached repos (URL → path). |
