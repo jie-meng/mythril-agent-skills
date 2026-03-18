@@ -5,7 +5,9 @@ description: >
   the user asks to read/write issues, view/create pull requests, add PR comments
   (including inline line-level review comments), or explicitly asks to use `gh` /
   GitHub CLI. Typical phrases include "use gh", "gh issue", "gh pr", "创建PR",
-  "看PR", "在PR某行加comment", "行内评论", "对应那一行加评论", "用gh评论PR". Prefer
+  "看PR", "在PR某行加comment", "行内评论", "对应那一行加评论", "用gh评论PR". For issue/PR/doc
+  links containing important screenshots, proactively retrieve and summarize image
+  evidence when it affects the answer. Prefer
   `gh` commands (including `gh api` when needed), return clear action summaries,
   and handle auth/repo/permission errors explicitly. When users provide full
   issue/PR URLs, pass the URL directly to `gh` (URL-first) instead of rewriting
@@ -29,6 +31,13 @@ Scope boundary:
   handled by plain `git`.
 - Use `gh api` for commit metadata only when the user explicitly requests `gh` or
   needs GitHub-hosted metadata tied to a remote repository context.
+
+## Runtime requirements
+
+- **GitHub CLI (`gh`)** installed and authenticated
+- **`curl`** available for downloading issue/PR/document screenshots when needed
+- **Optional for enterprise SSO**: `curl --negotiate -u :` support for SPNEGO/Kerberos-protected asset URLs
+- Run `skills-check gh-operations` to verify dependencies
 
 # Workflow
 
@@ -161,6 +170,46 @@ List recent commits:
 gh api repos/{owner}/{repo}/commits -f per_page=20 --jq '.[] | {sha: .sha, message: .commit.message}'
 ```
 
+## 5) Visual evidence handling for issue/PR/doc links
+
+When users ask to interpret issue/PR content and screenshots are important, do not stop at text-only summaries. Proactively collect and analyze relevant images.
+
+### Auto-trigger conditions
+
+Handle images automatically (no extra user back-and-forth) when:
+- user explicitly asks to read image/screenshot content,
+- issue/PR discussion includes screenshot-based verification steps,
+- linked docs are central to the request and contain important visual evidence.
+
+### Collection strategy
+
+1. Extract candidate URLs from issue/PR `body`, `comments`, and `reviews`:
+   - Markdown images: `![alt](https://...)`
+   - Plain image/asset URLs (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `/assets/`)
+2. For relevant markdown document links (`.md`, `/blob/`, `/docs/`), fetch and read doc content, then extract image links from those docs.
+3. Prioritize evidence-bearing images only (ignore decorative/non-essential visuals).
+
+Store downloaded files under a random run directory in unified cache:
+```bash
+CACHE_DIR="${TMPDIR:-/tmp}/mythril-skills-cache/gh-operations"
+mkdir -p "$CACHE_DIR"
+RUN_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
+IMAGE_CACHE="$RUN_DIR/images"
+mkdir -p "$IMAGE_CACHE"
+```
+
+Never write downloaded artifacts to ad-hoc paths like `/tmp/<custom-name>/...`.
+
+Download order:
+1. `curl -fsSL "<image_url>" -o "<local_path>"`
+2. If enterprise auth fails, retry:
+   `curl -fsSL --negotiate -u : "<image_url>" -o "<local_path>"`
+
+Read downloaded images with available image-capable tools and summarize:
+- what each image shows (UI state, logs, debugger panels, event payloads),
+- key observed values/URLs/events,
+- whether visual evidence supports or contradicts issue/PR claims.
+
 # Output Expectations
 
 For every task, provide:
@@ -169,6 +218,7 @@ For every task, provide:
 2. Short result summary (issue/PR number, URL, state, key metadata)
 3. If write operation succeeded, include created/updated URL explicitly
 4. If operation fails, include exact error and next action
+5. If visual evidence was relevant, include a **Visual Evidence Summary** with per-image findings and limitations/confidence
 
 # Error Handling
 
@@ -178,6 +228,7 @@ For every task, provide:
 - **Permission/scope issues**: show failing command and required scope, e.g. `gh auth refresh -s project`.
 - **No repo context**: require `--repo OWNER/REPO` or switch to repository directory.
 - **Invalid issue/PR reference**: verify number/URL/repo before retrying.
+- **Image/doc retrieval failed**: report URL + exact HTTP/auth error; retry with enterprise SSO (`curl --negotiate -u :`) when applicable; if still blocked, explicitly state visual analysis is incomplete.
 
 # Notes
 

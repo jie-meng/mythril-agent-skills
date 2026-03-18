@@ -195,6 +195,8 @@ ${TMPDIR:-/tmp}/mythril-skills-cache/<skill-name>/
 
 - **Each skill gets its own subdirectory** named after the skill (e.g., `github-code-review-pr/`, `figma/`)
 - **Within the subdirectory, create random dirs freely** — e.g., `mktemp -d "${TMPDIR:-/tmp}/mythril-skills-cache/github-code-review-pr/XXXXXXXX"`
+- **Default rule for ALL downloads**: if the user did not explicitly provide a destination path, save into the unified cache path above (never ad-hoc locations)
+- **If user explicitly provides a destination path**, follow it; otherwise always use `${TMPDIR:-/tmp}/mythril-skills-cache/<skill-name>/...`
 - **Skills do NOT need to worry about cleanup** — the `skills-clean-cache` command handles it
 - **Never create temp files directly in `/tmp/`** or other ad-hoc locations
 

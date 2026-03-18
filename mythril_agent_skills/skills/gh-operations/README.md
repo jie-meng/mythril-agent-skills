@@ -95,3 +95,36 @@ gh pr view "https://github.com/OWNER/REPO/pull/456" \
 
 Avoid rewriting URL input into `issue/pr number + --repo + --hostname` for read operations.
 If auth fails on the URL's host, run `gh auth login --hostname <host>` and rerun the same URL command.
+
+## Visual Evidence Handling (Issues/PRs/Linked Docs)
+
+When issue/PR bodies, comments, or linked docs contain important screenshots, the skill should proactively fetch and analyze those images when they matter to the user request.
+
+Use this behavior automatically when:
+- the user asks to interpret screenshots/images,
+- screenshots are part of verification/debug/tracking evidence,
+- linked documentation images are required to answer correctly.
+
+Recommended retrieval order:
+1. `curl -fsSL <image_url> -o <local_file>`
+2. If enterprise auth blocks access, retry with:
+   `curl -fsSL --negotiate -u : <image_url> -o <local_file>`
+
+Store image files under a random run dir in:
+`${TMPDIR:-/tmp}/mythril-skills-cache/gh-operations/`
+
+Recommended shell pattern:
+```bash
+CACHE_DIR="${TMPDIR:-/tmp}/mythril-skills-cache/gh-operations"
+mkdir -p "$CACHE_DIR"
+RUN_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
+IMAGE_CACHE="$RUN_DIR/images"
+mkdir -p "$IMAGE_CACHE"
+```
+
+Do not store artifacts in ad-hoc paths like `/tmp/pr81_deskcheck/...`.
+
+Then summarize per image:
+- what is shown,
+- key visible values/events/URLs,
+- whether the visual evidence supports the issue/PR claim.

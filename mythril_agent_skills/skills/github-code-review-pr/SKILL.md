@@ -32,6 +32,8 @@ For local staged changes, use `code-review-staged` instead.
 # Requirements
 
 - **GitHub CLI (`gh`)** must be installed and authenticated
+- **`curl`** must be available for downloading PR screenshots/assets
+- **Optional for enterprise SSO**: `curl --negotiate -u :` support for SPNEGO/Kerberos-protected asset URLs
 - Run `skills-check github-code-review-pr` to verify dependencies
 
 # Requirements for Outputs
@@ -93,6 +95,40 @@ Key fields:
 ```bash
 gh pr diff <URL_or_NUMBER>
 ```
+
+### 2c. Collect and analyze PR images (default when relevant)
+
+After metadata is fetched, inspect `body`, `comments`, and `reviews` for image links:
+- Markdown image syntax: `![alt](https://...)`
+- Plain asset URLs (especially `/assets/` links)
+
+Automatically do this (without extra user back-and-forth) when:
+- user asks to read screenshot/image content, or
+- screenshots are part of PR verification evidence (offline check steps, UI proof, tracking proof), or
+- image information is required to validate correctness/risk.
+
+Download relevant images under a random run directory in unified cache:
+```bash
+CACHE_DIR="${TMPDIR:-/tmp}/mythril-skills-cache/github-code-review-pr"
+mkdir -p "$CACHE_DIR"
+RUN_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
+IMAGE_CACHE="$RUN_DIR/images"
+mkdir -p "$IMAGE_CACHE"
+```
+
+Never use ad-hoc temp locations like `/tmp/<custom-folder>/...` for image artifacts.
+
+Use authenticated retrieval in this order:
+1. `curl -fsSL "<image_url>" -o "<local_path>"`
+2. If enterprise auth fails, retry:
+   `curl -fsSL --negotiate -u : "<image_url>" -o "<local_path>"`
+
+Read downloaded images with image-capable tools and summarize:
+- what the screenshot shows (UI/debug panel/logs),
+- key values/events/URLs visible in the image,
+- whether screenshot evidence supports the PR claim.
+
+If image retrieval fails, report the exact reason and ask for one targeted unblock step (auth/access), but never claim image content was reviewed.
 
 ## Step 3: Get Local Access to the Repository
 
@@ -250,6 +286,7 @@ Structure the review into these sections:
 - PR 的目的和动机（基于标题、描述、分支名）
 - 变更规模：X 个文件，+Y / -Z 行
 - 涉及的主要模块和功能领域
+- 若 PR 含截图/图片证据，补充 **图片证据摘要**：逐张说明图片内容、关键信息、与代码变更的对应关系
 
 #### 2. 仓库上下文分析
 - 项目技术栈（语言、框架、工具链）
@@ -283,6 +320,7 @@ Structure the review into these sections:
 - Purpose and motivation of the PR (based on title, description, branch names)
 - Change scope: X files changed, +Y / -Z lines
 - Primary modules and functional areas affected
+- If screenshots/images are present, include a **Visual Evidence Summary**: what each image shows, key observed values/events, and how it maps to PR claims
 
 #### 2. Repository Context Analysis
 - Project tech stack (languages, frameworks, toolchain)
@@ -333,6 +371,7 @@ skills-clean-cache
 - **`gh` not installed**: Report error and suggest running `skills-check github-code-review-pr`
 - **`gh` not authenticated for github.com**: Report error and suggest `gh auth login`
 - **PR not found**: Verify URL/number and repo access
+- **PR image download failed**: report URL + HTTP/auth error; retry with enterprise SSO (`curl --negotiate -u :`) when applicable; if still blocked, clearly state image analysis is incomplete
 - **Clone failure**: If partial clone fails (e.g., private repo without access), fall back to reviewing with diff-only context and report the limitation
 - **Large PR (>50 files)**: Warn the user that review may be less thorough; focus on the most critical files
 - **Binary files**: Skip binary files in review, note them as present

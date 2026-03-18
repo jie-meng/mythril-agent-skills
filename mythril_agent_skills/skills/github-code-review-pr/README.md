@@ -141,7 +141,33 @@ The skill gathers context at three levels:
 
 - **GitHub CLI (`gh`)** — installed and authenticated
 - **Git 2.25+** — for sparse-checkout support (most systems have this)
+- **`curl`** — for downloading PR screenshots/assets when visual evidence matters
 - Run `skills-check github-code-review-pr` to verify
+
+## Visual Evidence Handling (Screenshots/Images)
+
+When PR body/comments/reviews include image links, the skill should proactively download and inspect them when:
+- the user asks to interpret screenshots,
+- screenshots are part of verification steps (UI proof, tracking proof, offline check), or
+- image content is necessary to validate correctness/risk.
+
+Recommended retrieval order:
+1. `curl -fsSL <image_url> -o <local_file>`
+2. If enterprise auth blocks access, retry with `curl -fsSL --negotiate -u : <image_url> -o <local_file>`
+
+Store image files under a random run dir in `${TMPDIR:-/tmp}/mythril-skills-cache/github-code-review-pr/`.
+
+Recommended shell pattern:
+```bash
+CACHE_DIR="${TMPDIR:-/tmp}/mythril-skills-cache/github-code-review-pr"
+mkdir -p "$CACHE_DIR"
+RUN_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
+IMAGE_CACHE="$RUN_DIR/images"
+mkdir -p "$IMAGE_CACHE"
+```
+
+Do not store artifacts in ad-hoc paths like `/tmp/pr81_deskcheck/...`.
+Then summarize what each image shows and whether it supports PR claims.
 
 ## Cleaning Up Temp Directories
 
