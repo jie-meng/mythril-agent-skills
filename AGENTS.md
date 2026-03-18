@@ -196,6 +196,31 @@ These rules prevent accidental credential exposure in terminal output, chat logs
 
 **For `skills_check.py`**: Token values MUST be masked (show only last 4 chars). Email addresses MUST be partially masked (e.g. `j***@example.com`). Base URLs may be shown in full.
 
+### Skill Ordering Convention
+
+Skills appear in multiple listings: the README "Available Skills" table, the `skills-check` interactive UI and execution order, and the `CHECKABLE_SKILLS` list in code. All MUST follow the same ordering convention.
+
+**Category order** (groups, top to bottom):
+
+| # | Category | Description | Example skills |
+|---|---|---|---|
+| 1 | **Meta** | Tools for creating/managing skills themselves | skill-creator |
+| 2 | **Code Review** | Code review workflows (local and remote) | code-review-staged, branch-diff-review, github-code-review-pr |
+| 3 | **Git & GitHub** | Git operations and GitHub platform integration | git-repo-reader, gh-operations |
+| 4 | **API Integrations** | Third-party API clients requiring credentials | jira, confluence, figma |
+| 5 | **Media Processing** | Standalone CLI tools for media files | imagemagick, ffmpeg |
+
+**Within each category**, order by dependency complexity — no deps first, then CLI deps, then API credential deps:
+- No external dependencies → CLI tool dependency (`git`) → Platform CLI dependency (`gh`) → API token dependency
+
+**For `skills-check`**: The execution order follows a different principle — **dependency layers** (check foundational tools before things that depend on them):
+1. Foundation CLI (`git`) — almost everything depends on it
+2. Platform CLI (`gh`) — builds on git
+3. API credentials (Atlassian, Figma) — need tokens configured
+4. Standalone media tools (ImageMagick, FFmpeg) — independent binaries
+
+When adding a new skill, place it in the appropriate category. If it doesn't fit any existing category, add a new category row and insert it at a logical position in the table.
+
 ---
 
 ## Temporary Files & Cache Convention

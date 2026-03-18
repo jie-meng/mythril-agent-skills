@@ -86,6 +86,7 @@ SKILL_FFMPEG = "ffmpeg"
 SKILL_GIT_REPO_READER = "git-repo-reader"
 
 CHECKABLE_SKILLS = [
+    SKILL_GIT_REPO_READER,
     SKILL_GH_OPERATIONS,
     SKILL_CODE_REVIEW_PR,
     SKILL_JIRA,
@@ -93,7 +94,6 @@ CHECKABLE_SKILLS = [
     SKILL_FIGMA,
     SKILL_IMAGEMAGICK,
     SKILL_FFMPEG,
-    SKILL_GIT_REPO_READER,
 ]
 
 
@@ -800,6 +800,10 @@ def main() -> None:
 
     all_configured = True
 
+    if SKILL_GIT_REPO_READER in skills:
+        if not check_git(config_path):
+            all_configured = False
+
     if SKILL_GH_OPERATIONS in skills or SKILL_CODE_REVIEW_PR in skills:
         if not check_gh_operations(config_path):
             all_configured = False
@@ -818,10 +822,6 @@ def main() -> None:
 
     if SKILL_FFMPEG in skills:
         if not check_ffmpeg(config_path):
-            all_configured = False
-
-    if SKILL_GIT_REPO_READER in skills:
-        if not check_git(config_path):
             all_configured = False
 
     print()
