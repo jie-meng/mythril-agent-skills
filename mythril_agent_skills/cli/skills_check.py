@@ -77,6 +77,8 @@ DIM = "\033[2m"
 NC = "\033[0m"
 
 SKILL_GH_OPERATIONS = "gh-operations"
+SKILL_CODE_REVIEW_STAGED = "code-review-staged"
+SKILL_BRANCH_DIFF_REVIEW = "branch-diff-review"
 SKILL_CODE_REVIEW_PR = "github-code-review-pr"
 SKILL_JIRA = "jira"
 SKILL_CONFLUENCE = "confluence"
@@ -87,6 +89,8 @@ SKILL_GIT_REPO_READER = "git-repo-reader"
 
 CHECKABLE_SKILLS = [
     SKILL_GIT_REPO_READER,
+    SKILL_CODE_REVIEW_STAGED,
+    SKILL_BRANCH_DIFF_REVIEW,
     SKILL_GH_OPERATIONS,
     SKILL_CODE_REVIEW_PR,
     SKILL_JIRA,
@@ -114,7 +118,12 @@ def _detect_shell_config() -> Path:
         return bashrc
 
     if IS_WINDOWS:
-        ps_profile = Path(os.environ.get("USERPROFILE", "")) / "Documents" / "PowerShell" / "Microsoft.PowerShell_profile.ps1"
+        ps_profile = (
+            Path(os.environ.get("USERPROFILE", ""))
+            / "Documents"
+            / "PowerShell"
+            / "Microsoft.PowerShell_profile.ps1"
+        )
         if ps_profile.exists():
             return ps_profile
 
@@ -134,7 +143,7 @@ def _read_config_file(config_path: Path) -> str:
 def _env_var_exists_in_config(config_path: Path, var_name: str) -> bool:
     """Check if an env var export already exists in the config file."""
     content = _read_config_file(config_path)
-    pattern = rf'^export\s+{re.escape(var_name)}='
+    pattern = rf"^export\s+{re.escape(var_name)}="
     return bool(re.search(pattern, content, re.MULTILINE))
 
 
@@ -145,7 +154,7 @@ def _append_env_var(config_path: Path, var_name: str, value: str) -> None:
     if _env_var_exists_in_config(config_path, var_name):
         lines = content.splitlines()
         new_lines = []
-        pattern = rf'^export\s+{re.escape(var_name)}='
+        pattern = rf"^export\s+{re.escape(var_name)}="
         for line in lines:
             if re.match(pattern, line):
                 new_lines.append(f'export {var_name}="{value}"')
@@ -194,7 +203,11 @@ def _run_command(
 ) -> subprocess.CompletedProcess[str]:
     """Run a command and return result."""
     return subprocess.run(
-        cmd, capture_output=True, text=True, check=check, **kwargs  # type: ignore[arg-type]
+        cmd,
+        capture_output=True,
+        text=True,
+        check=check,
+        **kwargs,  # type: ignore[arg-type]
     )
 
 
@@ -245,9 +258,7 @@ def _install_gh() -> bool:
     if IS_MACOS:
         if shutil.which("brew"):
             print(f"    {YELLOW}Installing gh via Homebrew...{NC}")
-            result = subprocess.run(
-                ["brew", "install", "gh"], capture_output=False
-            )
+            result = subprocess.run(["brew", "install", "gh"], capture_output=False)
             return result.returncode == 0
         else:
             print(f"    {RED}Homebrew not found.{NC} Install gh manually:")
@@ -288,9 +299,7 @@ def _install_gh() -> bool:
     elif IS_WINDOWS:
         if shutil.which("scoop"):
             print(f"    {YELLOW}Installing gh via scoop...{NC}")
-            result = subprocess.run(
-                ["scoop", "install", "gh"], capture_output=False
-            )
+            result = subprocess.run(["scoop", "install", "gh"], capture_output=False)
             return result.returncode == 0
         elif shutil.which("choco"):
             print(f"    {YELLOW}Installing gh via Chocolatey...{NC}")
@@ -363,9 +372,13 @@ def check_atlassian(config_path: Path) -> bool:
     else:
         print(f"  ATLASSIAN_API_TOKEN:   {RED}NOT SET{NC}")
         print("    How to get it:")
-        print(f"    1. Open {BOLD}https://id.atlassian.com/manage-profile/security/api-tokens{NC}")
+        print(
+            f"    1. Open {BOLD}https://id.atlassian.com/manage-profile/security/api-tokens{NC}"
+        )
         print('    2. Click "Create API token", copy the token')
-        value = _prompt_value("Paste your Atlassian API token (or Enter to skip)", secret=True)
+        value = _prompt_value(
+            "Paste your Atlassian API token (or Enter to skip)", secret=True
+        )
         if value:
             _append_env_var(config_path, "ATLASSIAN_API_TOKEN", value)
         else:
@@ -521,7 +534,9 @@ def check_imagemagick(config_path: Path) -> bool:
 
     version = _run_command(["magick", "-version"])
     if version.returncode == 0:
-        first_line = version.stdout.strip().splitlines()[0] if version.stdout.strip() else ""
+        first_line = (
+            version.stdout.strip().splitlines()[0] if version.stdout.strip() else ""
+        )
         print(f"  Status:   {GREEN}installed{NC}")
         if first_line:
             print(f"  Version:  {DIM}{first_line}{NC}")
@@ -539,9 +554,7 @@ def _install_ffmpeg() -> bool:
     if IS_MACOS:
         if shutil.which("brew"):
             print(f"    {YELLOW}Installing FFmpeg via Homebrew...{NC}")
-            result = subprocess.run(
-                ["brew", "install", "ffmpeg"], capture_output=False
-            )
+            result = subprocess.run(["brew", "install", "ffmpeg"], capture_output=False)
             return result.returncode == 0
         else:
             print(f"    {RED}Homebrew not found.{NC} Install FFmpeg manually:")
@@ -621,7 +634,9 @@ def check_ffmpeg(config_path: Path) -> bool:
 
     version = _run_command(["ffmpeg", "-version"])
     if version.returncode == 0:
-        first_line = version.stdout.strip().splitlines()[0] if version.stdout.strip() else ""
+        first_line = (
+            version.stdout.strip().splitlines()[0] if version.stdout.strip() else ""
+        )
         print(f"  Status:   {GREEN}installed{NC}")
         if first_line:
             print(f"  Version:  {DIM}{first_line}{NC}")
@@ -661,7 +676,9 @@ def check_git(config_path: Path) -> bool:
 
     version = _run_command(["git", "--version"])
     if version.returncode == 0:
-        first_line = version.stdout.strip().splitlines()[0] if version.stdout.strip() else ""
+        first_line = (
+            version.stdout.strip().splitlines()[0] if version.stdout.strip() else ""
+        )
         print(f"  Status:   {GREEN}installed{NC}")
         if first_line:
             print(f"  Version:  {DIM}{first_line}{NC}")
@@ -800,7 +817,13 @@ def main() -> None:
 
     all_configured = True
 
-    if SKILL_GIT_REPO_READER in skills:
+    if (
+        SKILL_GIT_REPO_READER in skills
+        or SKILL_CODE_REVIEW_STAGED in skills
+        or SKILL_BRANCH_DIFF_REVIEW in skills
+        or SKILL_GH_OPERATIONS in skills
+        or SKILL_CODE_REVIEW_PR in skills
+    ):
         if not check_git(config_path):
             all_configured = False
 
