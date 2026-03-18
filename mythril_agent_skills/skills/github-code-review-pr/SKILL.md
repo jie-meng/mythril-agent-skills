@@ -341,6 +341,15 @@ git sparse-checkout add <directory>
 ```
 Git will auto-fetch the needed blobs. Limit to 2-3 related files.
 
+### Accessing other repositories during review
+
+If the user provides a URL to another repository during the review (e.g., a backend API repo to verify schema compatibility), **do NOT clone it yourself** into the review cache. Instead, delegate to the `git-repo-reader` skill — it will clone the repo into the shared cache and let you read it. This is better because:
+- The clone is cached and reusable across sessions
+- It avoids duplicating clone logic inside this skill
+- Future reviews or questions about that repo will hit the cache instantly
+
+If the `git-repo-reader` skill is not available, fall back to a partial clone in the review cache (same as Path C).
+
 ## Step 5: Detect Language
 
 Analyze user's input to determine review output language:
