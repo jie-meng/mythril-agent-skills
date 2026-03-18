@@ -175,20 +175,22 @@ If cache hit (exit 0), update the cached repo and checkout the PR:
 ```bash
 cd "$REPO_PATH"
 
-# Fetch the specific branches involved in this PR to ensure they are current
-git fetch origin <baseRefName> <headRefName>
+# Fetch the base branch so origin/<baseRefName> is current for diff comparison
+git fetch origin <baseRefName>
 
-# Checkout the PR branch
+# Checkout the PR branch (gh internally fetches refs/pull/<N>/head)
 gh pr checkout <PR_NUMBER>
 ```
 
 After `gh pr checkout`, `HEAD` points to the PR's latest code. For base branch comparison, use `origin/<baseRefName>` (the remote-tracking ref, guaranteed fresh after the fetch).
 
-**Important**: Always use `origin/<baseRefName>` (not a local branch) as the comparison target — this is the freshest ref and avoids stale-local-branch issues.
+**Important**: Always use `origin/<baseRefName>` (not a local branch) as the comparison target — this is the freshest ref and avoids stale-local-branch issues. No need to manually fetch `<headRefName>` — `gh pr checkout` already fetches the PR head ref internally.
 
-### Path C: No cached repo — partial clone to temp directory
+### Path C: No cached repo — blobless clone to temp directory
 
-If neither Path A nor Path B applies, use **partial clone + sparse checkout** to avoid downloading the entire repo. This downloads only git metadata (commits and tree objects) on clone — **file contents are NOT downloaded until explicitly checked out**. Even for a multi-GB monorepo, the initial clone is typically just a few MB.
+If neither Path A nor Path B applies, use **blobless clone + sparse checkout** to avoid downloading the entire repo. This downloads all commits, tree objects, and branch refs on clone — but **file contents (blobs) are NOT downloaded until explicitly checked out**. Even for a multi-GB monorepo, the initial clone is typically just a few MB.
+
+**Why NOT `--depth=1` or `--single-branch`**: `gh pr checkout` needs to fetch `refs/pull/<N>/head` and set up tracking. With `--single-branch` the refspec is restricted to one branch, causing `gh pr checkout` to fail with `fatal: cannot set up tracking information`. `--depth=1` implies `--single-branch`. Using `--filter=blob:none --sparse` (without depth/single-branch) gives us all refs and history metadata at minimal cost — blobs are only fetched when files are actually checked out.
 
 Create a temp directory under the **unified skill cache**:
 
@@ -197,7 +199,7 @@ Create a temp directory under the **unified skill cache**:
 CACHE_DIR="$(realpath "${TMPDIR:-/tmp}")/mythril-skills-cache/github-code-review-pr"
 mkdir -p "$CACHE_DIR"
 REVIEW_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
-gh repo clone <owner/repo> "$REVIEW_DIR" -- --filter=blob:none --depth=1 --single-branch --sparse
+gh repo clone <owner/repo> "$REVIEW_DIR" -- --filter=blob:none --sparse
 cd "$REVIEW_DIR"
 ```
 
@@ -207,31 +209,21 @@ $CACHE_DIR = Join-Path ([IO.Path]::GetFullPath([IO.Path]::GetTempPath())) "mythr
 New-Item -ItemType Directory -Force -Path $CACHE_DIR | Out-Null
 $REVIEW_DIR = Join-Path $CACHE_DIR ([System.IO.Path]::GetRandomFileName())
 New-Item -ItemType Directory -Force -Path $REVIEW_DIR | Out-Null
-gh repo clone <owner/repo> "$REVIEW_DIR" -- --filter=blob:none --depth=1 --single-branch --sparse
+gh repo clone <owner/repo> "$REVIEW_DIR" -- --filter=blob:none --sparse
 Set-Location $REVIEW_DIR
 ```
 
-Now the repo is cloned but the working directory is nearly empty (only root-level files). Next, selectively populate **only the files we need** using sparse-checkout:
+Now the repo is cloned with sparse checkout already enabled (cone mode). The working directory contains only root-level files (README.md, AGENTS.md, pyproject.toml, etc.) — no subdirectories are checked out yet.
 
-```bash
-git sparse-checkout init --cone
-```
+Add directories needed for review based on the PR metadata from Step 2:
 
-Then determine which files/directories to check out based on the PR metadata from Step 2:
-
-**1. Config & convention files at the repo root** — always check out:
-```bash
-git sparse-checkout set /
-```
-This checks out root-level files only (README.md, AGENTS.md, CLAUDE.md, pyproject.toml, package.json, etc.) without pulling any subdirectories.
-
-**2. Directories containing PR-modified files** — extract from the `files` list in Step 2a:
+**1. Directories containing PR-modified files** — extract from the `files` list in Step 2a:
 ```bash
 git sparse-checkout add src/components src/utils tests/unit
 ```
 Only add the directories that contain files changed in the PR. This pulls just those directory trees.
 
-**3. Directories for related files** — if the diff references imports or base classes from other paths, add those too:
+**2. Directories for related files** — if the diff references imports or base classes from other paths, add those too:
 ```bash
 git sparse-checkout add src/types src/shared
 ```
@@ -249,7 +241,7 @@ After review, delete the temp directory (see Step 7).
 |---|---|---|---|
 | A | Already inside target repo | Instant | Full repo |
 | B | Repo found in shared cache | Fast (just `fetch` two branches) | Full repo |
-| C | Repo not cached | Moderate (partial clone) | Targeted files only |
+| C | Repo not cached | Moderate (blobless clone) | Targeted files only |
 
 ## Step 4: Gather Repository Context
 
@@ -313,7 +305,7 @@ If the diff references imports, base classes, interfaces, or function calls from
 - Just read the file directly — git auto-fetches the blob on demand
 - Read **at most 2-3** related files for understanding correctness
 
-### For Path C (partial clone with sparse checkout)
+### For Path C (blobless clone with sparse checkout)
 
 #### 4a. Project structure overview
 
@@ -327,7 +319,7 @@ This reveals the full project structure without downloading any file content.
 
 #### 4b. Coding conventions and config files
 
-Same as above — root-level files are already checked out via `git sparse-checkout set /`.
+Same as above — root-level files are already checked out via `--sparse` on clone.
 
 #### 4c. Full content of modified files
 
@@ -348,7 +340,7 @@ If the user provides a URL to another repository during the review (e.g., a back
 - It avoids duplicating clone logic inside this skill
 - Future reviews or questions about that repo will hit the cache instantly
 
-If the `git-repo-reader` skill is not available, fall back to a partial clone in the review cache (same as Path C).
+If the `git-repo-reader` skill is not available, fall back to a blobless clone in the review cache (same as Path C).
 
 ## Step 5: Detect Language
 
@@ -443,7 +435,7 @@ After the review is complete:
   git clean -fd
   ```
   **Do NOT delete the cached repo** — it is shared and will be reused.
-- **Path C** (partial clone): Delete the temp directory: `rm -rf "$REVIEW_DIR"`
+- **Path C** (blobless clone): Delete the temp directory: `rm -rf "$REVIEW_DIR"`
 
 Image artifacts and Path C temp directories live under `mythril-skills-cache/github-code-review-pr/`. If leftovers accumulate (e.g., from interrupted sessions), the user can run:
 ```bash
@@ -461,7 +453,7 @@ skills-clean-cache
 - **`gh` not authenticated for github.com**: Report error and suggest `gh auth login`
 - **PR not found**: Verify URL/number and repo access
 - **PR image download failed**: report URL + HTTP/auth error; retry with enterprise SSO (`curl --negotiate -u :`) when applicable; if still blocked, clearly state image analysis is incomplete
-- **Clone failure**: If partial clone fails (e.g., private repo without access), fall back to reviewing with diff-only context and report the limitation
+- **Clone failure**: If blobless clone fails (e.g., private repo without access), fall back to reviewing with diff-only context and report the limitation
 - **Large PR (>50 files)**: Warn the user that review may be less thorough; focus on the most critical files
 - **Binary files**: Skip binary files in review, note them as present
 - **Private repo access**: If unauthorized, report clearly
@@ -475,7 +467,7 @@ skills-clean-cache
 
 ### Example 2: Review by URL — repo not cached (English)
 **User input**: "Review this PR: https://github.com/owner/repo/pull/99"
-**Action**: Fetch PR metadata + diff → cache miss → partial clone to temp dir (Path C) → sparse checkout → review in English
+**Action**: Fetch PR metadata + diff → cache miss → blobless clone to temp dir (Path C) → sparse checkout → review in English
 **Output**: 6-section English review with targeted context
 
 ### Example 3: Review in current repo context
