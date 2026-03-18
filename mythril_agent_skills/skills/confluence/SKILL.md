@@ -34,12 +34,36 @@ When `ATLASSIAN_BASE_URL` is not set, page commands accept a full Confluence URL
 
 These environment variables are shared with the Jira skill.
 
+## Runtime requirements
+
+- Python 3.10+ for `scripts/confluence_api.py`
+- Optional: `curl` for downloading linked screenshots/images when visual evidence is relevant
+
 # Workflow
 
 1. Determine what the user wants (view, search, create, update, etc.)
 2. Run the appropriate script command
 3. Read the markdown output and present it to the user
 4. For write operations, confirm success and show the resulting URL
+
+## Image handling
+
+When a viewed page, comments, or search result contains screenshots or image links, proactively retrieve and analyze them:
+
+Detect image links: Markdown syntax `![alt](url)`, plain URLs ending in `.png/.jpg/.jpeg/.gif/.webp/.svg`, and Confluence attachment paths (`/attachments/`, `/download/attachments/`).
+
+Download under unified cache:
+```bash
+CACHE_DIR="${TMPDIR:-/tmp}/mythril-skills-cache/confluence"
+mkdir -p "$CACHE_DIR"
+RUN_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
+IMAGE_CACHE="$RUN_DIR/images"
+mkdir -p "$IMAGE_CACHE"
+```
+
+Retrieve with `curl -fsSL`; if enterprise auth fails, retry with `curl -fsSL --negotiate -u :`.
+
+Analyze images with available image-capable tools and summarize only evidence relevant to the user task.
 
 ## Running the Script
 
@@ -190,6 +214,7 @@ For every task, provide:
 2. Short result summary (page title, ID, space, key metadata)
 3. If a write operation succeeded, include the page ID and URL
 4. If operation fails, include exact error and recommended fix
+5. If images were downloaded and analyzed, include an **Image Evidence Summary** (source URL, what was observed, confidence/limits)
 
 # Error Handling
 
@@ -199,6 +224,7 @@ For every task, provide:
 - **403 Forbidden**: User lacks permission for this operation in the target space.
 - **404 Not Found**: Page or space doesn't exist — verify the page ID or space ID.
 - **400 Bad Request**: Check field names, CQL syntax, and body format.
+- **Image download failed**: report URL + exact HTTP/auth error; retry with enterprise SSO (`curl --negotiate -u :`) when applicable.
 
 # Notes
 

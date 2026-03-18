@@ -29,12 +29,36 @@ Requires `ATLASSIAN_API_TOKEN` and `ATLASSIAN_USER_EMAIL`. See `README.md` in th
 
 When `ATLASSIAN_BASE_URL` is not set, issue commands accept a full Jira URL instead of an issue key. For commands without a specific issue (search, create, boards, sprints, myself), `ATLASSIAN_BASE_URL` is required.
 
+## Runtime requirements
+
+- Python 3.10+ for `scripts/jira_api.py`
+- Optional: `curl` for downloading linked screenshots/images when visual evidence is relevant
+
 # Workflow
 
 1. Determine what the user wants (view, search, create, transition, etc.)
 2. Run the appropriate script command
 3. Read the markdown output and present it to the user
 4. For write operations, confirm success and show the resulting URL
+
+## Image handling
+
+When issue descriptions or comments contain screenshots or image links, proactively retrieve and analyze them:
+
+Detect image links: Markdown syntax `![alt](url)`, plain URLs ending in `.png/.jpg/.jpeg/.gif/.webp/.svg`, and `/attachments/` paths.
+
+Download under unified cache:
+```bash
+CACHE_DIR="${TMPDIR:-/tmp}/mythril-skills-cache/jira"
+mkdir -p "$CACHE_DIR"
+RUN_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
+IMAGE_CACHE="$RUN_DIR/images"
+mkdir -p "$IMAGE_CACHE"
+```
+
+Retrieve with `curl -fsSL`; if enterprise auth fails, retry with `curl -fsSL --negotiate -u :`.
+
+Analyze images with available image-capable tools and summarize only evidence relevant to the user task.
 
 ## Running the Script
 
@@ -184,6 +208,7 @@ For every task, provide:
 2. Short result summary (issue key, status, assignee, key metadata)
 3. If a write operation succeeded, include the issue key and URL
 4. If operation fails, include exact error and recommended fix
+5. If images were downloaded and analyzed, include an **Image Evidence Summary** (source URL, what was observed, confidence/limits)
 
 # Error Handling
 
@@ -193,6 +218,7 @@ For every task, provide:
 - **403 Forbidden**: User lacks permission for this operation in the target project.
 - **404 Not Found**: Issue key or project doesn't exist — verify the key format (e.g. `PROJ-123`).
 - **400 Bad Request**: Check field names, issue types, and transition IDs are valid for this project.
+- **Image download failed**: report URL + exact HTTP/auth error; retry with enterprise SSO (`curl --negotiate -u :`) when applicable.
 
 # Notes
 
