@@ -6,9 +6,9 @@ description: >
   Trigger phrases: 'review PR', 'review this PR', 'PR review', 'PR CR', '审查PR', '看这个PR',
   'review pull request', 'help me review', or ANY URL containing '/pull/' with a review request.
   This skill handles github.com AND GitHub Enterprise (any domain: git.company.com, code.org.io, etc.).
-  IMPORTANT: Do NOT guess whether a URL is GitHub or GitLab based on domain name alone — always trigger
-  this skill first and let `gh` CLI determine the platform. Only reject URLs whose host literally contains
-  'gitlab', 'gitee.com', or 'bitbucket.org'.
+  CRITICAL: When you see a /pull/ URL, run `gh` commands IMMEDIATELY. NEVER ask the user whether
+  the URL is GitHub or GitLab. NEVER speculate about the platform. Just run `gh` and let it succeed
+  or fail. Only reject URLs whose host literally contains 'gitlab', 'gitee.com', or 'bitbucket.org'.
 license: Apache-2.0
 ---
 
@@ -24,7 +24,7 @@ license: Apache-2.0
 - "help me review this pull request"
 - "use github-code-review-pr skill"
 
-**CRITICAL**: Do NOT pre-filter by URL domain. GitHub Enterprise domains can be anything — `git.company.com`, `github.corp.example.com`, `code.org.io`, etc. If the URL contains `/pull/`, trigger this skill and let `gh` CLI sort out platform compatibility.
+**CRITICAL**: Do NOT pre-filter by URL domain. Do NOT ask the user what platform a URL belongs to. GitHub Enterprise domains can be anything — `git.company.com`, `git.acmecorp.com`, `github.corp.example.com`, `code.org.io`, etc. If the URL contains `/pull/`, trigger this skill, run `gh` commands immediately, and let `gh` CLI sort out platform compatibility. NEVER hesitate, speculate, or ask clarifying questions about the platform.
 
 **This skill reviews remote PRs via `gh` CLI (not local staged changes).**
 For local staged changes, use `code-review-staged` instead.
@@ -56,7 +56,7 @@ For local staged changes, use `code-review-staged` instead.
 
 The skill executes these steps:
 
-## Step 1: Parse PR Reference — Proceed Optimistically
+## Step 1: Parse PR Reference — Act First, Ask Never
 
 Accept PR input in any of these formats:
 - Full URL: `https://github.com/owner/repo/pull/123`
@@ -64,13 +64,15 @@ Accept PR input in any of these formats:
 - PR number (when inside a repo): `123`
 - PR number with repo: `owner/repo#123`
 
-**Platform handling:**
+**Platform handling — ZERO hesitation rule:**
+
+**NEVER ask the user what platform a URL is.** NEVER speculate about whether a domain is "GitLab", "Bitbucket", or anything else based on the domain name. NEVER say things like "this looks like a GitLab instance" or "is this GitHub Enterprise?" — just run the `gh` command and let it succeed or fail.
 
 1. **Only reject URLs whose host literally contains `gitlab`, or exactly matches `gitee.com` or `bitbucket.org`.** These are the only platforms we can confidently identify as non-GitHub from the URL alone.
 
-2. **For ALL other URLs — proceed immediately.** Do NOT try to guess the platform from the domain name. GitHub Enterprise (GHE) domains are completely arbitrary: `git.acmecorp.com`, `git.mycompany.com`, `github.corp.example.com`, `code.company.io`, etc. There is no way to distinguish GHE from other platforms by URL alone.
+2. **For ALL other URLs — run `gh` commands IMMEDIATELY without any commentary about the platform.** Do NOT think about, discuss, or question the domain. GitHub Enterprise (GHE) domains are completely arbitrary: `git.acmecorp.com`, `git.mycompany.com`, `github.corp.example.com`, `code.company.io`, etc. A domain like `git.company.com` is GitHub Enterprise until `gh` proves otherwise.
 
-3. **Let `gh` CLI be the judge.** Attempt the `gh` commands in Step 2. If the host is not a GitHub instance or the user hasn't authenticated, `gh` will return a clear error — handle it then (see Error Handling).
+3. **Let `gh` CLI be the sole judge.** Jump straight to Step 2 and run the commands. If the host is not a GitHub instance or the user hasn't authenticated, `gh` will return a clear error — handle it then (see Error Handling). Do NOT pre-screen, do NOT ask clarifying questions, do NOT warn about "possible non-GitHub hosts".
 
 Extract: **owner**, **repo**, **PR number**, and **hostname** (for any non-`github.com` domain).
 
@@ -479,3 +481,73 @@ skills-clean-cache
 **User input**: "帮我看一下这个 PR https://git.acmecorp.com/mobile-team/app-ios/pull/16323"
 **Action**: Domain is NOT gitlab/gitee/bitbucket → proceed optimistically → run `gh pr view https://git.acmecorp.com/...` → if auth error, tell user to run `gh auth login --hostname git.acmecorp.com`
 **Output**: Either full review (if GHE is configured) or clear auth setup instructions
+
+## Post-Review: Adding Comments to the PR
+
+After the review is delivered, the user may ask to send comments about specific issues back to the PR. Follow these rules to determine the correct comment type.
+
+### Default: Inline line-level comments (like "Files changed" tab)
+
+When the user asks to add a comment and ANY of these conditions apply, use an **inline line-level review comment** (equivalent to clicking `+` on a specific line in the "Files changed" tab on GitHub):
+
+- The user refers to a specific line, code block, or code snippet from the review
+- The user copies/pastes part of the review analysis that identifies a specific code issue
+- The user says things like "comment on that line", "add comment there", "给那行加个评论", "在那里加 comment"
+- The review analysis already identified a specific file and line for the issue — the user is just asking to post it
+
+This is the **default** behavior. If there is any ambiguity about whether the user wants inline vs. general, **choose inline**.
+
+**How to post an inline comment:**
+
+```bash
+# Get the PR head commit SHA
+HEAD_SHA=$(gh pr view <URL_or_NUMBER> --json headRefOid -q .headRefOid)
+
+# For github.com repos:
+gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments \
+  -X POST \
+  -f body='Your review comment here' \
+  -f commit_id="$HEAD_SHA" \
+  -f path='path/to/file.kt' \
+  -F line=42 \
+  -f side='RIGHT'
+
+# For GitHub Enterprise (custom host):
+gh api --hostname <host> repos/OWNER/REPO/pulls/PR_NUMBER/comments \
+  -X POST \
+  -f body='Your review comment here' \
+  -f commit_id="$HEAD_SHA" \
+  -f path='path/to/file.kt' \
+  -F line=42 \
+  -f side='RIGHT'
+```
+
+- `path`: The file path relative to the repo root (from the PR diff)
+- `line`: The line number in the diff's new version of the file (RIGHT side)
+- `side`: Use `RIGHT` for commenting on the new code (most common), `LEFT` for the old/deleted code
+- `commit_id`: Must be the HEAD SHA of the PR branch
+
+**Determining the correct line number**: Use the PR diff from Step 2b to find the exact line number. The `line` parameter refers to the line number shown on the RIGHT side of the diff (the new version). Match the code snippet from the review to the diff to find the correct line.
+
+### Exception: General PR-level comment
+
+Use a **general PR comment** (appears at the bottom of the PR's "Conversation" tab) ONLY when:
+
+- The user explicitly says "给 PR 写一个 comment", "add a comment to the PR", "leave a general comment"
+- The comment is about the PR as a whole (e.g., overall architecture feedback, summary of review findings) and does not reference any specific code line
+- The user asks to post the full review summary as a comment
+
+```bash
+gh pr comment <URL_or_NUMBER> --body "Your general comment here"
+```
+
+### Examples
+
+**Inline comment (default):**
+- User: "把第3点关于空指针的问题发个 comment" → Find the file and line from review point #3, post inline comment
+- User: "send a comment about the missing null check" → Find the relevant line from the diff, post inline comment
+- User: "给这段代码加个评论: `val result = api.fetch()` 没有错误处理" → Find where this code appears in the diff, post inline comment
+
+**General comment:**
+- User: "给这个 PR 写一个总结 comment" → Post general PR comment
+- User: "leave a comment summarizing the review" → Post general PR comment
