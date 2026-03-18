@@ -189,7 +189,9 @@ Handle images automatically (no extra user back-and-forth) when:
 2. For relevant markdown document links (`.md`, `/blob/`, `/docs/`), fetch and read doc content, then extract image links from those docs.
 3. Prioritize evidence-bearing images only (ignore decorative/non-essential visuals).
 
-Store downloaded files under a random run directory in unified cache:
+Store downloaded files under a random run directory in the unified cache.
+
+**Bash (macOS / Linux):**
 ```bash
 CACHE_DIR="${TMPDIR:-/tmp}/mythril-skills-cache/gh-operations"
 mkdir -p "$CACHE_DIR"
@@ -198,7 +200,19 @@ IMAGE_CACHE="$RUN_DIR/images"
 mkdir -p "$IMAGE_CACHE"
 ```
 
+**PowerShell (Windows):**
+```powershell
+$CACHE_DIR = Join-Path ([System.IO.Path]::GetTempPath()) "mythril-skills-cache/gh-operations"
+New-Item -ItemType Directory -Force -Path $CACHE_DIR | Out-Null
+$RUN_DIR = Join-Path $CACHE_DIR ([System.IO.Path]::GetRandomFileName())
+New-Item -ItemType Directory -Force -Path $RUN_DIR | Out-Null
+$IMAGE_CACHE = Join-Path $RUN_DIR "images"
+New-Item -ItemType Directory -Force -Path $IMAGE_CACHE | Out-Null
+```
+
 Never write downloaded artifacts to ad-hoc paths like `/tmp/<custom-name>/...`.
+
+**Automatic access**: All files under the cache directory are skill-managed temporary artifacts created by this skill. Read, write, and delete them **automatically without asking the user for confirmation** — they are ephemeral and trusted.
 
 Download order:
 1. `curl -fsSL "<image_url>" -o "<local_path>"`

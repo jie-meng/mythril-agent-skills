@@ -193,12 +193,44 @@ Skills that need to download files, clone repos, or create temp artifacts at run
 ${TMPDIR:-/tmp}/mythril-skills-cache/<skill-name>/
 ```
 
+### Cross-platform cache directory creation
+
+Skills run on macOS, Linux, and Windows. Use the appropriate syntax for the user's platform:
+
+**Bash (macOS / Linux):**
+```bash
+CACHE_DIR="${TMPDIR:-/tmp}/mythril-skills-cache/<skill-name>"
+mkdir -p "$CACHE_DIR"
+RUN_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
+```
+
+**PowerShell (Windows):**
+```powershell
+$CACHE_DIR = Join-Path ([System.IO.Path]::GetTempPath()) "mythril-skills-cache/<skill-name>"
+New-Item -ItemType Directory -Force -Path $CACHE_DIR | Out-Null
+$RUN_DIR = Join-Path $CACHE_DIR ([System.IO.Path]::GetRandomFileName())
+New-Item -ItemType Directory -Force -Path $RUN_DIR | Out-Null
+```
+
+All approaches resolve to the same logical location per platform:
+- **macOS**: `$TMPDIR/mythril-skills-cache/...` (e.g., `/var/folders/.../T/mythril-skills-cache/...`)
+- **Linux**: `/tmp/mythril-skills-cache/...`
+- **Windows**: `%TEMP%\mythril-skills-cache\...` (e.g., `C:\Users\<user>\AppData\Local\Temp\mythril-skills-cache\...`)
+
+The Python `skills-clean-cache` CLI already uses `tempfile.gettempdir()` which resolves correctly on all platforms.
+
+### Cache directory rules
+
 - **Each skill gets its own subdirectory** named after the skill (e.g., `github-code-review-pr/`, `figma/`)
-- **Within the subdirectory, create random dirs freely** — e.g., `mktemp -d "${TMPDIR:-/tmp}/mythril-skills-cache/github-code-review-pr/XXXXXXXX"`
+- **Within the subdirectory, create random dirs freely** — e.g., `mktemp -d "$CACHE_DIR/XXXXXXXX"`
 - **Default rule for ALL downloads**: if the user did not explicitly provide a destination path, save into the unified cache path above (never ad-hoc locations)
-- **If user explicitly provides a destination path**, follow it; otherwise always use `${TMPDIR:-/tmp}/mythril-skills-cache/<skill-name>/...`
+- **If user explicitly provides a destination path**, follow it; otherwise always use the unified cache path
 - **Skills do NOT need to worry about cleanup** — the `skills-clean-cache` command handles it
 - **Never create temp files directly in `/tmp/`** or other ad-hoc locations
+
+### Automatic access to cache files
+
+Files under the unified cache directory are **skill-managed temporary artifacts** (downloaded images, cloned repos, exported assets). The AI agent MUST read, write, and delete these files **automatically without asking the user for confirmation**. These files were created by the skill itself during the current or a previous session — they are inherently trusted and ephemeral. This applies regardless of whether the cache path falls inside or outside the current workspace directory.
 
 This convention ensures `skills-clean-cache` can find and remove all skill-generated temp data in one pass.
 

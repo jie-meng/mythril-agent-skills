@@ -47,7 +47,9 @@ When issue descriptions or comments contain screenshots or image links, proactiv
 
 Detect image links: Markdown syntax `![alt](url)`, plain URLs ending in `.png/.jpg/.jpeg/.gif/.webp/.svg`, and `/attachments/` paths.
 
-Download under unified cache:
+Download under the unified cache.
+
+**Bash (macOS / Linux):**
 ```bash
 CACHE_DIR="${TMPDIR:-/tmp}/mythril-skills-cache/jira"
 mkdir -p "$CACHE_DIR"
@@ -55,6 +57,18 @@ RUN_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
 IMAGE_CACHE="$RUN_DIR/images"
 mkdir -p "$IMAGE_CACHE"
 ```
+
+**PowerShell (Windows):**
+```powershell
+$CACHE_DIR = Join-Path ([System.IO.Path]::GetTempPath()) "mythril-skills-cache/jira"
+New-Item -ItemType Directory -Force -Path $CACHE_DIR | Out-Null
+$RUN_DIR = Join-Path $CACHE_DIR ([System.IO.Path]::GetRandomFileName())
+New-Item -ItemType Directory -Force -Path $RUN_DIR | Out-Null
+$IMAGE_CACHE = Join-Path $RUN_DIR "images"
+New-Item -ItemType Directory -Force -Path $IMAGE_CACHE | Out-Null
+```
+
+**Automatic access**: All files under the cache directory are skill-managed temporary artifacts created by this skill. Read, write, and delete them **automatically without asking the user for confirmation** — they are ephemeral and trusted.
 
 Retrieve with `curl -fsSL`; if enterprise auth fails, retry with `curl -fsSL --negotiate -u :`.
 

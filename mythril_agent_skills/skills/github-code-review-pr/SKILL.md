@@ -107,7 +107,9 @@ Automatically do this (without extra user back-and-forth) when:
 - screenshots are part of PR verification evidence (offline check steps, UI proof, tracking proof), or
 - image information is required to validate correctness/risk.
 
-Download relevant images under a random run directory in unified cache:
+Download relevant images under a random run directory in the unified cache.
+
+**Bash (macOS / Linux):**
 ```bash
 CACHE_DIR="${TMPDIR:-/tmp}/mythril-skills-cache/github-code-review-pr"
 mkdir -p "$CACHE_DIR"
@@ -116,7 +118,19 @@ IMAGE_CACHE="$RUN_DIR/images"
 mkdir -p "$IMAGE_CACHE"
 ```
 
+**PowerShell (Windows):**
+```powershell
+$CACHE_DIR = Join-Path ([System.IO.Path]::GetTempPath()) "mythril-skills-cache/github-code-review-pr"
+New-Item -ItemType Directory -Force -Path $CACHE_DIR | Out-Null
+$RUN_DIR = Join-Path $CACHE_DIR ([System.IO.Path]::GetRandomFileName())
+New-Item -ItemType Directory -Force -Path $RUN_DIR | Out-Null
+$IMAGE_CACHE = Join-Path $RUN_DIR "images"
+New-Item -ItemType Directory -Force -Path $IMAGE_CACHE | Out-Null
+```
+
 Never use ad-hoc temp locations like `/tmp/<custom-folder>/...` for image artifacts.
+
+**Automatic access**: All files under the cache directory are skill-managed temporary artifacts created by this skill. Read, write, and delete them **automatically without asking the user for confirmation** — they are ephemeral and trusted.
 
 Use authenticated retrieval in this order:
 1. `curl -fsSL "<image_url>" -o "<local_path>"`
@@ -154,12 +168,23 @@ Use **partial clone + sparse checkout** to avoid downloading the entire repo. Th
 
 Create a temp directory under the **unified skill cache** so `skills-clean-cache` can find and remove all leftovers:
 
+**Bash (macOS / Linux):**
 ```bash
 CACHE_DIR="${TMPDIR:-/tmp}/mythril-skills-cache/github-code-review-pr"
 mkdir -p "$CACHE_DIR"
 REVIEW_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
 gh repo clone <owner/repo> "$REVIEW_DIR" -- --filter=blob:none --depth=1 --single-branch --sparse
 cd "$REVIEW_DIR"
+```
+
+**PowerShell (Windows):**
+```powershell
+$CACHE_DIR = Join-Path ([System.IO.Path]::GetTempPath()) "mythril-skills-cache/github-code-review-pr"
+New-Item -ItemType Directory -Force -Path $CACHE_DIR | Out-Null
+$REVIEW_DIR = Join-Path $CACHE_DIR ([System.IO.Path]::GetRandomFileName())
+New-Item -ItemType Directory -Force -Path $REVIEW_DIR | Out-Null
+gh repo clone <owner/repo> "$REVIEW_DIR" -- --filter=blob:none --depth=1 --single-branch --sparse
+Set-Location $REVIEW_DIR
 ```
 
 Now the repo is cloned but the working directory is nearly empty (only root-level files). Next, selectively populate **only the files we need** using sparse-checkout:
@@ -356,7 +381,7 @@ After the review is complete:
 - **Path B** (partial clone): Delete the review directory: `rm -rf "$REVIEW_DIR"`
 - **Path A** (existing repo): Restore the original branch: `git checkout "$ORIGINAL_BRANCH"`
 
-All temp directories live under `${TMPDIR:-/tmp}/mythril-skills-cache/github-code-review-pr/`. If leftovers accumulate (e.g., from interrupted sessions), the user can run:
+All temp directories live under the unified cache path (`${TMPDIR:-/tmp}/mythril-skills-cache/github-code-review-pr/` on Unix, `%TEMP%\mythril-skills-cache\github-code-review-pr\` on Windows). If leftovers accumulate (e.g., from interrupted sessions), the user can run:
 ```bash
 skills-clean-cache
 ```

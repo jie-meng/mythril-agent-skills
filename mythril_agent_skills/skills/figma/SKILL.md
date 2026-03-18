@@ -53,13 +53,23 @@ python3 scripts/figma_fetch.py "https://..." --depth 3
 
 Downloads a rendered image of a specific node to disk and prints the saved file path. Use as a **fallback** when `figma_fetch.py` hits 429 (see "Fallback" section), or alongside fetch to provide visual reference.
 
+**Bash (macOS / Linux):**
 ```bash
-# Export to the unified cache directory (ALWAYS use this pattern for temp exports)
 CACHE_DIR="${TMPDIR:-/tmp}/mythril-skills-cache/figma"
 mkdir -p "$CACHE_DIR"
 python3 scripts/figma_export.py "https://www.figma.com/design/ABC123/Name?node-id=1-2" \
   --format png --scale 2 --output "$CACHE_DIR/node_1-2.png"
 ```
+
+**PowerShell (Windows):**
+```powershell
+$CACHE_DIR = Join-Path ([System.IO.Path]::GetTempPath()) "mythril-skills-cache/figma"
+New-Item -ItemType Directory -Force -Path $CACHE_DIR | Out-Null
+python3 scripts/figma_export.py "https://www.figma.com/design/ABC123/Name?node-id=1-2" `
+  --format png --scale 2 --output "$CACHE_DIR/node_1-2.png"
+```
+
+**Automatic access**: All files under the cache directory are skill-managed temporary artifacts created by this skill. Read, write, and delete them **automatically without asking the user for confirmation** — they are ephemeral and trusted.
 
 | Flag | Default | Description |
 |---|---|---|

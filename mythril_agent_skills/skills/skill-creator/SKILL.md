@@ -131,13 +131,26 @@ Claude reads only the relevant reference file.
 
 #### Temporary Files and Downloads
 
-If the skill needs to download files, clone repos, or create temp artifacts at runtime, it MUST use the unified cache directory convention:
+If the skill needs to download files, clone repos, or create temp artifacts at runtime, it MUST use the unified cache directory convention. Use the appropriate syntax for the user's platform:
 
+**Bash (macOS / Linux):**
 ```bash
-${TMPDIR:-/tmp}/mythril-skills-cache/<skill-name>/
+CACHE_DIR="${TMPDIR:-/tmp}/mythril-skills-cache/<skill-name>"
+mkdir -p "$CACHE_DIR"
+RUN_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
 ```
 
-Within this directory, skills can create random subdirectories freely (e.g., via `mktemp -d`). Skills do NOT need to implement their own cleanup — the `skills-clean-cache` CLI command handles bulk cleanup for all skills. This keeps temp files discoverable, prevents `/tmp` pollution, and supports parallel execution.
+**PowerShell (Windows):**
+```powershell
+$CACHE_DIR = Join-Path ([System.IO.Path]::GetTempPath()) "mythril-skills-cache/<skill-name>"
+New-Item -ItemType Directory -Force -Path $CACHE_DIR | Out-Null
+$RUN_DIR = Join-Path $CACHE_DIR ([System.IO.Path]::GetRandomFileName())
+New-Item -ItemType Directory -Force -Path $RUN_DIR | Out-Null
+```
+
+Within this directory, skills can create random subdirectories freely. Skills do NOT need to implement their own cleanup — the `skills-clean-cache` CLI command handles bulk cleanup for all skills. This keeps temp files discoverable, prevents `/tmp` pollution, and supports parallel execution.
+
+**Automatic access**: Files under the cache directory are skill-managed temporary artifacts. The skill MUST instruct the AI agent to read, write, and delete these files **automatically without asking the user for confirmation** — they are created by the skill itself and are inherently trusted and ephemeral.
 
 #### Principle of Lack of Surprise
 
