@@ -131,6 +131,119 @@ Path B is the sweet spot for repos you work with regularly — near-instant afte
 3. **Modified files** — checked out via sparse-checkout of their directories
 4. **Related files** — add directories to sparse checkout as needed (2-3 max)
 
+## Path C Step-by-Step (Blobless + Sparse)
+
+Path C is the fallback when the repo is not available locally and not found in shared cache. It is designed to stay lightweight while still enabling context-aware review.
+
+1. **Fetch PR metadata and diff once (no pager)**
+   - Use the PR URL as the canonical reference.
+   - Disable interactive paging so automation does not block.
+
+```bash
+GH_PAGER=cat gh pr view "<PR_URL>" --json number,title,body,baseRefName,headRefName,files,changedFiles,additions,deletions,url
+GH_PAGER=cat gh pr diff "<PR_URL>"
+```
+
+2. **Create a temp review directory under the unified cache**
+
+```bash
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  CACHE_ROOT="$HOME/Library/Caches/mythril-skills-cache"
+else
+  CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/mythril-skills-cache"
+fi
+CACHE_DIR="$CACHE_ROOT/github-code-review-pr"
+mkdir -p "$CACHE_DIR"
+REVIEW_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
+```
+
+3. **Clone with blobless + sparse mode (not full clone)**
+   - `--filter=blob:none`: skip file blobs during clone.
+   - `--sparse`: start with a minimal working tree.
+
+```bash
+gh repo clone "<REPO_URL_OR_OWNER/REPO>" "$REVIEW_DIR" -- --filter=blob:none --sparse
+cd "$REVIEW_DIR"
+```
+
+4. **Add only directories touched by the PR**
+   - Extract parent directories from the `files` list returned by `gh pr view`.
+   - Add only those directories to sparse checkout.
+
+```bash
+git sparse-checkout add src/moduleA deploy .github/workflows
+```
+
+5. **Checkout the PR branch after sparse scope is set**
+
+```bash
+GH_PAGER=cat gh pr checkout <PR_NUMBER>
+```
+
+6. **Read context incrementally**
+   - Read modified files in full when change volume justifies it.
+   - If a dependency/reference points outside current sparse scope, add one more directory and continue.
+
+```bash
+git sparse-checkout add src/shared src/types
+```
+
+7. **Clean up temp repo after review**
+
+```bash
+rm -rf "$REVIEW_DIR"
+```
+
+### Why this is efficient
+
+- Initial clone transfers commit/tree metadata, not full file content.
+- File content is fetched only when directories are added to sparse checkout.
+- Review stays focused on changed areas plus minimal related context.
+- This avoids the cost of a full clone while preserving review quality.
+
+### Operational best practices for Path C
+
+- Use one canonical PR reference per run (URL if user provided URL).
+- Disable pager for all `gh` review commands (`GH_PAGER=cat`).
+- Fetch metadata/diff once, then reuse; avoid repeated `gh pr diff` calls.
+- In the final report, clearly separate confirmed findings from potential risks.
+
+## Path C Visual Map (What gets downloaded, when)
+
+```mermaid
+flowchart TD
+    S0["Input: PR URL"] --> S1["1) GH_PAGER=cat gh pr view + gh pr diff"]
+    S1 --> D1["Downloads: PR metadata + patch text\n(no repo clone yet)"]
+    D1 --> A1["Analyzable now:\n- PR title/body/commits/reviews\n- changed file list\n- unified diff"]
+
+    A1 --> S2["2) gh repo clone --filter=blob:none --sparse"]
+    S2 --> D2["Downloads: commits + trees + refs\n(no full file blobs)"]
+    D2 --> A2["Analyzable now:\n- full repo tree via git ls-tree\n- root files in sparse checkout"]
+
+    A2 --> S3["3) git sparse-checkout add <PR dirs>"]
+    S3 --> D3["Downloads: blobs only for PR-touched directories"]
+    D3 --> A3["Analyzable now:\n- full content of modified files\n- directory-local context"]
+
+    A3 --> S4["4) GH_PAGER=cat gh pr checkout <PR_NUMBER>"]
+    S4 --> D4["Downloads: PR head refs\n+ blobs for sparse paths as needed"]
+    D4 --> A4["Analyzable now:\n- PR branch version of sparse files"]
+
+    A4 --> S5["5) git sparse-checkout add <related dirs> (optional)"]
+    S5 --> D5["Downloads: additional blobs for only those related dirs"]
+    D5 --> A5["Analyzable now:\n- cross-file interfaces/callers/tests\n  required for correctness checks"]
+```
+
+### Step-to-Command Matrix
+
+| Step | Command | Network download at this step | Files analyzed after this step |
+|---|---|---|---|
+| 1 | `GH_PAGER=cat gh pr view ...` + `GH_PAGER=cat gh pr diff ...` | PR metadata and diff text | PR intent, changed files, patch hunks |
+| 2 | `gh repo clone ... --filter=blob:none --sparse` | Commit graph, tree objects, refs (no full blobs) | Repo structure, root convention files |
+| 3 | `git sparse-checkout add <pr-dirs>` | Blobs for changed directories only | Full content of modified files |
+| 4 | `GH_PAGER=cat gh pr checkout <N>` | PR head refs and sparse-path blobs as needed | PR branch version of sparse files |
+| 5 | `git sparse-checkout add <related-dirs>` | Blobs for specifically added related dirs | Interfaces/callers/tests needed for validation |
+| 6 | `rm -rf "$REVIEW_DIR"` | None | Cleanup only |
+
 ## Ensuring Branch Freshness
 
 A critical concern with cached repos (Path B) is stale branches leading to inaccurate reviews:

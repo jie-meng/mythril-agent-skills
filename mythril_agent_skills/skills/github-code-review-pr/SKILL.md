@@ -87,6 +87,11 @@ Accept PR input in any of these formats:
 
 Extract: **owner**, **repo**, **PR number**, and **hostname** (for any non-`github.com` domain).
 
+**Canonical ref rule (avoid duplicate retries):**
+- If user input is a full PR URL, treat that URL as the canonical PR reference for all `gh` commands.
+- Do NOT first try `owner/repo` shorthand and then retry with URL.
+- Only switch format when `gh` returns a clear parsing/request error that requires a different format.
+
 ## Step 2: Fetch PR Metadata and Diff
 
 Fetch PR metadata and diff via `gh`. Run these commands concurrently:
@@ -108,6 +113,23 @@ Key fields:
 ```bash
 gh pr diff <URL_or_NUMBER>
 ```
+
+### 2b.1 Non-interactive execution (no pager lock)
+
+Always disable interactive paging for review commands:
+
+```bash
+GH_PAGER=cat gh pr view <URL_or_NUMBER> --json number,title,body,state,author,baseRefName,headRefName,labels,reviewDecision,additions,deletions,changedFiles,commits,files,comments,reviews,url
+GH_PAGER=cat gh pr diff <URL_or_NUMBER>
+```
+
+Do NOT rely on interactive `less`/pager behavior during tool execution.
+
+### 2b.2 Single-fetch rule (avoid repeated network calls)
+
+- Fetch metadata and diff once, then reuse the captured output throughout the review.
+- Do NOT re-run `gh pr diff`/`gh pr view` unless output is missing/corrupted or PR head changed during review.
+- If a re-fetch is required, state the reason explicitly.
 
 ### 2c. Collect and analyze PR images (default when relevant)
 
@@ -378,6 +400,13 @@ Analyze user's input to determine review output language:
 
 ## Step 6: Perform Code Review
 
+### Evidence certainty rules (MANDATORY)
+
+- Separate **confirmed findings** from **potential risks**.
+- A confirmed finding must be directly supported by evidence from the diff, file content, or PR metadata.
+- A potential risk must be labeled as such (e.g., "Potential risk") and include one concrete validation step.
+- Do NOT present speculative runtime/CI behavior as established fact without direct evidence.
+
 Structure the review into these sections:
 
 ### If Chinese review requested:
@@ -463,7 +492,11 @@ After the review is complete:
   git clean -fd
   ```
   **Do NOT delete the cached repo** — it is shared and will be reused.
-- **Path C** (blobless clone): Delete the temp directory: `rm -rf "$REVIEW_DIR"`
+- **Path C** (blobless clone): Delete all temp directories created for this review under `mythril-skills-cache/github-code-review-pr/` (including repo/image run dirs such as `"$REVIEW_DIR"` and `"$RUN_DIR"` when present): `rm -rf "<dir>"`
+
+**User-facing cleanup confirmation is REQUIRED:**
+- After deletion, output a short status line that cleanup succeeded and which temp paths were removed (or how many were removed).
+- If any temp directory cannot be deleted, explicitly report the remaining path and error, then suggest `skills-clean-cache`.
 
 Image artifacts and Path C temp directories live under `mythril-skills-cache/github-code-review-pr/`. If leftovers accumulate (e.g., from interrupted sessions), the user can run:
 ```bash
