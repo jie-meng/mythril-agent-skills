@@ -199,7 +199,12 @@ Store downloaded files under a random run directory in the unified cache.
 
 **Bash (macOS / Linux):**
 ```bash
-CACHE_DIR="$(realpath "${TMPDIR:-/tmp}")/mythril-skills-cache/gh-operations"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  CACHE_ROOT="$HOME/Library/Caches/mythril-skills-cache"
+else
+  CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/mythril-skills-cache"
+fi
+CACHE_DIR="$CACHE_ROOT/gh-operations"
 mkdir -p "$CACHE_DIR"
 RUN_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
 IMAGE_CACHE="$RUN_DIR/images"
@@ -208,7 +213,8 @@ mkdir -p "$IMAGE_CACHE"
 
 **PowerShell (Windows):**
 ```powershell
-$CACHE_DIR = Join-Path ([IO.Path]::GetFullPath([IO.Path]::GetTempPath())) "mythril-skills-cache/gh-operations"
+$CACHE_ROOT = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "mythril-skills-cache"
+$CACHE_DIR = Join-Path $CACHE_ROOT "gh-operations"
 New-Item -ItemType Directory -Force -Path $CACHE_DIR | Out-Null
 $RUN_DIR = Join-Path $CACHE_DIR ([System.IO.Path]::GetRandomFileName())
 New-Item -ItemType Directory -Force -Path $RUN_DIR | Out-Null

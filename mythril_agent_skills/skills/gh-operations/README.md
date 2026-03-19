@@ -111,11 +111,16 @@ Recommended retrieval order:
    `curl -fsSL --negotiate -u : <image_url> -o <local_file>`
 
 Store image files under a random run dir in:
-`$(realpath "${TMPDIR:-/tmp}")/mythril-skills-cache/gh-operations/`
+`~/Library/Caches/mythril-skills-cache/gh-operations/` (Linux: `${XDG_CACHE_HOME:-~/.cache}/mythril-skills-cache/gh-operations/`)
 
 Recommended shell pattern:
 ```bash
-CACHE_DIR="$(realpath "${TMPDIR:-/tmp}")/mythril-skills-cache/gh-operations"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  CACHE_ROOT="$HOME/Library/Caches/mythril-skills-cache"
+else
+  CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/mythril-skills-cache"
+fi
+CACHE_DIR="$CACHE_ROOT/gh-operations"
 mkdir -p "$CACHE_DIR"
 RUN_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
 IMAGE_CACHE="$RUN_DIR/images"

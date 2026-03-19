@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Skills Clean Cache - Remove cached files created by skills at runtime.
 
-All skills store cached files under a unified cache directory:
-    $(realpath "${TMPDIR:-/tmp}")/mythril-skills-cache/
+All skills store cached files under a unified per-user cache directory:
+    macOS:   ~/Library/Caches/mythril-skills-cache/
+    Linux:   ${XDG_CACHE_HOME:-~/.cache}/mythril-skills-cache/
+    Windows: %LOCALAPPDATA%\\mythril-skills-cache\\
 
 The cache contains two categories:
   - **Temp files** (images, exports, etc.) — ephemeral, safe to delete anytime
@@ -19,9 +21,10 @@ Usage:
 
 from __future__ import annotations
 
+import os
+import platform
 import shutil
 import sys
-import tempfile
 from pathlib import Path
 
 CACHE_DIR_NAME = "mythril-skills-cache"
@@ -37,8 +40,26 @@ NC = "\033[0m"
 
 
 def get_cache_root() -> Path:
-    """Return the unified skill cache root directory (symlink-resolved)."""
-    return Path(tempfile.gettempdir()).resolve() / CACHE_DIR_NAME
+    """Return the unified per-user skill cache root directory."""
+    system = platform.system()
+    home = Path.home()
+
+    if system == "Darwin":
+        base = home / "Library" / "Caches"
+    elif system == "Windows":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            base = Path(local_app_data)
+        else:
+            base = home / "AppData" / "Local"
+    else:
+        xdg_cache_home = os.environ.get("XDG_CACHE_HOME")
+        if xdg_cache_home:
+            base = Path(xdg_cache_home)
+        else:
+            base = home / ".cache"
+
+    return base / CACHE_DIR_NAME
 
 
 def format_size(size_bytes: int) -> str:
@@ -149,9 +170,7 @@ def main() -> None:
                 f"\n{CYAN}Tip:{NC} To remove only temp files and keep the"
                 f" repo cache, answer {BOLD}t{NC}."
             )
-            print(
-                f"     To remove only the repo cache, answer {BOLD}r{NC}."
-            )
+            print(f"     To remove only the repo cache, answer {BOLD}r{NC}.")
             try:
                 answer = (
                     input(
@@ -198,9 +217,7 @@ def main() -> None:
         else:
             try:
                 answer = (
-                    input(
-                        f"\n{YELLOW}Delete all cached files?{NC} [y/N] "
-                    )
+                    input(f"\n{YELLOW}Delete all cached files?{NC} [y/N] ")
                     .strip()
                     .lower()
                 )

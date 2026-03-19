@@ -37,8 +37,9 @@ Clone, cache, and read any git repository for code exploration and analysis.
 This skill uses a helper script (`repo_manager.py`) bundled in `scripts/` to handle all repo operations deterministically. The script manages a cache of cloned repos and a mapping file (`repo_map.json`) so repos persist across conversation sessions. The repo cache is shared with other skills (e.g., `github-code-review-pr`) — they use an identical copy of the same script, reading/writing the same cache directory.
 
 All cached repos live under the unified cache directory:
-- **macOS/Linux**: `$(realpath "${TMPDIR:-/tmp}")/mythril-skills-cache/git-repo-cache/`
-- **Windows**: `%TEMP%\mythril-skills-cache\git-repo-cache\`
+- **macOS**: `~/Library/Caches/mythril-skills-cache/git-repo-cache/`
+- **Linux**: `${XDG_CACHE_HOME:-~/.cache}/mythril-skills-cache/git-repo-cache/`
+- **Windows**: `%LOCALAPPDATA%\mythril-skills-cache\git-repo-cache\`
 
 The user can clean up all cached repos at any time via `skills-clean-cache`.
 

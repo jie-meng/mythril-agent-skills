@@ -18,21 +18,36 @@ Uses only Python 3.10+ standard library (zero dependencies).
 from __future__ import annotations
 
 import json
+import os
+import platform
 import re
 import sys
-import tempfile
 from pathlib import Path
 
 CACHE_DIR_NAME = "git-repo-cache"
 
 
 def get_cache_root() -> Path:
-    """Return the shared repo cache root (symlink-resolved)."""
-    return (
-        Path(tempfile.gettempdir()).resolve()
-        / "mythril-skills-cache"
-        / CACHE_DIR_NAME
-    )
+    """Return the shared repo cache root under per-user cache."""
+    system = platform.system()
+    home = Path.home()
+
+    if system == "Darwin":
+        base = home / "Library" / "Caches"
+    elif system == "Windows":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            base = Path(local_app_data)
+        else:
+            base = home / "AppData" / "Local"
+    else:
+        xdg_cache_home = os.environ.get("XDG_CACHE_HOME")
+        if xdg_cache_home:
+            base = Path(xdg_cache_home)
+        else:
+            base = home / ".cache"
+
+    return base / "mythril-skills-cache" / CACHE_DIR_NAME
 
 
 def parse_repo_url(url: str) -> tuple[str, str, str]:

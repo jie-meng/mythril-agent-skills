@@ -27,23 +27,38 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import platform
 import re
 import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 CACHE_DIR_NAME = "git-repo-cache"
 
 
 def get_cache_root() -> Path:
-    """Return the shared repo cache root (symlink-resolved)."""
-    return (
-        Path(tempfile.gettempdir()).resolve()
-        / "mythril-skills-cache"
-        / CACHE_DIR_NAME
-    )
+    """Return the shared repo cache root under per-user cache."""
+    system = platform.system()
+    home = Path.home()
+
+    if system == "Darwin":
+        base = home / "Library" / "Caches"
+    elif system == "Windows":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            base = Path(local_app_data)
+        else:
+            base = home / "AppData" / "Local"
+    else:
+        xdg_cache_home = os.environ.get("XDG_CACHE_HOME")
+        if xdg_cache_home:
+            base = Path(xdg_cache_home)
+        else:
+            base = home / ".cache"
+
+    return base / "mythril-skills-cache" / CACHE_DIR_NAME
 
 
 def get_map_path() -> Path:
@@ -183,9 +198,7 @@ def run_git(
     )
 
 
-def git_clone(
-    clone_url: str, target: Path, branch: str | None = None
-) -> None:
+def git_clone(clone_url: str, target: Path, branch: str | None = None) -> None:
     """Clone a repository using blobless clone (all branches, blobs on demand)."""
     target.parent.mkdir(parents=True, exist_ok=True)
     cmd = ["clone", "--filter=blob:none"]
@@ -212,9 +225,7 @@ def git_fetch(repo_path: Path) -> None:
     """Fetch latest refs from origin (all branches, prune stale)."""
     result = run_git(["fetch", "origin", "--prune"], cwd=repo_path)
     if result.returncode != 0:
-        raise RuntimeError(
-            f"git fetch failed:\n{result.stderr.strip()}"
-        )
+        raise RuntimeError(f"git fetch failed:\n{result.stderr.strip()}")
 
 
 def git_checkout_branch(repo_path: Path, branch: str) -> None:
@@ -223,9 +234,7 @@ def git_checkout_branch(repo_path: Path, branch: str) -> None:
     if result.returncode != 0:
         fetch = run_git(["fetch", "origin", branch], cwd=repo_path)
         if fetch.returncode != 0:
-            raise RuntimeError(
-                f"Branch '{branch}' not found:\n{fetch.stderr.strip()}"
-            )
+            raise RuntimeError(f"Branch '{branch}' not found:\n{fetch.stderr.strip()}")
         result = run_git(["checkout", branch], cwd=repo_path)
         if result.returncode != 0:
             result = run_git(
@@ -233,8 +242,7 @@ def git_checkout_branch(repo_path: Path, branch: str) -> None:
             )
             if result.returncode != 0:
                 raise RuntimeError(
-                    f"Failed to checkout branch '{branch}':\n"
-                    f"{result.stderr.strip()}"
+                    f"Failed to checkout branch '{branch}':\n{result.stderr.strip()}"
                 )
 
 
@@ -254,9 +262,7 @@ def git_get_default_branch(repo_path: Path) -> str:
             return line.split("->")[-1].strip().removeprefix("origin/")
 
     for fallback in ("main", "master"):
-        check = run_git(
-            ["rev-parse", "--verify", f"origin/{fallback}"], cwd=repo_path
-        )
+        check = run_git(["rev-parse", "--verify", f"origin/{fallback}"], cwd=repo_path)
         if check.returncode == 0:
             return fallback
 
@@ -445,9 +451,7 @@ def cmd_pull(url: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Git repository cache manager."
-    )
+    parser = argparse.ArgumentParser(description="Git repository cache manager.")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_clone = sub.add_parser("clone", help="Clone or reuse a cached repo")
@@ -468,9 +472,7 @@ def main() -> None:
 
     sub.add_parser("list", help="List all cached repos")
 
-    p_pull = sub.add_parser(
-        "pull", help="Pull latest changes for a cached repo"
-    )
+    p_pull = sub.add_parser("pull", help="Pull latest changes for a cached repo")
     p_pull.add_argument("url", help="Git repository URL")
 
     args = parser.parse_args()

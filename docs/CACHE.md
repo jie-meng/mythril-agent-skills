@@ -13,16 +13,17 @@ and easy to clean.
 
 ## Canonical cache root
 
-Always resolve symlinks before constructing paths.
+Use a per-user OS cache root (stable across tools and sessions).
 
-- macOS/Linux: `$(realpath "${TMPDIR:-/tmp}")/mythril-skills-cache/`
-- Windows: `%TEMP%\mythril-skills-cache\`
+- macOS: `~/Library/Caches/mythril-skills-cache/`
+- Linux: `${XDG_CACHE_HOME:-~/.cache}/mythril-skills-cache/`
+- Windows: `%LOCALAPPDATA%\mythril-skills-cache\`
 
 Examples of canonicalized roots:
 
-- macOS: `/private/var/folders/.../T/mythril-skills-cache/`
-- Linux: `/tmp/mythril-skills-cache/`
-- Windows: `C:\Users\<user>\AppData\Local\Temp\mythril-skills-cache\`
+- macOS: `/Users/<user>/Library/Caches/mythril-skills-cache/`
+- Linux: `/home/<user>/.cache/mythril-skills-cache/`
+- Windows: `C:\Users\<user>\AppData\Local\mythril-skills-cache\`
 
 ## Per-skill directory
 
@@ -37,7 +38,12 @@ If a task needs a working folder, create a random run directory inside the skill
 ### Bash (macOS/Linux)
 
 ```bash
-CACHE_DIR="$(realpath "${TMPDIR:-/tmp}")/mythril-skills-cache/<skill-name>"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  CACHE_ROOT="$HOME/Library/Caches/mythril-skills-cache"
+else
+  CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/mythril-skills-cache"
+fi
+CACHE_DIR="$CACHE_ROOT/<skill-name>"
 mkdir -p "$CACHE_DIR"
 RUN_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
 ```
@@ -45,7 +51,8 @@ RUN_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
 ### PowerShell (Windows)
 
 ```powershell
-$CACHE_DIR = Join-Path ([IO.Path]::GetFullPath([IO.Path]::GetTempPath())) "mythril-skills-cache/<skill-name>"
+$CACHE_ROOT = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "mythril-skills-cache"
+$CACHE_DIR = Join-Path $CACHE_ROOT "<skill-name>"
 New-Item -ItemType Directory -Force -Path $CACHE_DIR | Out-Null
 $RUN_DIR = Join-Path $CACHE_DIR ([System.IO.Path]::GetRandomFileName())
 New-Item -ItemType Directory -Force -Path $RUN_DIR | Out-Null
@@ -55,9 +62,22 @@ New-Item -ItemType Directory -Force -Path $RUN_DIR | Out-Null
 
 ```python
 from pathlib import Path
-import tempfile
+import os
+import platform
 
-cache_dir = Path(tempfile.gettempdir()).resolve() / "mythril-skills-cache" / "<skill-name>"
+home = Path.home()
+if platform.system() == "Darwin":
+    cache_root = home / "Library" / "Caches" / "mythril-skills-cache"
+elif platform.system() == "Windows":
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    base = Path(local_app_data) if local_app_data else home / "AppData" / "Local"
+    cache_root = base / "mythril-skills-cache"
+else:
+    xdg_cache_home = os.environ.get("XDG_CACHE_HOME")
+    base = Path(xdg_cache_home) if xdg_cache_home else home / ".cache"
+    cache_root = base / "mythril-skills-cache"
+
+cache_dir = cache_root / "<skill-name>"
 cache_dir.mkdir(parents=True, exist_ok=True)
 ```
 

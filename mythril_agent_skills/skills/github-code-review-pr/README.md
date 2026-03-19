@@ -153,7 +153,7 @@ When PR body/comments/reviews include image links, the skill should proactively 
 - screenshots are part of verification steps (UI proof, tracking proof, offline check), or
 - image content is necessary to validate correctness/risk.
 
-Store image files under a random run dir in `$(realpath "${TMPDIR:-/tmp}")/mythril-skills-cache/github-code-review-pr/`.
+Store image files under a random run dir in `~/Library/Caches/mythril-skills-cache/github-code-review-pr/` (Linux: `${XDG_CACHE_HOME:-~/.cache}/mythril-skills-cache/github-code-review-pr/`).
 
 Do not store artifacts in ad-hoc paths like `/tmp/pr81_deskcheck/...`.
 Then summarize what each image shows and whether it supports PR claims.

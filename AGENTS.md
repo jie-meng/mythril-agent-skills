@@ -239,10 +239,10 @@ When adding a new skill, place it in the appropriate category. If it doesn't fit
 
 See [docs/CACHE.md](./docs/CACHE.md) for the full cache usage guide and examples.
 
-Skills that need to download files, clone repos, or create temp artifacts at runtime MUST use the unified cache directory with a **canonicalized** (symlink-resolved) path:
+Skills that need to download files, clone repos, or create temp artifacts at runtime MUST use the unified per-user cache directory:
 
 ```
-$(realpath "${TMPDIR:-/tmp}")/mythril-skills-cache/<skill-name>/
+<user-cache-root>/mythril-skills-cache/<skill-name>/
 ```
 
 ### Shared git repo cache
@@ -265,18 +265,24 @@ Cached repos live under `mythril-skills-cache/git-repo-cache/repos/<host>/<owner
 
 Skills run on macOS, Linux, and Windows. Use the appropriate syntax for the user's platform.
 
-**IMPORTANT**: On macOS, `/tmp` is a symlink to `/private/tmp`, and `$TMPDIR` points to `/var/folders/...` while `/var` is a symlink to `/private/var`. Without canonicalization, the same logical directory can appear as different paths (e.g., `/var/folders/.../T/...` vs `/private/var/folders/.../T/...` vs `/tmp/...`). Always use `realpath` (bash) or `Path.resolve()` (Python) to eliminate symlinks and ensure all tools see the same canonical path.
+**IMPORTANT**: Do NOT use temp roots such as `$TMPDIR`, `/tmp`, or `%TEMP%` for skill cache. Different tools may set different temp environments, causing non-unique cache paths. Always use per-user OS cache roots below.
 
 **Bash (macOS / Linux):**
 ```bash
-CACHE_DIR="$(realpath "${TMPDIR:-/tmp}")/mythril-skills-cache/<skill-name>"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  CACHE_ROOT="$HOME/Library/Caches/mythril-skills-cache"
+else
+  CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/mythril-skills-cache"
+fi
+CACHE_DIR="$CACHE_ROOT/<skill-name>"
 mkdir -p "$CACHE_DIR"
 RUN_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
 ```
 
 **PowerShell (Windows):**
 ```powershell
-$CACHE_DIR = Join-Path ([IO.Path]::GetFullPath([IO.Path]::GetTempPath())) "mythril-skills-cache/<skill-name>"
+$CACHE_ROOT = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "mythril-skills-cache"
+$CACHE_DIR = Join-Path $CACHE_ROOT "<skill-name>"
 New-Item -ItemType Directory -Force -Path $CACHE_DIR | Out-Null
 $RUN_DIR = Join-Path $CACHE_DIR ([System.IO.Path]::GetRandomFileName())
 New-Item -ItemType Directory -Force -Path $RUN_DIR | Out-Null
@@ -285,17 +291,29 @@ New-Item -ItemType Directory -Force -Path $RUN_DIR | Out-Null
 **Python:**
 ```python
 from pathlib import Path
-import tempfile
-cache_dir = Path(tempfile.gettempdir()).resolve() / "mythril-skills-cache" / "<skill-name>"
+import os
+import platform
+
+home = Path.home()
+if platform.system() == "Darwin":
+    cache_root = home / "Library" / "Caches" / "mythril-skills-cache"
+elif platform.system() == "Windows":
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    base = Path(local_app_data) if local_app_data else home / "AppData" / "Local"
+    cache_root = base / "mythril-skills-cache"
+else:
+    xdg_cache_home = os.environ.get("XDG_CACHE_HOME")
+    base = Path(xdg_cache_home) if xdg_cache_home else home / ".cache"
+    cache_root = base / "mythril-skills-cache"
+
+cache_dir = cache_root / "<skill-name>"
 cache_dir.mkdir(parents=True, exist_ok=True)
 ```
 
-All approaches resolve to the same **canonical** (symlink-free) location per platform:
-- **macOS**: `/private/var/folders/.../T/mythril-skills-cache/...`
-- **Linux**: `/tmp/mythril-skills-cache/...`
-- **Windows**: `C:\Users\<user>\AppData\Local\Temp\mythril-skills-cache\...`
-
-The Python `skills-clean-cache` CLI uses `Path(tempfile.gettempdir()).resolve()` which resolves symlinks correctly on all platforms.
+All approaches resolve to one **stable per-user** location per platform:
+- **macOS**: `/Users/<user>/Library/Caches/mythril-skills-cache/...`
+- **Linux**: `/home/<user>/.cache/mythril-skills-cache/...` (or `$XDG_CACHE_HOME/mythril-skills-cache/...`)
+- **Windows**: `C:\Users\<user>\AppData\Local\mythril-skills-cache\...`
 
 ### Cache directory rules
 

@@ -52,7 +52,9 @@ python3 scripts/figma_export.py "https://www.figma.com/design/ABC123/Name?node-i
 python3 scripts/figma_export.py "https://..." --format svg
 
 # Specify output path (use unified cache dir for temp exports)
-python3 scripts/figma_export.py "https://..." --format png --scale 1 --output "$(realpath "${TMPDIR:-/tmp}")/mythril-skills-cache/figma/button.png"
+# macOS: ~/Library/Caches/mythril-skills-cache/figma/
+# Linux: ${XDG_CACHE_HOME:-~/.cache}/mythril-skills-cache/figma/
+python3 scripts/figma_export.py "https://..." --format png --scale 1 --output "$HOME/Library/Caches/mythril-skills-cache/figma/button.png"
 ```
 
 **Options**:
