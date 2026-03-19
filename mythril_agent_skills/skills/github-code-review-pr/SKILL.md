@@ -2,18 +2,16 @@
 name: github-code-review-pr
 description: >
   Comprehensive structured code review for Pull Requests via GitHub CLI (`gh`).
-  TRIGGER THIS SKILL whenever the user asks to review a PR — regardless of the URL domain.
+  TRIGGER THIS SKILL whenever the user asks to review a PR — regardless of URL domain.
   Trigger phrases: 'review PR', 'review this PR', 'PR review', 'PR CR', '审查PR', '看这个PR',
-  '看看这个PR', '帮我看PR', '帮我看这个PR', '帮我看一下这个PR',
-  'review pull request', 'help me review', or ANY URL containing '/pull/' with a review request.
-  This skill handles github.com AND GitHub Enterprise (any domain — GHE domains are arbitrary:
-  git.company.com, git.corp.au, code.org.io, dev.internal.net, etc.).
-  CRITICAL — ZERO SPECULATION RULE: When you see a /pull/ URL, run `gh` commands IMMEDIATELY.
-  NEVER guess the platform from the domain name. Domains like `git.xxx.com`, `git.xxx.com.au`,
-  `git.company.io` are NOT GitLab — they are commonly GitHub Enterprise. NEVER say "this looks like
-  GitLab" or "this might not be GitHub". Just run `gh` and let it succeed or fail.
-  Only reject URLs whose host literally contains the substring 'gitlab', or exactly matches
-  'gitee.com' or 'bitbucket.org'. Every other domain MUST be attempted with `gh` first.
+  '看看这个PR', '帮我看PR', '帮我看一下这个PR', 'review pull request', 'help me review',
+  or ANY URL containing '/pull/' with a review request.
+  Handles github.com AND GitHub Enterprise (any domain: git.company.com, git.corp.au, code.org.io).
+  CRITICAL — ZERO SPECULATION: See a /pull/ URL? Run `gh` IMMEDIATELY. NEVER guess the platform.
+  `git.xxx.com`, `git.xxx.com.au` are NOT GitLab — they are common GHE patterns.
+  NEVER say "this looks like GitLab". Just run `gh` and let it succeed or fail.
+  Only reject URLs whose host contains 'gitlab', or matches 'gitee.com' or 'bitbucket.org'.
+  Every other domain MUST be attempted with `gh` first.
 license: Apache-2.0
 ---
 

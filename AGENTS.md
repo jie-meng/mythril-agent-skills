@@ -177,6 +177,18 @@ Detailed instructions, examples, and workflows...
 - `allowed-tools`: List of tools the skill may use
 - `compatibility`: Tool/platform requirements
 
+**Character limit**:
+- **The `description` field MUST be at most 1024 characters.** Multiple AI tools enforce this limit at load time — skills with longer descriptions will fail to load silently. Always verify length after editing a description. You can check all skills at once:
+  ```bash
+  python3 -c "
+  import yaml, pathlib
+  for p in sorted(pathlib.Path('mythril_agent_skills/skills').glob('*/SKILL.md')):
+      fm = yaml.safe_load(p.read_text().split('---', 2)[1])
+      d = fm.get('description', ''); n = len(d)
+      print(f\"{'!!' if n > 1024 else '  '} {p.parent.name}: {n} chars\")
+  "
+  ```
+
 **Tips for a good description**:
 - State explicitly *when* to invoke the skill (trigger conditions)
 - List example user phrases that should activate it
