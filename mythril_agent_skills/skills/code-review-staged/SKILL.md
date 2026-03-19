@@ -96,20 +96,29 @@ Read key project files (if they exist) to understand coding standards. Prioritiz
 - Read at most 3-5 config files — prioritize the ones most relevant to the changed files' languages
 - Skim only; skip files larger than ~50KB
 
-### 2c. Smart context retrieval for changed files
+### 2c. Full content of modified files
 
-Analyze the diff to determine if related files need to be read for a high-quality review:
+Read the **full content** of staged files to understand complete context around changes. Use a **change-volume driven** strategy instead of a fixed file count:
+
+- **> 50 lines changed** (additions + deletions): Must read full file — major changes require complete context
+- **5-50 lines changed**: Read full file — surrounding code is important for correctness judgment
+- **< 5 lines changed**: The diff alone may suffice; skip full read unless the change is in a critical path (e.g., security, auth, financial logic)
+- **New files**: Always read in full (subject to the size limit below)
+- **Skip binary files** and **very large files** (>100KB) — only use the diff for those. This size limit applies to ALL files, including new files
+
+### 2d. Related files not in the diff (targeted)
+
+Analyze the diff to determine if files NOT in the staged changes need to be read for a high-quality review:
+
 - **When to read context**:
-    - If a function signature changes, check its usages or definition
+    - If a function signature changes, check its callers or definition
     - If a class inherits from a base class not in diff, read the base class definition
     - If a variable type is unclear, check its declaration
     - If a config value changes, check where it's consumed if the impact is ambiguous
     - **Header/Source Pairing**: For C/C++, always check the corresponding `.h` or `.cpp` file if one is modified
     - **Tests**: Check if existing tests need updates or if new tests are consistent with existing patterns
-- **Full file content**: For files with significant changes, read the entire file (not just the diff) to understand the complete context
 - **Constraints**:
-    - Read only 3-5 directly related files beyond the changed files themselves
-    - Only read files that are strictly necessary to validate the correctness of the staged changes
+    - Read **3-5** related files that are strictly necessary to validate the correctness of the staged changes
     - If a file is huge, read only relevant sections
 
 ## Step 3: Detect Language

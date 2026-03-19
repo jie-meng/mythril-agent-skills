@@ -301,17 +301,20 @@ Read key project files to understand coding standards. Prioritize by relevance t
 
 #### 4c. Full content of modified files
 
-Read the **full current content** of PR-modified files to understand complete context around changes:
-- **Prioritize**: Read the top 5-8 most important modified files (by relevance, not just size)
-- **Skip binary files** and **very large files** (>100KB) — only use the diff for those
-- **For files with few changes** (< 5 lines added/deleted): The diff alone may suffice; skip full read
-- **Focus on**: Files with substantive logic changes, new files, and files with the most additions
+Read the **full current content** of PR-modified files to understand complete context around changes. Use a **change-volume driven** strategy instead of a fixed file count:
+
+- **> 50 lines changed** (additions + deletions): Must read full file — major changes require complete context
+- **5-50 lines changed**: Read full file — surrounding code is important for correctness judgment
+- **< 5 lines changed**: The diff alone may suffice; skip full read unless the change is in a critical path (e.g., security, auth, financial logic)
+- **New files**: Always read in full (subject to the size limit below)
+- **Skip binary files** and **very large files** (>100KB) — only use the diff for those. This size limit applies to ALL files, including new files
 
 #### 4d. Related files not in the diff (targeted)
 
 If the diff references imports, base classes, interfaces, or function calls from files NOT in the PR:
 - Just read the file directly — git auto-fetches the blob on demand
-- Read **at most 2-3** related files for understanding correctness
+- Read **3-5** related files that are strictly necessary to validate the correctness of the changes
+- Only read files where understanding their content directly affects review quality (e.g., interface definitions, base classes, callers of changed functions, related tests)
 
 ### For Path C (blobless clone with sparse checkout)
 
@@ -331,7 +334,7 @@ Same as above — root-level files are already checked out via `--sparse` on clo
 
 #### 4c. Full content of modified files
 
-Same priority rules as above. All modified files are already checked out via sparse checkout of their directories.
+Same change-volume driven strategy as above. All modified files are already checked out via sparse checkout of their directories.
 
 #### 4d. Related files not in the diff (targeted)
 
@@ -339,7 +342,7 @@ If the diff references files from directories NOT already in sparse checkout, ad
 ```bash
 git sparse-checkout add <directory>
 ```
-Git will auto-fetch the needed blobs. Limit to 2-3 related files.
+Git will auto-fetch the needed blobs. Read 3-5 related files that are strictly necessary to validate correctness.
 
 ### Accessing other repositories during review
 
