@@ -190,7 +190,7 @@ skills-check gh-operations jira figma  # 检查指定技能
 ```bash
 skills-clean-cache          # 交互式：列出缓存内容，确认后删除
 skills-clean-cache --force  # 直接删除，不询问确认
-skills-clean-cache --show-repos  # 可选：显示已缓存的仓库名称和大小
+skills-clean-cache --repos  # 交互式：选择要删除的仓库
 ```
 
 检查器将会：
