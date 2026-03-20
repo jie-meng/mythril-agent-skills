@@ -1,5 +1,9 @@
 # mythril-agent-skills
 
+<p align="center">
+  <img src="docs/assets/banner.webp" width="500" alt="mythril-agent-skills">
+</p>
+
 English | [中文](./README.zh-CN.md)
 
 A unified skill management system for multi-agent AI coding assistants. This toolkit (distributed as a Python package) provides a curated collection of reusable skills plus centralized CLI commands to install, configure, and maintain them across Github Copilot, Claude Code, Cursor, Codex, Gemini CLI ...
