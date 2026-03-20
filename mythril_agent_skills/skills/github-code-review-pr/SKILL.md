@@ -1,14 +1,15 @@
 ---
 name: github-code-review-pr
 description: >
-  Comprehensive Pull Request code review via GitHub CLI (`gh`). Trigger ONLY
-  when the user provides a URL, the URL is identified as a PR (e.g., contains
-  `/pull/`), the host does not contain gitlab gitee bitbucket, and the user asks to
-  review/审查/评审/CR or requests code-quality or risk analysis. The user does
-  not need to say "PR" explicitly. Supports github.com and GitHub Enterprise;
-  do not speculate by domain, run `gh` first and handle errors from `gh`. This
-  skill is for deep review output, not routine PR operations. For operational
-  actions (list/status/create/comment), prefer `gh-operations`.
+  Comprehensive Pull Request code review via GitHub CLI (`gh`). MANDATORY TRIGGER:
+  You MUST use this skill for ANY URL containing `/pull/` (unless the URL literally
+  contains 'gitlab', 'gitee', or 'bitbucket'). If the user asks to review/审查/评审/CR
+  a PR or requests code-quality analysis, you MUST trigger this skill.
+  CRITICAL: Treat ALL unknown domains (e.g., git.company.com) as valid targets.
+  NEVER guess, evaluate, or reason about what git platform the domain belongs to
+  based on your internal knowledge. Do not try to be smart. Just trigger this skill
+  and let the `gh` command handle any platform or auth errors. This skill is for deep
+  review output. For routine PR actions, prefer `gh-operations`.
 license: Apache-2.0
 ---
 
@@ -186,6 +187,39 @@ If image retrieval fails, report the exact reason and ask for one targeted unblo
 
 The goal is to have repo context available locally so context gathering is just file reads — no per-file API requests. Try these paths **in order** — pick the first one that applies.
 
+### Strict Path Order (MANDATORY)
+
+Before any clone/fetch work, follow this exact order:
+
+1. Check **Path A** first.
+2. If Path A does not apply, check **Path B** via `repo_cache_lookup.py`.
+3. Only if both A and B fail, use **Path C**.
+
+**NO probing clones rule:**
+- Do NOT run exploratory clone commands before path checks.
+- Do NOT clone into `/tmp`, `$TMPDIR`, or any ad-hoc directory at any stage.
+- For Path C, create `REVIEW_DIR` under the unified cache first, then clone directly into that path.
+
+### Path Trace Output (MANDATORY)
+
+During Step 3, emit explicit path-trace lines for **all three** paths so reviewers can audit behavior from logs.
+
+Use this exact format (one line each):
+
+```text
+[PATH-CHECK] A: HIT|MISS - <reason>
+[PATH-CHECK] B: HIT|MISS - <reason>
+[PATH-CHECK] C: SELECTED|SKIPPED - <reason>
+[PATH-SELECTED] Path A|B|C - <one-line rationale>
+```
+
+Rules:
+- Always print all four lines, even when Path A hits immediately.
+- If Path A is HIT: set `B: SKIPPED` and `C: SKIPPED` with reason.
+- If Path B is HIT: set `C: SKIPPED` with reason.
+- If Path C is used: `C: SELECTED` and include the created cache directory path.
+- Do not continue to Step 4 until these lines are present in the log/output.
+
 ### Path A: Already inside the target repo
 
 Check: `gh repo view --json nameWithOwner -q .nameWithOwner` — if it matches the PR's repo, we're already here.
@@ -229,6 +263,8 @@ After `gh pr checkout`, `HEAD` points to the PR's latest code. For base branch c
 If neither Path A nor Path B applies, use **blobless clone + sparse checkout** to avoid downloading the entire repo. This downloads all commits, tree objects, and branch refs on clone — but **file contents (blobs) are NOT downloaded until explicitly checked out**. Even for a multi-GB monorepo, the initial clone is typically just a few MB.
 
 **Why NOT `--depth=1` or `--single-branch`**: `gh pr checkout` needs to fetch `refs/pull/<N>/head` and set up tracking. With `--single-branch` the refspec is restricted to one branch, causing `gh pr checkout` to fail with `fatal: cannot set up tracking information`. `--depth=1` implies `--single-branch`. Using `--filter=blob:none --sparse` (without depth/single-branch) gives us all refs and history metadata at minimal cost — blobs are only fetched when files are actually checked out.
+
+**Path C location rule (MANDATORY):** The clone destination MUST be inside `mythril-skills-cache/github-code-review-pr/`. Never do a trial clone in `/tmp` and then retry in cache.
 
 Create a temp directory under the **unified skill cache**:
 
@@ -491,9 +527,19 @@ After the review is complete:
   **Do NOT delete the cached repo** — it is shared and will be reused.
 - **Path C** (blobless clone): Delete all temp directories created for this review under `mythril-skills-cache/github-code-review-pr/` (including repo/image run dirs such as `"$REVIEW_DIR"` and `"$RUN_DIR"` when present): `rm -rf "<dir>"`
 
+**Path-specific cleanup rule (MANDATORY):**
+- If selected path is **C**, cleanup must delete the created temp directories.
+- Do NOT replace Path C cleanup with branch reset/clean commands; those are for Path B cached repos.
+
 **User-facing cleanup confirmation is REQUIRED:**
 - After deletion, output a short status line that cleanup succeeded and which temp paths were removed (or how many were removed).
 - If any temp directory cannot be deleted, explicitly report the remaining path and error, then suggest `skills-clean-cache`.
+
+Also include one explicit cleanup line with the selected path:
+
+```text
+[PATH-CLEANUP] Path A|B|C - <what was restored/reset/deleted>
+```
 
 Image artifacts and Path C temp directories live under `mythril-skills-cache/github-code-review-pr/`. If leftovers accumulate (e.g., from interrupted sessions), the user can run:
 ```bash
