@@ -162,20 +162,30 @@ When the repo exceeds the size threshold (default 100 MB) and neither Path A nor
 - `NEEDS_USER_DECISION=true`
 - `REPO_SIZE_MB=<float>` — actual repo size in MB
 - `THRESHOLD_MB=<int>` — the threshold that was exceeded
+- `RECOMMENDED_DEFAULT=D|diff-only` — which option to pre-select (D for ≤ 1 GB, diff-only for > 1 GB)
 - `PENDING_RUN_DIR=<path>` — session directory with saved metadata/diff
 - `PR_VIEW_JSON_PATH=<path>` — already fetched, reusable
 - `PR_DIFF_PATH=<path>` — already fetched, reusable
 
-**When you receive exit code 10, you MUST present the user with three options:**
+**When you receive exit code 10, you MUST present the user with three options.**
 
-Display the repo size and ask the user to choose:
+Use the repo size to determine the recommended default, then display the options. **Do NOT invent your own recommendation — follow the table below exactly.**
 
-> This repo is **{REPO_SIZE_MB} MB** (exceeds the {THRESHOLD_MB} MB threshold).
+**Default selection rule:**
+
+| Repo size | Default option | Rationale |
+|---|---|---|
+| ≤ 1 GB | **2. Sparse clone (Path D)** | Blobless sparse clone only downloads tree metadata (usually <50 MB even for large repos) and fetches file content on demand. Good trade-off between download cost and review context quality. |
+| > 1 GB | **3. Diff-only** | Monorepo-scale repos have deep commit history and massive tree objects. Tree metadata alone can take minutes to transfer. Diff-only is the pragmatic choice. |
+
+Display the repo size and present the options. The **default option** (from the table above) MUST be pre-selected (cursor/arrow points to it). Do NOT add "(Recommended)" text to any option — the pre-selection is the recommendation.
+
+> This repository is **{REPO_SIZE_MB} MB** (exceeds the {THRESHOLD_MB} MB threshold).
 >
 > How would you like to proceed?
-> 1. **Clone to shared cache (Path C)** — larger download, but cached for future reviews
-> 2. **Sparse clone to temp dir (Path D)** — smaller download, only PR-related files, deleted after review
-> 3. **Diff-only** — no clone at all, review based on PR diff and metadata only (limited context)
+> 1. Clone to shared cache (Path C) — larger download, but cached for future reviews
+> 2. Sparse clone to temp dir (Path D) — smaller download, only PR-related files, deleted after review
+> 3. Diff-only — no clone, review based on PR diff and metadata only (limited context)
 
 After the user chooses, resume the session:
 

@@ -636,10 +636,16 @@ def prepare_session(
                 encoding="utf-8",
             )
 
-            # Emit outputs so the agent knows the run_dir and size.
+            # Determine recommended default: sparse clone for ≤1 GB,
+            # diff-only for monorepo-scale repos.
+            recommended = "D" if size_mb <= 1024 else "diff-only"
+
+            # Emit outputs so the agent knows the run_dir, size, and
+            # recommended default option.
             print(f"NEEDS_USER_DECISION=true")
             print(f"REPO_SIZE_MB={size_mb:.1f}")
             print(f"THRESHOLD_MB={threshold_mb}")
+            print(f"RECOMMENDED_DEFAULT={recommended}")
             print(f"PENDING_RUN_DIR={run_dir}")
             print(f"PR_VIEW_JSON_PATH={pr_view_path}")
             print(f"PR_DIFF_PATH={pr_diff_path}")
