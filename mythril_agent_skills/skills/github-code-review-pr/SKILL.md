@@ -115,29 +115,78 @@ Extract: **owner**, **repo**, **PR number**, and **hostname** (for any non-`gith
 python3 scripts/review_runner.py prepare <URL_or_NUMBER>
 ```
 
-Locate the script from known skill install locations (same search pattern as `path_select.py` — check `~/.cursor/skills/`, `~/.claude/skills/`, `~/.copilot/skills/`, `~/.config/opencode/skills/`, `~/.gemini/skills/`, `~/.codex/skills/` under `github-code-review-pr/scripts/review_runner.py`).
+Locate the script using deterministic candidate paths only (same approach as `path_select.py`).
+
+**MANDATORY (permission-safe):**
+- Do **NOT** run recursive glob/find over `~` (for example, `**/review_runner.py` in home).
+- Check known install paths one by one and pick the first existing file.
+
+```python
+import pathlib
+
+candidates = [
+    pathlib.Path.home() / ".config/opencode/skills/github-code-review-pr/scripts/review_runner.py",
+    pathlib.Path.home() / ".claude/skills/github-code-review-pr/scripts/review_runner.py",
+    pathlib.Path.home() / ".copilot/skills/github-code-review-pr/scripts/review_runner.py",
+    pathlib.Path.home() / ".cursor/skills/github-code-review-pr/scripts/review_runner.py",
+    pathlib.Path.home() / ".gemini/skills/github-code-review-pr/scripts/review_runner.py",
+    pathlib.Path.home() / ".codex/skills/github-code-review-pr/scripts/review_runner.py",
+]
+script = next((p for p in candidates if p.exists()), None)
+```
 
 This command:
 1. Fetches PR metadata (`gh pr view`) and diff (`gh pr diff`) exactly once
 2. Runs `path_select.py` (A → B → C → D selection with `[PATH-CHECK]`/`[PATH-SELECTED]` trace)
 3. When neither A nor B matches, queries repo size via `gh api` to decide C vs D:
    - Repo ≤ 100 MB → Path C: clone into shared cache via `repo_manager.py sync` (reusable)
-   - Repo > 100 MB → Path D: blobless sparse clone into temp dir (disposable)
+   - Repo > 100 MB → **pauses with exit code 10** — asks the AI agent to present options to the user (see below)
    - If size query fails → defaults to Path C (with fallback to D if clone fails)
 4. Handles checkout with fallback (`pull/<PR>/head`)
 5. Saves all outputs to a session manifest
 
-Machine-readable output lines:
+Machine-readable output lines (normal exit code 0):
 - `RUN_MANIFEST=<path>` — session manifest JSON (needed for cleanup and gate scripts)
 - `PR_VIEW_JSON_PATH=<path>` — saved PR metadata JSON file
 - `PR_DIFF_PATH=<path>` — saved PR diff file
-- `SELECTED_PATH=A|B|C|D` — which path was selected
+- `SELECTED_PATH=A|B|C|D|DIFF_ONLY` — which path was selected
 - `REPO_WORKDIR=<path>` — local repo directory (empty if diff-only)
 - `PR_STATE=OPEN|CLOSED|MERGED` — PR state
 - `CONTEXT_MODE=full_repo|diff_only` — whether full repo context is available
 - `CONTEXT_LIMITATION=<message>` — explanation when context is limited
 
-**After `review_runner.py prepare` succeeds:**
+### Handling exit code 10 (large repo — user decision required)
+
+When the repo exceeds the size threshold (default 100 MB) and neither Path A nor B matched, `review_runner.py prepare` exits with code **10** instead of auto-deciding. It emits these lines:
+
+- `NEEDS_USER_DECISION=true`
+- `REPO_SIZE_MB=<float>` — actual repo size in MB
+- `THRESHOLD_MB=<int>` — the threshold that was exceeded
+- `PENDING_RUN_DIR=<path>` — session directory with saved metadata/diff
+- `PR_VIEW_JSON_PATH=<path>` — already fetched, reusable
+- `PR_DIFF_PATH=<path>` — already fetched, reusable
+
+**When you receive exit code 10, you MUST present the user with three options:**
+
+Display the repo size and ask the user to choose:
+
+> This repo is **{REPO_SIZE_MB} MB** (exceeds the {THRESHOLD_MB} MB threshold).
+>
+> How would you like to proceed?
+> 1. **Clone to shared cache (Path C)** — larger download, but cached for future reviews
+> 2. **Sparse clone to temp dir (Path D)** — smaller download, only PR-related files, deleted after review
+> 3. **Diff-only** — no clone at all, review based on PR diff and metadata only (limited context)
+
+After the user chooses, resume the session:
+
+```bash
+python3 scripts/review_runner.py prepare <URL_or_NUMBER> \
+    --force-path C|D|diff-only --run-dir <PENDING_RUN_DIR>
+```
+
+This resumes the pending session: it reuses the previously fetched metadata and diff (no repeated `gh pr view`/`gh pr diff`), executes the user's chosen path, and emits the standard machine-readable output lines with exit code 0.
+
+**After `review_runner.py prepare` succeeds (exit code 0):**
 - Read PR metadata from `PR_VIEW_JSON_PATH` (do NOT re-run `gh pr view`)
 - Read PR diff from `PR_DIFF_PATH` (do NOT re-run `gh pr diff`)
 - Skip Step 3 entirely — path selection and checkout are already done
@@ -255,6 +304,8 @@ The rest of Step 3 below is the **manual fallback path** — only execute it whe
 
 The script lives alongside this SKILL.md at `scripts/path_select.py`. Locate and run it using Python directly — do NOT use shell `eval` or complex shell expansions, as these may be blocked by shell safety filters in some AI tools:
 
+**MANDATORY (permission-safe):** do not use recursive glob/find in `~` to locate this script. Use fixed candidate paths only.
+
 ```python
 import subprocess, os, pathlib
 
@@ -369,8 +420,8 @@ For base branch comparison, use `origin/<baseRefName>` (the remote-tracking ref,
 
 When `SELECTED_PATH=C`, the repo is not yet available locally. Before cloning, the runner queries the repo's disk size via `gh api repos/<owner>/<repo> --jq '.size'`:
 
-- **Repo ≤ 100 MB** → proceed with Path C (clone into shared cache)
-- **Repo > 100 MB** → downgrade to Path D (disposable sparse clone) — the `[PATH-SIZE]` trace line explains why
+- **Repo ≤ 100 MB** → proceed with Path C automatically (clone into shared cache)
+- **Repo > 100 MB** → **pause and ask the user** — the runner exits with code 10 and the AI agent presents three options: Path C (clone to shared cache anyway), Path D (sparse clone to temp dir), or diff-only (no clone). See "Handling exit code 10" in Step 2 for details.
 - **Size query fails** → proceed with Path C as default (safe fallback to D if clone fails)
 
 When proceeding with Path C, the repo is cloned into the **shared `git-repo-cache`** via the bundled `repo_manager.py sync` command. This creates a blobless clone that is **reusable across sessions and skills** — the next PR review on the same repo will hit Path B instantly.
@@ -398,7 +449,7 @@ The same fallback sequence as Path B applies if checkout fails (`pull/<PR_NUMBER
 
 **Why Path C over direct sparse clone**: For most repos (up to tens of thousands of files), the blobless clone is only a few MB of tree/commit metadata. The benefit is substantial — the repo persists in the shared cache, so future reviews, `git-repo-reader` queries, and other skills can reuse it without any clone at all. File blobs are fetched on demand when files are read, keeping the initial cost low.
 
-**Fallback to Path D**: Path C degrades to Path D in two cases: (1) the repo exceeds the 100 MB size threshold (detected before cloning), or (2) `repo_manager.py sync` fails at runtime (e.g., auth issues, network errors). The `[PATH-SIZE]` or `[PATH-FALLBACK]` trace line is emitted respectively.
+**Fallback to Path D**: Path C degrades to Path D when `repo_manager.py sync` fails at runtime (e.g., auth issues, network errors). The `[PATH-FALLBACK]` trace line is emitted. For repos exceeding the size threshold, the user is asked to choose (see "Handling exit code 10" in Step 2).
 
 After review, the repo is reset to the default branch (same cleanup as Path B — see Step 7). The cached repo is **NOT deleted** — it is shared and reusable.
 
@@ -469,9 +520,10 @@ After review, delete the temp directory (see Step 7).
 | A | Already inside target repo | Instant | Full repo |
 | B | Repo found in shared cache | Fast (just `fetch` two branches) | Full repo |
 | C | Repo not cached, ≤ 100 MB — clone to shared cache | Moderate (blobless clone, reusable) | Full repo |
-| D | Repo > 100 MB, or Path C clone failed | Moderate (blobless sparse clone, disposable) | Targeted files only |
+| D | Repo > 100 MB (user chose D), or Path C clone failed | Moderate (blobless sparse clone, disposable) | Targeted files only |
+| DIFF_ONLY | User explicitly chose no clone (large repo) | Instant | PR diff + metadata only |
 
-Note: Path B and C can temporarily degrade to diff-only mode if branch fetch/checkout fails. This is allowed only when the fallback sequence above is attempted and logged. Path C automatically falls back to Path D if the repo exceeds the size threshold or the clone fails.
+Note: Path B and C can temporarily degrade to diff-only mode if branch fetch/checkout fails. This is allowed only when the fallback sequence above is attempted and logged. When the repo exceeds the size threshold, the user is asked to choose between C, D, and diff-only (see "Handling exit code 10" in Step 2). Path C falls back to Path D if `repo_manager.py sync` fails at runtime.
 
 ## Step 4: Gather Repository Context
 
@@ -574,6 +626,17 @@ If the user provides a URL to another repository during the review (e.g., a back
 - Future reviews or questions about that repo will hit the cache instantly
 
 If the `git-repo-reader` skill is not available, fall back to a blobless clone in the review cache (same as Path D).
+
+### For DIFF_ONLY (user chose no clone)
+
+When the user explicitly chose diff-only mode for a large repo, no local repo is available. The review relies entirely on the PR metadata and diff fetched in Step 2.
+
+- **4a. Project structure**: Not available. Note this limitation in the review.
+- **4b. Coding conventions**: Not available from local files. Infer conventions from the diff content itself (naming patterns, formatting style, language idioms visible in the changed code).
+- **4c. Modified file content**: Use only the diff hunks from `PR_DIFF_PATH`. Full file content is not available.
+- **4d. Related files**: Not available. Flag in the review that cross-file validation was not possible due to diff-only mode.
+
+**MANDATORY**: Explicitly state in the review output (Section 2 — Repository Context Analysis) that the review was performed in diff-only mode and that full repo context was not available. This is a known limitation the user accepted.
 
 ## Step 5: Detect Language
 
@@ -806,6 +869,9 @@ cleanup_review_env() {
         echo "[PATH-CLEANUP] Path D - no temp dirs to delete"
       fi
       ;;
+    DIFF_ONLY)
+      echo "[PATH-CLEANUP] DIFF_ONLY - no repo to clean up"
+      ;;
     *)
       echo "[PATH-CLEANUP] skipped - SELECTED_PATH not set"
       ;;
@@ -827,10 +893,12 @@ After the review is complete:
   ```
   **Do NOT delete the cached repo** — it is shared and will be reused.
 - **Path D** (blobless sparse clone): Delete all temp directories created for this review under `mythril-skills-cache/github-code-review-pr/` (including repo/image run dirs such as `"$REVIEW_DIR"` and `"$RUN_DIR"` when present): `rm -rf "<dir>"`
+- **DIFF_ONLY** (no clone): No repo cleanup needed — just purge the session artifacts via `review_runner.py purge`.
 
 **Path-specific cleanup rule (MANDATORY):**
 - If selected path is **D**, cleanup must delete the created temp directories.
 - Do NOT replace Path D cleanup with branch reset/clean commands; those are for Path B/C cached repos.
+- If selected path is **DIFF_ONLY**, no repo cleanup is needed.
 
 **User-facing cleanup confirmation is REQUIRED:**
 - After deletion, output a short status line that cleanup succeeded and which temp paths were removed (or how many were removed).
@@ -849,6 +917,9 @@ echo "[PATH-CLEANUP] Path D - deleted temp dirs: $REVIEW_DIR $RUN_DIR"
 # Example for Path A:
 git checkout "$ORIGINAL_BRANCH"
 echo "[PATH-CLEANUP] Path A - restored branch to $ORIGINAL_BRANCH"
+
+# Example for DIFF_ONLY:
+echo "[PATH-CLEANUP] DIFF_ONLY - no repo to clean up"
 ```
 
 Image artifacts and Path D temp directories live under `mythril-skills-cache/github-code-review-pr/`. If leftovers accumulate (e.g., from interrupted sessions), the user can run:

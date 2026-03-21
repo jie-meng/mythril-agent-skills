@@ -13,7 +13,8 @@ This skill uses a **four-path strategy** that adapts to what's available, from f
 | **A** | Already inside the target repo | Instant | Full repo |
 | **B** | Repo found in shared cache (`git-repo-cache`) | Fast (fetch 2 branches) | Full repo |
 | **C** | Repo not cached, ≤ 100 MB — clone to shared cache | Moderate (blobless clone, reusable) | Full repo |
-| **D** | Repo > 100 MB, or Path C clone failed | Moderate (blobless sparse clone, disposable) | Targeted files only |
+| **D** | Repo > 100 MB (user chose D), or Path C clone failed | Moderate (blobless sparse clone, disposable) | Targeted files only |
+| **DIFF_ONLY** | User explicitly chose no clone (large repo) | Instant | PR diff + metadata only |
 
 ## Guarded Runner (MANDATORY)
 
@@ -68,7 +69,13 @@ python3 scripts/review_runner.py purge "<RUN_MANIFEST>"
 
 ### Shared Cache Integration
 
-Path B leverages repos cached by the `git-repo-reader` skill (or previous reviews that used Path B/C). The bundled path selector (`scripts/path_select.py`) checks A → B → C → D in order, prints explicit `[PATH-CHECK]` / `[PATH-SELECTED]` trace lines, and reads the shared `git-repo-cache` mapping. When the cache hits (Path B), the skill fetches the two PR branches and checks out by `headRefName`, avoiding any clone operation. When the cache misses, the runner queries repo size via `gh api` — small/medium repos (≤ 100 MB) go to Path C (clone into shared cache, reusable), while large repos (> 100 MB) go directly to Path D (disposable sparse clone).
+Path B leverages repos cached by the `git-repo-reader` skill (or previous reviews that used Path B/C). The bundled path selector (`scripts/path_select.py`) checks A → B → C → D in order, prints explicit `[PATH-CHECK]` / `[PATH-SELECTED]` trace lines, and reads the shared `git-repo-cache` mapping. When the cache hits (Path B), the skill fetches the two PR branches and checks out by `headRefName`, avoiding any clone operation. When the cache misses, the runner queries repo size via `gh api` — small/medium repos (≤ 100 MB) go to Path C (clone into shared cache, reusable); large repos (> 100 MB) pause with exit code 10 so the user can choose Path C / Path D / diff-only.
+
+### Script Location Policy (Permission-safe)
+
+To avoid sandbox prompts from broad home-directory scans, locate bundled scripts (`review_runner.py`, `path_select.py`) by checking fixed known install paths one by one (for example `~/.config/opencode/skills/...`, `~/.claude/skills/...`, `~/.cursor/skills/...`).
+
+Do **not** run recursive glob/find over the whole home directory (for example `**/review_runner.py` in `~`).
 
 ### Review Flow
 
@@ -135,9 +142,19 @@ sequenceDiagram
             RepoMgr->>Cache: register in repo_map.json
             RepoMgr-->>Runner: local path
             Runner->>Git: git fetch + git checkout <headRefName>
-        else Size > 100 MB → Path D
-            Runner->>gh: gh repo clone (blobless, sparse)
-            Runner->>Git: git checkout <headRefName>
+        else Size > 100 MB
+            Runner-->>Skill: exit code 10 + REPO_SIZE_MB + PENDING_RUN_DIR
+            Skill->>User: choose Path C / Path D / diff-only
+            Skill->>Runner: prepare --force-path ... --run-dir ...
+            alt User chose Path C
+                Runner->>RepoMgr: repo_manager.py sync <repo-url>
+                Runner->>Git: git fetch + git checkout <headRefName>
+            else User chose Path D
+                Runner->>gh: gh repo clone (blobless, sparse)
+                Runner->>Git: git checkout <headRefName>
+            else User chose diff-only
+                Runner-->>Skill: CONTEXT_MODE=diff_only
+            end
         end
     end
 

@@ -14,23 +14,46 @@ Path overview:
   B — repo found in shared git-repo-cache
   C — clone into shared cache via repo_manager.py (reusable, lightweight)
   D — blobless sparse-clone into skill temp cache (large repos or C failure)
+  DIFF_ONLY — user explicitly chose no clone (diff + metadata review only)
+
+Large-repo decision flow:
+  When path_select.py chooses C but the repo exceeds the size threshold
+  (default 100 MB), ``prepare`` saves a pending-decision marker and exits
+  with code 10 (PENDING_DECISION_EXIT_CODE).  The AI agent reads
+  REPO_SIZE_MB and PENDING_RUN_DIR from stdout, presents options to the
+  user, and re-runs with ``--force-path`` and ``--run-dir`` to resume.
 
 Usage:
+    # Fresh session
     python3 scripts/review_runner.py prepare <PR_URL_OR_NUMBER>
-    python3 scripts/review_runner.py cleanup <manifest-path>
 
-Output (prepare):
+    # Resume after pending decision (exit code 10)
+    python3 scripts/review_runner.py prepare <PR_URL_OR_NUMBER> \
+        --force-path C|D|diff-only --run-dir <PENDING_RUN_DIR>
+
+    python3 scripts/review_runner.py cleanup <manifest-path>
+    python3 scripts/review_runner.py purge   <manifest-path>
+
+Output (prepare — normal):
     [PATH-CHECK] ... lines (from path_select)
     [PATH-SELECTED] ... line (from path_select)
     RUN_MANIFEST=<path>
     PR_VIEW_JSON_PATH=<path>
     PR_DIFF_PATH=<path>
-    SELECTED_PATH=A|B|C|D
+    SELECTED_PATH=A|B|C|D|DIFF_ONLY
     REPO_PATH=<path-or-empty>
     REPO_WORKDIR=<path-or-empty>
     PR_STATE=<OPEN|CLOSED|MERGED>
     CONTEXT_MODE=<full_repo|diff_only>
     CONTEXT_LIMITATION=<message-or-empty>
+
+Output (prepare — pending decision, exit code 10):
+    NEEDS_USER_DECISION=true
+    REPO_SIZE_MB=<float>
+    THRESHOLD_MB=<int>
+    PENDING_RUN_DIR=<path>
+    PR_VIEW_JSON_PATH=<path>
+    PR_DIFF_PATH=<path>
 
 Output (cleanup):
     [PATH-CLEANUP] ... line(s)
@@ -60,6 +83,10 @@ PR_VIEW_FIELDS = (
 
 REPO_SIZE_THRESHOLD_KB = 100 * 1024
 
+# Exit code when repo exceeds size threshold and user must choose a path.
+# The AI agent should read REPO_SIZE_MB and PENDING_RUN_DIR from stdout,
+# present options to the user, then re-run with --force-path and --run-dir.
+PENDING_DECISION_EXIT_CODE = 10
 
 COMMAND_LOG: list[str] = []
 
@@ -209,8 +236,13 @@ def query_repo_size_kb(host: str, owner: str, repo: str) -> int | None:
     api_args = ["gh", "api", f"repos/{owner}/{repo}", "--jq", ".size"]
     if host != "github.com":
         api_args = [
-            "gh", "api", "--hostname", host,
-            f"repos/{owner}/{repo}", "--jq", ".size",
+            "gh",
+            "api",
+            "--hostname",
+            host,
+            f"repos/{owner}/{repo}",
+            "--jq",
+            ".size",
         ]
     cp = run_cmd(api_args)
     if cp.returncode != 0:
@@ -285,9 +317,125 @@ def ensure_checkout(
     return "", f"Path checkout failed: {limitation}"
 
 
-def prepare_session(pr_ref: str) -> int:
-    """Prepare a review session and emit machine-readable outputs."""
+def _emit_manifest_outputs(manifest: SessionManifest, manifest_path: Path) -> None:
+    """Print machine-readable KEY=VALUE lines for the caller."""
+    print(f"RUN_MANIFEST={manifest_path}")
+    print(f"PR_VIEW_JSON_PATH={manifest.pr_view_json_path}")
+    print(f"PR_DIFF_PATH={manifest.pr_diff_path}")
+    print(f"COMMAND_LOG_PATH={manifest.command_log_path}")
+    print(f"SELECTED_PATH={manifest.selected_path}")
+    print(f"REPO_PATH={manifest.repo_path}")
+    print(f"REPO_WORKDIR={manifest.repo_workdir}")
+    print(f"PR_STATE={manifest.pr_state}")
+    print(f"CONTEXT_MODE={manifest.context_mode}")
+    print(f"CONTEXT_LIMITATION={manifest.context_limitation}")
+
+
+def _execute_path_c(
+    host: str,
+    owner: str,
+    repo: str,
+    repo_url: str,
+    base_ref_name: str,
+    head_ref_name: str,
+    pr_number: int,
+) -> tuple[str, str, str, str, str]:
+    """Execute Path C: clone into shared cache via repo_manager.py.
+
+    Returns:
+        (selected_path, repo_path, repo_workdir, checkout_ref, context_limitation)
+        selected_path may be "D" if Path C fails and falls back.
+    """
+    repo_manager_script = locate_sibling_script("repo_manager.py")
+    sync_cp = run_cmd(
+        ["python3", str(repo_manager_script), "sync", repo_url],
+    )
+    synced_path = (
+        sync_cp.stdout.strip().splitlines()[-1] if sync_cp.stdout.strip() else ""
+    )
+    if sync_cp.returncode != 0 or not synced_path or not Path(synced_path).is_dir():
+        sync_err = (
+            sync_cp.stderr.strip()
+            or sync_cp.stdout.strip()
+            or "repo_manager.py sync failed"
+        )
+        print(f"[PATH-FALLBACK] Path C failed ({sync_err}), falling back to Path D")
+        return "D", "", "", "", ""
+    checkout_ref, limitation = ensure_checkout(
+        Path(synced_path),
+        base_ref_name,
+        head_ref_name,
+        pr_number,
+    )
+    return "C", synced_path, synced_path, checkout_ref, limitation
+
+
+def _execute_path_d(
+    repo_url: str,
+    cache_dir: Path,
+    base_ref_name: str,
+    head_ref_name: str,
+    pr_number: int,
+) -> tuple[str, str, str, str]:
+    """Execute Path D: blobless sparse clone into a temp directory.
+
+    Returns:
+        (review_dir, repo_workdir, checkout_ref, context_limitation)
+    """
+    review_dir_path = Path(tempfile.mkdtemp(prefix="repo-", dir=str(cache_dir)))
+    review_dir = str(review_dir_path)
+    clone_cp = run_cmd(
+        [
+            "gh",
+            "repo",
+            "clone",
+            repo_url,
+            str(review_dir_path),
+            "--",
+            "--filter=blob:none",
+            "--sparse",
+        ]
+    )
+    if clone_cp.returncode != 0:
+        limitation = (
+            clone_cp.stderr.strip()
+            or clone_cp.stdout.strip()
+            or "Path D blobless sparse clone failed"
+        )
+        return review_dir, "", "", limitation
+    checkout_ref, limitation = ensure_checkout(
+        review_dir_path,
+        base_ref_name,
+        head_ref_name,
+        pr_number,
+    )
+    return review_dir, str(review_dir_path), checkout_ref, limitation
+
+
+def prepare_session(
+    pr_ref: str,
+    *,
+    force_path: str | None = None,
+    resume_run_dir: str | None = None,
+) -> int:
+    """Prepare a review session and emit machine-readable outputs.
+
+    When resuming a pending decision (--force-path + --run-dir), the
+    previously fetched metadata and diff are reused from run_dir without
+    re-running ``gh pr view`` / ``gh pr diff``.
+    """
     cache_dir = get_skill_cache_dir()
+
+    # ── Resume path: reuse saved metadata/diff from a pending session ─────
+    if resume_run_dir and force_path:
+        return _resume_session(
+            pr_ref,
+            force_path,
+            Path(resume_run_dir),
+            cache_dir,
+        )
+
+    # ── Normal path: fresh session ────────────────────────────────────────
     run_dir = Path(tempfile.mkdtemp(prefix="run-", dir=str(cache_dir)))
 
     pr_view_path = run_dir / "pr_view.json"
@@ -389,6 +537,7 @@ def prepare_session(pr_ref: str) -> int:
     elif selected_path == "C":
         threshold_mb = REPO_SIZE_THRESHOLD_KB // 1024
         repo_size_kb = query_repo_size_kb(host, owner, repo)
+        size_mb: float = 0.0
         if repo_size_kb is not None:
             size_mb = repo_size_kb / 1024
             print(
@@ -397,12 +546,50 @@ def prepare_session(pr_ref: str) -> int:
             )
         else:
             print("[PATH-SIZE] Repo disk size: unknown (API query failed)")
+
         if repo_size_kb is not None and repo_size_kb > REPO_SIZE_THRESHOLD_KB:
+            # Repo exceeds threshold — pause and ask user to choose.
+            size_mb = repo_size_kb / 1024
             print(
-                f"[PATH-SIZE] {size_mb:.0f} MB > {threshold_mb} MB "
-                "→ skipping shared cache, using Path D"
+                f"[PATH-SIZE] {size_mb:.1f} MB > {threshold_mb} MB "
+                "→ repo exceeds size threshold, user decision required"
             )
-            selected_path = "D"
+
+            # Save a pending-decision marker so the session can be resumed.
+            pending = {
+                "status": "pending_decision",
+                "pr_ref": pr_ref,
+                "pr_url": pr_url,
+                "repo_url": repo_url,
+                "host": host,
+                "owner": owner,
+                "repo": repo,
+                "pr_number": pr_number,
+                "base_ref_name": base_ref_name,
+                "head_ref_name": head_ref_name,
+                "pr_state": pr_state,
+                "repo_size_kb": repo_size_kb,
+                "repo_size_mb": round(size_mb, 1),
+                "threshold_mb": threshold_mb,
+            }
+            pending_path = run_dir / "pending_decision.json"
+            pending_path.write_text(
+                json.dumps(pending, ensure_ascii=True, indent=2),
+                encoding="utf-8",
+            )
+            command_log_path.write_text(
+                "\n".join(COMMAND_LOG) + "\n",
+                encoding="utf-8",
+            )
+
+            # Emit outputs so the agent knows the run_dir and size.
+            print(f"NEEDS_USER_DECISION=true")
+            print(f"REPO_SIZE_MB={size_mb:.1f}")
+            print(f"THRESHOLD_MB={threshold_mb}")
+            print(f"PENDING_RUN_DIR={run_dir}")
+            print(f"PR_VIEW_JSON_PATH={pr_view_path}")
+            print(f"PR_DIFF_PATH={pr_diff_path}")
+            return PENDING_DECISION_EXIT_CODE
         else:
             if repo_size_kb is None:
                 print(
@@ -414,74 +601,44 @@ def prepare_session(pr_ref: str) -> int:
                     f"[PATH-SIZE] {size_mb:.1f} MB ≤ {threshold_mb} MB "
                     "→ proceeding with Path C (shared cache clone)"
                 )
-            repo_manager_script = locate_sibling_script("repo_manager.py")
-            sync_cp = run_cmd(
-                ["python3", str(repo_manager_script), "sync", repo_url],
-            )
-            synced_path = (
-                sync_cp.stdout.strip().splitlines()[-1]
-                if sync_cp.stdout.strip()
-                else ""
-            )
-            if (
-                sync_cp.returncode != 0
-                or not synced_path
-                or not Path(synced_path).is_dir()
-            ):
-                sync_err = (
-                    sync_cp.stderr.strip()
-                    or sync_cp.stdout.strip()
-                    or "repo_manager.py sync failed"
-                )
-                print(
-                    f"[PATH-FALLBACK] Path C failed ({sync_err}), "
-                    "falling back to Path D"
-                )
-                selected_path = "D"
-            else:
-                repo_path = synced_path
-                repo_workdir = synced_path
-                checkout_ref, context_limitation = ensure_checkout(
-                    Path(repo_workdir),
-                    base_ref_name,
-                    head_ref_name,
-                    pr_number,
-                )
-
-    if selected_path == "D":
-        review_dir_path = Path(tempfile.mkdtemp(prefix="repo-", dir=str(cache_dir)))
-        review_dir = str(review_dir_path)
-        clone_cp = run_cmd(
-            [
-                "gh",
-                "repo",
-                "clone",
+            result = _execute_path_c(
+                host,
+                owner,
+                repo,
                 repo_url,
-                str(review_dir_path),
-                "--",
-                "--filter=blob:none",
-                "--sparse",
-            ]
-        )
-        if clone_cp.returncode != 0:
-            context_limitation = (
-                clone_cp.stderr.strip()
-                or clone_cp.stdout.strip()
-                or "Path D blobless sparse clone failed"
-            )
-        else:
-            repo_workdir = str(review_dir_path)
-            checkout_ref, context_limitation = ensure_checkout(
-                review_dir_path,
                 base_ref_name,
                 head_ref_name,
                 pr_number,
             )
+            selected_path = result[0]
+            if selected_path == "C":
+                repo_path = result[1]
+                repo_workdir = result[2]
+                checkout_ref = result[3]
+                context_limitation = result[4]
+            # If fell back to D, the block below handles it.
+
+    if selected_path == "D":
+        review_dir, repo_workdir, checkout_ref, context_limitation = _execute_path_d(
+            repo_url,
+            cache_dir,
+            base_ref_name,
+            head_ref_name,
+            pr_number,
+        )
 
     if not checkout_ref:
         context_mode = "diff_only"
 
-    command_log_path.write_text("\n".join(COMMAND_LOG) + "\n", encoding="utf-8")
+    existing_log = ""
+    if command_log_path.exists():
+        existing_log = command_log_path.read_text(encoding="utf-8")
+    new_lines = "\n".join(COMMAND_LOG)
+    if new_lines:
+        if existing_log and not existing_log.endswith("\n"):
+            existing_log += "\n"
+        existing_log += new_lines + "\n"
+    command_log_path.write_text(existing_log, encoding="utf-8")
 
     manifest = SessionManifest(
         run_dir=str(run_dir),
@@ -514,16 +671,161 @@ def prepare_session(pr_ref: str) -> int:
         encoding="utf-8",
     )
 
-    print(f"RUN_MANIFEST={manifest_path}")
-    print(f"PR_VIEW_JSON_PATH={manifest.pr_view_json_path}")
-    print(f"PR_DIFF_PATH={manifest.pr_diff_path}")
-    print(f"COMMAND_LOG_PATH={manifest.command_log_path}")
-    print(f"SELECTED_PATH={manifest.selected_path}")
-    print(f"REPO_PATH={manifest.repo_path}")
-    print(f"REPO_WORKDIR={manifest.repo_workdir}")
-    print(f"PR_STATE={manifest.pr_state}")
-    print(f"CONTEXT_MODE={manifest.context_mode}")
-    print(f"CONTEXT_LIMITATION={manifest.context_limitation}")
+    _emit_manifest_outputs(manifest, manifest_path)
+    return 0
+
+
+def _resume_session(
+    pr_ref: str,
+    force_path: str,
+    run_dir: Path,
+    cache_dir: Path,
+) -> int:
+    """Resume a pending-decision session with the user's chosen path.
+
+    Reuses previously fetched metadata and diff from ``run_dir`` without
+    re-running ``gh pr view`` / ``gh pr diff``.
+    """
+    pr_view_path = run_dir / "pr_view.json"
+    pr_diff_path = run_dir / "pr.diff"
+    command_log_path = run_dir / "commands.log"
+    path_select_log_path = run_dir / "path_select.log"
+    manifest_path = run_dir / "manifest.json"
+    pending_path = run_dir / "pending_decision.json"
+
+    if not pr_view_path.exists() or not pr_diff_path.exists():
+        print(f"Cannot resume: missing pr_view.json or pr.diff in {run_dir}")
+        return 2
+
+    if not pending_path.exists():
+        print(f"Cannot resume: missing pending_decision.json in {run_dir}")
+        return 2
+
+    try:
+        pending = json.loads(pending_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        print(f"Cannot resume: invalid pending_decision.json: {exc}")
+        return 2
+
+    repo_url = str(pending["repo_url"])
+    host = str(pending["host"])
+    owner = str(pending["owner"])
+    repo = str(pending["repo"])
+    pr_number = int(pending["pr_number"])
+    pr_url = str(pending["pr_url"])
+    base_ref_name = str(pending["base_ref_name"])
+    head_ref_name = str(pending["head_ref_name"])
+    pr_state = str(pending["pr_state"])
+
+    repo_path = ""
+    repo_workdir = ""
+    checkout_ref = ""
+    context_mode = "full_repo"
+    context_limitation = ""
+    review_dir = ""
+    selected_path = force_path.upper() if force_path != "diff-only" else "D"
+
+    if force_path == "diff-only":
+        # User chose no clone — review with diff and metadata only.
+        selected_path = "DIFF_ONLY"
+        context_mode = "diff_only"
+        context_limitation = "User chose diff-only mode (no repo clone)"
+        print("[PATH-RESUME] User selected diff-only — skipping clone")
+
+    elif force_path.upper() == "C":
+        # User chose to clone into shared cache despite large size.
+        print("[PATH-RESUME] User selected Path C (shared cache clone)")
+        result = _execute_path_c(
+            host,
+            owner,
+            repo,
+            repo_url,
+            base_ref_name,
+            head_ref_name,
+            pr_number,
+        )
+        selected_path = result[0]
+        if selected_path == "C":
+            repo_path = result[1]
+            repo_workdir = result[2]
+            checkout_ref = result[3]
+            context_limitation = result[4]
+        else:
+            # Fell back to D
+            review_dir, repo_workdir, checkout_ref, context_limitation = (
+                _execute_path_d(
+                    repo_url,
+                    cache_dir,
+                    base_ref_name,
+                    head_ref_name,
+                    pr_number,
+                )
+            )
+
+    elif force_path.upper() == "D":
+        # User chose sparse clone to temp dir.
+        print("[PATH-RESUME] User selected Path D (sparse clone to temp dir)")
+        selected_path = "D"
+        review_dir, repo_workdir, checkout_ref, context_limitation = _execute_path_d(
+            repo_url,
+            cache_dir,
+            base_ref_name,
+            head_ref_name,
+            pr_number,
+        )
+
+    else:
+        print(f"Invalid --force-path value: {force_path}")
+        return 2
+
+    if not checkout_ref:
+        context_mode = "diff_only"
+
+    # Remove the pending marker now that the decision is made.
+    pending_path.unlink(missing_ok=True)
+
+    existing_log = ""
+    if command_log_path.exists():
+        existing_log = command_log_path.read_text(encoding="utf-8")
+    new_lines = "\n".join(COMMAND_LOG)
+    if new_lines:
+        if existing_log and not existing_log.endswith("\n"):
+            existing_log += "\n"
+        existing_log += new_lines + "\n"
+    command_log_path.write_text(existing_log, encoding="utf-8")
+
+    manifest = SessionManifest(
+        run_dir=str(run_dir),
+        pr_ref=pr_ref,
+        pr_url=pr_url,
+        repo_url=repo_url,
+        host=host,
+        owner=owner,
+        repo=repo,
+        pr_number=pr_number,
+        base_ref_name=base_ref_name,
+        head_ref_name=head_ref_name,
+        pr_state=pr_state,
+        selected_path=selected_path,
+        repo_path=repo_path,
+        repo_workdir=repo_workdir,
+        original_branch="",
+        checkout_ref=checkout_ref,
+        context_mode=context_mode,
+        context_limitation=context_limitation,
+        pr_view_json_path=str(pr_view_path),
+        pr_diff_path=str(pr_diff_path),
+        command_log_path=str(command_log_path),
+        path_select_log_path=str(path_select_log_path),
+        review_dir=review_dir,
+        created_at_utc=datetime.now(timezone.utc).isoformat(),
+    )
+    manifest_path.write_text(
+        json.dumps(asdict(manifest), ensure_ascii=True, indent=2),
+        encoding="utf-8",
+    )
+
+    _emit_manifest_outputs(manifest, manifest_path)
     return 0
 
 
@@ -606,6 +908,9 @@ def cleanup_session(manifest_path: Path) -> int:
         else:
             print("[PATH-CLEANUP] Path D - no temp dirs to delete")
 
+    elif selected_path == "DIFF_ONLY":
+        print("[PATH-CLEANUP] DIFF_ONLY - no repo to clean up")
+
     else:
         print("[PATH-CLEANUP] skipped - unknown SELECTED_PATH")
 
@@ -641,6 +946,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     prepare_parser = sub.add_parser("prepare", help="Prepare review session")
     prepare_parser.add_argument("pr_ref", help="PR URL or PR number")
+    prepare_parser.add_argument(
+        "--force-path",
+        choices=["C", "D", "diff-only"],
+        default=None,
+        help="Force a specific path when resuming after a pending decision",
+    )
+    prepare_parser.add_argument(
+        "--run-dir",
+        default=None,
+        help="Resume a pending session using this run directory",
+    )
 
     cleanup_parser = sub.add_parser("cleanup", help="Cleanup review session")
     cleanup_parser.add_argument("manifest_path", help="Path to session manifest.json")
@@ -656,7 +972,13 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "prepare":
-        raise SystemExit(prepare_session(args.pr_ref))
+        raise SystemExit(
+            prepare_session(
+                args.pr_ref,
+                force_path=args.force_path,
+                resume_run_dir=args.run_dir,
+            )
+        )
     if args.command == "cleanup":
         raise SystemExit(cleanup_session(Path(args.manifest_path)))
     raise SystemExit(purge_session(Path(args.manifest_path)))
