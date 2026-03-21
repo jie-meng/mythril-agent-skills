@@ -220,7 +220,7 @@ skills-clean-cache --repos  # 交互式：选择要删除的仓库
 </details>
 
 <details>
-<summary>方式 B：Claude Code 插件（一条命令安装）</summary>
+<summary>方式 B：Claude Code 插件市场</summary>
 
 如果你使用 [Claude Code](https://code.claude.com/)，可以通过[插件市场](https://code.claude.com/docs/en/plugin-marketplaces)安装技能，无需 pip。另见：[发现和安装插件](https://code.claude.com/docs/en/discover-plugins)。
 
