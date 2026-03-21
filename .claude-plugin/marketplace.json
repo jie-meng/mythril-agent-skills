@@ -10,13 +10,13 @@
     {
       "name": "all-skills",
       "source": "./mythril_agent_skills",
-      "description": "All-in-one bundle: code review, Git/GitHub, Jira, Confluence, Figma, ImageMagick, FFmpeg, and skill creator",
+      "description": "All-in-one bundle: code review, Git/GitHub, Jira, Confluence, Figma, ImageMagick, FFmpeg, blog writer, and skill creator",
       "version": "0.2.4",
       "author": { "name": "Jie Meng" },
       "homepage": "https://github.com/jie-meng/mythril-agent-skills",
       "license": "Apache-2.0",
       "category": "development",
-      "tags": ["code-review", "git", "github", "jira", "confluence", "figma", "imagemagick", "ffmpeg", "skill-creator"],
+      "tags": ["code-review", "git", "github", "jira", "confluence", "figma", "imagemagick", "ffmpeg", "skill-creator", "blog-writer"],
       "strict": false
     },
     {
@@ -138,6 +138,17 @@
       "license": "Apache-2.0",
       "category": "development",
       "tags": ["video", "audio", "ffmpeg", "media"],
+      "strict": false
+    },
+    {
+      "name": "blog-writer",
+      "source": "./plugins/blog-writer",
+      "description": "Write, refine, and adapt blog posts with a tech-first focus — asks language first, supports technical and non-technical topics",
+      "version": "0.2.4",
+      "author": { "name": "Jie Meng" },
+      "license": "Apache-2.0",
+      "category": "productivity",
+      "tags": ["blog", "writing", "technical", "multilingual"],
       "strict": false
     }
   ]

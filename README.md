@@ -139,6 +139,19 @@ Process and manipulate video and audio files via FFmpeg CLI. Supports transcodin
 
 </details>
 
+<details>
+<summary><b>Content</b></summary>
+<br>
+
+**[Blog Writer](./mythril_agent_skills/skills/blog-writer/)**
+
+Write, refine, and adapt blog posts through an interactive intake process. The skill asks language first and is tech-first but not limited to technical topics. Supports personal blogs, internal email/blog newsletters, and WeChat articles.
+
+- **Try:** Write a blog post about my open-source project
+- **Deps:** —
+
+</details>
+
 ---
 
 ## Quick Start
@@ -241,7 +254,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 
 | Plugin | Description |
 |---|---|
-| `all-skills` | All-in-one bundle (all 11 skills) |
+| `all-skills` | All-in-one bundle (all 12 skills) |
 | `skill-creator` | Create and improve skills/prompts for any AI platform |
 | `code-review-staged` | Code review for git staged changes |
 | `branch-diff-review` | Code review for local branch differences |
@@ -253,6 +266,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `figma` | Extract Figma design specs |
 | `imagemagick` | Image processing via ImageMagick CLI |
 | `ffmpeg` | Video and audio processing via FFmpeg CLI |
+| `blog-writer` | Write, refine, and adapt tech-first multilingual blog posts |
 
 </details>
 
@@ -458,7 +472,8 @@ mythril-agent-skills/
 │       ├── imagemagick/         # Image processing via ImageMagick CLI
 │       ├── jira/                # Jira REST API issue/sprint/board workflows
 │       ├── code-review-staged/  # Structured code reviews
-│       └── git-repo-reader/     # Clone and read any git repo
+│       ├── git-repo-reader/     # Clone and read any git repo
+│       └── blog-writer/         # Tech-first multilingual blog writing
 ├── plugins/                     # Per-skill plugin wrappers (symlinks into skills/)
 ├── scripts/                     # Dev scripts & backward-compatible wrappers
 │   ├── sync-upstream.py         # Fork upstream sync tool
@@ -470,7 +485,7 @@ mythril-agent-skills/
 │   ├── INSTALLATION.md          # Full dependency reference
 │   ├── PUBLISHING.md            # PyPI publishing & testing guide
 │   └── FORK-SYNC.md             # Fork sync guide
-├── .sync-upstream.json           # Upstream sync configuration (for forks)
+├── .sync-upstream.json          # Upstream sync configuration (for forks)
 ├── pyproject.toml               # Package configuration
 ├── AGENTS.md                    # Developer guidelines for agents
 ├── LICENSE                      # Apache 2.0 License

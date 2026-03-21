@@ -270,6 +270,7 @@ Skills appear in multiple listings: the README "Available Skills" table, the `sk
 | 3 | **Git & GitHub** | Git operations and GitHub platform integration | git-repo-reader, gh-operations |
 | 4 | **API Integrations** | Third-party API clients requiring credentials | jira, confluence, figma |
 | 5 | **Media Processing** | Standalone CLI tools for media files | imagemagick, ffmpeg |
+| 6 | **Content** | Content creation and writing tools | blog-writer |
 
 **Within each category**, order by dependency complexity — no deps first, then CLI deps, then API credential deps:
 - No external dependencies → CLI tool dependency (`git`) → Platform CLI dependency (`gh`) → API token dependency
