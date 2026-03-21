@@ -51,7 +51,7 @@ Create skills/prompts for any AI platform — drafting, test case generation, ev
 
 **[Code Review (Staged)](./mythril_agent_skills/skills/code-review-staged/)**
 
-Context-aware code review for Git staged changes. Reads related files for validation, auto-generates and copies commit message to clipboard.
+Context-aware code review for Git staged changes. Reads related files for validation.
 
 - **Try:** Review staged changes
 - **Deps:** `git` CLI
@@ -98,14 +98,14 @@ Use GitHub CLI (`gh`) for GitHub issue/PR workflows: read/write issues, inspect/
 
 **[Jira](./mythril_agent_skills/skills/jira/)**
 
-Use Jira REST API (via bundled Python script) for issue, sprint, and board workflows. No CLI tools needed.
+Use Jira REST API (via bundled Python script) for issue, sprint, and board workflows.
 
 - **Try:** Look at this Jira ticket: https://yourorg.atlassian.net/browse/PROJ-123
 - **Deps:** `ATLASSIAN_API_TOKEN`, `ATLASSIAN_USER_EMAIL`, `ATLASSIAN_BASE_URL`
 
 **[Confluence](./mythril_agent_skills/skills/confluence/)**
 
-Use Confluence REST API (via bundled Python script) for page, space, comment, and label workflows. No CLI tools needed.
+Use Confluence REST API (via bundled Python script) for page, space, comment, and label workflows.
 
 - **Try:** Look at this Confluence page: https://yourorg.atlassian.net/wiki/spaces/XX/pages/123
 - **Deps:** `ATLASSIAN_API_TOKEN`, `ATLASSIAN_USER_EMAIL`, `ATLASSIAN_BASE_URL`
