@@ -380,7 +380,10 @@ mythril-agent-skills/
 ├── scripts/                     # 开发脚本及向后兼容包装器
 │   ├── sync-upstream.py         # Fork 上游同步工具
 │   └── init-fork.py             # 一次性 Fork 初始化（脱钩 + git 重初始化）
+├── tests/                       # 技能脚本单元测试
+│   └── skills/                  # 每个技能一个测试文件
 ├── docs/
+│   ├── DEVELOPMENT.md           # 开发环境、测试、贡献指南
 │   ├── INSTALLATION.md          # 完整依赖参考
 │   ├── PUBLISHING.md            # PyPI 发布与测试指南
 │   └── FORK-SYNC.md             # Fork 同步指南
@@ -407,45 +410,10 @@ mythril_agent_skills/skills/skill-name/
 
 ---
 
-## 开发者指南
+## 开发与贡献
 
-### 新增技能
+开发环境搭建、运行测试、新增技能及贡献指南，请参阅 **[docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md)**。
 
-1. 在 `mythril_agent_skills/skills/` 下创建新目录：
-   ```bash
-   mkdir mythril_agent_skills/skills/my-skill
-   ```
-
-2. 创建带有必要 frontmatter 的 `SKILL.md`：
-   ```yaml
-   ---
-   name: my-skill
-   description: |
-      What this skill does and when to use it.
-     Include trigger keywords for better AI assistant activation.
-   license: Apache-2.0
-   ---
-
-   # My Skill
-
-   Detailed instructions, examples, and workflows...
-   ```
-
-3. 按以下格式提交：
-   ```bash
-   git add .
-   git commit -m "[my-skill] Add initial skill with core workflows"
-   ```
-
-完整的开发规范和发布说明，请参阅 **[AGENTS.md](./AGENTS.md)** 和 **[docs/PUBLISHING.md](./docs/PUBLISHING.md)**。
-
----
-
-## 贡献指南
-
-1. **Fork 或创建分支**，然后新增技能
-2. **遵循** [AGENTS.md](./AGENTS.md) 中的代码风格和结构规范
-3. **提交**时使用描述性信息，格式为：`[skill-name] Brief description`
-4. **开启 Pull Request**，并附上技能用途和使用方式的说明
+完整的编码规范与架构决策，请参阅 **[AGENTS.md](./AGENTS.md)**。
 
 ---

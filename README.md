@@ -380,7 +380,10 @@ mythril-agent-skills/
 ├── scripts/                     # Dev scripts & backward-compatible wrappers
 │   ├── sync-upstream.py         # Fork upstream sync tool
 │   └── init-fork.py             # One-time fork initializer (detach + git re-init)
+├── tests/                       # Unit tests for skill scripts
+│   └── skills/                  # One test file per skill
 ├── docs/
+│   ├── DEVELOPMENT.md           # Dev setup, tests, contributing
 │   ├── INSTALLATION.md          # Full dependency reference
 │   ├── PUBLISHING.md            # PyPI publishing & testing guide
 │   └── FORK-SYNC.md             # Fork sync guide
@@ -407,45 +410,10 @@ mythril_agent_skills/skills/skill-name/
 
 ---
 
-## For Developers
+## Development & Contributing
 
-### Adding a New Skill
+For dev environment setup, running tests, adding new skills, and contribution guidelines, see **[docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md)**.
 
-1. Create a new directory under `mythril_agent_skills/skills/`:
-   ```bash
-   mkdir mythril_agent_skills/skills/my-skill
-   ```
-
-2. Create `SKILL.md` with required frontmatter:
-   ```yaml
-   ---
-   name: my-skill
-   description: |
-      What this skill does and when to use it.
-     Include trigger keywords for better AI assistant activation.
-   license: Apache-2.0
-   ---
-
-   # My Skill
-
-   Detailed instructions, examples, and workflows...
-   ```
-
-3. Commit following this format:
-   ```bash
-   git add .
-   git commit -m "[my-skill] Add initial skill with core workflows"
-   ```
-
-For full development guidelines and publishing instructions, see **[AGENTS.md](./AGENTS.md)** and **[docs/PUBLISHING.md](./docs/PUBLISHING.md)**.
-
----
-
-## Contributing
-
-1. **Fork or create a branch** if you want to add a new skill
-2. **Follow** [AGENTS.md](./AGENTS.md) for code style and structure guidelines
-3. **Commit** with descriptive messages in the format: `[skill-name] Brief description`
-4. **Open a pull request** with a summary of the skill's purpose and usage
+For full coding conventions and architectural decisions, see **[AGENTS.md](./AGENTS.md)**.
 
 ---

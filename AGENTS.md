@@ -24,6 +24,9 @@ mythril-agent-skills/
 │   │   ├── skills_cleanup.py    # Interactive remover
 │   │   └── skills_check.py      # Dependency checker & configurator
 │   └── skills/                  # Bundled skill definitions
+├── tests/                       # Unit tests
+│   ├── conftest.py              # Shared fixtures (sys.path setup)
+│   └── skills/                  # One test file per skill
 ├── scripts/                     # Backward-compatible wrappers (for dev use)
 │   ├── sync-upstream.py         # Fork upstream sync tool
 │   └── init-fork.py             # One-time fork initializer (detach + git re-init)
@@ -339,6 +342,61 @@ Validate a skill's SKILL.md structure before committing:
 
 ```bash
 python3 mythril_agent_skills/skills/skill-creator/scripts/quick_validate.py <skill-path>
+```
+
+---
+
+## Testing
+
+Unit tests live in `tests/skills/`, one file per skill. They cover pure/deterministic functions in skill `scripts/` directories — URL parsing, formatters, validators, template rendering, gate logic, etc.
+
+### Running tests
+
+```bash
+pip install -e ".[test]"   # first time only
+pytest                     # run all
+pytest -vv                 # verbose
+pytest tests/skills/test_figma.py          # single skill
+pytest -k "parse_url"                      # filter by keyword
+```
+
+### Rules for skill scripts and tests
+
+1. **Every skill that has a `scripts/` directory MUST have a corresponding test file** at `tests/skills/test_<skill_name>.py` (hyphens → underscores).
+2. **Test pure functions only** — functions that take data in and return data out, with no network calls, subprocess invocations, or filesystem side effects. Typical candidates:
+   - URL/input parsing (`parse_repo_url`, `parse_issue_input`, `parse_figma_url`)
+   - Data formatting (`format_issue_markdown`, `rgba_to_hex`, `_strip_html`)
+   - Validation logic (`validate_skill`, `gate_no_speculation`, `detect_verdict`)
+   - Template/report rendering (`render_english`, `generate_markdown`)
+   - Key normalization (`normalize_key`, `normalized_identity`)
+3. **Functions that call external tools** (network, `subprocess`, `gh`, `git`, API clients) are NOT unit-tested. They are validated by integration usage.
+4. **Use `tmp_path` for filesystem tests** — when testing functions that read/write files (e.g., `validate_skill`, `load_map`/`save_map`), create temp directories via pytest's `tmp_path` fixture. Never touch real skill directories.
+5. **Import via module name directly** — `conftest.py` adds all skill `scripts/` directories to `sys.path` at session start. Import like `from jira_api import format_adf_to_text`, not via relative paths.
+6. **When adding a new script to an existing skill**, add tests for its pure functions to the skill's existing test file.
+7. **When creating a new skill with scripts**, create the test file as part of the same commit.
+8. **IDE type-checker paths** are configured in `pyproject.toml` under `[tool.pyright] extraPaths`. When adding a new skill with scripts, add its `scripts/` path to this list.
+
+### Test file structure convention
+
+```python
+"""Tests for <skill-name> skill scripts."""
+
+import pytest
+
+class TestFunctionName:
+    """Tests for module.function_name."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from module_name import function_name
+        self.func = function_name
+
+    def test_normal_case(self):
+        assert self.func("input") == "expected"
+
+    def test_edge_case(self):
+        with pytest.raises(ValueError):
+            self.func("bad input")
 ```
 
 ---

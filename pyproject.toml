@@ -38,6 +38,25 @@ skills-cleanup = "mythril_agent_skills.cli.skills_cleanup:main"
 skills-check = "mythril_agent_skills.cli.skills_check:main"
 skills-clean-cache = "mythril_agent_skills.cli.skills_clean_cache:main"
 
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0,<10",
+    "pyyaml>=6.0,<7",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.pyright]
+extraPaths = [
+    "mythril_agent_skills/skills/confluence/scripts",
+    "mythril_agent_skills/skills/figma/scripts",
+    "mythril_agent_skills/skills/git-repo-reader/scripts",
+    "mythril_agent_skills/skills/github-code-review-pr/scripts",
+    "mythril_agent_skills/skills/jira/scripts",
+    "mythril_agent_skills/skills/skill-creator/scripts",
+]
+
 [tool.setuptools.packages.find]
 include = ["mythril_agent_skills*"]
 
