@@ -253,18 +253,18 @@ def query_repo_size_kb(host: str, owner: str, repo: str) -> int | None:
         return None
 
 
-def ensure_checkout(
+def resolve_checkout_target(
     repo_dir: Path,
     base_ref_name: str,
     head_ref_name: str,
     pr_number: int,
 ) -> tuple[str, str]:
-    """Try branch fetch/checkout; fallback to pull/<PR>/head when needed.
+    """Resolve a deterministic checkout target after fetching PR refs.
 
     Returns:
-        (checkout_ref, limitation)
-        checkout_ref is empty when checkout failed and diff-only mode is required.
-        limitation contains an explanation when checkout_ref is empty.
+        (target_ref, limitation)
+        target_ref is `origin/<headRefName>` or a fetched commit SHA.
+        Empty target_ref means checkout should fall back to diff-only mode.
     """
     errors: list[str] = []
 
@@ -282,18 +282,10 @@ def ensure_checkout(
         cwd=repo_dir,
     )
     if head_ref_check.returncode == 0:
-        checkout_cp = run_cmd(["git", "checkout", head_ref_name], cwd=repo_dir)
-        if checkout_cp.returncode == 0:
-            return head_ref_name, ""
-        errors.append(
-            checkout_cp.stderr.strip()
-            or checkout_cp.stdout.strip()
-            or f"git checkout {head_ref_name} failed"
-        )
+        return f"origin/{head_ref_name}", ""
 
-    fallback_ref = f"pr-{pr_number}-head"
     fallback_fetch_cp = run_cmd(
-        ["git", "fetch", "origin", f"pull/{pr_number}/head:{fallback_ref}"],
+        ["git", "fetch", "origin", f"pull/{pr_number}/head"],
         cwd=repo_dir,
     )
     if fallback_fetch_cp.returncode != 0:
@@ -303,18 +295,52 @@ def ensure_checkout(
             or "fallback fetch pull/<PR>/head failed"
         )
     else:
-        fallback_checkout_cp = run_cmd(["git", "checkout", fallback_ref], cwd=repo_dir)
-        if fallback_checkout_cp.returncode == 0:
-            return fallback_ref, ""
+        fetch_head_cp = run_cmd(["git", "rev-parse", "FETCH_HEAD"], cwd=repo_dir)
+        if fetch_head_cp.returncode == 0:
+            return fetch_head_cp.stdout.strip(), ""
         errors.append(
-            fallback_checkout_cp.stderr.strip()
-            or fallback_checkout_cp.stdout.strip()
-            or f"git checkout {fallback_ref} failed"
+            fetch_head_cp.stderr.strip()
+            or fetch_head_cp.stdout.strip()
+            or "cannot resolve FETCH_HEAD"
         )
 
     limitation = " | ".join(e for e in errors if e)
     limitation = limitation[:4000] if limitation else "Path checkout failed"
     return "", f"Path checkout failed: {limitation}"
+
+
+def ensure_checkout(
+    repo_dir: Path,
+    base_ref_name: str,
+    head_ref_name: str,
+    pr_number: int,
+) -> tuple[str, str]:
+    """Try branch fetch/checkout; fallback to pull/<PR>/head when needed.
+
+    Returns:
+        (checkout_ref, limitation)
+        checkout_ref is empty when checkout failed and diff-only mode is required.
+        limitation contains an explanation when checkout_ref is empty.
+    """
+    target_ref, limitation = resolve_checkout_target(
+        repo_dir,
+        base_ref_name,
+        head_ref_name,
+        pr_number,
+    )
+    if not target_ref:
+        return "", limitation
+
+    checkout_cp = run_cmd(["git", "checkout", "--detach", target_ref], cwd=repo_dir)
+    if checkout_cp.returncode == 0:
+        return target_ref, ""
+
+    err = (
+        checkout_cp.stderr.strip()
+        or checkout_cp.stdout.strip()
+        or f"git checkout --detach {target_ref} failed"
+    )
+    return "", f"Path checkout failed: {err[:4000]}"
 
 
 def _emit_manifest_outputs(manifest: SessionManifest, manifest_path: Path) -> None:
@@ -511,14 +537,42 @@ def prepare_session(
     if selected_path == "A":
         top_level = current_repo_top_level()
         if top_level:
-            repo_workdir = top_level
-            original_branch = current_branch(Path(repo_workdir))
-            checkout_ref, context_limitation = ensure_checkout(
-                Path(repo_workdir),
+            main_repo_dir = Path(top_level)
+            repo_path = top_level
+            original_branch = current_branch(main_repo_dir)
+
+            target_ref, context_limitation = resolve_checkout_target(
+                main_repo_dir,
                 base_ref_name,
                 head_ref_name,
                 pr_number,
             )
+            if target_ref:
+                worktree_dir = Path(
+                    tempfile.mkdtemp(prefix="worktree-", dir=str(cache_dir))
+                )
+                add_worktree_cp = run_cmd(
+                    [
+                        "git",
+                        "worktree",
+                        "add",
+                        "--detach",
+                        str(worktree_dir),
+                        target_ref,
+                    ],
+                    cwd=main_repo_dir,
+                )
+                if add_worktree_cp.returncode == 0:
+                    repo_workdir = str(worktree_dir)
+                    review_dir = str(worktree_dir)
+                    checkout_ref = target_ref
+                    context_limitation = ""
+                else:
+                    context_limitation = (
+                        add_worktree_cp.stderr.strip()
+                        or add_worktree_cp.stdout.strip()
+                        or "Path A temp worktree creation failed"
+                    )[:4000]
         else:
             context_limitation = "Path A selected but current repo top-level not found"
 
@@ -859,12 +913,26 @@ def cleanup_session(manifest_path: Path) -> int:
         return 0
 
     selected_path = str(data.get("selected_path", ""))
+    repo_path = str(data.get("repo_path", ""))
     repo_workdir = str(data.get("repo_workdir", ""))
     original_branch = str(data.get("original_branch", ""))
-    review_dir = Path(str(data.get("review_dir", "")))
+    review_dir_raw = str(data.get("review_dir", "")).strip()
+    review_dir = Path(review_dir_raw) if review_dir_raw else None
 
     if selected_path == "A":
-        if repo_workdir and original_branch:
+        if review_dir and repo_path and (Path(repo_path) / ".git").is_dir():
+            cp = run_cmd(
+                ["git", "worktree", "remove", "--force", str(review_dir)],
+                cwd=Path(repo_path),
+            )
+            if cp.returncode == 0:
+                print(f"[PATH-CLEANUP] Path A - removed temp worktree: {review_dir}")
+            else:
+                print(
+                    "[PATH-CLEANUP] Path A - failed to remove temp worktree: "
+                    f"{cp.stderr.strip() or cp.stdout.strip()}"
+                )
+        elif repo_workdir and original_branch:
             cp = run_cmd(["git", "checkout", original_branch], cwd=Path(repo_workdir))
             if cp.returncode == 0:
                 print(f"[PATH-CLEANUP] Path A - restored branch to {original_branch}")
@@ -900,7 +968,7 @@ def cleanup_session(manifest_path: Path) -> int:
     elif selected_path == "D":
         removed: list[str] = []
         for path in [review_dir]:
-            if str(path) and path.exists():
+            if path and path.exists() and str(path) not in {".", "/"}:
                 shutil.rmtree(path, ignore_errors=False)
                 removed.append(str(path))
         if removed:
