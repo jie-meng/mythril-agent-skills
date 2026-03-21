@@ -27,6 +27,11 @@ Requires `FIGMA_ACCESS_TOKEN` environment variable. See `README.md` in this skil
 2. **NEVER pass token values as inline CLI arguments or env-var overrides** (e.g. `FIGMA_ACCESS_TOKEN=xxx python3 ...`). The scripts read the token from the environment automatically — just run the script directly.
 3. **When debugging auth errors**, rely solely on the script's error output (401, 403, 429 messages). Do NOT attempt to verify tokens by reading or printing them.
 4. **Do NOT read environment variable values** using shell commands or programmatic access. The scripts handle all credential access internally.
+5. **NEVER extract credentials from OS credential stores or config files.** Strictly forbidden commands include:
+   - `security find-internet-password`, `security find-generic-password` (macOS Keychain)
+   - `git credential fill`, `cat ~/.git-credentials`, `cat ~/.netrc`
+   - Any command that outputs a password, token, or secret value from any credential store
+6. **NEVER use extracted credential values in commands.** Do NOT manually construct authenticated requests using raw credential values. The bundled script handles all authentication internally.
 
 # Workflow
 

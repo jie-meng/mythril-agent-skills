@@ -33,6 +33,12 @@ Scope boundary:
 1. **NEVER echo, print, or log** the values of any environment variable containing credentials (`GH_TOKEN`, `GITHUB_TOKEN`, etc.). Do NOT run commands like `echo $GH_TOKEN` or `printenv GITHUB_TOKEN` — even for debugging.
 2. **NEVER pass token/credential values as inline CLI arguments or env-var overrides.** `gh` reads credentials from its own config — just run `gh` commands directly.
 3. **When debugging auth errors**, rely solely on `gh auth status` output and `gh` error messages. Do NOT attempt to verify tokens by reading or printing them.
+4. **NEVER extract credentials from OS credential stores or config files.** Strictly forbidden commands include:
+   - `security find-internet-password`, `security find-generic-password` (macOS Keychain)
+   - `git credential fill`, `cat ~/.git-credentials`, `cat ~/.netrc`
+   - Reading `~/.config/gh/hosts.yml` or any `gh` auth config file
+   - Any command that outputs a password, token, or secret value from any credential store
+5. **NEVER use extracted credential values in commands.** Do NOT manually construct authenticated requests (e.g. `curl -H "Authorization: token <value>"`). The `gh` CLI handles all authentication internally — use `gh api` for API calls instead of `curl` with raw tokens.
 
 ## Runtime requirements
 
@@ -246,6 +252,13 @@ For every task, provide:
 
 - **Not logged in**: run `gh auth login`, then retry.
 - **Wrong host / enterprise**: use `gh auth login --hostname <host-from-url>`, then rerun the same URL command unchanged.
+- **Auth failure — ONLY allowed recovery steps**: When `gh` commands fail with auth/host errors, the ONLY actions you may take are:
+  1. Report the `gh` error message to the user
+  2. Suggest `gh auth login --hostname <host>`
+  3. Suggest `gh auth status --hostname <host>` to check current auth state
+  4. Stop and wait for the user to fix auth
+
+  **FORBIDDEN recovery attempts** (violate Security rules 4-5): Do NOT search for credentials in macOS Keychain, git credential stores, `.netrc`, or any other credential storage. Do NOT run `security`, `git credential fill`, or read `gh` config files. Do NOT construct manual `curl` calls with tokens extracted from any source.
 - **Repo not found from URL request**: this usually means URL was rewritten incorrectly; retry using the original URL directly.
 - **Permission/scope issues**: show failing command and required scope, e.g. `gh auth refresh -s project`.
 - **No repo context**: require `--repo OWNER/REPO` or switch to repository directory.

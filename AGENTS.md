@@ -206,6 +206,14 @@ Skills that require API tokens, passwords, or other credentials (e.g. `ATLASSIAN
 2. **NEVER pass credential values as inline CLI arguments or env-var overrides** (e.g. `TOKEN=xxx python3 script.py`). Scripts MUST read credentials from the environment internally via `os.environ`. The AI agent simply runs the script — no manual credential handling.
 3. **NEVER read environment variable values** using shell commands or programmatic access. The AI agent should not inspect, verify, or access token values in any way.
 4. **When debugging auth errors**, rely solely on the script's error messages (401, 403, etc.). Do NOT attempt to verify tokens by reading or printing them.
+5. **NEVER extract credentials from OS credential stores or config files.** The following are strictly forbidden — even for debugging or troubleshooting auth failures:
+   - macOS Keychain: `security find-internet-password`, `security find-generic-password`, `security dump-keychain`
+   - Linux secret stores: `secret-tool`, `kwallet-query`, GNOME Keyring CLI tools
+   - Windows Credential Manager: `cmdkey /list`, `rundll32 keymgr.dll`
+   - Git credential helpers: `git credential fill`, `cat ~/.git-credentials`, `cat ~/.netrc`
+   - GitHub CLI config: reading or printing contents of `~/.config/gh/hosts.yml` or any `gh` auth config file
+   - Any other command or file read that outputs a password, token, or secret value
+6. **NEVER use extracted credential values in commands.** Even if a credential value is somehow visible (e.g. from a previous session's output), do NOT copy and use it in `curl -H "Authorization: token <value>"`, API calls, or any other command. Tools like `gh` and bundled scripts handle authentication internally — the AI agent must never manually construct authenticated requests using raw credential values.
 
 These rules prevent accidental credential exposure in terminal output, chat logs, and conversation transcripts.
 
