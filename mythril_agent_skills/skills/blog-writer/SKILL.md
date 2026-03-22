@@ -54,7 +54,7 @@ After extracting what you can, assess what's missing. There are three possible o
 
 **Case 1 — Everything is clear**: Topic, source materials (or clearly not needed), and output path are all known. Proceed directly to Phase 2. Show a one-line summary of what you're about to write before starting research:
 
-> 收到。中文个人技术博客，关于 mythril-agent-bgm，务实简洁风格，面向工程师。开始研读素材。
+> 收到。中文个人技术博客，关于 <topic>，务实简洁风格，面向工程师。开始研读素材。
 
 **Case 2 — Only topic is missing**: The user said "写篇博客" without specifying what about. Ask for the topic with numbered choices:
 
@@ -183,7 +183,7 @@ If the user says "just write" / "直接写" without providing a topic or enough 
 
 **File naming**: Lowercase English, hyphen-separated, descriptive. Examples:
 - `redis-caching-strategies.md`
-- `mythril-agent-bgm-background-music-for-ai-coding.md`
+- `<topic-slug>.md`
 - `skill-management-internal-email.md` (suffix for alternate versions of the same topic)
 
 **Output path resolution** (in priority order):
