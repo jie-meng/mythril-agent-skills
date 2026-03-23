@@ -20,6 +20,14 @@ This skill uses a **four-path strategy** that adapts to what's available, from f
 
 The skill uses bundled Python scripts to enforce deterministic behavior and prevent prompt drift. These scripts are **mandatory** — the SKILL.md instructs the agent to use them as the primary execution path, with manual `gh` commands only as a fallback when scripts are unavailable.
 
+## Host Policy (GHE-first)
+
+For any PR URL containing `/pull/`, the skill must attempt `gh` first, regardless of domain text. Do not pre-classify hosts as GitLab/Bitbucket/Gitee from naming patterns. Unknown enterprise domains may still be valid GitHub Enterprise hosts.
+
+If `gh` fails with host/auth errors, report the exact error and suggest:
+- `gh auth login --hostname <host>`
+- `gh auth status --hostname <host>`
+
 ### Execution flow
 
 1. **Prepare session** — single fetch + path select + checkout fallback (replaces manual Step 2 + Step 3)
@@ -80,6 +88,8 @@ Path B leverages repos cached by the `git-repo-reader` skill (or previous review
 ### Script Location Policy (Permission-safe)
 
 To avoid sandbox prompts from broad home-directory scans, locate bundled scripts (`review_runner.py`, `path_select.py`) by checking fixed known install paths one by one (for example `~/.config/opencode/skills/...`, `~/.claude/skills/...`, `~/.cursor/skills/...`).
+
+Include all supported tool roots when checking fixed paths (`.copilot`, `.claude`, `.cursor`, `.codex`, `.gemini`, `.qwen`, `.grok`, and Opencode config).
 
 Do **not** run recursive glob/find over the whole home directory (for example `**/review_runner.py` in `~`).
 

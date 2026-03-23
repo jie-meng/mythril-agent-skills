@@ -140,6 +140,31 @@ def get_skill_cache_dir() -> Path:
     return cache_dir
 
 
+def get_shared_repo_cache_root(skill_cache_dir: Path | None = None) -> Path:
+    """Return shared repo cache root used by repo_manager.py."""
+    base = (skill_cache_dir or get_skill_cache_dir()).parent
+    return base / "git-repo-cache" / "repos"
+
+
+def resolve_managed_path(path_value: str, allowed_root: Path) -> Path | None:
+    """Resolve path if it is within allowed_root; otherwise return None."""
+    if not path_value:
+        return None
+
+    candidate = Path(path_value).expanduser().resolve(strict=False)
+    root = allowed_root.expanduser().resolve(strict=False)
+    if not candidate.is_relative_to(root):
+        return None
+    return candidate
+
+
+def is_safe_removal_target(path: Path, allowed_root: Path) -> bool:
+    """Return whether path is a non-root descendant of allowed_root."""
+    root = allowed_root.expanduser().resolve(strict=False)
+    candidate = path.expanduser().resolve(strict=False)
+    return candidate != root and candidate.is_relative_to(root)
+
+
 def run_cmd(
     cmd: list[str],
     cwd: Path | None = None,
@@ -936,71 +961,116 @@ def cleanup_session(manifest_path: Path) -> int:
     original_branch = str(data.get("original_branch", ""))
     review_dir_raw = str(data.get("review_dir", "")).strip()
     review_dir = Path(review_dir_raw) if review_dir_raw else None
+    skill_cache_dir = get_skill_cache_dir()
+    shared_repo_root = get_shared_repo_cache_root(skill_cache_dir)
+    had_failure = False
+
+    def mark_fail(message: str) -> None:
+        nonlocal had_failure
+        had_failure = True
+        print(f"[PATH-CLEANUP] {message}")
+
+    def mark_ok(message: str) -> None:
+        print(f"[PATH-CLEANUP] {message}")
 
     if selected_path == "A":
         if review_dir and repo_path and (Path(repo_path) / ".git").is_dir():
+            if not resolve_managed_path(str(review_dir), skill_cache_dir):
+                mark_fail("Path A - FAIL - temp worktree path is outside skill cache")
+                return 1
             cp = run_cmd(
                 ["git", "worktree", "remove", "--force", str(review_dir)],
                 cwd=Path(repo_path),
             )
             if cp.returncode == 0:
-                print(f"[PATH-CLEANUP] Path A - removed temp worktree: {review_dir}")
+                mark_ok(f"Path A - OK - removed temp worktree: {review_dir}")
             else:
-                print(
-                    "[PATH-CLEANUP] Path A - failed to remove temp worktree: "
+                mark_fail(
+                    "Path A - FAIL - failed to remove temp worktree: "
                     f"{cp.stderr.strip() or cp.stdout.strip()}"
                 )
         elif repo_workdir and original_branch:
             cp = run_cmd(["git", "checkout", original_branch], cwd=Path(repo_workdir))
             if cp.returncode == 0:
-                print(f"[PATH-CLEANUP] Path A - restored branch to {original_branch}")
+                mark_ok(f"Path A - OK - restored branch to {original_branch}")
             else:
-                print(
-                    "[PATH-CLEANUP] Path A - failed to restore branch: "
+                mark_fail(
+                    "Path A - FAIL - failed to restore branch: "
                     f"{cp.stderr.strip() or cp.stdout.strip()}"
                 )
         else:
-            print(
-                "[PATH-CLEANUP] Path A - skipped (missing repo_workdir/original_branch)"
-            )
+            mark_fail("Path A - FAIL - skipped (missing repo_workdir/original_branch)")
 
     elif selected_path in ("B", "C"):
-        if repo_workdir and (Path(repo_workdir) / ".git").is_dir():
-            repo_dir = Path(repo_workdir)
+        managed_repo_path = resolve_managed_path(repo_workdir, shared_repo_root)
+        if managed_repo_path and (managed_repo_path / ".git").is_dir():
+            repo_dir = managed_repo_path
             default_branch = resolve_default_branch(repo_dir)
-            run_cmd(["git", "checkout", default_branch], cwd=repo_dir)
-            run_cmd(
+            checkout_cp = run_cmd(["git", "checkout", default_branch], cwd=repo_dir)
+            reset_cp = run_cmd(
                 ["git", "reset", "--hard", f"origin/{default_branch}"], cwd=repo_dir
             )
-            run_cmd(["git", "clean", "-fd"], cwd=repo_dir)
-            print(
-                f"[PATH-CLEANUP] Path {selected_path} - reset cached repo to "
-                f"{default_branch}, ready for next use"
-            )
+            clean_cp = run_cmd(["git", "clean", "-fd"], cwd=repo_dir)
+
+            if (
+                checkout_cp.returncode == 0
+                and reset_cp.returncode == 0
+                and clean_cp.returncode == 0
+            ):
+                mark_ok(
+                    f"Path {selected_path} - OK - reset cached repo to "
+                    f"{default_branch}, ready for next use"
+                )
+            else:
+                failure_parts = []
+                for label, cp in (
+                    ("checkout", checkout_cp),
+                    ("reset", reset_cp),
+                    ("clean", clean_cp),
+                ):
+                    if cp.returncode != 0:
+                        failure_parts.append(
+                            f"{label}: {cp.stderr.strip() or cp.stdout.strip()}"
+                        )
+                mark_fail(f"Path {selected_path} - FAIL - " + " | ".join(failure_parts))
         else:
-            print(
-                f"[PATH-CLEANUP] Path {selected_path} - skipped "
-                "(repo_workdir unavailable)"
+            mark_fail(
+                f"Path {selected_path} - FAIL - unsafe or missing repo_workdir: "
+                f"{repo_workdir or '<empty>'}"
             )
 
     elif selected_path == "D":
         removed: list[str] = []
         for path in [review_dir]:
-            if path and path.exists() and str(path) not in {".", "/"}:
-                shutil.rmtree(path, ignore_errors=False)
-                removed.append(str(path))
+            if not path:
+                continue
+            if not is_safe_removal_target(path, skill_cache_dir):
+                mark_fail(
+                    "Path D - FAIL - unsafe temp directory path outside skill cache: "
+                    f"{path}"
+                )
+                continue
+            if path.exists():
+                try:
+                    shutil.rmtree(path, ignore_errors=False)
+                    removed.append(str(path))
+                except OSError as exc:
+                    mark_fail(
+                        f"Path D - FAIL - failed to delete temp dir {path}: {exc}"
+                    )
         if removed:
-            print(f"[PATH-CLEANUP] Path D - deleted temp dirs: {' '.join(removed)}")
+            mark_ok(f"Path D - OK - deleted temp dirs: {' '.join(removed)}")
         else:
-            print("[PATH-CLEANUP] Path D - no temp dirs to delete")
+            if not had_failure:
+                mark_ok("Path D - OK - no temp dirs to delete")
 
     elif selected_path == "DIFF_ONLY":
-        print("[PATH-CLEANUP] DIFF_ONLY - no repo to clean up")
+        mark_ok("DIFF_ONLY - OK - no repo to clean up")
 
     else:
-        print("[PATH-CLEANUP] skipped - unknown SELECTED_PATH")
+        mark_fail("FAIL - unknown SELECTED_PATH")
 
-    return 0
+    return 1 if had_failure else 0
 
 
 def purge_session(manifest_path: Path) -> int:
@@ -1015,10 +1085,23 @@ def purge_session(manifest_path: Path) -> int:
         print(f"[PURGE] skipped - invalid manifest JSON: {manifest_path}")
         return 0
 
+    skill_cache_dir = get_skill_cache_dir()
     run_dir = Path(str(data.get("run_dir", "")))
+    managed_run_dir = resolve_managed_path(str(run_dir), skill_cache_dir)
+    if not managed_run_dir or not is_safe_removal_target(
+        managed_run_dir, skill_cache_dir
+    ):
+        print(f"[PURGE] FAIL - unsafe run_dir outside skill cache: {run_dir}")
+        return 1
+
+    run_dir = managed_run_dir
     if run_dir.exists() and run_dir.is_dir():
-        shutil.rmtree(run_dir, ignore_errors=True)
-        print(f"[PURGE] Session artifacts removed: {run_dir}")
+        try:
+            shutil.rmtree(run_dir, ignore_errors=False)
+            print(f"[PURGE] Session artifacts removed: {run_dir}")
+        except OSError as exc:
+            print(f"[PURGE] FAIL - unable to remove run_dir {run_dir}: {exc}")
+            return 1
     else:
         print("[PURGE] skipped - run_dir not found or already removed")
 

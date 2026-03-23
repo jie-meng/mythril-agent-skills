@@ -2,9 +2,11 @@
 name: github-code-review-pr
 description: >
   Comprehensive Pull Request code review via GitHub CLI (`gh`). Trigger when the
-  user explicitly asks to review/审查/评审/CR a PR AND provides a PR URL
-  (a URL containing `/pull/`). Both conditions must be present: a review request
-  AND a URL. Trigger on any host. For routine PR actions, prefer `gh-operations`.
+  user explicitly asks to review/审查/评审/CR a PR and provides a PR URL
+  (containing `/pull/`), or asks to use this skill when a PR URL already exists in
+  recent context. Trigger on any host. Always attempt `gh` first (possible GitHub
+  Enterprise); never pre-classify platform by domain text. For routine PR actions,
+  prefer `gh-operations`.
 license: Apache-2.0
 ---
 
@@ -19,8 +21,9 @@ license: Apache-2.0
 - User provides a PR number and asks for review/feedback
 - "help me review this pull request"
 - "use github-code-review-pr skill"
+- User shared a PR URL in previous turn, then says "使用技能" / "use this skill"
 
-Trigger on any URL containing `/pull/`, regardless of the host domain. Do not make any judgment about the platform — just trigger this skill and let `gh` handle it.
+Trigger on any URL containing `/pull/`, regardless of the host domain. Do not make any judgment about the platform from domain text — trigger this skill and let `gh` handle it.
 
 **This skill reviews remote PRs via `gh` CLI (not local staged changes).**
 For local staged changes, use `code-review-staged` instead.
@@ -100,6 +103,8 @@ candidates = [
     pathlib.Path.home() / ".cursor/skills/github-code-review-pr/scripts/review_runner.py",
     pathlib.Path.home() / ".gemini/skills/github-code-review-pr/scripts/review_runner.py",
     pathlib.Path.home() / ".codex/skills/github-code-review-pr/scripts/review_runner.py",
+    pathlib.Path.home() / ".qwen/skills/github-code-review-pr/scripts/review_runner.py",
+    pathlib.Path.home() / ".grok/skills/github-code-review-pr/scripts/review_runner.py",
 ]
 script = next((p for p in candidates if p.exists()), None)
 ```
@@ -298,6 +303,8 @@ search_dirs = [
     pathlib.Path.home() / ".cursor/skills/github-code-review-pr/scripts",
     pathlib.Path.home() / ".gemini/skills/github-code-review-pr/scripts",
     pathlib.Path.home() / ".codex/skills/github-code-review-pr/scripts",
+    pathlib.Path.home() / ".qwen/skills/github-code-review-pr/scripts",
+    pathlib.Path.home() / ".grok/skills/github-code-review-pr/scripts",
 ]
 script = next((d / "path_select.py" for d in search_dirs if (d / "path_select.py").exists()), None)
 
@@ -916,7 +923,7 @@ skills-clean-cache
 
 ## Error Handling
 
-- **Known non-GitHub platform**: Only if URL host literally contains `gitlab`, or exactly matches `gitee.com` or `bitbucket.org` — stop and inform the user.
+- **Host handling rule (MANDATORY)**: Never pre-stop based on host/domain text (including hosts containing `gitlab`, `gitee`, `bitbucket`, or any other substring). Always run Step 2 (`review_runner.py prepare`, which runs `gh`) first.
 - **`gh` host/auth error on unknown domain**: This is the expected outcome when a non-github.com host hasn't been configured. Tell the user:
   1. This host might be GitHub Enterprise — run `gh auth login --hostname <host>` to authenticate
   2. If it's not GitHub at all, this skill only supports GitHub (including GHE)

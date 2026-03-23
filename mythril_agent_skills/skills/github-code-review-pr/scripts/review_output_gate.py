@@ -126,17 +126,37 @@ def gate_single_fetch(command_entries: list[dict]) -> GateResult:
 
 
 def gate_cleanup_evidence(cleanup_log_text: str) -> GateResult:
-    """Require [PATH-CLEANUP] marker in cleanup logs."""
-    if "[PATH-CLEANUP]" in cleanup_log_text:
+    """Require [PATH-CLEANUP] marker and explicit cleanup success."""
+    lines = cleanup_log_text.splitlines()
+    cleanup_lines = [line.strip() for line in lines if "[PATH-CLEANUP]" in line]
+    if not cleanup_lines:
+        return GateResult(
+            name="CLEANUP_EVIDENCE_PASS",
+            passed=False,
+            detail="missing [PATH-CLEANUP] marker in cleanup logs",
+        )
+
+    fail_lines = [line for line in cleanup_lines if " - FAIL - " in line]
+    if fail_lines:
+        first = fail_lines[0]
+        return GateResult(
+            name="CLEANUP_EVIDENCE_PASS",
+            passed=False,
+            detail=f"cleanup reported failure: {first}",
+        )
+
+    ok_lines = [line for line in cleanup_lines if " - OK - " in line]
+    if ok_lines:
         return GateResult(
             name="CLEANUP_EVIDENCE_PASS",
             passed=True,
-            detail="cleanup marker found",
+            detail="cleanup marker found with explicit OK status",
         )
+
     return GateResult(
         name="CLEANUP_EVIDENCE_PASS",
         passed=False,
-        detail="missing [PATH-CLEANUP] marker in cleanup logs",
+        detail="cleanup marker found but missing explicit OK status",
     )
 
 

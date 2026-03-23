@@ -26,6 +26,7 @@ class TestReviewRunnerParsePrRepoUrl:
     @pytest.fixture(autouse=True)
     def _import(self):
         from review_runner import parse_pr_repo_url
+
         self.parse = parse_pr_repo_url
 
     def test_github_com_url(self):
@@ -72,6 +73,7 @@ class TestReviewRunnerParseKeyValueOutput:
     @pytest.fixture(autouse=True)
     def _import(self):
         from review_runner import parse_key_value_output
+
         self.parse = parse_key_value_output
 
     def test_basic_parsing(self):
@@ -99,6 +101,42 @@ class TestReviewRunnerParseKeyValueOutput:
         assert result["CONTEXT_LIMITATION"] == "error=timeout at step 3"
 
 
+class TestReviewRunnerPathSafety:
+    """Tests for review_runner managed path safety helpers."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from review_runner import resolve_managed_path, is_safe_removal_target
+
+        self.resolve_path = resolve_managed_path
+        self.is_safe_target = is_safe_removal_target
+
+    def test_resolve_managed_path_accepts_descendant(self, tmp_path: Path):
+        root = tmp_path / "cache"
+        child = root / "run-abc"
+        child.mkdir(parents=True)
+        resolved = self.resolve_path(str(child), root)
+        assert resolved == child.resolve()
+
+    def test_resolve_managed_path_rejects_outside_path(self, tmp_path: Path):
+        root = tmp_path / "cache"
+        root.mkdir()
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        assert self.resolve_path(str(outside), root) is None
+
+    def test_is_safe_removal_target_rejects_root(self, tmp_path: Path):
+        root = tmp_path / "cache"
+        root.mkdir()
+        assert self.is_safe_target(root, root) is False
+
+    def test_is_safe_removal_target_accepts_descendant(self, tmp_path: Path):
+        root = tmp_path / "cache"
+        child = root / "repo-1"
+        child.mkdir(parents=True)
+        assert self.is_safe_target(child, root) is True
+
+
 # ── review_output_gate ─────────────────────────────────────────────────────────
 
 
@@ -108,6 +146,7 @@ class TestGateNoSpeculation:
     @pytest.fixture(autouse=True)
     def _import(self):
         from review_output_gate import gate_no_speculation
+
         self.gate = gate_no_speculation
 
     def test_clean_text_passes(self):
@@ -134,6 +173,7 @@ class TestGateSingleFetch:
     @pytest.fixture(autouse=True)
     def _import(self):
         from review_output_gate import gate_single_fetch
+
         self.gate = gate_single_fetch
 
     def _entry(self, cmd: list[str]) -> dict:
@@ -177,14 +217,23 @@ class TestGateCleanupEvidence:
     @pytest.fixture(autouse=True)
     def _import(self):
         from review_output_gate import gate_cleanup_evidence
+
         self.gate = gate_cleanup_evidence
 
     def test_marker_present_passes(self):
-        r = self.gate("[PATH-CLEANUP] Path B - reset cached repo to main")
+        r = self.gate("[PATH-CLEANUP] Path B - OK - reset cached repo to main")
         assert r.passed is True
 
     def test_marker_missing_fails(self):
         r = self.gate("Cleanup completed successfully.")
+        assert r.passed is False
+
+    def test_fail_marker_fails(self):
+        r = self.gate("[PATH-CLEANUP] Path C - FAIL - reset: permission denied")
+        assert r.passed is False
+
+    def test_marker_without_ok_fails(self):
+        r = self.gate("[PATH-CLEANUP] Path C - reset cached repo to main")
         assert r.passed is False
 
 
@@ -194,6 +243,7 @@ class TestDetectVerdict:
     @pytest.fixture(autouse=True)
     def _import(self):
         from review_output_gate import detect_verdict
+
         self.detect = detect_verdict
 
     def test_approve(self):
@@ -219,6 +269,7 @@ class TestGateVerdictState:
     @pytest.fixture(autouse=True)
     def _import(self):
         from review_output_gate import gate_verdict_state
+
         self.gate = gate_verdict_state
 
     def test_open_pr_approve_passes(self):
@@ -255,6 +306,7 @@ class TestReviewTemplateBuilder:
     @pytest.fixture(autouse=True)
     def _import(self):
         from review_template_builder import render_english, render_chinese
+
         self.render_en = render_english
         self.render_zh = render_chinese
 
@@ -287,10 +339,12 @@ class TestReviewTemplateBuilder:
         assert "Verdict: Comment" in text
 
     def test_english_diff_only_shows_limitation(self):
-        text = self.render_en(self._manifest(
-            context_mode="diff_only",
-            context_limitation="User chose diff-only",
-        ))
+        text = self.render_en(
+            self._manifest(
+                context_mode="diff_only",
+                context_limitation="User chose diff-only",
+            )
+        )
         assert "diff-only" in text
         assert "User chose diff-only" in text
 
@@ -317,6 +371,7 @@ class TestPathSelectParseRepoUrl:
     @pytest.fixture(autouse=True)
     def _import(self):
         from path_select import parse_repo_url, normalized_identity
+
         self.parse = parse_repo_url
         self.normalize = normalized_identity
 
@@ -366,6 +421,7 @@ class TestRepoCacheLookup:
     @pytest.fixture(autouse=True)
     def _import(self):
         from repo_cache_lookup import parse_repo_url, normalize_key
+
         self.parse = parse_repo_url
         self.normalize = normalize_key
 
