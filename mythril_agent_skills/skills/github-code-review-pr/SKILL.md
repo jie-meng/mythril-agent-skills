@@ -698,9 +698,11 @@ Run this final check before sending the review:
 **RECOMMENDED: Generate review skeleton first.** Before filling in review content, generate a deterministic skeleton to reduce structural drift:
 
 ```bash
+RUN_DIR="$(dirname "<RUN_MANIFEST>")"
+REVIEW_DRAFT_PATH="$RUN_DIR/review_draft.md"
 python3 scripts/review_template_builder.py \
   --manifest <RUN_MANIFEST> \
-  --output <REVIEW_DRAFT_PATH> \
+  --output "$REVIEW_DRAFT_PATH" \
   --language en
 ```
 
@@ -789,7 +791,9 @@ This step has three sub-steps that MUST be executed in order. **Do NOT send the 
 Execute cleanup to restore the repo state (branch checkout / reset). This does **NOT** delete the session `run_dir` — the manifest and command log must remain readable for the gate script in 7b.
 
 ```bash
-python3 scripts/review_runner.py cleanup <RUN_MANIFEST> 2>&1 | tee /tmp/cleanup_log.txt
+RUN_DIR="$(dirname "<RUN_MANIFEST>")"
+CLEANUP_LOG_PATH="$RUN_DIR/cleanup.log"
+python3 scripts/review_runner.py cleanup <RUN_MANIFEST> 2>&1 | tee "$CLEANUP_LOG_PATH"
 ```
 
 This prints `[PATH-CLEANUP] ...` evidence lines. **Save the stdout to a file** — it is needed for the gate script in 7b.
@@ -803,7 +807,9 @@ If `review_runner.py` was NOT available (manual Step 2/3 path), use the manual c
 1. **Save the review text to a file** (the complete 6-section review you prepared in Step 6):
 
 ```bash
-cat > /tmp/review_text.md << 'REVIEW_EOF'
+RUN_DIR="$(dirname "<RUN_MANIFEST>")"
+REVIEW_TEXT_PATH="$RUN_DIR/review_text.md"
+cat > "$REVIEW_TEXT_PATH" << 'REVIEW_EOF'
 <paste your complete review content here>
 REVIEW_EOF
 ```
@@ -813,8 +819,8 @@ REVIEW_EOF
 ```bash
 python3 scripts/review_output_gate.py \
   --manifest <RUN_MANIFEST> \
-  --review-text /tmp/review_text.md \
-  --cleanup-log /tmp/cleanup_log.txt
+  --review-text "$REVIEW_TEXT_PATH" \
+  --cleanup-log "$CLEANUP_LOG_PATH"
 ```
 
 3. **Interpret the result:**

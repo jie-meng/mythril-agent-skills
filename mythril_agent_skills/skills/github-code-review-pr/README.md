@@ -31,25 +31,31 @@ python3 scripts/review_runner.py prepare "<PR_URL_OR_NUMBER>"
 2. **Generate review skeleton** — deterministic 6-section template with PR metadata pre-filled
 
 ```bash
+RUN_DIR="$(dirname "<RUN_MANIFEST>")"
+REVIEW_DRAFT_PATH="$RUN_DIR/review_draft.md"
 python3 scripts/review_template_builder.py \
   --manifest "<RUN_MANIFEST>" \
-  --output "<REVIEW_DRAFT_PATH>" \
+  --output "$REVIEW_DRAFT_PATH" \
   --language en
 ```
 
 3. **Cleanup** — restore branches, emit `[PATH-CLEANUP]` evidence (keeps session files for gate)
 
 ```bash
-python3 scripts/review_runner.py cleanup "<RUN_MANIFEST>" 2>&1 | tee /tmp/cleanup_log.txt
+RUN_DIR="$(dirname "<RUN_MANIFEST>")"
+CLEANUP_LOG_PATH="$RUN_DIR/cleanup.log"
+python3 scripts/review_runner.py cleanup "<RUN_MANIFEST>" 2>&1 | tee "$CLEANUP_LOG_PATH"
 ```
 
 4. **Quality gates** — validate review output before sending to user
 
 ```bash
+RUN_DIR="$(dirname "<RUN_MANIFEST>")"
+REVIEW_TEXT_PATH="$RUN_DIR/review_text.md"
 python3 scripts/review_output_gate.py \
   --manifest "<RUN_MANIFEST>" \
-  --review-text "<REVIEW_TEXT_PATH>" \
-  --cleanup-log /tmp/cleanup_log.txt
+  --review-text "$REVIEW_TEXT_PATH" \
+  --cleanup-log "$CLEANUP_LOG_PATH"
 ```
 
 5. **Purge** — delete session artifacts after gate passes
