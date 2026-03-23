@@ -158,6 +158,8 @@ Machine-readable output lines (normal exit code 0):
 - `PR_STATE=OPEN|CLOSED|MERGED` — PR state
 - `CONTEXT_MODE=full_repo|diff_only` — whether full repo context is available
 - `CONTEXT_LIMITATION=<message>` — explanation when context is limited
+- `CHECKOUT_DONE=true|false` — whether the PR branch is already checked out at `REPO_WORKDIR`
+- `NOTE: PR branch is already checked out...` — human-readable confirmation (when `CHECKOUT_DONE=true`)
 
 ### Handling exit code 10 (large repo — user decision required)
 
@@ -201,16 +203,19 @@ python3 scripts/review_runner.py prepare <URL_or_NUMBER> \
 This resumes the pending session: it reuses the previously fetched metadata and diff (no repeated `gh pr view`/`gh pr diff`), executes the user's chosen path, and emits the standard machine-readable output lines with exit code 0.
 
 **After `review_runner.py prepare` succeeds (exit code 0) — MANDATORY next actions:**
+
+When you see `CHECKOUT_DONE=true` in the output, the runner has ALREADY fetched and checked out the PR branch. You MUST NOT run any git commands to prepare the repo.
+
 1. Read PR metadata from `PR_VIEW_JSON_PATH` (do NOT re-run `gh pr view`)
 2. Read PR diff from `PR_DIFF_PATH` (do NOT re-run `gh pr diff`)
-3. **SKIP Step 3 entirely — go directly to Step 4 (read files).** The PR branch is ALREADY checked out at `REPO_WORKDIR`. To gather context, just read files there:
+3. **SKIP Step 3 entirely — go directly to Step 4 (read files).** The runner output says `CHECKOUT_DONE=true` — the PR branch is ALREADY checked out at `REPO_WORKDIR`. To gather context, just read files there:
    ```bash
    cd <REPO_WORKDIR>
-   # read files directly — the PR branch is already checked out, no git commands needed
+   # read files directly — CHECKOUT_DONE=true means the PR branch is already here
    ```
 4. Save all emitted paths (`RUN_MANIFEST`, `CLEANUP_LOG_PATH`, `REVIEW_TEXT_PATH`) — you will need them in Step 7
 
-**WRONG (do NOT do this after runner succeeds):**
+**WRONG (do NOT do this when CHECKOUT_DONE=true):**
 - `git fetch origin <branch>` — WRONG, runner already fetched
 - `git checkout <branch>` — WRONG, runner already checked out
 - `gh pr checkout` — WRONG, runner already handled this

@@ -384,6 +384,15 @@ def _emit_manifest_outputs(manifest: SessionManifest, manifest_path: Path) -> No
     print(f"PR_STATE={manifest.pr_state}")
     print(f"CONTEXT_MODE={manifest.context_mode}")
     print(f"CONTEXT_LIMITATION={manifest.context_limitation}")
+    checkout_done = bool(
+        manifest.repo_workdir and manifest.context_mode == "full_repo"
+    )
+    print(f"CHECKOUT_DONE={'true' if checkout_done else 'false'}")
+    if checkout_done:
+        print(
+            f"NOTE: PR branch is already checked out at REPO_WORKDIR. "
+            f"Do NOT run git fetch/checkout. Just cd there and read files."
+        )
 
 
 def _execute_path_c(
