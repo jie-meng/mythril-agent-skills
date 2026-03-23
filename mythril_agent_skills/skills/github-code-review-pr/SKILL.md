@@ -85,13 +85,13 @@ Accept PR input in any of these formats:
 
 1. **Only reject URLs whose host literally contains the substring `gitlab`, or exactly matches `gitee.com` or `bitbucket.org`.** These are the only platforms we can confidently identify as non-GitHub from the URL alone. Check with simple string matching — `git.example.com` does NOT contain `gitlab`, so it must NOT be rejected.
 
-2. **For ALL other URLs — run `gh` commands IMMEDIATELY without any commentary about the platform.** Do NOT think about, discuss, or question the domain. GitHub Enterprise (GHE) domains are completely arbitrary: `git.acmecorp.com`, `git.mycompany.com`, `git.example.com`, `github.corp.example.com`, `code.company.io`, `dev.internal.net`, etc. Any domain that doesn't match the reject list is GitHub Enterprise until `gh` proves otherwise.
+2. **For ALL other URLs — proceed IMMEDIATELY to Step 2 without any commentary about the platform.** Do NOT think about, discuss, or question the domain. GitHub Enterprise (GHE) domains are completely arbitrary: `git.acmecorp.com`, `git.mycompany.com`, `git.example.com`, `github.corp.example.com`, `code.company.io`, `dev.internal.net`, etc. Any domain that doesn't match the reject list is GitHub Enterprise until `gh` proves otherwise.
 
-3. **Let `gh` CLI be the sole judge.** Jump straight to Step 2 and run the commands. If the host is not a GitHub instance or the user hasn't authenticated, `gh` will return a clear error — handle it then (see Error Handling). Do NOT pre-screen, do NOT ask clarifying questions, do NOT warn about "possible non-GitHub hosts".
+3. **Let `gh` CLI be the sole judge.** Jump straight to Step 2 and follow its instructions exactly. If the host is not a GitHub instance or the user hasn't authenticated, `gh` will return a clear error — handle it then (see Error Handling). Do NOT pre-screen, do NOT ask clarifying questions, do NOT warn about "possible non-GitHub hosts".
 
 ### Forbidden platform speculation text (MANDATORY)
 
-Before running `gh`, never output any sentence that classifies or guesses the platform.
+Before running any `gh` command, never output any sentence that classifies or guesses the platform.
 
 Forbidden examples (must not appear in user-visible output):
 - "This is not a GitHub URL"
@@ -100,9 +100,10 @@ Forbidden examples (must not appear in user-visible output):
 - "This appears to be ..."
 
 Allowed behavior:
-- Immediately run `gh pr view <URL>` and `gh pr diff <URL>`
-- If those commands fail, report the exact `gh` error and follow Error Handling
-- If those commands succeed, describe facts only (for example, "`gh` commands succeeded for this host")
+- Proceed immediately to Step 2 (which specifies exactly how to fetch PR data)
+- Do NOT run `gh pr view` or `gh pr diff` manually here — Step 2 handles this via `review_runner.py`
+- If `gh` commands in Step 2 fail, report the exact error and follow Error Handling
+- If they succeed, describe facts only (for example, "`gh` commands succeeded for this host")
 
 Extract: **owner**, **repo**, **PR number**, and **hostname** (for any non-`github.com` domain).
 
