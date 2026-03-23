@@ -1,12 +1,10 @@
 ---
 name: github-code-review-pr
 description: >
-  Comprehensive Pull Request code review via GitHub CLI (`gh`). MANDATORY TRIGGER:
-  You MUST use this skill whenever the user asks to review/审查/评审/CR a PR, or
-  provides any URL containing `/pull/` and asks for review or feedback.
-  Trigger on any host — github.com, GitHub Enterprise, or any other domain.
-  Just run `gh` and let it succeed or fail. This skill is for deep review output.
-  For routine PR actions, prefer `gh-operations`.
+  Comprehensive Pull Request code review via GitHub CLI (`gh`). Trigger when the
+  user explicitly asks to review/审查/评审/CR a PR AND provides a PR URL
+  (a URL containing `/pull/`). Both conditions must be present: a review request
+  AND a URL. Trigger on any host. For routine PR actions, prefer `gh-operations`.
 license: Apache-2.0
 ---
 
