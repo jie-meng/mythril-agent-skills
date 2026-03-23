@@ -203,13 +203,18 @@ This resumes the pending session: it reuses the previously fetched metadata and 
 **After `review_runner.py prepare` succeeds (exit code 0) — MANDATORY next actions:**
 1. Read PR metadata from `PR_VIEW_JSON_PATH` (do NOT re-run `gh pr view`)
 2. Read PR diff from `PR_DIFF_PATH` (do NOT re-run `gh pr diff`)
-3. **SKIP Step 3 entirely** — do NOT run `git fetch`, `git checkout`, or any branch operation. The runner already did checkout. Just `cd` to `REPO_WORKDIR` and read files directly.
+3. **SKIP Step 3 entirely — go directly to Step 4 (read files).** The PR branch is ALREADY checked out at `REPO_WORKDIR`. To gather context, just read files there:
+   ```bash
+   cd <REPO_WORKDIR>
+   # read files directly — the PR branch is already checked out, no git commands needed
+   ```
 4. Save all emitted paths (`RUN_MANIFEST`, `CLEANUP_LOG_PATH`, `REVIEW_TEXT_PATH`) — you will need them in Step 7
 
 **WRONG (do NOT do this after runner succeeds):**
 - `git fetch origin <branch>` — WRONG, runner already fetched
 - `git checkout <branch>` — WRONG, runner already checked out
 - `gh pr checkout` — WRONG, runner already handled this
+- Running ANY git command to "prepare" the repo — WRONG, it's already prepared
 
 ### Fallback: Manual commands (ONLY if review_runner.py is not found)
 
@@ -662,8 +667,8 @@ When the user explicitly chose diff-only mode for a large repo, no local repo is
 ## Step 5: Detect Language
 
 Analyze user's input to determine review output language:
-- Contains Chinese characters → Chinese review
-- Only English → English review
+- Contains **any** Chinese characters → Chinese review (even if mixed with English, e.g., "review 一下这个PR" → Chinese)
+- Only English (zero Chinese characters) → English review
 
 ## Step 6: Perform Code Review
 
