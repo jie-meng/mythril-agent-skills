@@ -288,7 +288,7 @@ skills-clean-cache --repos  # 交互式：选择要删除的仓库
 /plugin marketplace remove mythril-agent-skills
 ```
 
-> **提示：** 此方式仅将技能安装到 Claude Code。如需支持多个工具（Cursor、Copilot、Codex、Gemini CLI 等），请使用方式 A。
+> **提示：** 此方式仅将技能安装到 Claude Code，不包含 CLI 命令（如 `skills-setup`、`skills-cleanup`、`skills-clean-cache`）。如需完整工具包支持（多工具安装、依赖检查、缓存管理），请使用方式 A。
 
 </details>
 

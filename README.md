@@ -288,7 +288,7 @@ To remove the marketplace entirely (also uninstalls all its plugins):
 /plugin marketplace remove mythril-agent-skills
 ```
 
-> **Note:** This option installs skills into Claude Code only. For multi-tool support (Cursor, Copilot, Codex, Gemini CLI, etc.), use Option A.
+> **Note:** This option only installs skills into Claude Code — the CLI commands (`skills-setup`, `skills-cleanup`, `skills-clean-cache`) are not included. For full toolkit support (multi-tool installation, dependency checking, cache management), use Option A.
 
 </details>
 
