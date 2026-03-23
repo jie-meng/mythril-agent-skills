@@ -223,6 +223,38 @@ def gate_verdict_state(
     )
 
 
+def missing_input_failures(
+    review_text_path: Path,
+    cleanup_log_path: Path,
+) -> list[GateResult]:
+    """Return fail results for missing required input files."""
+    failures: list[GateResult] = []
+    if not review_text_path.exists():
+        failures.append(
+            GateResult(
+                name="VERDICT_STATE_PASS",
+                passed=False,
+                detail=(
+                    f"review text path missing or does not exist: {review_text_path}"
+                ),
+            )
+        )
+
+    if not cleanup_log_path.exists():
+        failures.append(
+            GateResult(
+                name="CLEANUP_EVIDENCE_PASS",
+                passed=False,
+                detail=(
+                    "cleanup log path missing or does not exist: "
+                    f"{cleanup_log_path}; run review_runner.py cleanup first"
+                ),
+            )
+        )
+
+    return failures
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build CLI parser."""
     parser = argparse.ArgumentParser(description="PR review output quality gate")
@@ -259,6 +291,12 @@ def main() -> None:
     command_log_path = Path(str(manifest.get("command_log_path", "")))
     if not command_log_path.exists():
         print("SINGLE_FETCH_PASS: FAIL - command log path missing or does not exist")
+        raise SystemExit(1)
+
+    input_failures = missing_input_failures(review_text_path, cleanup_log_path)
+    if input_failures:
+        for failure in input_failures:
+            print(f"{failure.name}: FAIL - {failure.detail}")
         raise SystemExit(1)
 
     review_text = read_text(review_text_path)

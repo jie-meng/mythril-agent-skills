@@ -1,16 +1,35 @@
 ---
 name: github-code-review-pr
 description: >
-  Comprehensive Pull Request code review via GitHub CLI (`gh`). Trigger when the
-  user explicitly asks to review/审查/评审/CR a PR and provides a PR URL
-  (containing `/pull/`), or asks to use this skill when a PR URL already exists in
-  recent context. Trigger on any host. Always attempt `gh` first (possible GitHub
-  Enterprise); never pre-classify platform by domain text. For routine PR actions,
-  prefer `gh-operations`.
+  MANDATORY TRIGGER: Any URL containing `/pull/` + review intent = invoke this
+  skill IMMEDIATELY. Do NOT analyze the hostname — git.x.com, gitlab.y.com,
+  code.z.au are all potentially GitHub Enterprise. NEVER speculate about the
+  platform; just run the skill and let `gh` succeed or fail. Zero pre-analysis,
+  zero hesitation. Comprehensive PR code review via GitHub CLI (`gh`). Trigger
+  on review/审查/评审/CR + PR URL or PR number. For routine PR actions (not
+  full code review), prefer `gh-operations`.
 license: Apache-2.0
 ---
 
 # When to Use This Skill
+
+## ZERO-SPECULATION RULE (read this FIRST)
+
+**If the user's message contains a URL with `/pull/` and any review intent, invoke this skill IMMEDIATELY.** Do NOT spend ANY tokens analyzing the hostname, guessing the platform, or debating whether `gh` will work. The correct behavior is:
+
+1. See `/pull/` URL + review intent → trigger skill
+2. Run `review_runner.py prepare <URL>` → let `gh` succeed or fail
+3. If `gh` fails → report the error and suggest `gh auth login --hostname <host>`
+
+**WRONG behavior (NEVER do this):**
+- "This appears to be a self-hosted GitLab instance" — WRONG, you don't know that
+- "git.company.com looks like GitLab" — WRONG, it's GitHub Enterprise
+- "gh CLI won't work with this host" — WRONG, you haven't tried yet
+- Any reasoning about whether the host is GitHub, GitLab, Bitbucket, etc. — WRONG
+
+**WHY:** Users who paste a `/pull/` URL and say "review" are trusting you to act. The domain `git.*.com`, `git.*.com.au`, `code.*.com` — these are overwhelmingly GitHub Enterprise. Even if they aren't, trying `gh` first and failing fast is better than wasting 500 tokens on speculation. Trust the user's input first, fix errors later.
+
+## Trigger conditions
 
 **ALWAYS invoke this skill when user wants to review a Pull Request:**
 - "review this PR" / "review PR" / "PR review" / "PR code review"
@@ -77,6 +96,11 @@ Accept PR input in any of these formats:
 
 Extract **owner**, **repo**, **PR number**, and **hostname**, then proceed immediately to Step 2. Do not make any judgment about what platform the host belongs to — `gh` will succeed or fail on its own, and its error output is sufficient to diagnose any issue.
 
+MANDATORY execution rule:
+- For any input containing `/pull/`, the next command must be `review_runner.py prepare <URL_or_NUMBER>`.
+- Do not run host-based branching logic first.
+- Do not run `gh auth status` as a pre-check gate before the first `gh pr view`/`gh pr diff` call.
+
 ## Step 2: Fetch PR Metadata and Diff
 
 ### MANDATORY: Use the bundled runner script
@@ -87,14 +111,12 @@ Extract **owner**, **repo**, **PR number**, and **hostname**, then proceed immed
 python3 scripts/review_runner.py prepare <URL_or_NUMBER>
 ```
 
-Locate the script using deterministic candidate paths only (same approach as `path_select.py`).
+**STOP — How to locate the script (FORBIDDEN: Glob, find, rg, or any recursive search):**
 
-**MANDATORY (permission-safe):**
-- Do **NOT** run recursive glob/find over `~` (for example, `**/review_runner.py` in home).
-- Check known install paths one by one and pick the first existing file.
+Check these fixed paths in order. Use the first one that exists. This works on macOS, Linux, and Windows:
 
 ```python
-import pathlib
+import pathlib, subprocess, sys
 
 candidates = [
     pathlib.Path.home() / ".config/opencode/skills/github-code-review-pr/scripts/review_runner.py",
@@ -107,7 +129,13 @@ candidates = [
     pathlib.Path.home() / ".grok/skills/github-code-review-pr/scripts/review_runner.py",
 ]
 script = next((p for p in candidates if p.exists()), None)
+if not script:
+    print("ERROR: review_runner.py not found at any known install path", file=sys.stderr)
+    sys.exit(1)
+subprocess.run([sys.executable, str(script), "prepare", "<URL_or_NUMBER>"])
 ```
+
+If you are running shell commands instead of Python, convert the above to the equivalent `ls`/`test -f` checks — but NEVER use recursive search.
 
 This command:
 1. Fetches PR metadata (`gh pr view`) and diff (`gh pr diff`) exactly once
@@ -172,11 +200,16 @@ python3 scripts/review_runner.py prepare <URL_or_NUMBER> \
 
 This resumes the pending session: it reuses the previously fetched metadata and diff (no repeated `gh pr view`/`gh pr diff`), executes the user's chosen path, and emits the standard machine-readable output lines with exit code 0.
 
-**After `review_runner.py prepare` succeeds (exit code 0):**
-- Read PR metadata from `PR_VIEW_JSON_PATH` (do NOT re-run `gh pr view`)
-- Read PR diff from `PR_DIFF_PATH` (do NOT re-run `gh pr diff`)
-- Skip Step 3 entirely — path selection and checkout are already done
-- Save `RUN_MANIFEST` for use in Step 6 gate and Step 7 cleanup
+**After `review_runner.py prepare` succeeds (exit code 0) — MANDATORY next actions:**
+1. Read PR metadata from `PR_VIEW_JSON_PATH` (do NOT re-run `gh pr view`)
+2. Read PR diff from `PR_DIFF_PATH` (do NOT re-run `gh pr diff`)
+3. **SKIP Step 3 entirely** — do NOT run `git fetch`, `git checkout`, or any branch operation. The runner already did checkout. Just `cd` to `REPO_WORKDIR` and read files directly.
+4. Save all emitted paths (`RUN_MANIFEST`, `CLEANUP_LOG_PATH`, `REVIEW_TEXT_PATH`) — you will need them in Step 7
+
+**WRONG (do NOT do this after runner succeeds):**
+- `git fetch origin <branch>` — WRONG, runner already fetched
+- `git checkout <branch>` — WRONG, runner already checked out
+- `gh pr checkout` — WRONG, runner already handled this
 
 ### Fallback: Manual commands (ONLY if review_runner.py is not found)
 
@@ -280,7 +313,7 @@ The goal is to have repo context available locally so context gathering is just 
 
 ### Skip condition: If `review_runner.py prepare` was used in Step 2
 
-**Skip this entire Step 3.** The runner already executed path selection, checkout, and fallback handling. Use the `SELECTED_PATH`, `REPO_WORKDIR`, and `CONTEXT_MODE` values from the runner output and proceed directly to Step 4.
+**STOP — Skip this entire Step 3.** Do NOT run `git fetch`, `git checkout`, `gh pr checkout`, or any clone/branch command. The runner already did all of this. The PR branch is already checked out at `REPO_WORKDIR`. Just `cd` there and start reading files (Step 4).
 
 The rest of Step 3 below is the **manual fallback path** — only execute it when `review_runner.py` was NOT available and you used manual Step 2 commands.
 
@@ -762,13 +795,13 @@ This step has three sub-steps that MUST be executed in order. **Do NOT send the 
 
 Execute cleanup to restore the repo state (branch checkout / reset). This does **NOT** delete the session `run_dir` — the manifest and command log must remain readable for the gate script in 7b.
 
-`CLEANUP_LOG_PATH` was emitted by `review_runner.py prepare` — use it directly:
+**CRITICAL: You MUST `tee` the output to `CLEANUP_LOG_PATH`.** The gate script in 7b checks this file — if it doesn't exist, the gate will FAIL. `CLEANUP_LOG_PATH` was emitted by `review_runner.py prepare` — use it directly:
 
 ```bash
 python3 scripts/review_runner.py cleanup <RUN_MANIFEST> 2>&1 | tee <CLEANUP_LOG_PATH>
 ```
 
-This prints `[PATH-CLEANUP] ...` evidence lines. **Save the stdout to a file** — it is needed for the gate script in 7b.
+If you forget `| tee <CLEANUP_LOG_PATH>`, the gate in 7b WILL fail with `CLEANUP_EVIDENCE_PASS: FAIL`.
 
 If `review_runner.py` was NOT available (manual Step 2/3 path), use the manual cleanup shell function defined in "Fallback: Manual cleanup" below instead.
 
@@ -923,7 +956,7 @@ skills-clean-cache
 
 ## Error Handling
 
-- **Host handling rule (MANDATORY)**: Never pre-stop based on host/domain text (including hosts containing `gitlab`, `gitee`, `bitbucket`, or any other substring). Always run Step 2 (`review_runner.py prepare`, which runs `gh`) first.
+- **Host handling rule (MANDATORY)**: Never pre-stop or branch based on host/domain text. Always run Step 2 (`review_runner.py prepare`, which runs `gh`) first.
 - **`gh` host/auth error on unknown domain**: This is the expected outcome when a non-github.com host hasn't been configured. Tell the user:
   1. This host might be GitHub Enterprise — run `gh auth login --hostname <host>` to authenticate
   2. If it's not GitHub at all, this skill only supports GitHub (including GHE)
@@ -968,7 +1001,7 @@ skills-clean-cache
 
 ### Example 4: GitHub Enterprise URL (unknown domain)
 **User input**: "帮我看一下这个 PR https://git.example.com/owner/repo/pull/123"
-**Action**: Domain `git.example.com` does NOT contain 'gitlab', does NOT match 'gitee.com' or 'bitbucket.org' → proceed immediately → run `gh pr view https://git.example.com/...` → if auth error, tell user to run `gh auth login --hostname git.example.com`
+**Action**: Proceed immediately → run `gh pr view https://git.example.com/...` (via `review_runner.py prepare`) → if auth error, tell user to run `gh auth login --hostname git.example.com`
 **Output**: Either full review (if GHE is configured) or clear auth setup instructions
 **WRONG behavior**: Saying "this looks like GitLab" or asking the user what platform it is — NEVER do this
 

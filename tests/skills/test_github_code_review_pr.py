@@ -297,6 +297,44 @@ class TestGateVerdictState:
         assert r.passed is False
 
 
+class TestMissingInputFailures:
+    """Tests for review_output_gate.missing_input_failures."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from review_output_gate import missing_input_failures
+
+        self.check = missing_input_failures
+
+    def test_no_missing_inputs(self, tmp_path: Path):
+        review = tmp_path / "review.md"
+        cleanup = tmp_path / "cleanup.log"
+        review.write_text("ok", encoding="utf-8")
+        cleanup.write_text("[PATH-CLEANUP] Path B - OK - reset", encoding="utf-8")
+        assert self.check(review, cleanup) == []
+
+    def test_missing_review_text(self, tmp_path: Path):
+        cleanup = tmp_path / "cleanup.log"
+        cleanup.write_text("[PATH-CLEANUP] Path B - OK - reset", encoding="utf-8")
+        failures = self.check(tmp_path / "missing.md", cleanup)
+        assert len(failures) == 1
+        assert failures[0].name == "VERDICT_STATE_PASS"
+        assert failures[0].passed is False
+
+    def test_missing_cleanup_log(self, tmp_path: Path):
+        review = tmp_path / "review.md"
+        review.write_text("ok", encoding="utf-8")
+        failures = self.check(review, tmp_path / "missing.log")
+        assert len(failures) == 1
+        assert failures[0].name == "CLEANUP_EVIDENCE_PASS"
+        assert failures[0].passed is False
+
+    def test_missing_both_inputs(self, tmp_path: Path):
+        failures = self.check(tmp_path / "a.md", tmp_path / "b.log")
+        names = {f.name for f in failures}
+        assert names == {"VERDICT_STATE_PASS", "CLEANUP_EVIDENCE_PASS"}
+
+
 # ── review_template_builder ────────────────────────────────────────────────────
 
 
