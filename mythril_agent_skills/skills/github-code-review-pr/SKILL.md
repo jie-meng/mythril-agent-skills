@@ -118,6 +118,8 @@ Machine-readable output lines (normal exit code 0):
 - `RUN_MANIFEST=<path>` — session manifest JSON (needed for cleanup and gate scripts)
 - `PR_VIEW_JSON_PATH=<path>` — saved PR metadata JSON file
 - `PR_DIFF_PATH=<path>` — saved PR diff file
+- `CLEANUP_LOG_PATH=<path>` — where to tee cleanup output in Step 7a
+- `REVIEW_TEXT_PATH=<path>` — where to write the review text in Step 7b
 - `SELECTED_PATH=A|B|C|D|DIFF_ONLY` — which path was selected
 - `REPO_WORKDIR=<path>` — local repo directory (empty if diff-only)
 - `PR_STATE=OPEN|CLOSED|MERGED` — PR state
@@ -753,10 +755,10 @@ This step has three sub-steps that MUST be executed in order. **Do NOT send the 
 
 Execute cleanup to restore the repo state (branch checkout / reset). This does **NOT** delete the session `run_dir` — the manifest and command log must remain readable for the gate script in 7b.
 
+`CLEANUP_LOG_PATH` was emitted by `review_runner.py prepare` — use it directly:
+
 ```bash
-RUN_DIR="$(dirname "<RUN_MANIFEST>")"
-CLEANUP_LOG_PATH="$RUN_DIR/cleanup.log"
-python3 scripts/review_runner.py cleanup <RUN_MANIFEST> 2>&1 | tee "$CLEANUP_LOG_PATH"
+python3 scripts/review_runner.py cleanup <RUN_MANIFEST> 2>&1 | tee <CLEANUP_LOG_PATH>
 ```
 
 This prints `[PATH-CLEANUP] ...` evidence lines. **Save the stdout to a file** — it is needed for the gate script in 7b.
@@ -767,12 +769,12 @@ If `review_runner.py` was NOT available (manual Step 2/3 path), use the manual c
 
 **You MUST run the gate script before presenting review output to the user.** Do NOT skip this step. Do NOT perform the checklist mentally — the script enforces it programmatically.
 
-1. **Save the review text to a file** (the complete 6-section review you prepared in Step 6):
+1. **Save the review text to a file** (the complete 6-section review you prepared in Step 6).
+
+`REVIEW_TEXT_PATH` was emitted by `review_runner.py prepare` — use it directly:
 
 ```bash
-RUN_DIR="$(dirname "<RUN_MANIFEST>")"
-REVIEW_TEXT_PATH="$RUN_DIR/review_text.md"
-cat > "$REVIEW_TEXT_PATH" << 'REVIEW_EOF'
+cat > <REVIEW_TEXT_PATH> << 'REVIEW_EOF'
 <paste your complete review content here>
 REVIEW_EOF
 ```
@@ -782,8 +784,8 @@ REVIEW_EOF
 ```bash
 python3 scripts/review_output_gate.py \
   --manifest <RUN_MANIFEST> \
-  --review-text "$REVIEW_TEXT_PATH" \
-  --cleanup-log "$CLEANUP_LOG_PATH"
+  --review-text <REVIEW_TEXT_PATH> \
+  --cleanup-log <CLEANUP_LOG_PATH>
 ```
 
 3. **Interpret the result:**

@@ -117,6 +117,8 @@ class SessionManifest:
     pr_diff_path: str
     command_log_path: str
     path_select_log_path: str
+    cleanup_log_path: str
+    review_text_path: str
     review_dir: str
     created_at_utc: str
 
@@ -349,6 +351,8 @@ def _emit_manifest_outputs(manifest: SessionManifest, manifest_path: Path) -> No
     print(f"PR_VIEW_JSON_PATH={manifest.pr_view_json_path}")
     print(f"PR_DIFF_PATH={manifest.pr_diff_path}")
     print(f"COMMAND_LOG_PATH={manifest.command_log_path}")
+    print(f"CLEANUP_LOG_PATH={manifest.cleanup_log_path}")
+    print(f"REVIEW_TEXT_PATH={manifest.review_text_path}")
     print(f"SELECTED_PATH={manifest.selected_path}")
     print(f"REPO_PATH={manifest.repo_path}")
     print(f"REPO_WORKDIR={manifest.repo_workdir}")
@@ -468,6 +472,8 @@ def prepare_session(
     pr_diff_path = run_dir / "pr.diff"
     command_log_path = run_dir / "commands.log"
     path_select_log_path = run_dir / "path_select.log"
+    cleanup_log_path = run_dir / "cleanup.log"
+    review_text_path = run_dir / "review_text.md"
     manifest_path = run_dir / "manifest.json"
 
     # Step 2: fetch metadata and diff exactly once.
@@ -723,6 +729,8 @@ def prepare_session(
         pr_diff_path=str(pr_diff_path),
         command_log_path=str(command_log_path),
         path_select_log_path=str(path_select_log_path),
+        cleanup_log_path=str(cleanup_log_path),
+        review_text_path=str(review_text_path),
         review_dir=review_dir,
         created_at_utc=datetime.now(timezone.utc).isoformat(),
     )
@@ -750,6 +758,8 @@ def _resume_session(
     pr_diff_path = run_dir / "pr.diff"
     command_log_path = run_dir / "commands.log"
     path_select_log_path = run_dir / "path_select.log"
+    cleanup_log_path = run_dir / "cleanup.log"
+    review_text_path = run_dir / "review_text.md"
     manifest_path = run_dir / "manifest.json"
     pending_path = run_dir / "pending_decision.json"
 
@@ -877,6 +887,8 @@ def _resume_session(
         pr_diff_path=str(pr_diff_path),
         command_log_path=str(command_log_path),
         path_select_log_path=str(path_select_log_path),
+        cleanup_log_path=str(cleanup_log_path),
+        review_text_path=str(review_text_path),
         review_dir=review_dir,
         created_at_utc=datetime.now(timezone.utc).isoformat(),
     )
