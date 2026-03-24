@@ -3,23 +3,34 @@ name: gh-operations
 description: >
   Use GitHub CLI (`gh`) for operational GitHub workflows from terminal: issue
   read/write, PR list/view/create, PR status/checks, and posting general or
-  inline PR comments. Trigger when users ask to execute GitHub actions via `gh`,
-  such as "use gh", "gh issue", "gh pr", "创建PR", "查PR状态", "给PR加comment", or
-  provide issue/PR URLs for metadata or actions. This skill is NOT for
-  comprehensive PR code review. If the user asks to review/审查/CR a PR's code
-  quality, risks, or verdict, prefer `github-code-review-pr`. For generic local
-  git history/commit reads without GitHub API context, prefer plain `git`.
+  inline PR comments. Trigger when user mentions "gh", "github", or "GitHub"
+  combined with an action — e.g. "use gh", "gh issue", "gh pr", "用 gh 看",
+  "github issue", "创建PR", "查PR状态", "给PR加comment". Also trigger when user
+  provides an issue/PR URL and explicitly says to use gh or GitHub to access it.
+  ZERO-SPECULATION RULE: When triggered, do NOT analyze the hostname —
+  git.x.com, code.z.au are all potentially GitHub Enterprise. Just run `gh`
+  and let it succeed or fail. This skill is NOT for comprehensive PR code
+  review — prefer `github-code-review-pr` for that. For local git
+  history/commit reads without GitHub API context, prefer plain `git`.
 license: Apache-2.0
 ---
 
 # When to Use This Skill
 
-Use this skill whenever the user wants GitHub operations through `gh`, especially:
+## Trigger conditions
 
-- Issue operations: list, read, create, edit, comment, close, reopen
-- PR operations: list, inspect, review context, create PR, and add comments
-- Inline review comments: comment on a specific file/line in a PR diff
-- Requests mentioning `gh`, GitHub CLI, or command-line GitHub workflows
+Trigger this skill when the user mentions **"gh"**, **"github"**, or **"GitHub"** combined with an action intent:
+
+- "use gh to view this issue" / "用 gh 看一下" / "gh issue view"
+- "gh pr list" / "gh pr create" / "用 gh 创建 PR"
+- "github issue" / "看一下这个 github issue" / "github PR"
+- "使用 gh" / "用 gh 访问" / "gh 看看"
+- User provides an issue/PR URL **and** explicitly says to use gh or GitHub
+
+**NOT a trigger** (do NOT invoke this skill):
+- User pastes a URL without mentioning gh/github — they may want a different tool
+- User asks to "review a PR" with code quality intent — use `github-code-review-pr`
+- User asks for local git operations (`git log`, `git show`) — use plain `git`
 
 Scope boundary:
 
@@ -27,6 +38,23 @@ Scope boundary:
   handled by plain `git`.
 - Use `gh api` for commit metadata only when the user explicitly requests `gh` or
   needs GitHub-hosted metadata tied to a remote repository context.
+
+## ZERO-SPECULATION RULE (MANDATORY once triggered)
+
+**Once this skill is triggered, do NOT spend ANY tokens analyzing the hostname, guessing the platform, or debating whether `gh` will work.** The correct behavior is:
+
+1. User said "gh" or "github" → skill is triggered
+2. Run `gh issue view "<URL>"` or `gh pr view "<URL>"` → let `gh` succeed or fail
+3. If `gh` fails → report the error and suggest `gh auth login --hostname <host>`
+
+**WRONG behavior (NEVER do this):**
+- "This appears to be a self-hosted GitLab instance" — WRONG, you don't know that
+- "git.company.com looks like GitLab" — WRONG, it could be GitHub Enterprise
+- "Let me try WebFetch / curl / glab instead" — WRONG, user asked for `gh`
+- "gh CLI won't work with this host" — WRONG, you haven't tried yet
+- Any reasoning about whether the host is GitHub, GitLab, Bitbucket, etc. — WRONG
+
+**WHY:** The user explicitly asked you to use gh/GitHub. Domains like `git.*.com`, `git.*.com.au`, `code.*.com` are overwhelmingly GitHub Enterprise. Even if they aren't, trying `gh` first and failing fast is better than wasting 500 tokens on speculation. Trust the user's request, fix errors later.
 
 ## Security — MANDATORY rules for AI agents
 
@@ -50,6 +78,10 @@ Scope boundary:
 # Workflow
 
 ## 1) Pre-flight checks
+
+MANDATORY execution rule:
+- **If the user provides a full URL** (containing `/issues/` or `/pull/`), skip pre-flight checks entirely. Go straight to the relevant operation section and run `gh issue view "<URL>"` or `gh pr view "<URL>"` directly. Do NOT run `gh --version`, `gh auth status`, or any host analysis first — let `gh` succeed or fail on the actual command.
+- **If the user does NOT provide a URL** (e.g., just says "list issues" or "create PR"), run pre-flight checks:
 
 1. Verify `gh` exists:
    ```bash
@@ -250,6 +282,13 @@ For every task, provide:
 
 # Error Handling
 
+- **Host handling rule (MANDATORY)**: Never pre-stop or branch based on host/domain text. Always run `gh` commands with the URL first.
+- **`gh` host/auth error on unknown domain**: This is the expected outcome when a non-github.com host hasn't been configured. Tell the user:
+  1. This host might be GitHub Enterprise — run `gh auth login --hostname <host>` to authenticate
+  2. If it's not GitHub at all, this skill only supports GitHub (including GHE)
+  - **Do NOT assume the host is "GitLab" or any other platform** — just report the `gh` error and let the user decide. Domains like `git.xxx.com` or `git.xxx.com.au` are commonly GHE, not GitLab.
+  - **Do NOT include speculative prefaces** such as "this looks like GitLab" or "not a GitHub URL".
+  - **Do NOT try alternative tools** (`WebFetch`, `curl`, `glab`, browser) before running `gh`. Always try `gh` first.
 - **Not logged in**: run `gh auth login`, then retry.
 - **Wrong host / enterprise**: use `gh auth login --hostname <host-from-url>`, then rerun the same URL command unchanged.
 - **Auth failure — ONLY allowed recovery steps**: When `gh` commands fail with auth/host errors, the ONLY actions you may take are:
