@@ -264,7 +264,7 @@ Skills appear in multiple listings: the README "Available Skills" table, the `sk
 | 1 | **Meta** | Tools for creating/managing skills themselves | skill-creator |
 | 2 | **Code Review** | Code review workflows (local and remote) | code-review-staged, branch-diff-review, github-code-review-pr |
 | 3 | **Git & GitHub** | Git operations and GitHub platform integration | git-repo-reader, gh-operations |
-| 4 | **API Integrations** | Third-party API clients requiring credentials | jira, confluence, figma |
+| 4 | **API Integrations** | Third-party API clients requiring credentials | jira, confluence, figma, glean |
 | 5 | **Media Processing** | Standalone CLI tools for media files | imagemagick, ffmpeg |
 | 6 | **Content** | Content creation and writing tools | blog-writer |
 

@@ -86,6 +86,7 @@ SKILL_FIGMA = "figma"
 SKILL_IMAGEMAGICK = "imagemagick"
 SKILL_FFMPEG = "ffmpeg"
 SKILL_GIT_REPO_READER = "git-repo-reader"
+SKILL_GLEAN = "glean"
 
 CHECKABLE_SKILLS = [
     SKILL_GIT_REPO_READER,
@@ -96,6 +97,7 @@ CHECKABLE_SKILLS = [
     SKILL_JIRA,
     SKILL_CONFLUENCE,
     SKILL_FIGMA,
+    SKILL_GLEAN,
     SKILL_IMAGEMAGICK,
     SKILL_FFMPEG,
 ]
@@ -438,6 +440,101 @@ def check_figma(config_path: Path) -> bool:
         _append_env_var(config_path, "FIGMA_ACCESS_TOKEN", value)
         return True
     return False
+
+
+# --- Glean ---
+
+
+_GLEAN_INSTALL_HINTS: dict[str, list[str]] = {
+    "macOS": ["brew install gleanwork/tap/glean-cli"],
+    "Manual": [
+        "curl -fsSL https://raw.githubusercontent.com/gleanwork/glean-cli/main/install.sh | sh"
+    ],
+}
+
+
+def _install_glean() -> bool:
+    """Attempt to install Glean CLI based on platform."""
+    if IS_MACOS:
+        if shutil.which("brew"):
+            print(f"    {YELLOW}Installing glean via Homebrew...{NC}")
+            result = subprocess.run(
+                ["brew", "install", "gleanwork/tap/glean-cli"], capture_output=False
+            )
+            return result.returncode == 0
+        else:
+            print(f"    {RED}Homebrew not found.{NC} Install glean manually:")
+            _print_install_hints(
+                _GLEAN_INSTALL_HINTS,
+                "https://github.com/gleanwork/glean-cli",
+            )
+            return False
+    else:
+        print(f"    {YELLOW}Installing glean via install script...{NC}")
+        result = subprocess.run(
+            ["sh", "-c", "curl -fsSL https://raw.githubusercontent.com/gleanwork/glean-cli/main/install.sh | sh"],
+            capture_output=False,
+        )
+        return result.returncode == 0
+
+
+def _glean_is_authenticated() -> bool:
+    """Check whether glean CLI is configured and authenticated."""
+    result = _run_command(["glean", "auth", "status"])
+    output = (result.stdout + result.stderr).lower()
+    if result.returncode != 0 or "not configured" in output:
+        return False
+    return True
+
+
+def check_glean(config_path: Path) -> bool:
+    """Check and configure Glean CLI."""
+    print(f"\n{BOLD}Glean CLI (glean):{NC}")
+
+    if not shutil.which("glean"):
+        print(f"  Status:   {RED}NOT INSTALLED{NC}")
+        if _confirm("Install glean now?"):
+            if not _install_glean():
+                return False
+            if not shutil.which("glean"):
+                print(f"    {RED}glean still not found after install.{NC}")
+                return False
+            print(f"    {GREEN}glean installed successfully.{NC}")
+        else:
+            print(f"    {DIM}Skipped.{NC} Install manually:")
+            _print_install_hints(
+                _GLEAN_INSTALL_HINTS,
+                "https://github.com/gleanwork/glean-cli",
+            )
+            return False
+
+    if _glean_is_authenticated():
+        print(f"  Status:   {GREEN}installed, authenticated{NC}")
+        return True
+
+    token = os.environ.get("GLEAN_API_TOKEN")
+    host = os.environ.get("GLEAN_HOST")
+    if token and host:
+        masked = f"...{token[-4:]}" if len(token) >= 4 else "set"
+        print(f"  Status:   {GREEN}env-var auth configured{NC}")
+        print(f"  GLEAN_API_TOKEN:  {GREEN}set{NC} (ending in {masked})")
+        print(f"  GLEAN_HOST:       {GREEN}{host}{NC}")
+        return True
+
+    print(f"  Status:   {YELLOW}installed, NOT AUTHENTICATED{NC}")
+    if _confirm("Run 'glean auth login' now?"):
+        subprocess.run(["glean", "auth", "login"])
+        if not _glean_is_authenticated():
+            print(f"    {RED}Authentication failed or cancelled.{NC}")
+            print("    Alternative: set GLEAN_API_TOKEN and GLEAN_HOST env vars")
+            return False
+    else:
+        print(f"    {DIM}Skipped.{NC}")
+        print("    Run 'glean auth login' or set GLEAN_API_TOKEN + GLEAN_HOST")
+        return False
+
+    print(f"  Status:   {GREEN}installed, authenticated{NC}")
+    return True
 
 
 # --- ImageMagick ---
@@ -837,6 +934,10 @@ def main() -> None:
 
     if SKILL_FIGMA in skills:
         if not check_figma(config_path):
+            all_configured = False
+
+    if SKILL_GLEAN in skills:
+        if not check_glean(config_path):
             all_configured = False
 
     if SKILL_IMAGEMAGICK in skills:

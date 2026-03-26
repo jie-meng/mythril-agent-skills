@@ -117,6 +117,13 @@ Extract design specs from Figma files for implementation. Covers layout, colors,
 - **Try:** What does this Figma design look like: https://figma.com/file/xxx
 - **Deps:** `FIGMA_ACCESS_TOKEN`
 
+**[Glean](./mythril_agent_skills/skills/glean/)**
+
+Use Glean CLI (`glean`) for enterprise knowledge search, AI chat, and full API operations. Covers search, chat, AI agents, documents, collections, shortcuts, pins, and more.
+
+- **Try:** glean search "vacation policy"
+- **Deps:** `glean` CLI
+
 </details>
 
 <details>
@@ -254,7 +261,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 
 | Plugin | Description |
 |---|---|
-| `all-skills` | All-in-one bundle (all 12 skills) |
+| `all-skills` | All-in-one bundle (all 13 skills) |
 | `skill-creator` | Create and improve skills/prompts for any AI platform |
 | `code-review-staged` | Code review for git staged changes |
 | `branch-diff-review` | Code review for local branch differences |
@@ -264,6 +271,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `jira` | Jira REST API integration |
 | `confluence` | Confluence REST API integration |
 | `figma` | Extract Figma design specs |
+| `glean` | Glean CLI for enterprise knowledge search and AI chat |
 | `imagemagick` | Image processing via ImageMagick CLI |
 | `ffmpeg` | Video and audio processing via FFmpeg CLI |
 | `blog-writer` | Write, refine, and adapt tech-first multilingual blog posts |
@@ -470,6 +478,7 @@ mythril-agent-skills/
 │       ├── gh-operations/       # GitHub CLI issue/PR/commit workflows
 │       ├── ffmpeg/              # Video & audio processing via FFmpeg CLI
 │       ├── imagemagick/         # Image processing via ImageMagick CLI
+│       ├── glean/               # Glean CLI enterprise knowledge search & AI chat
 │       ├── jira/                # Jira REST API issue/sprint/board workflows
 │       ├── code-review-staged/  # Structured code reviews
 │       ├── git-repo-reader/     # Clone and read any git repo
