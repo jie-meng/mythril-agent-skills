@@ -87,6 +87,7 @@ SKILL_IMAGEMAGICK = "imagemagick"
 SKILL_FFMPEG = "ffmpeg"
 SKILL_GIT_REPO_READER = "git-repo-reader"
 SKILL_GLEAN = "glean"
+SKILL_EXCEL = "excel"
 
 CHECKABLE_SKILLS = [
     SKILL_GIT_REPO_READER,
@@ -98,6 +99,7 @@ CHECKABLE_SKILLS = [
     SKILL_CONFLUENCE,
     SKILL_FIGMA,
     SKILL_GLEAN,
+    SKILL_EXCEL,
     SKILL_IMAGEMAGICK,
     SKILL_FFMPEG,
 ]
@@ -537,6 +539,58 @@ def check_glean(config_path: Path) -> bool:
     return True
 
 
+# --- Excel (openpyxl) ---
+
+
+def _check_openpyxl_installed() -> str | None:
+    """Return openpyxl version string if installed, else None."""
+    try:
+        result = _run_command(
+            [sys.executable, "-c", "import openpyxl; print(openpyxl.__version__)"]
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return None
+
+
+def _install_pip_package(name: str) -> bool:
+    """Install a Python package via pip."""
+    print(f"    {YELLOW}Installing {name} via pip...{NC}")
+    result = subprocess.run(
+        [sys.executable, "-m", "pip", "install", name],
+        capture_output=False,
+    )
+    return result.returncode == 0
+
+
+def check_excel(config_path: Path) -> bool:
+    """Check that openpyxl is installed for the Excel skill."""
+    print(f"\n{BOLD}Excel (openpyxl):{NC}")
+
+    version = _check_openpyxl_installed()
+    if version:
+        print(f"  openpyxl: {GREEN}installed{NC} ({DIM}{version}{NC})")
+        return True
+
+    print(f"  openpyxl: {RED}NOT INSTALLED{NC}")
+    if _confirm("Install openpyxl now?"):
+        if not _install_pip_package("openpyxl"):
+            print(f"    {RED}Installation failed.{NC}")
+            print(f"    {BOLD}Install manually:{NC} pip install openpyxl")
+            return False
+        version = _check_openpyxl_installed()
+        if not version:
+            print(f"    {RED}openpyxl still not importable after install.{NC}")
+            return False
+        print(f"    {GREEN}openpyxl {version} installed successfully.{NC}")
+        return True
+    else:
+        print(f"    {DIM}Skipped.{NC} Install manually: pip install openpyxl")
+        return False
+
+
 # --- ImageMagick ---
 
 
@@ -938,6 +992,10 @@ def main() -> None:
 
     if SKILL_GLEAN in skills:
         if not check_glean(config_path):
+            all_configured = False
+
+    if SKILL_EXCEL in skills:
+        if not check_excel(config_path):
             all_configured = False
 
     if SKILL_IMAGEMAGICK in skills:

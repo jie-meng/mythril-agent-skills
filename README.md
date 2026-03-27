@@ -127,6 +127,19 @@ Use Glean CLI (`glean`) for enterprise knowledge search, AI chat, and full API o
 </details>
 
 <details>
+<summary><b>Data Processing</b></summary>
+<br>
+
+**[Excel](./mythril_agent_skills/skills/excel/)**
+
+Read, write, search, and manipulate Excel workbooks (.xlsx) via bundled Python script powered by openpyxl. Supports cell/range read/write, search, sheet/column/row operations, styling, merge, freeze, auto-filter, CSV conversion, and safe-save (timestamped copy by default).
+
+- **Try:** Read the first 20 rows of report.xlsx
+- **Deps:** `openpyxl` (auto-installed with pip)
+
+</details>
+
+<details>
 <summary><b>Media Processing</b></summary>
 <br>
 
@@ -261,7 +274,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 
 | Plugin | Description |
 |---|---|
-| `all-skills` | All-in-one bundle (all 13 skills) |
+| `all-skills` | All-in-one bundle (all 14 skills) |
 | `skill-creator` | Create and improve skills/prompts for any AI platform |
 | `code-review-staged` | Code review for git staged changes |
 | `branch-diff-review` | Code review for local branch differences |
@@ -272,6 +285,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `confluence` | Confluence REST API integration |
 | `figma` | Extract Figma design specs |
 | `glean` | Glean CLI for enterprise knowledge search and AI chat |
+| `excel` | Read, write, search, and manipulate Excel workbooks (.xlsx) |
 | `imagemagick` | Image processing via ImageMagick CLI |
 | `ffmpeg` | Video and audio processing via FFmpeg CLI |
 | `blog-writer` | Write, refine, and adapt tech-first multilingual blog posts |
@@ -479,6 +493,7 @@ mythril-agent-skills/
 │       ├── ffmpeg/              # Video & audio processing via FFmpeg CLI
 │       ├── imagemagick/         # Image processing via ImageMagick CLI
 │       ├── glean/               # Glean CLI enterprise knowledge search & AI chat
+│       ├── excel/              # Excel workbook operations via openpyxl
 │       ├── jira/                # Jira REST API issue/sprint/board workflows
 │       ├── code-review-staged/  # Structured code reviews
 │       ├── git-repo-reader/     # Clone and read any git repo
