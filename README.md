@@ -137,6 +137,13 @@ Read, write, search, and manipulate Excel workbooks (.xlsx) via bundled Python s
 - **Try:** Read the first 20 rows of report.xlsx
 - **Deps:** `openpyxl` (auto-installed with pip)
 
+**[PDF](./mythril_agent_skills/skills/pdf/)**
+
+Read, extract, and manipulate PDF files via bundled Python script. Supports text extraction, table extraction (markdown/JSON/CSV), metadata inspection, PDF-to-image conversion, merge, split, rotate, extract embedded images, and decrypt.
+
+- **Try:** Read the text from document.pdf
+- **Deps:** `pypdf`, `pdfplumber` (auto-installed with pip); `pypdfium2` (optional, for PDF-to-image)
+
 </details>
 
 <details>
@@ -274,7 +281,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 
 | Plugin | Description |
 |---|---|
-| `all-skills` | All-in-one bundle (all 14 skills) |
+| `all-skills` | All-in-one bundle (all 15 skills) |
 | `skill-creator` | Create and improve skills/prompts for any AI platform |
 | `code-review-staged` | Code review for git staged changes |
 | `branch-diff-review` | Code review for local branch differences |
@@ -286,6 +293,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `figma` | Extract Figma design specs |
 | `glean` | Glean CLI for enterprise knowledge search and AI chat |
 | `excel` | Read, write, search, and manipulate Excel workbooks (.xlsx) |
+| `pdf` | Read, extract, and manipulate PDF files |
 | `imagemagick` | Image processing via ImageMagick CLI |
 | `ffmpeg` | Video and audio processing via FFmpeg CLI |
 | `blog-writer` | Write, refine, and adapt tech-first multilingual blog posts |
@@ -494,6 +502,7 @@ mythril-agent-skills/
 │       ├── imagemagick/         # Image processing via ImageMagick CLI
 │       ├── glean/               # Glean CLI enterprise knowledge search & AI chat
 │       ├── excel/              # Excel workbook operations via openpyxl
+│       ├── pdf/                 # PDF reading, extraction, and manipulation
 │       ├── jira/                # Jira REST API issue/sprint/board workflows
 │       ├── code-review-staged/  # Structured code reviews
 │       ├── git-repo-reader/     # Clone and read any git repo

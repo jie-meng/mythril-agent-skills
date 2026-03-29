@@ -88,6 +88,7 @@ SKILL_FFMPEG = "ffmpeg"
 SKILL_GIT_REPO_READER = "git-repo-reader"
 SKILL_GLEAN = "glean"
 SKILL_EXCEL = "excel"
+SKILL_PDF = "pdf"
 
 CHECKABLE_SKILLS = [
     SKILL_GIT_REPO_READER,
@@ -100,6 +101,7 @@ CHECKABLE_SKILLS = [
     SKILL_FIGMA,
     SKILL_GLEAN,
     SKILL_EXCEL,
+    SKILL_PDF,
     SKILL_IMAGEMAGICK,
     SKILL_FFMPEG,
 ]
@@ -539,14 +541,14 @@ def check_glean(config_path: Path) -> bool:
     return True
 
 
-# --- Excel (openpyxl) ---
+# --- Python package helpers ---
 
 
-def _check_openpyxl_installed() -> str | None:
-    """Return openpyxl version string if installed, else None."""
+def _check_python_package(name: str) -> str | None:
+    """Return version string of a Python package if installed, else None."""
     try:
         result = _run_command(
-            [sys.executable, "-c", "import openpyxl; print(openpyxl.__version__)"]
+            [sys.executable, "-c", f"import {name}; print({name}.__version__)"]
         )
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
@@ -565,11 +567,14 @@ def _install_pip_package(name: str) -> bool:
     return result.returncode == 0
 
 
+# --- Excel (openpyxl) ---
+
+
 def check_excel(config_path: Path) -> bool:
     """Check that openpyxl is installed for the Excel skill."""
     print(f"\n{BOLD}Excel (openpyxl):{NC}")
 
-    version = _check_openpyxl_installed()
+    version = _check_python_package("openpyxl")
     if version:
         print(f"  openpyxl: {GREEN}installed{NC} ({DIM}{version}{NC})")
         return True
@@ -580,7 +585,7 @@ def check_excel(config_path: Path) -> bool:
             print(f"    {RED}Installation failed.{NC}")
             print(f"    {BOLD}Install manually:{NC} pip install openpyxl")
             return False
-        version = _check_openpyxl_installed()
+        version = _check_python_package("openpyxl")
         if not version:
             print(f"    {RED}openpyxl still not importable after install.{NC}")
             return False
@@ -589,6 +594,50 @@ def check_excel(config_path: Path) -> bool:
     else:
         print(f"    {DIM}Skipped.{NC} Install manually: pip install openpyxl")
         return False
+
+
+# --- PDF (pypdf + pdfplumber) ---
+
+
+def check_pdf(config_path: Path) -> bool:
+    """Check that pypdf and pdfplumber are installed for the PDF skill."""
+    print(f"\n{BOLD}PDF (pypdf + pdfplumber):{NC}")
+    all_ok = True
+
+    for pkg in ("pypdf", "pdfplumber"):
+        version = _check_python_package(pkg)
+        if version:
+            print(f"  {pkg}: {GREEN}installed{NC} ({DIM}{version}{NC})")
+        else:
+            print(f"  {pkg}: {RED}NOT INSTALLED{NC}")
+            if _confirm(f"Install {pkg} now?"):
+                if not _install_pip_package(pkg):
+                    print(f"    {RED}Installation failed.{NC}")
+                    print(f"    {BOLD}Install manually:{NC} pip install {pkg}")
+                    all_ok = False
+                    continue
+                version = _check_python_package(pkg)
+                if not version:
+                    print(
+                        f"    {RED}{pkg} still not importable after install.{NC}"
+                    )
+                    all_ok = False
+                    continue
+                print(f"    {GREEN}{pkg} {version} installed successfully.{NC}")
+            else:
+                print(f"    {DIM}Skipped.{NC} Install manually: pip install {pkg}")
+                all_ok = False
+
+    version = _check_python_package("pypdfium2")
+    if version:
+        print(f"  pypdfium2: {GREEN}installed{NC} ({DIM}{version}{NC})")
+    else:
+        print(
+            f"  pypdfium2: {YELLOW}not installed{NC} "
+            f"({DIM}optional — needed for to-images{NC})"
+        )
+
+    return all_ok
 
 
 # --- ImageMagick ---
@@ -996,6 +1045,10 @@ def main() -> None:
 
     if SKILL_EXCEL in skills:
         if not check_excel(config_path):
+            all_configured = False
+
+    if SKILL_PDF in skills:
+        if not check_pdf(config_path):
             all_configured = False
 
     if SKILL_IMAGEMAGICK in skills:
