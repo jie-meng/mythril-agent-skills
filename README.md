@@ -144,6 +144,13 @@ Read, extract, and manipulate PDF files via bundled Python script. Supports text
 - **Try:** Read the text from document.pdf
 - **Deps:** `pypdf`, `pdfplumber` (auto-installed with pip); `pypdfium2` (optional, for PDF-to-image)
 
+**[Markdown to PDF](./mythril_agent_skills/skills/md-to-pdf/)**
+
+Convert Markdown files to PDF with optional table of contents, custom CSS styling, paper size selection, and metadata. Powered by markdown-pdf (markdown-it-py + PyMuPDF).
+
+- **Try:** Convert README.md to PDF
+- **Deps:** `markdown-pdf` (install with `pip install mythril-agent-skills[md-to-pdf]`)
+
 </details>
 
 <details>
@@ -281,7 +288,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 
 | Plugin | Description |
 |---|---|
-| `all-skills` | All-in-one bundle (all 15 skills) |
+| `all-skills` | All-in-one bundle (all 16 skills) |
 | `skill-creator` | Create and improve skills/prompts for any AI platform |
 | `code-review-staged` | Code review for git staged changes |
 | `branch-diff-review` | Code review for local branch differences |
@@ -294,6 +301,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `glean` | Glean CLI for enterprise knowledge search and AI chat |
 | `excel` | Read, write, search, and manipulate Excel workbooks (.xlsx) |
 | `pdf` | Read, extract, and manipulate PDF files |
+| `md-to-pdf` | Convert Markdown files to PDF |
 | `imagemagick` | Image processing via ImageMagick CLI |
 | `ffmpeg` | Video and audio processing via FFmpeg CLI |
 | `blog-writer` | Write, refine, and adapt tech-first multilingual blog posts |
@@ -503,6 +511,7 @@ mythril-agent-skills/
 │       ├── glean/               # Glean CLI enterprise knowledge search & AI chat
 │       ├── excel/              # Excel workbook operations via openpyxl
 │       ├── pdf/                 # PDF reading, extraction, and manipulation
+│       ├── md-to-pdf/           # Markdown to PDF conversion
 │       ├── jira/                # Jira REST API issue/sprint/board workflows
 │       ├── code-review-staged/  # Structured code reviews
 │       ├── git-repo-reader/     # Clone and read any git repo

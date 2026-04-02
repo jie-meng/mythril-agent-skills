@@ -10,7 +10,7 @@
     {
       "name": "all-skills",
       "source": "./mythril_agent_skills",
-      "description": "All-in-one bundle: code review, Git/GitHub, Jira, Confluence, Figma, Glean, Excel, PDF, ImageMagick, FFmpeg, blog writer, and skill creator",
+      "description": "All-in-one bundle: code review, Git/GitHub, Jira, Confluence, Figma, Glean, Excel, PDF, Markdown-to-PDF, ImageMagick, FFmpeg, blog writer, and skill creator",
       "version": "0.2.7",
       "author": {
         "name": "Jie Meng"
@@ -28,6 +28,7 @@
         "glean",
         "excel",
         "pdf",
+        "md-to-pdf",
         "imagemagick",
         "ffmpeg",
         "skill-creator",
@@ -243,6 +244,24 @@
         "document",
         "text-extraction",
         "tables"
+      ],
+      "strict": false
+    },
+    {
+      "name": "md-to-pdf",
+      "source": "./plugins/md-to-pdf",
+      "description": "Convert Markdown files to PDF with TOC, custom CSS, paper size, and metadata",
+      "version": "0.2.7",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "productivity",
+      "tags": [
+        "markdown",
+        "pdf",
+        "converter",
+        "export"
       ],
       "strict": false
     },

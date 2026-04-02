@@ -89,6 +89,7 @@ SKILL_GIT_REPO_READER = "git-repo-reader"
 SKILL_GLEAN = "glean"
 SKILL_EXCEL = "excel"
 SKILL_PDF = "pdf"
+SKILL_MD_TO_PDF = "md-to-pdf"
 
 CHECKABLE_SKILLS = [
     SKILL_GIT_REPO_READER,
@@ -102,6 +103,7 @@ CHECKABLE_SKILLS = [
     SKILL_GLEAN,
     SKILL_EXCEL,
     SKILL_PDF,
+    SKILL_MD_TO_PDF,
     SKILL_IMAGEMAGICK,
     SKILL_FFMPEG,
 ]
@@ -640,6 +642,56 @@ def check_pdf(config_path: Path) -> bool:
     return all_ok
 
 
+# --- Markdown to PDF (markdown-pdf) ---
+
+
+def _check_markdown_pdf_version() -> str | None:
+    """Return markdown-pdf version if installed, else None.
+
+    markdown_pdf has no __version__ attribute, so we fall back to
+    importlib.metadata.
+    """
+    try:
+        result = _run_command(
+            [
+                sys.executable,
+                "-c",
+                "from importlib.metadata import version; print(version('markdown-pdf'))",
+            ]
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return None
+
+
+def check_md_to_pdf(config_path: Path) -> bool:
+    """Check that markdown-pdf is installed for the md-to-pdf skill."""
+    print(f"\n{BOLD}Markdown to PDF (markdown-pdf):{NC}")
+
+    version = _check_markdown_pdf_version()
+    if version:
+        print(f"  markdown-pdf: {GREEN}installed{NC} ({DIM}{version}{NC})")
+        return True
+
+    print(f"  markdown-pdf: {RED}NOT INSTALLED{NC}")
+    if _confirm("Install markdown-pdf now?"):
+        if not _install_pip_package("markdown-pdf"):
+            print(f"    {RED}Installation failed.{NC}")
+            print(f"    {BOLD}Install manually:{NC} pip install markdown-pdf")
+            return False
+        version = _check_markdown_pdf_version()
+        if not version:
+            print(f"    {RED}markdown-pdf still not importable after install.{NC}")
+            return False
+        print(f"    {GREEN}markdown-pdf {version} installed successfully.{NC}")
+        return True
+    else:
+        print(f"    {DIM}Skipped.{NC} Install manually: pip install markdown-pdf")
+        return False
+
+
 # --- ImageMagick ---
 
 
@@ -1049,6 +1101,10 @@ def main() -> None:
 
     if SKILL_PDF in skills:
         if not check_pdf(config_path):
+            all_configured = False
+
+    if SKILL_MD_TO_PDF in skills:
+        if not check_md_to_pdf(config_path):
             all_configured = False
 
     if SKILL_IMAGEMAGICK in skills:

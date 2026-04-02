@@ -160,6 +160,30 @@ If `magick` is not installed:
 
 ---
 
+### Markdown to PDF (`markdown-pdf`)
+
+**Required by**: [md-to-pdf](../mythril_agent_skills/skills/md-to-pdf/)
+
+Check:
+
+```bash
+python3 -c "import markdown_pdf; print('markdown-pdf', markdown_pdf.__version__)"
+```
+
+If not installed:
+
+```bash
+pip install mythril-agent-skills[md-to-pdf]
+```
+
+Or standalone:
+
+```bash
+pip install markdown-pdf
+```
+
+---
+
 ### FFmpeg (`ffmpeg`, `ffprobe`)
 
 **Required by**: [ffmpeg](../mythril_agent_skills/skills/ffmpeg/)
