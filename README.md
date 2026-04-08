@@ -417,24 +417,48 @@ The `skills-setup` command guides you through two interactive screens:
 1. **Select AI tools** — choose which tools to install skills to
 2. **Select skills** — choose which skills to install
 
+The skill selection screen shows two sections: **Builtin Skills** (bundled with the package) and **Local Skills** (discovered in the current directory). See [Installing Local Skills](#installing-local-skills) for details.
+
 ```
 Select skills to install:
 Up/Down move | Space toggle | a all/none | Enter confirm | q quit
 
   [x]  Select All / Deselect All
   ------------------------------------
+  Builtin Skills (16)
+  [x]  blog-writer
   [x]  code-review-staged
   [x]  figma
-  [x]  gh-operations
-  [x]  jira
-  [x]  skill-creator
+  ...
+  Local Skills (2)  [my-skills/]
+  [x]  my-custom-skill
+  [x]  jira  (overrides builtin)
 
-  5/5 selected
+  18/18 selected
 ```
 
 Tools that are not installed on your machine are shown dimmed with `[-]` markers and cannot be selected.
 
-After installation, `skills-check` runs automatically for skills that need external dependencies (CLI tools or API tokens).
+After installation, `skills-check` runs automatically for builtin skills that need external dependencies (CLI tools or API tokens). Local skills are excluded from this check — managing their dependencies is the user's responsibility.
+
+### Installing Local Skills
+
+`skills-setup` discovers **local skills** automatically when you run it from a directory that contains skill subdirectories (any non-hidden subdirectory with a `SKILL.md` file). This makes it easy to install third-party or custom skill collections you've downloaded:
+
+```bash
+# Clone a third-party skills repo or your own custom collection
+git clone https://github.com/someone/my-custom-skills.git
+cd my-custom-skills
+
+# Run skills-setup from inside that directory
+skills-setup
+```
+
+The installer scans the current directory's immediate subdirectories and shows any discovered skills in a separate **Local Skills** section below the builtin ones.
+
+**Conflict handling:** If a local skill has the same name as a builtin skill, it is highlighted in a distinct color with an `(overrides builtin)` note. When both are installed, builtin skills are installed first and local skills are installed last — so the local version takes precedence.
+
+**Dependency checks:** `skills-check` only runs for builtin skills after installation. For local skills, dependency management (installing required CLI tools, API keys, etc.) is left to the user.
 
 ### Supported tools and skills paths
 

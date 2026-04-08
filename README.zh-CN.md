@@ -417,24 +417,48 @@ python3 scripts/sync-upstream.py --force        # 直接应用，不询问确认
 1. **选择 AI 工具** — 选择要将技能安装到哪些工具
 2. **选择技能** — 选择要安装哪些技能
 
+技能选择界面分为两个部分：**Builtin Skills**（包内置技能）和 **Local Skills**（当前目录发现的技能）。详情见[安装本地技能](#安装本地技能)。
+
 ```
 Select skills to install:
 Up/Down move | Space toggle | a all/none | Enter confirm | q quit
 
   [x]  Select All / Deselect All
   ------------------------------------
+  Builtin Skills (16)
+  [x]  blog-writer
   [x]  code-review-staged
   [x]  figma
-  [x]  gh-operations
-  [x]  jira
-  [x]  skill-creator
+  ...
+  Local Skills (2)  [my-skills/]
+  [x]  my-custom-skill
+  [x]  jira  (overrides builtin)
 
-  5/5 selected
+  18/18 selected
 ```
 
 未在你机器上安装的工具将以灰色显示并标注 `[-]`，无法被选中。
 
-安装完成后，对于需要外部依赖（CLI 工具或 API Token）的技能，`skills-check` 会自动运行。
+安装完成后，对于需要外部依赖（CLI 工具或 API Token）的内置技能，`skills-check` 会自动运行。本地技能不参与此检查——其依赖管理由用户自行负责。
+
+### 安装本地技能
+
+当你在某个包含技能子目录（任意非隐藏的、含有 `SKILL.md` 文件的子目录）的目录下运行 `skills-setup` 时，安装器会自动发现这些**本地技能**。这让你可以轻松安装下载的第三方或自定义技能集合：
+
+```bash
+# 克隆第三方技能仓库或你自己的自定义技能集合
+git clone https://github.com/someone/my-custom-skills.git
+cd my-custom-skills
+
+# 在该目录内运行 skills-setup
+skills-setup
+```
+
+安装器会扫描当前目录的直接子目录，并将发现的技能以单独的 **Local Skills** 部分展示在内置技能下方。
+
+**冲突处理：** 如果某个本地技能与内置技能同名，它会以醒目颜色高亮显示，并附有 `(overrides builtin)` 说明。同时安装时，内置技能先安装、本地技能后安装——因此本地版本将覆盖内置版本。
+
+**依赖检查：** 安装完成后，`skills-check` 仅对内置技能运行。本地技能的依赖管理（安装所需 CLI 工具、API 密钥等）由用户自行负责。
 
 ### 支持的工具及技能路径
 

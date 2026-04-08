@@ -56,7 +56,7 @@ All CLI scripts use Python `curses` for interactive multi-select UIs. They suppo
 
 ### Setup: `skills-setup`
 
-Syncs selected skills from the installed package to your AI assistant's user-level configuration directory.
+Syncs selected skills from the installed package to your AI assistant's user-level configuration directory. Also discovers **local skills** in the current working directory.
 
 ```bash
 skills-setup              # Interactive: select tools, then skills
@@ -66,6 +66,14 @@ skills-setup .cursor      # Direct target: skip tool selection
 Interactive mode launches two multi-select screens:
 1. **Select AI tools** — choose which tools to install skills to
 2. **Select skills** — choose which skills to install
+
+The skill selection screen is divided into two sections:
+- **Builtin Skills** — skills bundled with the `mythril-agent-skills` package
+- **Local Skills** — skills discovered in the current working directory (immediate non-hidden subdirectories containing a `SKILL.md` file)
+
+If a local skill has the same name as a builtin skill, it is highlighted in magenta with an `(overrides builtin)` note. When both are selected, builtin skills are installed first and the local version is installed last, so the local version takes precedence.
+
+`skills-check` only runs for **builtin** skills after installation. Local skills are excluded — their dependency management is the user's responsibility.
 
 Controls: Up/Down move, Space toggle, `a` all/none, Enter confirm, `q` quit.
 
