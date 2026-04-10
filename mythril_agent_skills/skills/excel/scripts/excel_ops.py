@@ -25,8 +25,7 @@ try:
 except ImportError:
     print(
         "ERROR: openpyxl is not installed.\n"
-        "Install it with: pip install openpyxl\n"
-        "Or: pip install mythril-agent-skills",
+        "Install it with: pip install openpyxl",
         file=sys.stderr,
     )
     sys.exit(1)

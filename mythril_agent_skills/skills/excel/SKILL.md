@@ -26,7 +26,7 @@ license: Apache-2.0
 
 # Prerequisites
 
-- `openpyxl` — installed with `pip install mythril-agent-skills`, or standalone: `pip install openpyxl`
+- `openpyxl` — install with: `pip install openpyxl`
 - `xls2xlsx` (optional) — needed only for `.xls` files: `pip install xls2xlsx` or `pip install mythril-agent-skills[xls]`
 
 Pre-flight check:

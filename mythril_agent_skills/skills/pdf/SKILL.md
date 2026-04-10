@@ -48,13 +48,6 @@ python3 -c "import pypdfium2; print('pypdfium2', pypdfium2.__version__)"
 Install if missing:
 
 ```bash
-pip install mythril-agent-skills            # includes pypdf + pdfplumber
-pip install mythril-agent-skills[pdf-images] # also includes pypdfium2
-```
-
-Or standalone:
-
-```bash
 pip install pypdf pdfplumber
 pip install pypdfium2  # optional, for to-images
 ```

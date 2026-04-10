@@ -21,8 +21,7 @@ try:
 except ImportError:
     print(
         "ERROR: pypdf is not installed.\n"
-        "Install it with: pip install pypdf\n"
-        "Or: pip install mythril-agent-skills",
+        "Install it with: pip install pypdf",
         file=sys.stderr,
     )
     sys.exit(1)
@@ -32,8 +31,7 @@ try:
 except ImportError:
     print(
         "ERROR: pdfplumber is not installed.\n"
-        "Install it with: pip install pdfplumber\n"
-        "Or: pip install mythril-agent-skills",
+        "Install it with: pip install pdfplumber",
         file=sys.stderr,
     )
     sys.exit(1)
