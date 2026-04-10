@@ -11,7 +11,7 @@
       "name": "all-skills",
       "source": "./mythril_agent_skills",
       "description": "All-in-one bundle: code review, Git/GitHub, Jira, Confluence, Figma, Glean, Excel, PDF, Markdown-to-PDF, ImageMagick, FFmpeg, blog writer, and skill creator",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "author": {
         "name": "Jie Meng"
       },
@@ -40,7 +40,7 @@
       "name": "skill-creator",
       "source": "./plugins/skill-creator",
       "description": "Create and improve skills/prompts for any AI platform — drafting, evaluation, benchmarking, description optimization",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "author": {
         "name": "Jie Meng"
       },
@@ -57,7 +57,7 @@
       "name": "code-review-staged",
       "source": "./plugins/code-review-staged",
       "description": "Context-aware code review for git staged changes with auto-generated commit messages",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "author": {
         "name": "Jie Meng"
       },
@@ -74,7 +74,7 @@
       "name": "branch-diff-review",
       "source": "./plugins/branch-diff-review",
       "description": "Context-aware code review for local branch differences — pure git, no platform API required",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "author": {
         "name": "Jie Meng"
       },
@@ -92,7 +92,7 @@
       "name": "github-code-review-pr",
       "source": "./plugins/github-code-review-pr",
       "description": "Comprehensive Pull Request code review via GitHub CLI with deep repo context",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "author": {
         "name": "Jie Meng"
       },
@@ -109,7 +109,7 @@
       "name": "git-repo-reader",
       "source": "./plugins/git-repo-reader",
       "description": "Clone, cache, and read any git repository for code exploration and analysis",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "author": {
         "name": "Jie Meng"
       },
@@ -127,7 +127,7 @@
       "name": "gh-operations",
       "source": "./plugins/gh-operations",
       "description": "GitHub CLI operations for issues, PRs, status checks, and comments",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "author": {
         "name": "Jie Meng"
       },
@@ -145,7 +145,7 @@
       "name": "jira",
       "source": "./plugins/jira",
       "description": "Jira REST API integration for issues, sprints, boards, and workflows",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "author": {
         "name": "Jie Meng"
       },
@@ -163,7 +163,7 @@
       "name": "confluence",
       "source": "./plugins/confluence",
       "description": "Confluence REST API integration for pages, spaces, comments, and labels",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "author": {
         "name": "Jie Meng"
       },
@@ -180,7 +180,7 @@
       "name": "figma",
       "source": "./plugins/figma",
       "description": "Extract Figma design specs (layout, colors, typography, components) for implementation",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "author": {
         "name": "Jie Meng"
       },
@@ -197,7 +197,7 @@
       "name": "glean",
       "source": "./plugins/glean",
       "description": "Glean CLI integration — search company knowledge, chat with Glean AI, manage agents, documents, shortcuts",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "author": {
         "name": "Jie Meng"
       },
@@ -215,7 +215,7 @@
       "name": "excel",
       "source": "./plugins/excel",
       "description": "Read, write, search, and manipulate Excel workbooks (.xlsx) via openpyxl",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "author": {
         "name": "Jie Meng"
       },
@@ -233,7 +233,7 @@
       "name": "pdf",
       "source": "./plugins/pdf",
       "description": "Read, extract, and manipulate PDF files — text, tables, metadata, images, merge, split, rotate",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "author": {
         "name": "Jie Meng"
       },
@@ -251,7 +251,7 @@
       "name": "md-to-pdf",
       "source": "./plugins/md-to-pdf",
       "description": "Convert Markdown files to PDF with TOC, custom CSS, paper size, and metadata",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "author": {
         "name": "Jie Meng"
       },
@@ -269,7 +269,7 @@
       "name": "imagemagick",
       "source": "./plugins/imagemagick",
       "description": "Image processing via ImageMagick CLI — resize, convert, crop, watermark, batch process",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "author": {
         "name": "Jie Meng"
       },
@@ -286,7 +286,7 @@
       "name": "ffmpeg",
       "source": "./plugins/ffmpeg",
       "description": "Video and audio processing via FFmpeg CLI — transcode, trim, merge, compress, convert formats",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "author": {
         "name": "Jie Meng"
       },
@@ -304,7 +304,7 @@
       "name": "blog-writer",
       "source": "./plugins/blog-writer",
       "description": "Write, refine, and adapt blog posts with a tech-first focus — asks language first, supports technical and non-technical topics",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "author": {
         "name": "Jie Meng"
       },
