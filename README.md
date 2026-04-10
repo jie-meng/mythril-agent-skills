@@ -6,7 +6,7 @@
 
 English | [中文](./README.zh-CN.md)
 
-A unified skill management system for multi-agent AI coding assistants. This toolkit (distributed as a Python package) provides a curated collection of reusable skills plus centralized CLI commands to install, configure, and maintain them across Github Copilot, Claude Code, Cursor, Codex, Gemini CLI ...
+A unified skill management system for multi-agent AI coding assistants. This toolkit (distributed as a Python package) provides a curated collection of reusable skills plus centralized CLI commands to install, configure, and maintain them across Github Copilot, Claude Code, Cursor, Codex, Gemini CLI, OpenClaw ...
 
 ## What is a Skill?
 
@@ -474,6 +474,7 @@ All config directories are relative to the user home directory (`~` on macOS/Lin
 | 6 | Qwen CLI | `~/.qwen/skills/` |
 | 7 | Opencode | `~/.config/opencode/skills/` |
 | 8 | Grok CLI | `~/.grok/skills/` |
+| 9 | OpenClaw | `~/.openclaw/skills/` |
 
 ### Cleanup installed skills
 
