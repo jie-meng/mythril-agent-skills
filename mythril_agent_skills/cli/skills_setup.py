@@ -253,7 +253,7 @@ def curses_multi_select(
     if preselected:
         selected = list(preselected)
     else:
-        selected = [i not in disabled for i in range(len(items))]
+        selected = [False] * len(items)
     for i in disabled:
         selected[i] = False
 
@@ -387,7 +387,7 @@ def _curses_skills_select(
     # All selectable skills: builtin first, local second
     all_skills: list[SkillEntry] = builtin_entries + local_entries
     n = len(all_skills)
-    selected = [True] * n
+    selected = [False] * n
 
     # Row structure: ("header", label) — non-navigable separator/heading
     #                ("skill", skill_idx) — navigable, index into all_skills
