@@ -10,7 +10,7 @@
     {
       "name": "all-skills",
       "source": "./mythril_agent_skills",
-      "description": "All-in-one bundle: code review, Git/GitHub, Jira, Confluence, Figma, Glean, Excel, PDF, Markdown-to-PDF, ImageMagick, FFmpeg, blog writer, and skill creator",
+      "description": "All-in-one bundle: code review, Git/GitHub, Jira, Confluence, Figma, Glean, Excel, PDF, Markdown-to-PDF, ImageMagick, FFmpeg, SEO analysis, blog writer, and skill creator",
       "version": "0.2.10",
       "author": {
         "name": "Jie Meng"
@@ -31,6 +31,7 @@
         "md-to-pdf",
         "imagemagick",
         "ffmpeg",
+        "seo-analysis",
         "skill-creator",
         "blog-writer"
       ],
@@ -297,6 +298,25 @@
         "audio",
         "ffmpeg",
         "media"
+      ],
+      "strict": false
+    },
+    {
+      "name": "seo-analysis",
+      "source": "./plugins/seo-analysis",
+      "description": "Evidence-first SEO audits for indexing, metadata, schema, content gaps, and page-speed triage",
+      "version": "0.2.10",
+      "author": {
+        "name": "nowork-studio"
+      },
+      "license": "MIT",
+      "category": "productivity",
+      "tags": [
+        "seo",
+        "search-console",
+        "metadata",
+        "schema",
+        "pagespeed"
       ],
       "strict": false
     },

@@ -174,6 +174,19 @@ Process and manipulate video and audio files via FFmpeg CLI. Supports transcodin
 </details>
 
 <details>
+<summary><b>SEO & Marketing</b></summary>
+<br>
+
+**[SEO Analysis](./mythril_agent_skills/skills/seo-analysis/)**
+
+Audit a site's SEO with an evidence-first workflow for indexing, metadata, schema, content gaps, and page-speed issues. Adapted from the public `nowork-studio/toprank` SEO workflow and trimmed into a standalone skill for general AI coding assistants.
+
+- **Try:** Audit https://example.com for SEO issues
+- **Deps:** —
+
+</details>
+
+<details>
 <summary><b>Content</b></summary>
 <br>
 
@@ -288,7 +301,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 
 | Plugin | Description |
 |---|---|
-| `all-skills` | All-in-one bundle (all 16 skills) |
+| `all-skills` | All-in-one bundle (all 17 skills) |
 | `skill-creator` | Create and improve skills/prompts for any AI platform |
 | `code-review-staged` | Code review for git staged changes |
 | `branch-diff-review` | Code review for local branch differences |
@@ -304,6 +317,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `md-to-pdf` | Convert Markdown files to PDF |
 | `imagemagick` | Image processing via ImageMagick CLI |
 | `ffmpeg` | Video and audio processing via FFmpeg CLI |
+| `seo-analysis` | Evidence-first SEO audits for indexing, metadata, schema, content gaps, and page-speed triage |
 | `blog-writer` | Write, refine, and adapt tech-first multilingual blog posts |
 
 </details>
@@ -425,7 +439,7 @@ Up/Down move | Space toggle | a all/none | Enter confirm | q quit
 
   [x]  Select All / Deselect All
   ------------------------------------
-  Builtin Skills (16)
+  Builtin Skills (17)
   [x]  blog-writer
   [x]  code-review-staged
   [x]  figma
@@ -541,6 +555,7 @@ mythril-agent-skills/
 │       ├── jira/                # Jira REST API issue/sprint/board workflows
 │       ├── code-review-staged/  # Structured code reviews
 │       ├── git-repo-reader/     # Clone and read any git repo
+│       ├── seo-analysis/        # Evidence-first SEO auditing workflow
 │       └── blog-writer/         # Tech-first multilingual blog writing
 ├── plugins/                     # Per-skill plugin wrappers (symlinks into skills/)
 ├── scripts/                     # Dev scripts & backward-compatible wrappers

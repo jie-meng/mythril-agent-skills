@@ -277,7 +277,8 @@ Skills appear in multiple listings: the README "Available Skills" table, the `sk
 | 4 | **API Integrations** | Third-party API clients requiring credentials | jira, confluence, figma, glean |
 | 5 | **Data Processing** | Python-based file processing tools | excel, pdf |
 | 6 | **Media Processing** | Standalone CLI tools for media files | imagemagick, ffmpeg |
-| 7 | **Content** | Content creation and writing tools | blog-writer |
+| 7 | **SEO & Marketing** | Search-performance audits and optimization workflows | seo-analysis |
+| 8 | **Content** | Content creation and writing tools | blog-writer |
 
 **Within each category**, order by dependency complexity — no deps first, then CLI deps, then API credential deps:
 - No external dependencies → CLI tool dependency (`git`) → Platform CLI dependency (`gh`) → API token dependency
