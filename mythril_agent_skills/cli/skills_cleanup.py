@@ -29,6 +29,7 @@ TOOLS: list[tuple[str, str, str]] = [
     ("Opencode", ".config/opencode", "skills"),
     ("Grok CLI", ".grok", "skills"),
     ("OpenClaw", ".openclaw", "skills"),
+    ("Hermes", ".hermes", "skills"),
 ]
 
 

@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**mythril-agent-skills** is a pip-installable package of reusable skills for AI coding assistants (Github Copilot, Claude Code, Cursor, Codex, Gemini CLI, Qwen CLI, Opencode, Grok CLI, OpenClaw). Each skill is a self-contained directory with a `SKILL.md` that defines its metadata, triggering description, and instructions.
+**mythril-agent-skills** is a pip-installable package of reusable skills for AI coding assistants (Github Copilot, Claude Code, Cursor, Codex, Gemini CLI, Qwen CLI, Opencode, Grok CLI, OpenClaw, Hermes). Each skill is a self-contained directory with a `SKILL.md` that defines its metadata, triggering description, and instructions.
 
 Tech Stack:
 - **Primary Language**: Python 3.10+
@@ -150,6 +150,7 @@ All config directories are relative to the user home directory (`~` on macOS/Lin
 | 7 | Opencode | `~/.config/opencode/` | `~/.config/opencode/skills/` |
 | 8 | Grok CLI | `~/.grok/` | `~/.grok/skills/` |
 | 9 | OpenClaw | `~/.openclaw/` | `~/.openclaw/skills/` |
+| 10 | Hermes | `~/.hermes/` | `~/.hermes/skills/` |
 
 ---
 
