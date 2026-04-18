@@ -69,7 +69,7 @@ flowchart TD
 
     Q3 --> S[Write docs-dir/AGENTS.md if missing]
 
-    P --> T[Write .gitignore - does NOT track docs dir]
+    P --> T[Write .gitignore - ignore all subdirs except infra]
     P --> U{AGENTS.md exists?}
     U -- Yes --> V[Merge: replace repo table, preserve user content]
     U -- No --> W[Generate fresh AGENTS.md]
@@ -131,11 +131,12 @@ Priority: CLI `--docs-dir` > saved config > default `"central-docs"`.
 ### Docs as independent git repo
 
 The docs directory is `git init`'d as its own repo. The workspace `.gitignore`
-does NOT include `!<docs-dir>/` patterns. This means:
+ignores **all** non-hidden subdirectories except workspace infrastructure
+(`.agents/`, `scripts/`). This means:
 
-- Workspace git tracks: AGENTS.md, README.md, .gitignore, fullstack.json,
-  .agents/, scripts/
-- Docs repo tracks: its own AGENTS.md, feat/, refactor/, fix/, architecture
+- Workspace git tracks root-level files and infra dirs normally
+- Every other subdirectory (repos, docs, tools, misc) is ignored by name
+- Each run re-scans and regenerates `.gitignore` to catch new/removed dirs
   docs, API contracts, etc.
 
 ### Agent quality
@@ -160,8 +161,9 @@ debugger.md) but adapted for cross-repo fullstack context. Key principles:
 | `_extract_first_description` | Yes | Parse first paragraph from README.md |
 | `build_repos_table` | Yes | Generate Markdown table with markers |
 | `merge_repos_table` | Yes | Replace table preserving surrounding content |
-| `generate_gitignore` | Yes | Generate .gitignore (does NOT track docs dir) |
-| `needs_gitignore_update` | Yes | Check if .gitignore has required patterns |
+| `discover_ignored_dirs` | Yes | Scan all subdirs, exclude workspace infra |
+| `generate_gitignore` | Yes | Generate .gitignore from ignored dirs list |
+| `needs_gitignore_update` | Yes | Compare existing entries against expected set |
 | `generate_docs_agents_md` | Yes | Generate AGENTS.md for docs directory |
 | `generate_fresh_agents_md` | Yes | Generate full AGENTS.md for workspace |
 | `generate_agent_template` | Yes | Generate agent file by name |
@@ -195,7 +197,7 @@ debugger.md) but adapted for cross-repo fullstack context. Key principles:
 ### 2026-04-18 — v3: Docs independence, work types, four agents
 
 - Docs dir is now an independent git repo (its own `.git`)
-- Workspace `.gitignore` no longer tracks docs dir
+- Workspace `.gitignore` ignores all subdirs except infra (no wildcard `*`)
 - Work tracking generalized: `feat/`, `refactor/`, `fix/` (was `features/`)
 - Four agents: planner, dev, reviewer, debugger (was 2: dev, review)
 - Agent quality improved based on opencode agent patterns

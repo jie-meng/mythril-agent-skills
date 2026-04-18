@@ -23,7 +23,7 @@ android, and other repos live as sibling directories under one root.
 | File / Directory | Purpose | On re-run |
 |-----------------|---------|-----------|
 | `AGENTS.md` | AI guidelines with auto-generated repo table | Table refreshed, user content preserved |
-| `.gitignore` | Tracks only workspace files, ignores all repos | Only updated if key patterns missing |
+| `.gitignore` | Ignores all subdirs except workspace infra | Regenerated each run to catch new/removed dirs |
 | `<docs-dir>/` | Shared docs (**independent git repo**) | Created + git init if missing, never overwritten |
 | `<docs-dir>/AGENTS.md` | Doc management guidelines | Created if missing, never overwritten |
 | `<docs-dir>/feat/` | Feature work tracking | Created if missing |
@@ -150,7 +150,7 @@ The init script creates four agent definitions in `.agents/agents/`:
 project-workspace/                # Workspace root (its own git repo)
 ├── AGENTS.md                     # AI context with repo table (auto-managed)
 ├── README.md                     # Project overview
-├── .gitignore                    # Tracks workspace files only (NOT docs dir)
+├── .gitignore                    # Ignores all subdirs except .agents/ and scripts/
 ├── fullstack.json               # Config: {"docs_dir": "central-docs"}
 ├── .agents/
 │   ├── agents/                   # Workspace-level sub-agents

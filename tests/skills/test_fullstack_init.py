@@ -444,6 +444,56 @@ class TestMergeReposTable:
 # ---------------------------------------------------------------------------
 
 
+class TestDiscoverIgnoredDirs:
+    """Tests for workspace_init.discover_ignored_dirs."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from workspace_init import discover_ignored_dirs
+        self.func = discover_ignored_dirs
+
+    def test_ignores_repos(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web")
+        _make_repo(tmp_path, "api", "# API")
+        result = self.func(tmp_path, "docs")
+        assert "web" in result
+        assert "api" in result
+
+    def test_ignores_non_repo_dirs(self, tmp_path: Path):
+        (tmp_path / "tools").mkdir()
+        (tmp_path / "misc").mkdir()
+        result = self.func(tmp_path, "docs")
+        assert "tools" in result
+        assert "misc" in result
+
+    def test_skips_hidden_dirs(self, tmp_path: Path):
+        (tmp_path / ".agents").mkdir()
+        (tmp_path / ".git").mkdir()
+        (tmp_path / "web").mkdir()
+        result = self.func(tmp_path, "docs")
+        assert ".agents" not in result
+        assert ".git" not in result
+
+    def test_skips_workspace_tracked_dirs(self, tmp_path: Path):
+        (tmp_path / "scripts").mkdir()
+        (tmp_path / ".agents").mkdir()
+        (tmp_path / "web").mkdir()
+        result = self.func(tmp_path, "docs")
+        assert "scripts" not in result
+        assert ".agents" not in result
+        assert "web" in result
+
+    def test_includes_docs_dir_even_if_absent(self, tmp_path: Path):
+        result = self.func(tmp_path, "central-docs")
+        assert "central-docs" in result
+
+    def test_sorted_output(self, tmp_path: Path):
+        (tmp_path / "zeta").mkdir()
+        (tmp_path / "alpha").mkdir()
+        result = self.func(tmp_path, "docs")
+        assert result == sorted(result)
+
+
 class TestGenerateGitignore:
     """Tests for workspace_init.generate_gitignore."""
 
@@ -452,21 +502,21 @@ class TestGenerateGitignore:
         from workspace_init import generate_gitignore
         self.func = generate_gitignore
 
-    def test_does_not_track_docs_dir(self):
-        result = self.func("central-docs")
-        assert "!central-docs/" not in result
-        assert "!central-docs/**" not in result
+    def test_lists_all_ignored_dirs(self):
+        result = self.func(["central-docs", "web", "api"])
+        assert "/central-docs/" in result
+        assert "/web/" in result
+        assert "/api/" in result
 
-    def test_mentions_docs_dir_in_comments(self):
-        result = self.func("project_documents")
-        assert "project_documents" in result
+    def test_does_not_use_wildcard_ignore(self):
+        result = self.func(["web"])
+        lines = [l.strip() for l in result.splitlines() if not l.startswith("#")]
+        assert "*" not in lines
 
-    def test_contains_standard_patterns(self):
-        result = self.func("docs")
-        assert "!AGENTS.md" in result
-        assert "!.agents/" in result
-        assert "!scripts/" in result
-        assert "!fullstack.json" in result
+    def test_os_junk_patterns(self):
+        result = self.func([])
+        assert ".DS_Store" in result
+        assert "Thumbs.db" in result
 
 
 # ---------------------------------------------------------------------------
@@ -483,17 +533,22 @@ class TestNeedsGitignoreUpdate:
         self.func = needs_gitignore_update
 
     def test_missing_file(self, tmp_path: Path):
-        assert self.func(tmp_path / ".gitignore", "central-docs") is True
+        assert self.func(tmp_path / ".gitignore", ["docs", "web"]) is True
 
     def test_complete_file(self, tmp_path: Path):
         gi = tmp_path / ".gitignore"
-        gi.write_text("!AGENTS.md\n!.agents/\n!fullstack.json\n*\n")
-        assert self.func(gi, "central-docs") is False
+        gi.write_text("/docs/\n/web/\n/api/\n")
+        assert self.func(gi, ["docs", "web", "api"]) is False
 
-    def test_incomplete_file(self, tmp_path: Path):
+    def test_missing_dir(self, tmp_path: Path):
         gi = tmp_path / ".gitignore"
-        gi.write_text("!AGENTS.md\n*\n")
-        assert self.func(gi, "central-docs") is True
+        gi.write_text("/docs/\n/web/\n")
+        assert self.func(gi, ["docs", "web", "api"]) is True
+
+    def test_stale_entry(self, tmp_path: Path):
+        gi = tmp_path / ".gitignore"
+        gi.write_text("/docs/\n/web/\n/old-repo/\n")
+        assert self.func(gi, ["docs", "web"]) is True
 
 
 # ---------------------------------------------------------------------------
@@ -698,12 +753,18 @@ class TestBootstrapWorkspace:
         self.func(tmp_path)
         assert (tmp_path / "central-docs" / ".git").exists()
 
-    def test_gitignore_does_not_track_docs(self, tmp_path: Path):
+    def test_gitignore_ignores_all_subdirs_except_infra(self, tmp_path: Path):
         _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        _make_repo(tmp_path, "api", "# API\n\nService.\n")
+        (tmp_path / "tools").mkdir()
         self.func(tmp_path)
         gitignore = (tmp_path / ".gitignore").read_text()
-        assert "!central-docs/" not in gitignore
-        assert "!central-docs/**" not in gitignore
+        assert "/central-docs/" in gitignore
+        assert "/web/" in gitignore
+        assert "/api/" in gitignore
+        assert "/tools/" in gitignore
+        assert "/scripts/" not in gitignore
+        assert "/.agents/" not in gitignore
 
     def test_fresh_init_custom_docs(self, tmp_path: Path):
         _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
