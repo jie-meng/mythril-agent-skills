@@ -10,7 +10,7 @@
     {
       "name": "all-skills",
       "source": "./mythril_agent_skills",
-      "description": "All-in-one bundle: code review, Git/GitHub, Jira, Confluence, Figma, Glean, Excel, PDF, Markdown-to-PDF, ImageMagick, FFmpeg, blog writer, and skill creator",
+      "description": "All-in-one bundle: code review, Git/GitHub, Jira, Confluence, Figma, Glean, Excel, PDF, Markdown-to-PDF, ImageMagick, FFmpeg, blog writer, skill creator, and fullstack workspace tools",
       "version": "0.2.10",
       "author": {
         "name": "Jie Meng"
@@ -333,6 +333,24 @@
         "fullstack",
         "multi-repo",
         "init"
+      ],
+      "strict": false
+    },
+    {
+      "name": "fullstack-impl",
+      "source": "./plugins/fullstack-impl",
+      "description": "Implement features across a multi-repo fullstack workspace with context gathering, planning, dev/review agents, and progress tracking",
+      "version": "0.2.10",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "development",
+      "tags": [
+        "workspace",
+        "fullstack",
+        "multi-repo",
+        "implementation"
       ],
       "strict": false
     }

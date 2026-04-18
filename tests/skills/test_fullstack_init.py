@@ -39,14 +39,24 @@ class TestLoadConfig:
         assert self.func(tmp_path) == {}
 
     def test_valid_config(self, tmp_path: Path):
-        cfg = tmp_path / ".fullstack-init.json"
+        cfg = tmp_path / ".fullstack.json"
         cfg.write_text('{"docs_dir": "my-docs"}')
         assert self.func(tmp_path) == {"docs_dir": "my-docs"}
 
     def test_corrupt_json(self, tmp_path: Path):
-        cfg = tmp_path / ".fullstack-init.json"
+        cfg = tmp_path / ".fullstack.json"
         cfg.write_text("not json at all")
         assert self.func(tmp_path) == {}
+
+    def test_legacy_fallback(self, tmp_path: Path):
+        legacy = tmp_path / ".fullstack-init.json"
+        legacy.write_text('{"docs_dir": "old-docs"}')
+        assert self.func(tmp_path) == {"docs_dir": "old-docs"}
+
+    def test_new_config_takes_priority_over_legacy(self, tmp_path: Path):
+        (tmp_path / ".fullstack.json").write_text('{"docs_dir": "new"}')
+        (tmp_path / ".fullstack-init.json").write_text('{"docs_dir": "old"}')
+        assert self.func(tmp_path) == {"docs_dir": "new"}
 
 
 class TestSaveConfig:
@@ -67,6 +77,13 @@ class TestSaveConfig:
         self.save(tmp_path, {"docs_dir": "old"})
         self.save(tmp_path, {"docs_dir": "new"})
         assert self.load(tmp_path)["docs_dir"] == "new"
+
+    def test_removes_legacy_file(self, tmp_path: Path):
+        legacy = tmp_path / ".fullstack-init.json"
+        legacy.write_text('{"docs_dir": "old"}')
+        self.save(tmp_path, {"docs_dir": "new"})
+        assert not legacy.exists()
+        assert (tmp_path / ".fullstack.json").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -435,21 +452,21 @@ class TestGenerateGitignore:
         from workspace_init import generate_gitignore
         self.func = generate_gitignore
 
-    def test_contains_docs_dir_name(self):
-        result = self.func("project_documents")
-        assert "!project_documents/" in result
-        assert "!project_documents/**" in result
-
-    def test_default_name(self):
+    def test_does_not_track_docs_dir(self):
         result = self.func("central-docs")
-        assert "!central-docs/" in result
+        assert "!central-docs/" not in result
+        assert "!central-docs/**" not in result
+
+    def test_mentions_docs_dir_in_comments(self):
+        result = self.func("project_documents")
+        assert "project_documents" in result
 
     def test_contains_standard_patterns(self):
         result = self.func("docs")
         assert "!AGENTS.md" in result
         assert "!.agents/" in result
         assert "!scripts/" in result
-        assert "!.fullstack-init.json" in result
+        assert "!.fullstack.json" in result
 
 
 # ---------------------------------------------------------------------------
@@ -470,23 +487,13 @@ class TestNeedsGitignoreUpdate:
 
     def test_complete_file(self, tmp_path: Path):
         gi = tmp_path / ".gitignore"
-        gi.write_text("!AGENTS.md\n!central-docs/\n!.agents/\n*\n")
+        gi.write_text("!AGENTS.md\n!.agents/\n!.fullstack.json\n*\n")
         assert self.func(gi, "central-docs") is False
 
     def test_incomplete_file(self, tmp_path: Path):
         gi = tmp_path / ".gitignore"
         gi.write_text("!AGENTS.md\n*\n")
         assert self.func(gi, "central-docs") is True
-
-    def test_wrong_docs_dir_name(self, tmp_path: Path):
-        gi = tmp_path / ".gitignore"
-        gi.write_text("!AGENTS.md\n!central-docs/\n!.agents/\n*\n")
-        assert self.func(gi, "project_documents") is True
-
-    def test_custom_docs_dir_present(self, tmp_path: Path):
-        gi = tmp_path / ".gitignore"
-        gi.write_text("!AGENTS.md\n!my-docs/\n!.agents/\n*\n")
-        assert self.func(gi, "my-docs") is False
 
 
 # ---------------------------------------------------------------------------
@@ -506,13 +513,54 @@ class TestGenerateDocsAgentsMd:
         result = self.func("project-documents")
         assert "# Project Documents" in result
 
-    def test_uses_dir_name_in_structure(self):
-        result = self.func("my_docs")
-        assert "my_docs/" in result
-
-    def test_default_name(self):
+    def test_independent_repo(self):
         result = self.func("central-docs")
-        assert "# Central Docs" in result
+        assert "independent git repository" in result
+
+    def test_work_type_categories(self):
+        result = self.func("central-docs")
+        assert "feat/" in result
+        assert "refactor/" in result
+        assert "fix/" in result
+
+
+# ---------------------------------------------------------------------------
+# generate_agent_template
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateAgentTemplate:
+    """Tests for workspace_init.generate_agent_template."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from workspace_init import generate_agent_template, AGENT_TEMPLATES
+        self.func = generate_agent_template
+        self.templates = AGENT_TEMPLATES
+
+    def test_all_four_agents_exist(self):
+        assert set(self.templates.keys()) == {"planner", "dev", "reviewer", "debugger"}
+
+    def test_project_name_substitution(self):
+        for name in self.templates:
+            result = self.func(name, "my-project")
+            assert "my-project" in result
+
+    def test_planner_is_read_only(self):
+        result = self.func("planner", "proj")
+        assert "read-only" in result.lower() or "MUST NOT" in result
+
+    def test_dev_writes_code(self):
+        result = self.func("dev", "proj")
+        assert "implementation" in result.lower()
+
+    def test_reviewer_does_not_fix(self):
+        result = self.func("reviewer", "proj")
+        assert "Do not fix issues you find" in result
+
+    def test_debugger_root_cause(self):
+        result = self.func("debugger", "proj")
+        assert "root cause" in result.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -540,11 +588,35 @@ class TestGenerateFreshAgentsMd:
         result = self.func("proj", "| t |", "central-docs")
         assert "central-docs/" in result
         assert ".agents/" in result
+        assert ".fullstack.json" in result
 
     def test_uses_custom_docs_dir(self):
         result = self.func("proj", "| t |", "project_documents")
         assert "project_documents/" in result
         assert "central-docs" not in result
+
+    def test_contains_work_tracking(self):
+        result = self.func("proj", "| t |", "central-docs")
+        assert "Work Tracking" in result
+        assert "feat/" in result
+        assert "refactor/" in result
+        assert "fix/" in result
+
+    def test_contains_branch_convention(self):
+        result = self.func("proj", "| t |", "central-docs")
+        assert "Branch Naming" in result
+        assert "feat/XYZ-706" in result
+
+    def test_docs_is_independent_repo(self):
+        result = self.func("proj", "| t |", "central-docs")
+        assert "independent git repo" in result
+
+    def test_has_four_agents(self):
+        result = self.func("proj", "| t |", "central-docs")
+        assert "planner.md" in result
+        assert "dev.md" in result
+        assert "reviewer.md" in result
+        assert "debugger.md" in result
 
 
 # ---------------------------------------------------------------------------
@@ -599,10 +671,19 @@ class TestBootstrapWorkspace:
         assert (tmp_path / "AGENTS.md").exists()
         assert (tmp_path / ".gitignore").exists()
         assert (tmp_path / "central-docs" / "AGENTS.md").exists()
+        assert (tmp_path / "central-docs" / ".git").exists()
+        assert (tmp_path / "central-docs" / "feat").exists()
+        assert (tmp_path / "central-docs" / "refactor").exists()
+        assert (tmp_path / "central-docs" / "fix").exists()
         assert (tmp_path / ".agents" / "skills").exists()
+        assert (tmp_path / ".agents" / "agents").exists()
+        assert (tmp_path / ".agents" / "agents" / "planner.md").exists()
+        assert (tmp_path / ".agents" / "agents" / "dev.md").exists()
+        assert (tmp_path / ".agents" / "agents" / "reviewer.md").exists()
+        assert (tmp_path / ".agents" / "agents" / "debugger.md").exists()
         assert (tmp_path / "scripts").exists()
         assert (tmp_path / "README.md").exists()
-        assert (tmp_path / ".fullstack-init.json").exists()
+        assert (tmp_path / ".fullstack.json").exists()
 
         config = self.load_config(tmp_path)
         assert config["docs_dir"] == "central-docs"
@@ -610,6 +691,19 @@ class TestBootstrapWorkspace:
         agents_content = (tmp_path / "AGENTS.md").read_text()
         assert "[web](./web/)" in agents_content
         assert "[api](./api/)" in agents_content
+        assert "independent git repo" in agents_content.lower()
+
+    def test_docs_dir_is_independent_git_repo(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path)
+        assert (tmp_path / "central-docs" / ".git").exists()
+
+    def test_gitignore_does_not_track_docs(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path)
+        gitignore = (tmp_path / ".gitignore").read_text()
+        assert "!central-docs/" not in gitignore
+        assert "!central-docs/**" not in gitignore
 
     def test_fresh_init_custom_docs(self, tmp_path: Path):
         _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
@@ -617,16 +711,11 @@ class TestBootstrapWorkspace:
         report = self.func(tmp_path, docs_dir="project_documents")
 
         assert (tmp_path / "project_documents" / "AGENTS.md").exists()
+        assert (tmp_path / "project_documents" / ".git").exists()
         assert not (tmp_path / "central-docs").exists()
 
         config = self.load_config(tmp_path)
         assert config["docs_dir"] == "project_documents"
-
-        gitignore = (tmp_path / ".gitignore").read_text()
-        assert "!project_documents/" in gitignore
-
-        agents = (tmp_path / "AGENTS.md").read_text()
-        assert "project_documents/" in agents
 
     def test_rerun_reads_saved_docs_dir(self, tmp_path: Path):
         _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
@@ -693,9 +782,6 @@ class TestBootstrapWorkspace:
         config = self.load_config(tmp_path)
         assert config["docs_dir"] == "new-docs"
 
-        gitignore = (tmp_path / ".gitignore").read_text()
-        assert "!new-docs/" in gitignore
-
     def test_existing_docs_dir_not_overwritten(self, tmp_path: Path):
         _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
         docs = tmp_path / "project_documents"
@@ -707,3 +793,43 @@ class TestBootstrapWorkspace:
 
         assert custom_file.exists()
         assert custom_file.read_text() == "# My important doc\n"
+
+    def test_four_agent_templates_created(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path)
+
+        agents_dir = tmp_path / ".agents" / "agents"
+        for name in ("planner", "dev", "reviewer", "debugger"):
+            agent_file = agents_dir / f"{name}.md"
+            assert agent_file.exists(), f"{name}.md not created"
+            content = agent_file.read_text()
+            assert tmp_path.name in content
+
+    def test_agent_templates_not_overwritten(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path)
+
+        dev_agent = tmp_path / ".agents" / "agents" / "dev.md"
+        dev_agent.write_text("# Custom dev agent\n")
+
+        self.func(tmp_path)
+        assert dev_agent.read_text() == "# Custom dev agent\n"
+
+    def test_work_type_dirs_created(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path)
+        for category in ("feat", "refactor", "fix"):
+            assert (tmp_path / "central-docs" / category).is_dir()
+
+    def test_legacy_config_migration(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        legacy = tmp_path / ".fullstack-init.json"
+        legacy.write_text('{"docs_dir": "my-docs"}')
+
+        self.func(tmp_path)
+
+        assert not legacy.exists()
+        assert (tmp_path / ".fullstack.json").exists()
+        config = self.load_config(tmp_path)
+        assert config["docs_dir"] == "my-docs"
+        assert (tmp_path / "my-docs").exists()

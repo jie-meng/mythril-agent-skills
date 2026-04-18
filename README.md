@@ -186,6 +186,26 @@ Write, refine, and adapt blog posts through an interactive intake process. The s
 
 </details>
 
+<details>
+<summary><b>Fullstack Workspace</b></summary>
+<br>
+
+**[Fullstack Init](./mythril_agent_skills/skills/fullstack-init/)**
+
+Initialize or update a multi-repo fullstack workspace with unified AI context. Creates AGENTS.md with auto-generated repo table, docs dir (as independent git repo), four workspace agents (planner/dev/reviewer/debugger), and work tracking dirs (feat/refactor/fix).
+
+- **Try:** Initialize this fullstack workspace
+- **Deps:** `git` CLI
+
+**[Fullstack Impl](./mythril_agent_skills/skills/fullstack-impl/)**
+
+Implement features, refactors, and fixes across a multi-repo fullstack workspace. Gathers context from Jira/Confluence/GitHub/Figma, creates branches, delegates to workspace agents, and tracks progress in docs repo.
+
+- **Try:** Implement this Jira ticket across the workspace
+- **Deps:** Workspace initialized by `fullstack-init`
+
+</details>
+
 ---
 
 ## Quick Start
@@ -288,7 +308,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 
 | Plugin | Description |
 |---|---|
-| `all-skills` | All-in-one bundle (all 16 skills) |
+| `all-skills` | All-in-one bundle (all 18 skills) |
 | `skill-creator` | Create and improve skills/prompts for any AI platform |
 | `code-review-staged` | Code review for git staged changes |
 | `branch-diff-review` | Code review for local branch differences |
@@ -305,6 +325,8 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `imagemagick` | Image processing via ImageMagick CLI |
 | `ffmpeg` | Video and audio processing via FFmpeg CLI |
 | `blog-writer` | Write, refine, and adapt tech-first multilingual blog posts |
+| `fullstack-init` | Initialize multi-repo fullstack workspace with AI context |
+| `fullstack-impl` | Implement features/fixes across a fullstack workspace |
 
 </details>
 
@@ -541,7 +563,9 @@ mythril-agent-skills/
 │       ├── jira/                # Jira REST API issue/sprint/board workflows
 │       ├── code-review-staged/  # Structured code reviews
 │       ├── git-repo-reader/     # Clone and read any git repo
-│       └── blog-writer/         # Tech-first multilingual blog writing
+│       ├── blog-writer/         # Tech-first multilingual blog writing
+│       ├── fullstack-init/      # Initialize multi-repo workspace
+│       └── fullstack-impl/      # Implement across fullstack workspace
 ├── plugins/                     # Per-skill plugin wrappers (symlinks into skills/)
 ├── scripts/                     # Dev scripts & backward-compatible wrappers
 │   ├── sync-upstream.py         # Fork upstream sync tool
@@ -552,7 +576,8 @@ mythril-agent-skills/
 │   ├── DEVELOPMENT.md           # Dev setup, tests, contributing
 │   ├── INSTALLATION.md          # Full dependency reference
 │   ├── PUBLISHING.md            # PyPI publishing & testing guide
-│   └── FORK-SYNC.md             # Fork sync guide
+│   ├── FORK-SYNC.md             # Fork sync guide
+│   └── fullstack/               # Fullstack skills design docs
 ├── .sync-upstream.json          # Upstream sync configuration (for forks)
 ├── pyproject.toml               # Package configuration
 ├── AGENTS.md                    # Developer guidelines for agents

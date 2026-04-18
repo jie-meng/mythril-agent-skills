@@ -3,11 +3,11 @@
 
 Scans a root directory for git repositories, analyzes their README.md and
 AGENTS.md files, and creates/updates a root-level AGENTS.md with a unified
-project table. Also bootstraps .gitignore, shared docs dir, .agents/, and
-scripts/ directories as needed.
+project table. Also bootstraps .gitignore, shared docs dir (as its own
+independent repo), .agents/, and scripts/ directories as needed.
 
 The shared docs directory name is user-configurable (defaults to
-"central-docs") and persisted in .fullstack-init.json so re-runs pick it
+"central-docs") and persisted in .fullstack.json so re-runs pick it
 up automatically.
 
 Designed for idempotent operation: running it multiple times preserves
@@ -31,7 +31,8 @@ from pathlib import Path
 # Constants
 # ---------------------------------------------------------------------------
 
-CONFIG_FILENAME = ".fullstack-init.json"
+CONFIG_FILENAME = ".fullstack.json"
+LEGACY_CONFIG_FILENAME = ".fullstack-init.json"
 
 MARKER_START = "<!-- fullstack-init:repos-table:start -->"
 MARKER_END = "<!-- fullstack-init:repos-table:end -->"
@@ -52,23 +53,33 @@ DEFAULT_DOCS_DIR = "central-docs"
 # ---------------------------------------------------------------------------
 
 def load_config(root: Path) -> dict[str, str]:
-    """Load workspace config from .fullstack-init.json."""
+    """Load workspace config from .fullstack.json (with legacy fallback)."""
     config_path = root / CONFIG_FILENAME
-    if not config_path.exists():
-        return {}
-    try:
-        return json.loads(config_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {}
+    if config_path.exists():
+        try:
+            return json.loads(config_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return {}
+    legacy_path = root / LEGACY_CONFIG_FILENAME
+    if legacy_path.exists():
+        try:
+            data = json.loads(legacy_path.read_text(encoding="utf-8"))
+            return data
+        except (json.JSONDecodeError, OSError):
+            return {}
+    return {}
 
 
 def save_config(root: Path, config: dict[str, str]) -> None:
-    """Save workspace config to .fullstack-init.json."""
+    """Save workspace config to .fullstack.json (removes legacy file if present)."""
     config_path = root / CONFIG_FILENAME
     config_path.write_text(
         json.dumps(config, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+    legacy_path = root / LEGACY_CONFIG_FILENAME
+    if legacy_path.exists():
+        legacy_path.unlink()
 
 
 def resolve_docs_dir(
@@ -261,8 +272,8 @@ def generate_fresh_agents_md(
 
 ## Project Overview
 
-This is a multi-repo fullstack workspace. Each subdirectory is an independent
-git repository for a specific platform or service.
+This is a multi-repo fullstack workspace. Every subdirectory — including
+`{docs_dir}/` — is an independent git repository with its own version control.
 
 ## Repositories
 
@@ -272,8 +283,48 @@ git repository for a specific platform or service.
 
 - **Cross-repo changes**: When making changes that span multiple repos,
   commit and test each repo independently.
-- **Shared documentation**: Cross-cutting docs live in `{docs_dir}/`.
+- **Shared documentation**: Cross-cutting docs live in `{docs_dir}/`
+  (its own git repo — NOT managed by the workspace git).
 - **Scripts**: Workspace-level automation lives in `scripts/`.
+- **Agent delegation**: Workspace-level agents live in `.agents/agents/`.
+  When working inside a specific repo that has its own `.agents/agents/`,
+  prefer using the repo-level agents for that repo's code.
+
+## Work Tracking
+
+When starting any cross-repo work, create a work directory under
+`{docs_dir}/` in the appropriate category:
+
+| Category | Directory | Branch prefix | Use for |
+|----------|-----------|--------------|---------|
+| Feature | `{docs_dir}/feat/<name>/` | `feat/` | New features, capabilities |
+| Refactor | `{docs_dir}/refactor/<name>/` | `refactor/` | Code restructuring, tech debt |
+| Fix | `{docs_dir}/fix/<name>/` | `fix/` | Bug fixes, issue resolution |
+
+Each work directory contains:
+
+```
+<category>/<work-name>/
+├── plan.md            # Implementation plan (repos involved, tasks, approach)
+├── progress.md        # Current status, completed steps, blockers
+└── review.md          # Review findings and fix history (append-only)
+```
+
+Work directories are **never deleted** — they serve as project history.
+The `{docs_dir}/` repo does NOT use feature branches — all work tracking
+docs are committed directly to its main branch.
+
+## Branch Naming Convention
+
+When implementing work items, create branches in each affected repo:
+
+| Category | Without Jira | With Jira |
+|----------|-------------|-----------|
+| Feature | `feat/Import-Export` | `feat/XYZ-706/Import-Export` |
+| Refactor | `refactor/Refine-Models` | `refactor/XYZ-707/Refine-Models` |
+| Fix | `fix/iPad-Ble-Not-Working` | `fix/XYZ-708/iPad-Ble-Not-Working` |
+
+Branch names use Title-Case-With-Hyphens for the descriptive part.
 
 ## Directory Structure
 
@@ -282,12 +333,23 @@ git repository for a specific platform or service.
 ├── AGENTS.md          # This file — workspace-level AI guidelines
 ├── README.md          # Human-readable project overview
 ├── .gitignore         # Tracks only workspace-level files
-├── .agents/           # Workspace-level agents and skills
+├── .fullstack.json    # Workspace config (docs dir, etc.)
+├── .agents/
+│   ├── agents/        # Workspace-level sub-agents
+│   │   ├── planner.md # Plans before implementation
+│   │   ├── dev.md     # Implements code across repos
+│   │   ├── reviewer.md# Reviews changes, records findings
+│   │   └── debugger.md# Root-cause analysis for fixes
 │   └── skills/        # Custom skills for this workspace
-├── {docs_dir + "/":<23s}# Shared documentation across repos
-│   └── AGENTS.md      # Documentation management guidelines
 ├── scripts/           # Workspace-level automation scripts
-└── <repos...>/        # Individual git repositories
+├── {docs_dir + "/":<23s}# Shared docs (independent git repo)
+│   ├── AGENTS.md      # Documentation management guidelines
+│   ├── feat/          # Feature work tracking
+│   ├── refactor/      # Refactor work tracking
+│   └── fix/           # Fix work tracking
+├── web/               # ← Independent git repo (example)
+├── api/               # ← Independent git repo (example)
+└── ios/               # ← Independent git repo (example)
 ```
 """
 
@@ -332,22 +394,20 @@ def generate_gitignore(docs_dir: str) -> str:
 # =============================================================================
 # Fullstack workspace .gitignore
 # Generated by fullstack-init — manages only workspace-level files.
-# All subdirectory repos have their own version control.
+# Each subdirectory (including {docs_dir}/) is an independent git repo.
 # =============================================================================
 
 # Include workspace infrastructure (these are NOT ignored)
 !AGENTS.md
 !README.md
 !.gitignore
-!.fullstack-init.json
+!.fullstack.json
 !.agents/
 !.agents/**
 !scripts/
 !scripts/**
-!{docs_dir}/
-!{docs_dir}/**
 
-# Ignore everything else (sub-repos have their own git)
+# Ignore everything else (all repos have their own git, including {docs_dir}/)
 *
 
 # OS / editor junk (even in tracked dirs)
@@ -364,7 +424,7 @@ def needs_gitignore_update(gitignore_path: Path, docs_dir: str) -> bool:
     if not gitignore_path.exists():
         return True
     content = gitignore_path.read_text(encoding="utf-8", errors="replace")
-    key_patterns = ["!AGENTS.md", f"!{docs_dir}/", "!.agents/"]
+    key_patterns = ["!AGENTS.md", "!.agents/", "!.fullstack.json"]
     return not all(p in content for p in key_patterns)
 
 
@@ -378,8 +438,9 @@ def generate_docs_agents_md(docs_dir: str) -> str:
     return f"""\
 # {title}
 
-This directory holds shared documentation that spans multiple repositories
-in this workspace. It is version-controlled by the workspace-level git repo.
+This directory is an **independent git repository** that holds shared
+documentation spanning all repositories in this workspace. It has its own
+version control, separate from the workspace-level git repo.
 
 ## Conventions
 
@@ -387,17 +448,262 @@ in this workspace. It is version-controlled by the workspace-level git repo.
 - Organize by topic or domain, not by repo.
 - Link to repo-specific docs using relative paths: `../repo-name/docs/...`
 - Keep documents concise; deep-dive details belong in the relevant repo.
+- This repo does NOT use feature branches — commit work tracking docs
+  directly to the main branch.
+
+## Work Tracking
+
+The `feat/`, `refactor/`, and `fix/` directories contain per-work-item
+documentation created by the `fullstack-impl` skill:
+
+| Directory | Branch prefix | Use for |
+|-----------|--------------|---------|
+| `feat/` | `feat/` | New features and capabilities |
+| `refactor/` | `refactor/` | Code restructuring, tech debt |
+| `fix/` | `fix/` | Bug fixes, issue resolution |
+
+Each work item gets its own subdirectory:
+
+```
+<category>/<work-name>/
+├── plan.md       # Implementation plan
+├── progress.md   # Current status and completed steps
+└── review.md     # Review findings (append-only)
+```
+
+These directories are **never deleted** — they form the project's
+implementation history. Do not modify docs created by other work items.
 
 ## Structure
 
 ```
 {docs_dir}/
 ├── AGENTS.md          # This file
+├── feat/              # Feature work tracking
+├── refactor/          # Refactor work tracking
+├── fix/               # Fix work tracking
 ├── architecture.md    # System-wide architecture overview (example)
 ├── api-contracts/     # Shared API schemas, contracts (example)
 └── onboarding/        # New-member onboarding guides (example)
 ```
 """
+
+
+# ---------------------------------------------------------------------------
+# Agent templates
+# ---------------------------------------------------------------------------
+
+AGENT_TEMPLATES: dict[str, str] = {}
+
+AGENT_TEMPLATES["planner"] = """\
+# Planner — {project_name}
+
+You are **Planner**, the requirements analyst and solution architect for this
+workspace.
+
+Your mission is to turn ambiguous requests into clear, actionable, and
+verifiable implementation plans before any code is written. Code written
+without a plan tends to solve the wrong problem, miss edge cases, or create
+architectural debt. You de-risk execution before it starts.
+
+## How you think
+
+Balance two perspectives:
+
+- **Execution** — Can a developer pick this up and implement it in small,
+  safe steps? Are the tasks concrete enough to act on without guessing?
+- **Architecture** — Are the decisions coherent across repo boundaries?
+  Will this approach still make sense in 6 months?
+
+Scale your depth to the problem. A config change doesn't need an architecture
+review. A new cross-repo data flow does.
+
+## How you work
+
+1. **Frame the problem** — Clarify goals, constraints, assumptions, and
+   non-goals. If information is missing, say what you need.
+2. **Identify affected repos** — From the workspace AGENTS.md repo table,
+   determine which repos need changes and why.
+3. **Propose a direction** — Recommend an approach with trade-offs.
+   Consider alternatives and explain your reasoning.
+4. **Break into phases** — Concrete tasks per repo with clear dependencies.
+   Each phase should be independently verifiable.
+5. **Define success** — Testable acceptance criteria, not subjective ones.
+6. **Surface risks** — Call out unknowns and cross-repo dependencies.
+
+## What you MUST NOT do
+
+- Do not write implementation code. Your output is `plan.md`, not the solution.
+- Do not modify source files. You are a read-only analyst.
+- Do not over-plan simple tasks. A brief recommendation is better than a
+  10-section document for something straightforward.
+
+## Output
+
+Write the plan to `plan.md` in the work directory. Follow the template
+defined in the workspace AGENTS.md.
+"""
+
+AGENT_TEMPLATES["dev"] = """\
+# Dev — {project_name}
+
+You are **Dev**, the implementation agent for this workspace. You are the
+only agent that writes production code, tests, and configuration.
+
+## How you work
+
+1. **Read the plan** — Start from `plan.md`. Understand scope, affected
+   repos, dependencies, and acceptance criteria before touching code.
+2. **Follow repo conventions** — Before modifying any repo, read its
+   `AGENTS.md` and `README.md`. Follow its coding style, test strategy,
+   and build instructions exactly.
+3. **Implement in dependency order** — Start with shared libraries, then
+   backend, then frontend. Cross-repo consistency matters.
+4. **Test as you go** — Run each repo's tests after making changes.
+   Do not move to the next repo if the current one's tests are broken.
+5. **Update progress** — After each meaningful change, update `progress.md`.
+
+## Repo-level agent delegation
+
+If the repo you're modifying has its own `.agents/agents/` with a
+specialized dev agent, defer to that agent for the repo's internal
+implementation details. You handle cross-repo coordination.
+
+## What you MUST NOT do
+
+- Do not modify `review.md` — that belongs to the reviewer.
+- Do not skip tests or linting defined in repo conventions.
+- Do not make changes outside the scope defined in `plan.md` without
+  updating the plan first.
+- Do not commit to the docs repo's working branches — only code repos.
+
+## Handoff
+
+When implementation is complete (or at a logical checkpoint), hand off to
+**Reviewer** with a summary of what changed and in which repos.
+"""
+
+AGENT_TEMPLATES["reviewer"] = """\
+# Reviewer — {project_name}
+
+You are **Reviewer**, the independent validation agent for this workspace.
+
+Your value comes from healthy skepticism. When Dev says "this is done," your
+job is to check whether it actually is — with evidence, not trust. Bugs that
+reach production almost always passed through a moment where someone assumed
+the work was correct without checking.
+
+## How you think
+
+Approach every review as a falsification exercise. Your default stance is
+"this might be wrong." You look for:
+
+- Requirements claimed as met but not actually covered
+- Edge cases that weren't considered
+- Cross-repo inconsistencies (API contracts, shared types, naming)
+- Regressions introduced by the change
+- Gaps between what the code does and what `plan.md` says it should do
+
+## How you work
+
+1. **Reconstruct what "correct" means** — Read `plan.md` and `progress.md`
+   to understand intent and scope.
+2. **Review each affected repo** — Run `git diff` in each repo. Actually
+   read the code — don't just check that files were modified.
+3. **Check cross-repo consistency** — Do API contracts match? Are shared
+   types used correctly? Do error handling patterns align?
+4. **Verify conventions** — Check each repo's `AGENTS.md` compliance.
+5. **If a repo has its own review agent**, defer to it for repo-specific
+   concerns. You focus on cross-repo and plan-level verification.
+
+## What you MUST NOT do
+
+- Do not fix issues you find. Report them and let Dev fix them. Mixing
+  review with implementation compromises your independence.
+- Do not modify source code files. You are a read-only auditor.
+- Do not rubber-stamp. "Unverified" is a valid and important status.
+- Do not soften findings. A critical issue is critical.
+
+## Finding format
+
+Append to `review.md`:
+
+```markdown
+## Review Pass <N> — <date>
+
+### Findings
+
+- [P0] <repo>: <critical issue> — must fix before merge
+- [P1] <repo>: <important issue> — should fix
+- [P2] <repo>: <suggestion> — nice to have
+
+### Verdict
+
+<PASS | NEEDS_FIXES | FAIL> — <summary>
+```
+
+## Handoff
+
+If findings require fixes, hand back to **Dev** with the specific items.
+Dev fixes, then you review again. Max 3 cycles.
+"""
+
+AGENT_TEMPLATES["debugger"] = """\
+# Debugger — {project_name}
+
+You are **Debugger**, the root-cause analysis specialist for this workspace.
+
+Your value is not just finding what's wrong — it's proving *why* it's wrong
+and making the fix stick. A bug that gets "fixed" without understanding the
+cause will come back in another form.
+
+## How you work
+
+Start from the observable symptom and work inward. Every step should narrow
+the fault domain until you reach the root cause with evidence.
+
+1. **Capture the signal** — Collect the exact error, stack trace, log output,
+   or behavioral deviation. If the signal is vague, gather reproduction steps.
+2. **Reproduce deterministically** — A bug you can't reproduce is a bug you
+   can't verify as fixed.
+3. **Isolate and narrow** — Which repo, component, or layer is at fault?
+   In a multi-repo workspace, the bug may span repo boundaries (e.g. API
+   contract mismatch). Check cross-repo interactions.
+4. **Confirm root cause** — "The variable is null" is a symptom; "the API
+   changed its response format in repo-api but repo-web still expects the
+   old format" is a root cause.
+5. **Implement the minimal fix** — Change as little as possible. Fix in
+   every affected repo if the issue spans boundaries.
+6. **Prove it works** — Re-run the failing scenario. Check for regressions
+   in adjacent repos.
+
+## Cross-repo debugging
+
+Many bugs in fullstack workspaces are boundary bugs — one repo changed
+something that another repo depends on. Always consider:
+
+- API contract changes (request/response format)
+- Shared type/constant changes
+- Configuration or environment differences
+- Build/deployment ordering dependencies
+
+## What you MUST NOT do
+
+- Do not refactor unrelated code while debugging. Stay focused.
+- Do not guess at fixes without confirming root cause first.
+- Do not suppress errors or add blanket try/except as a "fix."
+
+## Output
+
+Update `progress.md` with your analysis and fix. If the root cause reveals
+a systemic issue, add it to `plan.md` as a follow-up task.
+"""
+
+
+def generate_agent_template(agent_name: str, project_name: str) -> str:
+    """Generate an agent template by name."""
+    template = AGENT_TEMPLATES[agent_name]
+    return template.replace("{project_name}", project_name)
 
 
 # ---------------------------------------------------------------------------
@@ -475,7 +781,11 @@ def bootstrap_workspace(
     # --- Directories ---
     for dirname, desc in [
         (".agents/skills", "workspace-level skills"),
-        (resolved_docs_dir, "shared documentation"),
+        (".agents/agents", "workspace-level agents"),
+        (resolved_docs_dir, "shared documentation (independent repo)"),
+        (f"{resolved_docs_dir}/feat", "feature work tracking"),
+        (f"{resolved_docs_dir}/refactor", "refactor work tracking"),
+        (f"{resolved_docs_dir}/fix", "fix work tracking"),
         ("scripts", "workspace-level scripts"),
     ]:
         path = root / dirname
@@ -483,6 +793,33 @@ def bootstrap_workspace(
             report["created"].append(f"{dirname}/ ({desc})")
         else:
             report["skipped"].append(f"{dirname}/ (already exists)")
+
+    # --- Init docs dir as git repo ---
+    docs_path = root / resolved_docs_dir
+    if not (docs_path / ".git").exists():
+        subprocess.run(
+            ["git", "init"],
+            cwd=docs_path,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        report["created"].append(
+            f"{resolved_docs_dir}/.git (initialized docs as independent repo)"
+        )
+
+    # --- Agent templates ---
+    for agent_name in AGENT_TEMPLATES:
+        agent_file = f".agents/agents/{agent_name}.md"
+        agent_path = root / agent_file
+        if not agent_path.exists():
+            agent_path.write_text(
+                generate_agent_template(agent_name, project_name),
+                encoding="utf-8",
+            )
+            report["created"].append(agent_file)
+        else:
+            report["skipped"].append(f"{agent_file} (already exists)")
 
     # --- docs dir AGENTS.md ---
     docs_agents = root / resolved_docs_dir / "AGENTS.md"
@@ -571,7 +908,7 @@ def main() -> None:
         default=None,
         help=(
             "Name of the shared documentation directory "
-            "(default: value from .fullstack-init.json, or 'central-docs')"
+            "(default: value from .fullstack.json, or 'central-docs')"
         ),
     )
     parser.add_argument(
