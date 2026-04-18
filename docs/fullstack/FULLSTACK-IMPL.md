@@ -62,18 +62,23 @@ flowchart TD
     M1 -- Yes, different branch --> M3[git checkout branch]
     M1 -- No --> M4[git checkout default + pull + checkout -b]
 
-    M2 & M3 & M4 --> N[Implementation loop]
+    M2 & M3 & M4 --> N[Implementation loop — serial, in dependency order]
 
     N --> N1[Read repo AGENTS.md + README.md]
-    N1 --> N2{Repo has .agents/agents/?}
+    N1 --> N1a[Activate environment: venv / nvm / bundler]
+    N1a --> N2{Repo has .agents/agents/?}
     N2 -- Yes --> N3[Use repo-level agents]
     N2 -- No --> N4[Use workspace agents]
     N3 & N4 --> N5[Implement changes]
-    N5 --> N6[Run repo tests]
-    N6 --> N7[Update progress.md]
-    N7 --> N8{More repos?}
-    N8 -- Yes --> N1
-    N8 -- No --> O[Review]
+    N5 --> N6[Lint + type-check]
+    N6 --> N7[Run repo tests]
+    N7 --> N7a{Tests pass?}
+    N7a -- No --> N7b[Fix failures, re-run]
+    N7b --> N7
+    N7a -- Yes --> N8[Commit + update progress.md]
+    N8 --> N9{More repos?}
+    N9 -- Yes --> N1
+    N9 -- No --> O[Review]
 
     O --> O1[Reviewer reads plan + progress + git diff]
     O1 --> O2[Append findings to review.md]
@@ -141,7 +146,74 @@ left off.
 If a repo has its own `.agents/agents/`, prefer those for repo-specific
 concerns. Workspace agents handle cross-repo coordination.
 
+### R9 — Serial per-repo orchestration
+
+Repos are modified one at a time, in dependency order (upstream → services
+→ consumers). Parallel per-repo execution is only allowed when the planner
+explicitly confirms zero shared interfaces. Default is always serial.
+
+### R10 — Repo convention compliance
+
+Before touching any repo, read its AGENTS.md and README.md. Follow its
+coding conventions, commit message format, and architecture constraints.
+These are mandatory, not advisory.
+
+### R11 — Environment management
+
+Detect and activate repo-specific environments before running any commands:
+venv/conda for Python, nvm for Node, bundler for Ruby, etc. If a venv
+doesn't exist but is documented, create it per README instructions.
+
+### R12 — Mandatory test execution
+
+After implementing changes in a repo, run its full validation pipeline:
+lint → type-check → tests → build. Fix all failures caused by your changes
+before moving to the next repo. Pre-existing failures are documented but
+do not block progress.
+
+### R13 — Dependency-ordered implementation
+
+The plan must establish a dependency order for repos (shared libs first,
+consumers last). Implementation follows this exact order. Downstream repos
+can rely on upstream changes being committed and validated.
+
 ## Agent Coordination Model
+
+### Orchestration strategy: serial per-repo
+
+Repos are modified **one at a time, in dependency order** (upstream first,
+consumers last). This is the default, even when repos appear independent.
+
+**Rationale (correctness > speed):**
+
+1. **Cross-repo dependencies are the norm.** Shared types → API contracts →
+   consumers. Parallel agents can't see each other's WIP, leading to
+   contract mismatches that are expensive to fix.
+2. **Context accumulates naturally.** What was built in repo A informs
+   what needs to happen in repo B — serial flow preserves this.
+3. **Shared state conflicts.** Multiple agents writing to `progress.md`
+   concurrently creates race conditions.
+4. **Debugging is simpler.** Sequential execution gives a clean audit trail.
+
+**Exception**: If the planner explicitly confirms that repos have ZERO
+shared interfaces, ZERO data model overlap, and ZERO dependency edges,
+they MAY be implemented in parallel. The planner must document this
+independence in `plan.md`.
+
+### Per-repo implementation loop
+
+For each repo (serial, in dependency order):
+
+```
+Read AGENTS.md + README.md
+  → Activate environment (venv, nvm, etc.)
+    → Implement changes
+      → Lint / type-check / test (fix if broken)
+        → Commit (follow repo's commit convention)
+          → Update progress.md
+```
+
+### Sequence diagram
 
 ```mermaid
 sequenceDiagram
@@ -154,22 +226,28 @@ sequenceDiagram
 
     User->>Skill: Implement this feature (+ links)
     Skill->>Skill: Gather context (Jira, Confluence, Figma, GitHub)
-    Skill->>User: Confirm repos and branch name
+    Skill->>User: Confirm repos, branch, dependency order
     User->>Skill: Confirmed
 
     alt Complex work
         Skill->>Planner: Analyze and create plan.md
-        Planner-->>Skill: plan.md written
+        Planner->>Planner: Determine dependency order
+        Planner-->>Skill: plan.md with ordered repos
     end
 
-    Skill->>Dev: Implement per plan.md
-    Dev->>Dev: Code repo-1 (follow repo AGENTS.md)
-    Dev->>Dev: Update progress.md
-    Dev->>Dev: Code repo-2
-    Dev->>Dev: Update progress.md
-    Dev-->>Skill: Implementation complete
+    loop For each repo (in dependency order)
+        Skill->>Dev: Read repo AGENTS.md + README.md
+        Dev->>Dev: Activate environment (venv/nvm/etc.)
+        Dev->>Dev: Implement changes
+        Dev->>Dev: Run lint + type-check + tests
+        alt Tests fail
+            Dev->>Dev: Fix failures, re-run until pass
+        end
+        Dev->>Dev: Commit (repo's convention)
+        Dev->>Dev: Update progress.md
+    end
 
-    Skill->>Reviewer: Review all changes
+    Skill->>Reviewer: Review all repos
     Reviewer->>Reviewer: git diff in each repo
     Reviewer->>Reviewer: Cross-repo consistency check
     Reviewer-->>Skill: Append findings to review.md
@@ -221,7 +299,7 @@ to the AI agent following the workspace agents' guidelines.
 |---------|---------------|----------------|
 | When | Before any work | For each work item |
 | Creates | Workspace infrastructure | Work-specific plans + branches |
-| Modifies | AGENTS.md, .gitignore | Source code in repos |
+| Modifies | AGENTS.md, README.md | Source code in repos |
 | Docs dir | Creates + git init | Reads + writes work tracking docs |
 | Agents | Creates templates | Follows their guidelines |
 | Idempotent | Yes (re-run safe) | Per-work-item (one dir per item) |
@@ -238,13 +316,16 @@ to the AI agent following the workspace agents' guidelines.
 - [x] R6 — Work tracking (plan.md, progress.md, review.md)
 - [x] R7 — Resume capability
 - [x] R8 — Repo-level agent delegation
+- [x] R9 — Serial per-repo orchestration with parallel exception
+- [x] R10 — Repo convention compliance (AGENTS.md/README.md mandatory)
+- [x] R11 — Environment management (venv, nvm, bundler, etc.)
+- [x] R12 — Mandatory test execution (lint → type-check → test → build)
+- [x] R13 — Dependency-ordered implementation
 - [x] Plugin wrapper + marketplace.json entry
 - [x] Description validation under 1024 limit
 
 ### Planned / Ideas
 
-- [ ] Parallel implementation: use sub-agents to work on independent repos
-  simultaneously
 - [ ] Auto-PR creation: after review passes, auto-create PRs in each repo
   using `gh-operations` skill
 - [ ] Dependency graph visualization: generate a mermaid diagram of cross-repo
@@ -252,6 +333,18 @@ to the AI agent following the workspace agents' guidelines.
 - [ ] Template customization: let users define their own plan.md template
 
 ## Changelog
+
+### 2026-04-18 — v3: Serial orchestration, environment management, test rigor
+
+- Added serial per-repo orchestration as default strategy with rationale
+- Parallel per-repo only when planner explicitly confirms zero dependencies
+- Added environment management (venv, nvm, bundler, conda, Docker)
+- Mandatory validation pipeline: lint → type-check → tests → build
+- Test failure handling: fix own failures, document pre-existing ones
+- Dependency-ordered implementation: upstream repos first, consumers last
+- Plan.md template now includes Depends On column for repos
+- Enhanced cross-repo review checklist (API contracts, shared types, env vars)
+- Detailed error handling for environment issues and contract mismatches
 
 ### 2026-04-18 — v2: Work types, branch management, four agents, Figma
 

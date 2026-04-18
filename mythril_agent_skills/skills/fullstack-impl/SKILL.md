@@ -167,11 +167,17 @@ Derive from the requirement. Use lowercase-hyphenated format:
 
 <Summary of requirements from gathered context>
 
-## Affected Repositories
+## Affected Repositories (in dependency order)
 
-| # | Repository | Changes Needed | Priority |
-|---|-----------|---------------|----------|
-| 1 | repo-name | Description of changes | P0/P1/P2 |
+| # | Repository | Changes Needed | Depends On | Priority |
+|---|-----------|---------------|-----------|----------|
+| 1 | shared-lib | Add theme types | — | P0 |
+| 2 | api | Add preference endpoint | shared-lib | P0 |
+| 3 | web | Add toggle component | shared-lib, api | P1 |
+
+Repos MUST be listed in dependency order: upstream first (shared libs,
+data models), then services (api, backend), then consumers (web, ios,
+android). The implementation phase follows this exact order.
 
 ## Implementation Plan
 
@@ -230,32 +236,117 @@ Review findings will be appended here by the reviewer agent.
 
 ## Step 6 — Implement
 
+### Orchestration model
+
+Implementation follows a **serial per-repo** strategy: repos are modified
+one at a time, in the dependency order established in `plan.md`. This is
+the default — even when the work seems parallelizable.
+
+**Why serial is the default:**
+
+1. Cross-repo dependencies are the norm (shared types → API → consumers).
+   Parallel agents can't see each other's WIP, leading to contract mismatches.
+2. The developer accumulates cross-repo context naturally — what was built
+   in repo A informs what needs to happen in repo B.
+3. Shared docs (`progress.md`) can't be safely written concurrently.
+4. Debugging failures is simpler with a clean sequential audit trail.
+
+**Exception — truly independent repos**: If the planner explicitly confirms
+that two or more repos have ZERO shared interfaces, ZERO data model overlap,
+and ZERO dependency edges, they MAY be implemented in parallel via sub-agents.
+The planner must document this independence in `plan.md`. When in doubt,
+default to serial.
+
+### Agent roles during implementation
+
 Read `.agents/agents/planner.md` first if the work is complex enough to
 warrant planning (multi-phase, multiple repos, unclear approach). For
 straightforward work, proceed directly to implementation.
 
-For each affected repository, in dependency order:
-
-### Before touching a repo
-
-1. **Read the repo's `AGENTS.md`** (if it exists) — follow its conventions
-2. **Read the repo's `README.md`** — understand build/test/lint instructions
-3. **Check for repo-level agents** at `<repo>/.agents/agents/` — if the repo
-   has its own specialized agents, prefer using them for that repo's changes
-
-### Implementation rules
-
-- Follow each repo's own coding conventions (from AGENTS.md/README.md)
-- Run repo-specific tests/linting as specified in their docs
-- Commit and test each repo independently
-- After completing changes in each repo, update `progress.md` in the docs repo
-
-### Agent delegation
+| Agent | When | What |
+|-------|------|------|
+| Planner | Complex work | Analyze requirements, create `plan.md` |
+| Developer | Always | Implement code, fix tests, the only agent that writes code |
+| Reviewer | After impl | Review diffs, cross-repo consistency, append `review.md` |
+| Debugger | `fix/` type | Root-cause analysis before implementing the fix |
 
 - **Workspace agents** (`.agents/agents/`) handle cross-repo coordination
 - **Repo-level agents** (`<repo>/.agents/agents/`) handle repo-internal concerns
 - When both exist, repo-level agents take priority for that repo's code
-- For `fix/` work type, use the **debugger** agent for root-cause analysis
+
+### Per-repo implementation loop
+
+For each affected repository, in the dependency order from `plan.md`:
+
+#### 6a. Read repo conventions
+
+1. **Read `AGENTS.md`** (if it exists) — coding style, commit format,
+   architecture constraints. These are MANDATORY to follow.
+2. **Read `README.md`** — build commands, test commands, lint commands,
+   environment setup instructions.
+3. **Check for repo-level agents** at `<repo>/.agents/agents/` — if the
+   repo has specialized agents, prefer them for that repo's changes.
+
+#### 6b. Set up repo environment
+
+Before running any build, test, or lint commands, activate the repo's
+required environment:
+
+| Indicator | Action |
+|-----------|--------|
+| `venv/`, `.venv/`, or `requirements.txt` / `pyproject.toml` with Python deps | Activate: `source <repo>/.venv/bin/activate` or `source <repo>/venv/bin/activate`. If venv doesn't exist but is documented, create it per README instructions. |
+| `.nvmrc` or `.node-version` | Run `nvm use` in the repo directory |
+| `Gemfile` | Run `bundle install` if needed |
+| `go.mod` | Go modules — typically no setup needed |
+| Dockerfile / docker-compose | Follow README for containerized dev workflow |
+
+**Rules:**
+- ALWAYS check if the repo documents a specific environment setup in its
+  README or AGENTS.md. Follow those instructions exactly.
+- If a venv/environment exists but isn't activated, activate it before
+  running tests or linting.
+- If the repo requires environment setup and you can't determine how,
+  ask the user.
+
+#### 6c. Implement changes
+
+- Follow the repo's coding conventions strictly (from AGENTS.md/README.md)
+- Write code that is consistent with the repo's existing patterns
+- If the repo has a specific commit message format, follow it
+
+#### 6d. Validate changes
+
+Run all validation steps the repo requires, in this order:
+
+1. **Lint / format** — if the repo has a linter configured (eslint,
+   ruff, black, prettier, etc.), run it and fix any issues
+2. **Type check** — if the repo uses type checking (mypy, pyright, tsc),
+   run it and fix any issues
+3. **Tests** — run the repo's test suite as documented in README/AGENTS.md:
+   - Find the exact test command (e.g. `pytest`, `npm test`, `go test ./...`)
+   - Run it in the correct environment (venv activated, correct node version)
+   - If tests fail:
+     a. Read the failure output carefully
+     b. Determine if the failure is caused by your changes or was pre-existing
+     c. Fix test failures caused by your changes
+     d. If existing tests need updating due to intentional behavior changes,
+        update them
+     e. If pre-existing failures unrelated to your changes exist, note them
+        in `progress.md` but do not try to fix them
+   - Re-run tests after fixes until they pass
+4. **Build** — if the repo has a build step, verify it succeeds
+
+**IMPORTANT**: Do NOT skip validation steps. If a repo has tests, you MUST
+run them. If tests fail due to your changes, you MUST fix them before
+moving to the next repo.
+
+#### 6e. Commit and update progress
+
+- Commit changes in the repo (follow the repo's commit message convention)
+- Update `progress.md` in the docs repo with:
+  - What was implemented in this repo
+  - Test results (pass/fail, number of tests)
+  - Any issues encountered and how they were resolved
 
 ## Step 7 — Review
 
@@ -263,11 +354,16 @@ After implementation is complete (or at logical checkpoints):
 
 1. **Read `.agents/agents/reviewer.md`** for review guidelines
 2. For each affected repo, review the changes:
-   - Run `git diff` in the repo to see all changes
+   - Run `git diff <default-branch>...<feature-branch>` to see all changes
    - Check against the repo's `AGENTS.md` conventions
-   - Verify cross-repo consistency (API contracts, shared types, etc.)
-3. If a repo has its own review agent, defer to it for repo-specific concerns
-4. **Append findings to `review.md`** in the work directory
+   - Verify tests pass (re-run in the correct environment)
+3. **Cross-repo consistency checks** (critical for multi-repo work):
+   - API contracts: request/response shapes match between producer and consumer
+   - Shared types: type definitions in shared-lib match usage in all consumers
+   - Environment variables: any new env vars are documented in all affected repos
+   - Database migrations: schema changes are compatible across services
+4. If a repo has its own review agent, defer to it for repo-specific concerns
+5. **Append findings to `review.md`** in the work directory
 
 ### Review finding format
 
@@ -325,12 +421,21 @@ user starts a new session wanting to continue.
 
 ## Error Handling
 
-- If a repo's tests fail after changes, fix the tests before moving to the
-  next repo
-- If cross-repo consistency checks fail (e.g. API contract mismatch), pause
-  and notify the user
-- If implementation hits an unexpected blocker, update `progress.md` with
-  the blocker details and ask the user for guidance
+- **Test failures**: Fix test failures caused by your changes before moving
+  to the next repo. Re-run tests in the correct environment (venv, nvm, etc.)
+  until they pass. Do not skip to the next repo with broken tests.
+- **Environment issues**: If a venv is missing, node version is wrong, or
+  dependencies can't be installed, check the repo's README for setup
+  instructions. If setup fails, note the issue in `progress.md` and ask
+  the user.
+- **Cross-repo contract mismatch**: If a downstream repo's tests fail because
+  an upstream repo's API changed in a way that wasn't anticipated, go back
+  and fix the upstream repo first, then re-validate downstream.
+- **Pre-existing failures**: If a repo's tests were already failing before
+  your changes, document the pre-existing failures in `progress.md` but do
+  not block on them.
+- **Unexpected blockers**: Update `progress.md` with blocker details and ask
+  the user for guidance.
 
 ## Requirements
 
