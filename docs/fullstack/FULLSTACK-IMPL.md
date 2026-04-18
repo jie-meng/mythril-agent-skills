@@ -118,6 +118,8 @@ even when confident.
 - Pull latest before branching
 - Resume detection: skip checkout if already on the correct branch
 - Naming: `<type>/<JIRA-KEY>/<Title>` or `<type>/<Title>`
+- Multiple Jira tickets: match each ticket to its repo by platform/role,
+  each repo gets its own branch name with its own Jira key
 - Docs repo does NOT use feature branches
 
 ### R5 — Agent coordination
@@ -270,6 +272,10 @@ sequenceDiagram
 
 ## Branch Naming Examples
 
+### Single Jira ticket or no ticket
+
+All affected repos share the same branch name:
+
 | Scenario | Branch name |
 |----------|-------------|
 | Jira feature | `feat/XYZ-706/Import-Export` |
@@ -277,6 +283,24 @@ sequenceDiagram
 | Jira refactor | `refactor/XYZ-707/Refine-Models` |
 | No-Jira feature | `feat/Dark-Mode-Toggle` |
 | No-Jira fix | `fix/Login-Crash-On-Empty-Password` |
+
+### Multiple Jira tickets (cross-platform work)
+
+Each repo gets the branch name matching its platform's ticket. The agent
+matches tickets to repos by cross-referencing the ticket's title,
+description, labels, and components with each repo's role/platform/tech
+stack from the workspace `AGENTS.md` table (and the repo's own AGENTS.md /
+README.md if needed).
+
+| Repo | Jira ticket | Branch name |
+|------|-------------|-------------|
+| shared-lib/ | — | `feat/Dark-Mode-Toggle` |
+| api/ | BE-450 | `feat/BE-450/Dark-Mode-Toggle` |
+| android/ | MOBILE-301 | `feat/MOBILE-301/Dark-Mode-Toggle` |
+| ios/ | MOBILE-302 | `feat/MOBILE-302/Dark-Mode-Toggle` |
+
+All branches share the same descriptive title (derived from the work name).
+Repos without a matching ticket use the no-Jira format.
 
 ## File Inventory
 
@@ -342,7 +366,9 @@ to the AI agent following the workspace agents' guidelines.
 - Mandatory validation pipeline: lint → type-check → tests → build
 - Test failure handling: fix own failures, document pre-existing ones
 - Dependency-ordered implementation: upstream repos first, consumers last
-- Plan.md template now includes Depends On column for repos
+- Plan.md template now includes Branch and Depends On columns per repo
+- Per-repo branch names when multiple Jira tickets target different platforms
+- Ticket-to-repo matching by platform/role from workspace AGENTS.md
 - Enhanced cross-repo review checklist (API contracts, shared types, env vars)
 - Detailed error handling for environment issues and contract mismatches
 

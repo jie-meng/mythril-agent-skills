@@ -80,19 +80,23 @@ are confident. Format:
 ```
 Based on the requirements, I plan to modify these repositories:
 
-  1. web/ — Add new dashboard component for dark mode toggle
+  1. shared-lib/ — Add theme constants to shared types
+     Branch: feat/Dark-Mode-Toggle
   2. api/ — Add user preference endpoint for theme setting
-  3. shared-lib/ — Add theme constants to shared types
+     Branch: feat/BE-450/Dark-Mode-Toggle
+  3. android/ — Add dark mode toggle to settings screen
+     Branch: feat/MOBILE-301/Dark-Mode-Toggle
+  4. ios/ — Add dark mode toggle to settings screen
+     Branch: feat/MOBILE-302/Dark-Mode-Toggle
 
 Work type: feat
-Branch name: feat/XYZ-706/Dark-Mode-Toggle
 
 Does this look correct? You can:
 - Confirm to proceed
 - Remove repos that shouldn't be changed
 - Add repos I missed
-- Change the work type or branch name
-- Type the repo directory names yourself
+- Change the work type or branch names
+- Reassign a Jira ticket to a different repo
 ```
 
 **Do NOT proceed until the user confirms.** If the user corrects you, update
@@ -108,6 +112,40 @@ your plan accordingly and confirm again.
 | Without Jira | `<type>/<Title-Hyphenated>` | `refactor/Refine-Models` |
 
 The descriptive part uses **Title-Case-With-Hyphens**.
+
+### Multiple Jira tickets → per-repo branch names
+
+When the user provides **multiple Jira tickets** (common in cross-platform
+work), different repos may get **different branch names** based on which
+ticket belongs to which platform.
+
+**How to match tickets to repos:**
+
+1. Read each Jira ticket's title, description, labels, and component fields
+   (already gathered in Step 1).
+2. Read each repo's identity from the workspace `AGENTS.md` repo table
+   (role, tech stack, description) and, if needed, the repo's own
+   `AGENTS.md` and `README.md` for more context.
+3. Cross-reference: match each ticket to the repo whose role/platform best
+   fits the ticket's content. Do NOT hardcode keyword lists — use your
+   understanding of both sides to make the match.
+4. If a ticket is clearly cross-cutting and doesn't map to a single repo,
+   assign it to the most relevant shared/infra repo.
+5. If matching is ambiguous, ask the user.
+
+**Result**: Each repo gets its own branch name with its own Jira key:
+
+| Repo | Jira ticket | Branch name |
+|------|-------------|-------------|
+| android/ | MOBILE-301 | `feat/MOBILE-301/Dark-Mode-Toggle` |
+| ios/ | MOBILE-302 | `feat/MOBILE-302/Dark-Mode-Toggle` |
+| api/ | BE-450 | `feat/BE-450/Dark-Mode-Toggle` |
+| shared-lib/ | — (no ticket) | `feat/Dark-Mode-Toggle` |
+
+**Rules:**
+- Repos without a matching ticket use the no-Jira format (type + title only)
+- All branches share the same descriptive title (the work name)
+- The `plan.md` must record each repo's specific branch name
 
 ### Creating branches in affected repos
 
@@ -169,11 +207,11 @@ Derive from the requirement. Use lowercase-hyphenated format:
 
 ## Affected Repositories (in dependency order)
 
-| # | Repository | Changes Needed | Depends On | Priority |
-|---|-----------|---------------|-----------|----------|
-| 1 | shared-lib | Add theme types | — | P0 |
-| 2 | api | Add preference endpoint | shared-lib | P0 |
-| 3 | web | Add toggle component | shared-lib, api | P1 |
+| # | Repository | Branch | Changes Needed | Depends On | Priority |
+|---|-----------|--------|---------------|-----------|----------|
+| 1 | shared-lib | feat/Dark-Mode-Toggle | Add theme types | — | P0 |
+| 2 | api | feat/BE-450/Dark-Mode-Toggle | Add preference endpoint | shared-lib | P0 |
+| 3 | android | feat/MOBILE-301/Dark-Mode-Toggle | Add toggle screen | shared-lib, api | P1 |
 
 Repos MUST be listed in dependency order: upstream first (shared libs,
 data models), then services (api, backend), then consumers (web, ios,
