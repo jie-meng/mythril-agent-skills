@@ -191,6 +191,14 @@ The plan must establish a dependency order for repos (shared libs first,
 consumers last). Implementation follows this exact order. Downstream repos
 can rely on upstream changes being committed and validated.
 
+### R14 — Language-aware documentation
+
+All generated work tracking documents (plan.md, progress.md, review.md)
+must match the language of the user's prompt. If the prompt contains any
+Chinese characters, use Chinese templates; otherwise English. Each
+invocation detects language independently — mixed languages across work
+items is acceptable. Branch names and directory names always remain English.
+
 ## Agent Coordination Model
 
 ### Orchestration strategy: serial per-repo
@@ -358,6 +366,7 @@ to the AI agent following the workspace agents' guidelines.
 - [x] R11 — Environment management (venv, nvm, bundler, etc.)
 - [x] R12 — Mandatory test execution (lint → type-check → test → build)
 - [x] R13 — Dependency-ordered implementation
+- [x] R14 — Language-aware documentation (EN/ZH based on user prompt)
 - [x] Plugin wrapper + marketplace.json entry
 - [x] Description validation under 1024 limit
 
@@ -370,6 +379,18 @@ to the AI agent following the workspace agents' guidelines.
 - [ ] Template customization: let users define their own plan.md template
 
 ## Changelog
+
+### 2026-04-18 — v5: Language-aware docs, mandatory review, finalize fix
+
+- Added R14: language-aware documentation — detect Chinese chars in user
+  prompt → generate plan.md/progress.md/review.md in Chinese; otherwise
+  English. Each invocation detects independently; mixed languages across
+  work items is acceptable
+- Full bilingual templates for all work tracking documents and review
+  finding format
+- Step 7 (Review) now explicitly marked as MANDATORY — do NOT skip
+- Step 8 (Finalize) now explicitly requires updating plan.md status to
+  Done and committing docs repo (both were missed in first real usage)
 
 ### 2026-04-18 — v4: Workspace validation gate
 

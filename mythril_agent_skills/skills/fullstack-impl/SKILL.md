@@ -52,6 +52,36 @@ This gate exists because `fullstack-impl` relies on the workspace structure
 config in fullstack.json) to function correctly. Running it outside a
 workspace would produce errors or incorrect behavior.
 
+## Document Language Selection
+
+All generated work tracking documents (plan.md, progress.md, review.md)
+and user-facing messages MUST match the language of the user's prompt.
+
+### Detection rule
+
+1. If the user **explicitly requests a language** → use that language.
+2. If the user's prompt contains **any Chinese characters** → use Chinese.
+3. Otherwise → use English (default).
+
+This rule applies independently to **each invocation**. Different work
+items in the same docs repo may have different languages — that is fine.
+Each run strictly follows the language of that run's prompt.
+
+### What this affects
+
+- **plan.md** — section headers, field labels, content
+- **progress.md** — section headers, status labels, changelog entries
+- **review.md** — header text
+- **Confirmation messages** — the repo/branch confirmation in Step 3
+- **Final summary** — the completion report in Step 8
+
+### What this does NOT affect
+
+- **Branch names** — always English (Title-Case-With-Hyphens)
+- **Work directory names** — always lowercase-hyphenated English
+- **Markdown structure** — same template structure regardless of language
+- **Git commit messages** — follow each repo's own convention
+
 ## Step 1 — Gather Context
 
 Before doing ANY implementation work, gather all available context.
@@ -221,6 +251,12 @@ Derive from the requirement. Use lowercase-hyphenated format:
 
 ### plan.md template
 
+Use the Chinese template when the detected language is Chinese, otherwise
+use the English template. The Markdown structure is identical — only the
+human-readable labels and headers differ.
+
+**English:**
+
 ```markdown
 # <Work Name>
 
@@ -264,7 +300,53 @@ android). The implementation phase follows this exact order.
 <Known risks, things to clarify>
 ```
 
+**Chinese:**
+
+```markdown
+# <工作名称>
+
+**来源**：<Jira 链接 / 用户需求 / Confluence 页面>
+**类型**：feat | refactor | fix
+**分支**：<branch-name>
+**创建时间**：<date>
+**状态**：规划中
+
+## 需求
+
+<根据采集到的上下文整理的需求摘要>
+
+## 涉及仓库（按依赖顺序）
+
+| # | 仓库 | 分支 | 变更内容 | 依赖 | 优先级 |
+|---|------|------|---------|------|--------|
+| 1 | shared-lib | feat/Dark-Mode-Toggle | 添加主题类型定义 | — | P0 |
+| 2 | api | feat/BE-450/Dark-Mode-Toggle | 添加偏好设置接口 | shared-lib | P0 |
+| 3 | android | feat/MOBILE-301/Dark-Mode-Toggle | 添加切换页面 | shared-lib, api | P1 |
+
+仓库必须按依赖顺序列出：上游优先（共享库、数据模型），然后是服务层
+（api、backend），最后是消费者（web、ios、android）。实现阶段严格按此顺序。
+
+## 实现计划
+
+### 阶段一：<名称>
+- [ ] repo-x 中的任务 1
+- [ ] repo-y 中的任务 2
+
+### 阶段二：<名称>
+- [ ] repo-x 中的任务 3
+
+## 依赖关系
+
+<跨仓库依赖、顺序约束>
+
+## 风险 / 待确认问题
+
+<已知风险、需要澄清的事项>
+```
+
 ### progress.md template
+
+**English:**
 
 ```markdown
 # Progress: <Work Name>
@@ -293,12 +375,51 @@ android). The implementation phase follows this exact order.
 - Created branches in: <list>
 ```
 
+**Chinese:**
+
+```markdown
+# 进度：<工作名称>
+
+**最后更新**：<date>
+**整体状态**：进行中
+**分支**：<branch-name>
+
+## 已完成
+
+（暂无）
+
+## 进行中
+
+- [ ] <当前步骤>
+
+## 阻塞
+
+（无）
+
+## 变更记录
+
+### <date> — 启动
+- 创建工作计划
+- 确定涉及仓库：<list>
+- 创建分支：<list>
+```
+
 ### review.md — create with just a header:
+
+**English:**
 
 ```markdown
 # Review: <Work Name>
 
 Review findings will be appended here by the reviewer agent.
+```
+
+**Chinese:**
+
+```markdown
+# 审查：<工作名称>
+
+审查结果将由 reviewer agent 追加到此文件。
 ```
 
 ## Step 6 — Implement
@@ -415,9 +536,12 @@ moving to the next repo.
   - Test results (pass/fail, number of tests)
   - Any issues encountered and how they were resolved
 
-## Step 7 — Review
+## Step 7 — Review (MANDATORY)
 
-After implementation is complete (or at logical checkpoints):
+**Do NOT skip this step.** After implementation is complete in all repos,
+you MUST perform a review pass before finalizing. This catches cross-repo
+inconsistencies, convention violations, and bugs that per-repo validation
+misses.
 
 1. **Read `.agents/agents/reviewer.md`** for review guidelines
 2. For each affected repo, review the changes:
@@ -434,6 +558,8 @@ After implementation is complete (or at logical checkpoints):
 
 ### Review finding format
 
+**English:**
+
 ```markdown
 ## Review Pass <N> — <date>
 
@@ -444,6 +570,22 @@ After implementation is complete (or at logical checkpoints):
 - [P2] <repo>: <suggestion> — nice to have
 
 ### Verdict
+
+<PASS | NEEDS_FIXES | FAIL> — <summary>
+```
+
+**Chinese:**
+
+```markdown
+## 第 <N> 轮审查 — <date>
+
+### 发现
+
+- [P0] <repo>：<严重问题> — 合并前必须修复
+- [P1] <repo>：<重要问题> — 应当修复
+- [P2] <repo>：<建议> — 可选改进
+
+### 结论
 
 <PASS | NEEDS_FIXES | FAIL> — <summary>
 ```
@@ -461,12 +603,13 @@ If the review finds issues:
 After review passes:
 
 1. **Update `progress.md`**:
-   - Set overall status to "Complete"
+   - Set `**Overall status**` (or `**整体状态**`) to "Complete" (or "已完成")
    - Add final changelog entry with summary
 2. **Update `plan.md`**:
-   - Set status to "Done"
-   - Check off all completed tasks
-3. **Report to user**: Summarize what was implemented across which repos
+   - Set `**Status**` (or `**状态**`) to "Done" (or "已完成")
+   - Check off all completed tasks (`- [x]`)
+3. **Commit** the docs repo with all tracking doc updates
+4. **Report to user**: Summarize what was implemented across which repos
 
 ## Resuming Previous Work
 
