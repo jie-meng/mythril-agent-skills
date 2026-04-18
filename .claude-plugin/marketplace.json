@@ -317,6 +317,24 @@
         "multilingual"
       ],
       "strict": false
+    },
+    {
+      "name": "fullstack-init",
+      "source": "./plugins/fullstack-init",
+      "description": "Initialize or update a multi-repo fullstack workspace with unified AI context, auto-generated repo table, and smart merge",
+      "version": "0.2.10",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "development",
+      "tags": [
+        "workspace",
+        "fullstack",
+        "multi-repo",
+        "init"
+      ],
+      "strict": false
     }
   ]
 }
