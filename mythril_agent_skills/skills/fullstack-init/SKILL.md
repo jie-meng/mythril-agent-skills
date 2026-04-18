@@ -57,10 +57,28 @@ The name is configurable (defaults to `central-docs`) and stored in
 ```bash
 python3 SKILL_PATH/scripts/workspace_init.py                         # first run
 python3 SKILL_PATH/scripts/workspace_init.py --docs-dir my-docs      # custom docs dir
+python3 SKILL_PATH/scripts/workspace_init.py --lang zh               # Chinese README
 python3 SKILL_PATH/scripts/workspace_init.py                         # re-run: safe refresh
 python3 SKILL_PATH/scripts/workspace_init.py --dry-run               # preview only
 python3 SKILL_PATH/scripts/workspace_init.py --json                  # JSON output
 ```
+
+### README language selection
+
+The generated `README.md` includes a usage guide for the fullstack skills.
+Its language is controlled by the `--lang` flag:
+
+- `--lang zh` — Chinese
+- `--lang en` — English (default)
+
+**How the AI agent MUST choose the language**:
+
+1. Examine the user's prompt that triggered this skill.
+2. If the prompt contains **any Chinese characters** → pass `--lang zh`.
+3. Otherwise → pass `--lang en` (or omit `--lang`).
+
+This applies to every invocation, including re-runs. The README is
+regenerated each time, so the language always reflects the latest run.
 
 ## Workspace Agents
 

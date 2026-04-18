@@ -27,9 +27,14 @@ Without a structured approach:
 
 ```mermaid
 flowchart TD
-    A[User invokes fullstack-impl] --> B{fullstack.json exists?}
-    B -- No --> FAIL[Inform user: run fullstack-init first]
-    B -- Yes --> C[Read fullstack.json, AGENTS.md]
+    A[User invokes fullstack-impl] --> B{Workspace validation}
+    B --> B1{fullstack.json exists?}
+    B --> B2{AGENTS.md exists?}
+    B --> B3{.agents/ directory exists?}
+    B1 -- No --> FAIL[Inform user: not a valid workspace]
+    B2 -- No --> FAIL
+    B3 -- No --> FAIL
+    B1 & B2 & B3 -- All Yes --> C[Read fullstack.json, AGENTS.md]
 
     C --> D{Links in user prompt?}
     D -- Jira --> D1[Read via jira skill]
@@ -96,6 +101,13 @@ flowchart TD
 ```
 
 ## Requirements
+
+### R0 — Workspace validation gate
+
+Before any work, verify the current directory is a valid fullstack workspace
+by checking for ALL three markers: `fullstack.json`, `AGENTS.md`, and
+`.agents/` directory. If any are missing, stop and inform the user to
+`cd` to the workspace root or run `fullstack-init` first.
 
 ### R1 — Context gathering before implementation
 
@@ -332,6 +344,7 @@ to the AI agent following the workspace agents' guidelines.
 
 ### Done
 
+- [x] R0 — Workspace validation gate (fullstack.json + AGENTS.md + .agents/)
 - [x] R1 — Context gathering (Jira, Confluence, GitHub, Figma)
 - [x] R2 — Work type classification (feat, refactor, fix)
 - [x] R3 — Mandatory user confirmation
@@ -357,6 +370,13 @@ to the AI agent following the workspace agents' guidelines.
 - [ ] Template customization: let users define their own plan.md template
 
 ## Changelog
+
+### 2026-04-18 — v4: Workspace validation gate
+
+- Added R0: mandatory workspace validation before any work
+- Check for three markers: fullstack.json, AGENTS.md, .agents/ directory
+- If any are missing, stop with a clear error message listing what's missing
+- Updated workflow diagram to show three-way validation check
 
 ### 2026-04-18 — v3: Serial orchestration, environment management, test rigor
 

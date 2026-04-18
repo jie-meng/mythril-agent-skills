@@ -124,6 +124,13 @@ respect `.gitignore` and hide ignored files from their search/indexing.
 A workspace `.gitignore` that ignores subdirectory repos would make those
 repos invisible to AI agents, defeating the purpose of the workspace.
 
+### R10 — Language-aware README
+
+The generated `README.md` contains a usage guide for the fullstack skills
+(initialization, feature development, resuming work, workspace structure).
+Its language is determined by the user's prompt: if the prompt contains
+Chinese characters, generate in Chinese; otherwise English.
+
 ## Solution
 
 ### Architecture: single idempotent script
@@ -170,7 +177,8 @@ debugger.md) but adapted for cross-repo fullstack context. Key principles:
 | `_extract_first_description` | Yes | Parse first paragraph from README.md |
 | `build_repos_table` | Yes | Generate Markdown table |
 | `generate_agents_md` | Yes | Generate full AGENTS.md for workspace |
-| `generate_readme` | Yes | Generate README.md |
+| `detect_language` | Yes | Detect 'zh' or 'en' from text (Chinese char scan) |
+| `generate_readme` | Yes | Generate README.md with usage guide (EN/ZH) |
 | `generate_docs_agents_md` | Yes | Generate AGENTS.md for docs directory |
 | `generate_agent_template` | Yes | Generate agent file by name |
 | `bootstrap_workspace` | Side-effect | Orchestrator: calls all of the above |
@@ -188,6 +196,7 @@ debugger.md) but adapted for cross-repo fullstack context. Key principles:
 - [x] R7 — Work tracking (feat/, refactor/, fix/)
 - [x] R8 — Docs as independent git repo
 - [x] R9 — No workspace-level git (AI agent compatibility)
+- [x] R10 — Language-aware README with usage guide (EN/ZH)
 - [x] Plugin wrappers + marketplace.json entries
 - [x] Description validation under 1024 limit
 
@@ -197,6 +206,18 @@ debugger.md) but adapted for cross-repo fullstack context. Key principles:
 - [ ] Interactive TUI mode for repo selection
 
 ## Changelog
+
+### 2026-04-18 — v6: Language-aware README with usage guide
+
+- README.md is no longer a one-liner — it contains a full usage guide
+  covering workspace initialization, feature development, resuming
+  previous work, workspace structure, and work tracking
+- Language auto-detection: `--lang zh` generates Chinese README, `--lang en`
+  (default) generates English. AI agent selects based on user prompt language
+- Added `detect_language()` pure function (Chinese character range scan)
+- `generate_readme()` now accepts `docs_dir` and `lang` parameters
+- SKILL.md updated with `--lang` usage and language selection rules for
+  the AI agent
 
 ### 2026-04-18 — v5: Remove workspace git
 

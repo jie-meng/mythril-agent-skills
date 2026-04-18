@@ -394,6 +394,101 @@ class TestFormatReport:
 
 
 # ---------------------------------------------------------------------------
+# detect_language
+# ---------------------------------------------------------------------------
+
+
+class TestDetectLanguage:
+    """Tests for workspace_init.detect_language."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from workspace_init import detect_language
+        self.func = detect_language
+
+    def test_english_text(self):
+        assert self.func("Initialize this workspace") == "en"
+
+    def test_chinese_text(self):
+        assert self.func("初始化这个工作区") == "zh"
+
+    def test_mixed_text(self):
+        assert self.func("Initialize 初始化") == "zh"
+
+    def test_empty_string(self):
+        assert self.func("") == "en"
+
+    def test_numbers_and_symbols(self):
+        assert self.func("123 !@# >>>") == "en"
+
+    def test_single_chinese_char(self):
+        assert self.func("run 一下") == "zh"
+
+
+# ---------------------------------------------------------------------------
+# generate_readme
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateReadme:
+    """Tests for workspace_init.generate_readme."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from workspace_init import generate_readme
+        self.func = generate_readme
+
+    def test_english_default(self):
+        result = self.func("my-project", "central-docs")
+        assert "# my-project" in result
+        assert "Quick Start" in result
+        assert "central-docs" in result
+
+    def test_english_explicit(self):
+        result = self.func("proj", "docs", lang="en")
+        assert "Quick Start" in result
+        assert "快速上手" not in result
+
+    def test_chinese(self):
+        result = self.func("proj", "docs", lang="zh")
+        assert "快速上手" in result
+        assert "Quick Start" not in result
+
+    def test_custom_docs_dir_in_english(self):
+        result = self.func("proj", "my-docs", lang="en")
+        assert "my-docs" in result
+        assert "central-docs" not in result
+
+    def test_custom_docs_dir_in_chinese(self):
+        result = self.func("proj", "my-docs", lang="zh")
+        assert "my-docs" in result
+
+    def test_contains_init_instructions_en(self):
+        result = self.func("proj", "docs", lang="en")
+        assert "fullstack-init" in result
+        assert "fullstack-impl" in result
+
+    def test_contains_init_instructions_zh(self):
+        result = self.func("proj", "docs", lang="zh")
+        assert "fullstack-init" in result
+        assert "fullstack-impl" in result
+
+    def test_contains_resume_section_en(self):
+        result = self.func("proj", "docs", lang="en")
+        assert "resume" in result.lower() or "Resume" in result or "continue" in result.lower()
+
+    def test_contains_resume_section_zh(self):
+        result = self.func("proj", "docs", lang="zh")
+        assert "继续" in result
+
+    def test_contains_workspace_structure(self):
+        result = self.func("proj", "docs", lang="en")
+        assert "fullstack.json" in result
+        assert "AGENTS.md" in result
+        assert ".agents/" in result
+
+
+# ---------------------------------------------------------------------------
 # Integration: bootstrap_workspace
 # ---------------------------------------------------------------------------
 
@@ -538,3 +633,21 @@ class TestBootstrapWorkspace:
         config = self.load_config(tmp_path)
         assert config["docs_dir"] == "my-docs"
         assert (tmp_path / "my-docs").exists()
+
+    def test_readme_english_by_default(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path)
+        readme = (tmp_path / "README.md").read_text()
+        assert "Quick Start" in readme
+
+    def test_readme_chinese(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path, lang="zh")
+        readme = (tmp_path / "README.md").read_text()
+        assert "快速上手" in readme
+
+    def test_readme_uses_docs_dir(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path, docs_dir="my-docs")
+        readme = (tmp_path / "README.md").read_text()
+        assert "my-docs" in readme
