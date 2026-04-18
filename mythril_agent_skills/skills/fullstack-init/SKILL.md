@@ -2,9 +2,9 @@
 name: fullstack-init
 description: |
   Initialize or update a multi-repo fullstack workspace. Every run is a full
-  refresh — AGENTS.md, .gitignore, README.md, and agent templates are
-  regenerated. Only fullstack.json (config) and user directories (docs,
-  scripts, .agents/skills) are preserved.
+  refresh — AGENTS.md, README.md, and agent templates are regenerated. Only
+  fullstack.json (config) and user directories (docs, scripts,
+  .agents/skills) are preserved. Workspace root is NOT a git repo.
 license: Apache-2.0
 ---
 
@@ -23,7 +23,7 @@ or just to fix a broken workspace.
 
 | Category | What happens on every run |
 |----------|--------------------------|
-| **Regenerated** | `AGENTS.md`, `README.md`, `.gitignore`, `.agents/agents/*.md` |
+| **Regenerated** | `AGENTS.md`, `README.md`, `.agents/agents/*.md` |
 | **Preserved** | `fullstack.json`, `<docs-dir>/`, `scripts/`, `.agents/skills/` |
 | **Create-only** | `<docs-dir>/` + git init, `scripts/`, `.agents/skills/` — created if missing, never touched if present |
 
@@ -90,7 +90,6 @@ For persistent custom agents, use `.agents/skills/` or repo-level agents.
 project-workspace/
 ├── AGENTS.md                     # Regenerated each run
 ├── README.md                     # Regenerated each run
-├── .gitignore                    # Regenerated each run
 ├── fullstack.json                # Only persistent state
 ├── .agents/
 │   ├── agents/                   # Regenerated each run

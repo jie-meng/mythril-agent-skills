@@ -16,19 +16,17 @@ open their AI coding assistant at this root so it can access all repos at once.
 Pain points:
 
 1. No unified AGENTS.md at the root — the AI has no cross-repo context.
-2. No workspace-level `.gitignore` — workspace infrastructure files aren't
-   version-controlled because the root isn't a git repo.
-3. No shared documentation directory — cross-cutting docs have no canonical home.
-4. When new repos are added, the context must be manually updated.
-5. No workspace-level agent definitions for coordinated dev/review workflows.
-6. No convention for tracking work (features, refactors, fixes) across repos.
+2. No shared documentation directory — cross-cutting docs have no canonical home.
+3. When new repos are added, the context must be manually updated.
+4. No workspace-level agent definitions for coordinated dev/review workflows.
+5. No convention for tracking work (features, refactors, fixes) across repos.
 
 ## Design Philosophy
 
 **Every run is a full refresh.** Generated files (AGENTS.md, README.md,
-.gitignore, agent templates) are overwritten on every invocation. The only
-persistent state is `fullstack.json`. User content lives in preserved
-directories (docs, scripts, .agents/skills).
+agent templates) are overwritten on every invocation. The only persistent
+state is `fullstack.json`. User content lives in preserved directories
+(docs, scripts, .agents/skills).
 
 This eliminates:
 - Merge logic (marker-based table replacement)
@@ -60,12 +58,7 @@ flowchart TD
     J --> K[Analyze each repo: README, AGENTS.md, tech stack, role]
     K --> L[Build repos table]
 
-    L --> M{Workspace .git exists?}
-    M -- No --> N[git init workspace]
-    M -- Yes --> O[Skip]
-
-    N --> P[Save fullstack.json]
-    O --> P
+    L --> P[Save fullstack.json]
 
     P --> Q[Create-only directories]
     Q --> Q1[.agents/skills/]
@@ -78,9 +71,8 @@ flowchart TD
 
     P --> R["REGENERATE all scaffolding"]
     R --> R1[".agents/agents/*.md (4 agents)"]
-    R --> R2[.gitignore]
-    R --> R3[AGENTS.md]
-    R --> R4[README.md]
+    R --> R2[AGENTS.md]
+    R --> R3[README.md]
 
     R --> Y[Report: created / regenerated]
     Q --> Y
@@ -90,8 +82,8 @@ flowchart TD
 
 ### R1 — One-command init
 
-Running a single script bootstraps all infrastructure: AGENTS.md, .gitignore,
-docs dir (as independent repo), agents, skills, scripts, README, .git.
+Running a single script bootstraps all infrastructure: AGENTS.md, README.md,
+docs dir (as independent repo), agents, skills, scripts.
 
 ### R2 — Full refresh on re-run
 
@@ -121,7 +113,16 @@ Creates `feat/`, `refactor/`, `fix/` directories in the docs repo.
 
 ### R8 — Docs as independent repo
 
-The docs directory has its own `.git` and is NOT tracked by workspace git.
+The docs directory has its own `.git` — it is the only git repo managed
+by the workspace initializer.
+
+### R9 — No workspace-level git
+
+The workspace root does NOT have `.git` or `.gitignore`. All major AI
+agents (Cursor, Claude Code, Copilot, Codex, Gemini CLI, OpenCode, etc.)
+respect `.gitignore` and hide ignored files from their search/indexing.
+A workspace `.gitignore` that ignores subdirectory repos would make those
+repos invisible to AI agents, defeating the purpose of the workspace.
 
 ## Solution
 
@@ -133,7 +134,7 @@ The docs directory has its own `.git` and is NOT tracked by workspace git.
 
 | Category | Files | Behavior |
 |----------|-------|----------|
-| **Regenerated** | AGENTS.md, README.md, .gitignore, .agents/agents/*.md | Overwritten every run |
+| **Regenerated** | AGENTS.md, README.md, .agents/agents/*.md | Overwritten every run |
 | **Create-only** | fullstack.json, docs-dir/, docs-dir/AGENTS.md, scripts/, .agents/skills/ | Created if missing, never touched after |
 
 ### Config persistence: `fullstack.json`
@@ -141,17 +142,11 @@ The docs directory has its own `.git` and is NOT tracked by workspace git.
 Priority: CLI `--docs-dir` > saved config > default `"central-docs"`.
 This is the **only** persistent state the script reads.
 
-### .gitignore strategy
-
-The script scans all non-hidden subdirectories and ignores everything except
-`WORKSPACE_TRACKED_DIRS` (`.agents/`, `scripts/`). This catches git repos,
-non-repo tool directories, docs dir — everything.
-
 ### Docs as independent git repo
 
-The docs directory is `git init`'d as its own repo. The workspace `.gitignore`
-ignores it by name. The docs dir AGENTS.md is create-only (user may customize
-documentation conventions).
+The docs directory is `git init`'d as its own repo — the only git repo
+managed at workspace level. The docs dir AGENTS.md is create-only (user
+may customize documentation conventions).
 
 ### Agent quality
 
@@ -176,8 +171,6 @@ debugger.md) but adapted for cross-repo fullstack context. Key principles:
 | `build_repos_table` | Yes | Generate Markdown table |
 | `generate_agents_md` | Yes | Generate full AGENTS.md for workspace |
 | `generate_readme` | Yes | Generate README.md |
-| `discover_ignored_dirs` | Yes | Scan all subdirs, exclude workspace infra |
-| `generate_gitignore` | Yes | Generate .gitignore from ignored dirs list |
 | `generate_docs_agents_md` | Yes | Generate AGENTS.md for docs directory |
 | `generate_agent_template` | Yes | Generate agent file by name |
 | `bootstrap_workspace` | Side-effect | Orchestrator: calls all of the above |
@@ -194,22 +187,32 @@ debugger.md) but adapted for cross-repo fullstack context. Key principles:
 - [x] R6 — Four agent templates (planner, developer, reviewer, debugger)
 - [x] R7 — Work tracking (feat/, refactor/, fix/)
 - [x] R8 — Docs as independent git repo
+- [x] R9 — No workspace-level git (AI agent compatibility)
 - [x] Plugin wrappers + marketplace.json entries
-- [x] 67 tests, all passing
 - [x] Description validation under 1024 limit
 
 ### Planned / Ideas
 
 - [ ] Deep analysis mode: scan project structure for richer descriptions
 - [ ] Interactive TUI mode for repo selection
-- [ ] Git hooks for auto-refresh
 
 ## Changelog
 
+### 2026-04-18 — v5: Remove workspace git
+
+- **Breaking**: workspace root is no longer a git repo. No `.git`, no
+  `.gitignore`. All major AI agents respect `.gitignore` and hide ignored
+  files from search/indexing — a workspace `.gitignore` that ignores
+  subdirectory repos would make their files invisible to AI agents.
+- Removed: `generate_gitignore`, `discover_ignored_dirs`,
+  `WORKSPACE_TRACKED_DIRS`
+- Removed: workspace-level `git init`
+- Docs directory remains an independent git repo (unchanged)
+
 ### 2026-04-18 — v4: Full refresh model
 
-- **Breaking**: every run now regenerates AGENTS.md, README.md, .gitignore,
-  and agent templates from scratch. No more merge/migration logic.
+- **Breaking**: every run now regenerates AGENTS.md, README.md, and
+  agent templates from scratch. No more merge/migration logic.
 - Removed: marker-based table merging (`merge_repos_table`)
 - Removed: `needs_gitignore_update` detection
 - Removed: `LEGACY_AGENT_RENAMES` migration mechanism
@@ -220,7 +223,6 @@ debugger.md) but adapted for cross-repo fullstack context. Key principles:
 ### 2026-04-18 — v3: Docs independence, work types, four agents
 
 - Docs dir is now an independent git repo (its own `.git`)
-- Workspace `.gitignore` ignores all subdirs except infra
 - Work tracking: `feat/`, `refactor/`, `fix/`
 - Four agents: planner, developer, reviewer, debugger
 - Agent quality improved based on opencode agent patterns
