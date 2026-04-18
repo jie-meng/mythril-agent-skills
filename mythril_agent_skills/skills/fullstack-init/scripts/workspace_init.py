@@ -2,17 +2,13 @@
 """Initialize or update a multi-repo fullstack workspace.
 
 Scans a root directory for git repositories, analyzes their README.md and
-AGENTS.md files, and creates/updates a root-level AGENTS.md with a unified
-project table. Also bootstraps .gitignore, shared docs dir (as its own
-independent repo), .agents/, and scripts/ directories as needed.
+AGENTS.md files, and generates workspace-level infrastructure: AGENTS.md,
+.gitignore, agent templates, and shared docs directory.
 
-The shared docs directory name is user-configurable (defaults to
-"central-docs") and persisted in fullstack.json so re-runs pick it
-up automatically.
-
-Designed for idempotent operation: running it multiple times preserves
-user-added content while updating the auto-generated repo table and merging
-new repos.
+Design: every run is a full refresh. AGENTS.md, .gitignore, README.md, and
+agent templates are regenerated from scratch. The only persistent state is
+fullstack.json (stores docs_dir). The docs directory and user directories
+(scripts/, .agents/skills/) are created if missing but never overwritten.
 
 Uses only Python 3.10+ standard library (zero dependencies).
 """
@@ -21,11 +17,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import re
 import subprocess
 import sys
 from pathlib import Path
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -34,10 +29,11 @@ from pathlib import Path
 CONFIG_FILENAME = "fullstack.json"
 LEGACY_CONFIG_FILENAME = ".fullstack-init.json"
 
-MARKER_START = "<!-- fullstack-init:repos-table:start -->"
-MARKER_END = "<!-- fullstack-init:repos-table:end -->"
+DEFAULT_DOCS_DIR = "central-docs"
 
-FIXED_INFRA_DIRS = {
+WORKSPACE_TRACKED_DIRS = {".agents", "scripts"}
+
+INFRA_DIRS = {
     ".agents",
     ".git",
     "scripts",
@@ -45,13 +41,9 @@ FIXED_INFRA_DIRS = {
     "__pycache__",
 }
 
-WORKSPACE_TRACKED_DIRS = {".agents", "scripts"}
-
-DEFAULT_DOCS_DIR = "central-docs"
-
 
 # ---------------------------------------------------------------------------
-# Config persistence
+# Config persistence (fullstack.json is the ONLY persistent state)
 # ---------------------------------------------------------------------------
 
 def load_config(root: Path) -> dict[str, str]:
@@ -65,8 +57,7 @@ def load_config(root: Path) -> dict[str, str]:
     legacy_path = root / LEGACY_CONFIG_FILENAME
     if legacy_path.exists():
         try:
-            data = json.loads(legacy_path.read_text(encoding="utf-8"))
-            return data
+            return json.loads(legacy_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             return {}
     return {}
@@ -84,35 +75,15 @@ def save_config(root: Path, config: dict[str, str]) -> None:
         legacy_path.unlink()
 
 
-def resolve_docs_dir(
-    root: Path,
-    cli_docs_dir: str | None,
-) -> str:
-    """Determine the docs directory name from CLI arg, saved config, or default.
-
-    Priority:
-    1. Explicit CLI argument (--docs-dir)
-    2. Previously saved value in fullstack.json
-    3. Default: "central-docs"
-    """
+def resolve_docs_dir(root: Path, cli_docs_dir: str | None) -> str:
+    """Determine docs dir: CLI arg > saved config > default."""
     if cli_docs_dir:
         return cli_docs_dir
-
     config = load_config(root)
     saved = config.get("docs_dir")
     if saved:
         return saved
-
     return DEFAULT_DOCS_DIR
-
-
-# ---------------------------------------------------------------------------
-# Infrastructure dir set (dynamic based on docs dir)
-# ---------------------------------------------------------------------------
-
-def get_infrastructure_dirs(docs_dir: str) -> set[str]:
-    """Return the full set of infrastructure directory names to exclude."""
-    return FIXED_INFRA_DIRS | {docs_dir}
 
 
 # ---------------------------------------------------------------------------
@@ -126,14 +97,14 @@ def is_git_repo(path: Path) -> bool:
 
 def discover_repos(root: Path, docs_dir: str) -> list[Path]:
     """Find all immediate subdirectory git repos under root."""
-    infra_dirs = get_infrastructure_dirs(docs_dir)
+    exclude = INFRA_DIRS | {docs_dir}
     repos = []
     for entry in sorted(root.iterdir()):
         if not entry.is_dir():
             continue
         if entry.name.startswith("."):
             continue
-        if entry.name in infra_dirs:
+        if entry.name in exclude:
             continue
         if is_git_repo(entry):
             repos.append(entry)
@@ -240,14 +211,12 @@ def analyze_repo(repo_path: Path) -> dict[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# AGENTS.md generation and merging
+# Content generation (all pure functions — no side effects)
 # ---------------------------------------------------------------------------
 
 def build_repos_table(repos: list[dict[str, str]]) -> str:
     """Build a Markdown table from repo metadata."""
     lines = [
-        MARKER_START,
-        "",
         "| # | Repository | Role | Tech Stack | Description |",
         "|---|-----------|------|-----------|-------------|",
     ]
@@ -258,17 +227,15 @@ def build_repos_table(repos: list[dict[str, str]]) -> str:
             f"| {repo['tech_stack']} "
             f"| {repo['description']} |"
         )
-    lines.append("")
-    lines.append(MARKER_END)
     return "\n".join(lines)
 
 
-def generate_fresh_agents_md(
+def generate_agents_md(
     project_name: str,
     repos_table: str,
     docs_dir: str,
 ) -> str:
-    """Generate a full AGENTS.md for a new workspace."""
+    """Generate the workspace-level AGENTS.md (always from scratch)."""
     return f"""\
 # {project_name}
 
@@ -332,23 +299,23 @@ Branch names use Title-Case-With-Hyphens for the descriptive part.
 
 ```
 {project_name}/
-├── AGENTS.md          # This file — workspace-level AI guidelines
-├── README.md          # Human-readable project overview
+├── AGENTS.md          # This file (regenerated by fullstack-init)
+├── README.md          # Human-readable project overview (regenerated)
 ├── .gitignore         # Ignores all subdirs except .agents/ and scripts/
-├── fullstack.json     # Workspace config (docs dir, etc.)
+├── fullstack.json     # Workspace config — the only persistent state
 ├── .agents/
-│   ├── agents/        # Workspace-level sub-agents
-│   │   ├── planner.md # Plans before implementation
-│   │   ├── dev.md     # Implements code across repos
-│   │   ├── reviewer.md# Reviews changes, records findings
-│   │   └── debugger.md# Root-cause analysis for fixes
-│   └── skills/        # Custom skills for this workspace
-├── scripts/           # Workspace-level automation scripts
-├── {docs_dir + "/":<23s}# Shared docs (independent git repo)
-│   ├── AGENTS.md      # Documentation management guidelines
-│   ├── feat/          # Feature work tracking
-│   ├── refactor/      # Refactor work tracking
-│   └── fix/           # Fix work tracking
+│   ├── agents/        # Workspace-level sub-agents (regenerated)
+│   │   ├── planner.md
+│   │   ├── developer.md
+│   │   ├── reviewer.md
+│   │   └── debugger.md
+│   └── skills/        # Custom skills for this workspace (preserved)
+├── scripts/           # Workspace-level automation scripts (preserved)
+├── {docs_dir + "/":<23s}# Shared docs (independent git repo, preserved)
+│   ├── AGENTS.md
+│   ├── feat/
+│   ├── refactor/
+│   └── fix/
 ├── web/               # ← Independent git repo (example)
 ├── api/               # ← Independent git repo (example)
 └── ios/               # ← Independent git repo (example)
@@ -356,39 +323,10 @@ Branch names use Title-Case-With-Hyphens for the descriptive part.
 """
 
 
-def merge_repos_table(existing_content: str, new_table: str) -> str:
-    """Replace the repo table between markers, preserving everything else."""
-    pattern = re.compile(
-        re.escape(MARKER_START) + r".*?" + re.escape(MARKER_END),
-        re.DOTALL,
-    )
-    if pattern.search(existing_content):
-        return pattern.sub(new_table, existing_content)
-    sections = existing_content.split("\n## ")
-    for i, section in enumerate(sections):
-        if section.strip().lower().startswith("repositor"):
-            heading_line = section.split("\n", 1)[0]
-            rest = section.split("\n", 1)[1] if "\n" in section else ""
-            old_table_match = re.search(
-                r"\|.*?\n\|[-| ]+\n(?:\|.*?\n)*", rest
-            )
-            if old_table_match:
-                new_rest = (
-                    rest[: old_table_match.start()]
-                    + new_table
-                    + "\n"
-                    + rest[old_table_match.end() :]
-                )
-                sections[i] = heading_line + "\n" + new_rest
-                return "\n## ".join(sections)
-            sections[i] = heading_line + "\n\n" + new_table + "\n" + rest
-            return "\n## ".join(sections)
-    return existing_content.rstrip("\n") + "\n\n## Repositories\n\n" + new_table + "\n"
+def generate_readme(project_name: str) -> str:
+    """Generate the workspace README.md."""
+    return f"# {project_name}\n\nMulti-repo fullstack workspace.\n"
 
-
-# ---------------------------------------------------------------------------
-# .gitignore management
-# ---------------------------------------------------------------------------
 
 def discover_ignored_dirs(root: Path, docs_dir: str) -> list[str]:
     """Find all subdirectories that should be ignored by workspace git.
@@ -404,7 +342,7 @@ def discover_ignored_dirs(root: Path, docs_dir: str) -> list[str]:
         if entry.name in WORKSPACE_TRACKED_DIRS:
             continue
         ignored.append(entry.name)
-    if docs_dir not in [e for e in ignored]:
+    if docs_dir not in ignored:
         ignored.append(docs_dir)
         ignored.sort()
     return ignored
@@ -415,8 +353,9 @@ def generate_gitignore(ignored_dirs: list[str]) -> str:
     lines = [
         "# =============================================================================",
         "# Fullstack workspace .gitignore",
-        "# Generated by fullstack-init — workspace infra is tracked normally.",
+        "# Generated by fullstack-init — regenerated on every run.",
         "# All subdirectories below are ignored (independent repos, tools, etc.).",
+        "# Workspace infra (.agents/, scripts/) is tracked normally.",
         "# =============================================================================",
         "",
         "# Subdirectories (independent repos, docs, tools, etc.)",
@@ -435,24 +374,6 @@ def generate_gitignore(ignored_dirs: list[str]) -> str:
     ]
     return "\n".join(lines)
 
-
-def needs_gitignore_update(gitignore_path: Path, ignored_dirs: list[str]) -> bool:
-    """Check if .gitignore is missing, has stale entries, or lacks new dirs."""
-    if not gitignore_path.exists():
-        return True
-    content = gitignore_path.read_text(encoding="utf-8", errors="replace")
-    expected = {f"/{name}/" for name in ignored_dirs}
-    existing = set()
-    for line in content.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("/") and stripped.endswith("/"):
-            existing.add(stripped)
-    return existing != expected
-
-
-# ---------------------------------------------------------------------------
-# Docs directory AGENTS.md
-# ---------------------------------------------------------------------------
 
 def generate_docs_agents_md(docs_dir: str) -> str:
     """Generate an AGENTS.md for the shared docs directory."""
@@ -566,11 +487,11 @@ Write the plan to `plan.md` in the work directory. Follow the template
 defined in the workspace AGENTS.md.
 """
 
-AGENT_TEMPLATES["dev"] = """\
-# Dev — {project_name}
+AGENT_TEMPLATES["developer"] = """\
+# Developer — {project_name}
 
-You are **Dev**, the implementation agent for this workspace. You are the
-only agent that writes production code, tests, and configuration.
+You are **Developer**, the implementation agent for this workspace. You are
+the only agent that writes production code, tests, and configuration.
 
 ## How you work
 
@@ -610,10 +531,10 @@ AGENT_TEMPLATES["reviewer"] = """\
 
 You are **Reviewer**, the independent validation agent for this workspace.
 
-Your value comes from healthy skepticism. When Dev says "this is done," your
-job is to check whether it actually is — with evidence, not trust. Bugs that
-reach production almost always passed through a moment where someone assumed
-the work was correct without checking.
+Your value comes from healthy skepticism. When Developer says "this is done,"
+your job is to check whether it actually is — with evidence, not trust. Bugs
+that reach production almost always passed through a moment where someone
+assumed the work was correct without checking.
 
 ## How you think
 
@@ -640,8 +561,8 @@ Approach every review as a falsification exercise. Your default stance is
 
 ## What you MUST NOT do
 
-- Do not fix issues you find. Report them and let Dev fix them. Mixing
-  review with implementation compromises your independence.
+- Do not fix issues you find. Report them and let Developer fix them.
+  Mixing review with implementation compromises your independence.
 - Do not modify source code files. You are a read-only auditor.
 - Do not rubber-stamp. "Unverified" is a valid and important status.
 - Do not soften findings. A critical issue is critical.
@@ -666,8 +587,8 @@ Append to `review.md`:
 
 ## Handoff
 
-If findings require fixes, hand back to **Dev** with the specific items.
-Dev fixes, then you review again. Max 3 cycles.
+If findings require fixes, hand back to **Developer** with the specific
+items. Developer fixes, then you review again. Max 3 cycles.
 """
 
 AGENT_TEMPLATES["debugger"] = """\
@@ -732,7 +653,7 @@ def generate_agent_template(agent_name: str, project_name: str) -> str:
 # Infrastructure bootstrapping
 # ---------------------------------------------------------------------------
 
-def ensure_directory(path: Path, description: str) -> bool:
+def ensure_directory(path: Path) -> bool:
     """Create a directory if it doesn't exist. Return True if created."""
     if path.exists():
         return False
@@ -745,7 +666,12 @@ def bootstrap_workspace(
     docs_dir: str | None = None,
     dry_run: bool = False,
 ) -> dict[str, list[str]]:
-    """Bootstrap or update workspace infrastructure. Return a report."""
+    """Bootstrap or update workspace infrastructure. Return a report.
+
+    Design: every run is a full refresh. Generated files are overwritten.
+    Only fullstack.json, docs dir content, scripts/, and .agents/skills/
+    are preserved across runs.
+    """
     report: dict[str, list[str]] = {
         "created": [],
         "updated": [],
@@ -775,120 +701,82 @@ def bootstrap_workspace(
     # --- .git init ---
     if not (root / ".git").exists():
         subprocess.run(
-            ["git", "init"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            check=True,
+            ["git", "init"], cwd=root,
+            capture_output=True, text=True, check=True,
         )
         report["created"].append(".git (initialized workspace git repo)")
 
     # --- Save config ---
     config = load_config(root)
-    old_docs_dir = config.get("docs_dir")
     config["docs_dir"] = resolved_docs_dir
     save_config(root, config)
-    if old_docs_dir != resolved_docs_dir:
-        if old_docs_dir:
-            report["updated"].append(
-                f"{CONFIG_FILENAME} (docs_dir: {old_docs_dir} → {resolved_docs_dir})"
-            )
-        else:
-            report["created"].append(
-                f"{CONFIG_FILENAME} (docs_dir: {resolved_docs_dir})"
-            )
-    else:
-        report["skipped"].append(f"{CONFIG_FILENAME} (unchanged)")
+    report["updated"].append(f"{CONFIG_FILENAME} (docs_dir: {resolved_docs_dir})")
 
-    # --- Directories ---
+    # --- Create-only directories (never overwrite contents) ---
     for dirname, desc in [
         (".agents/skills", "workspace-level skills"),
-        (".agents/agents", "workspace-level agents"),
         (resolved_docs_dir, "shared documentation (independent repo)"),
         (f"{resolved_docs_dir}/feat", "feature work tracking"),
         (f"{resolved_docs_dir}/refactor", "refactor work tracking"),
         (f"{resolved_docs_dir}/fix", "fix work tracking"),
         ("scripts", "workspace-level scripts"),
     ]:
-        path = root / dirname
-        if ensure_directory(path, desc):
+        if ensure_directory(root / dirname):
             report["created"].append(f"{dirname}/ ({desc})")
-        else:
-            report["skipped"].append(f"{dirname}/ (already exists)")
 
     # --- Init docs dir as git repo ---
     docs_path = root / resolved_docs_dir
     if not (docs_path / ".git").exists():
         subprocess.run(
-            ["git", "init"],
-            cwd=docs_path,
-            capture_output=True,
-            text=True,
-            check=True,
+            ["git", "init"], cwd=docs_path,
+            capture_output=True, text=True, check=True,
         )
         report["created"].append(
             f"{resolved_docs_dir}/.git (initialized docs as independent repo)"
         )
 
-    # --- Agent templates ---
-    for agent_name in AGENT_TEMPLATES:
-        agent_file = f".agents/agents/{agent_name}.md"
-        agent_path = root / agent_file
-        if not agent_path.exists():
-            agent_path.write_text(
-                generate_agent_template(agent_name, project_name),
-                encoding="utf-8",
-            )
-            report["created"].append(agent_file)
-        else:
-            report["skipped"].append(f"{agent_file} (already exists)")
-
-    # --- docs dir AGENTS.md ---
-    docs_agents = root / resolved_docs_dir / "AGENTS.md"
+    # --- Docs dir AGENTS.md (create-only — user may customize) ---
+    docs_agents = docs_path / "AGENTS.md"
     if not docs_agents.exists():
         docs_agents.write_text(
             generate_docs_agents_md(resolved_docs_dir), encoding="utf-8"
         )
         report["created"].append(f"{resolved_docs_dir}/AGENTS.md")
-    else:
-        report["skipped"].append(f"{resolved_docs_dir}/AGENTS.md (already exists)")
 
-    # --- .gitignore ---
-    ignored_dirs = discover_ignored_dirs(root, resolved_docs_dir)
-    gitignore_path = root / ".gitignore"
-    if needs_gitignore_update(gitignore_path, ignored_dirs):
-        already_exists = gitignore_path.exists()
-        gitignore_path.write_text(
-            generate_gitignore(ignored_dirs), encoding="utf-8"
+    # === REGENERATED FILES (always overwrite) ===
+
+    # --- .agents/agents/ (full refresh) ---
+    agents_dir = root / ".agents" / "agents"
+    ensure_directory(agents_dir)
+    for agent_name in AGENT_TEMPLATES:
+        agent_path = agents_dir / f"{agent_name}.md"
+        agent_path.write_text(
+            generate_agent_template(agent_name, project_name),
+            encoding="utf-8",
         )
-        action = "updated" if already_exists else "created"
-        report[action].append(".gitignore")
-    else:
-        report["skipped"].append(".gitignore (up to date)")
+    report["updated"].append(
+        f".agents/agents/ ({', '.join(sorted(AGENT_TEMPLATES))})"
+    )
 
-    # --- AGENTS.md ---
-    agents_path = root / "AGENTS.md"
-    if agents_path.exists():
-        existing = agents_path.read_text(encoding="utf-8", errors="replace")
-        updated = merge_repos_table(existing, repos_table)
-        if updated != existing:
-            agents_path.write_text(updated, encoding="utf-8")
-            report["updated"].append("AGENTS.md (repos table refreshed)")
-        else:
-            report["skipped"].append("AGENTS.md (repos table unchanged)")
-    else:
-        content = generate_fresh_agents_md(project_name, repos_table, resolved_docs_dir)
-        agents_path.write_text(content, encoding="utf-8")
-        report["created"].append("AGENTS.md")
+    # --- .gitignore (full refresh) ---
+    ignored_dirs = discover_ignored_dirs(root, resolved_docs_dir)
+    (root / ".gitignore").write_text(
+        generate_gitignore(ignored_dirs), encoding="utf-8"
+    )
+    report["updated"].append(".gitignore")
 
-    # --- README.md ---
-    readme_path = root / "README.md"
-    if not readme_path.exists():
-        readme_content = f"# {project_name}\n\nMulti-repo fullstack workspace.\n"
-        readme_path.write_text(readme_content, encoding="utf-8")
-        report["created"].append("README.md")
-    else:
-        report["skipped"].append("README.md (already exists)")
+    # --- AGENTS.md (full refresh) ---
+    (root / "AGENTS.md").write_text(
+        generate_agents_md(project_name, repos_table, resolved_docs_dir),
+        encoding="utf-8",
+    )
+    report["updated"].append("AGENTS.md")
+
+    # --- README.md (full refresh) ---
+    (root / "README.md").write_text(
+        generate_readme(project_name), encoding="utf-8"
+    )
+    report["updated"].append("README.md")
 
     return report
 
@@ -905,7 +793,7 @@ def format_report(report: dict[str, list[str]]) -> str:
         for item in report["created"]:
             lines.append(f"  + {item}")
     if report["updated"]:
-        lines.append("Updated:")
+        lines.append("Regenerated:")
         for item in report["updated"]:
             lines.append(f"  ~ {item}")
     if report["skipped"]:

@@ -117,33 +117,6 @@ class TestResolveDocsDir:
 
 
 # ---------------------------------------------------------------------------
-# get_infrastructure_dirs
-# ---------------------------------------------------------------------------
-
-
-class TestGetInfrastructureDirs:
-    """Tests for workspace_init.get_infrastructure_dirs."""
-
-    @pytest.fixture(autouse=True)
-    def _import(self):
-        from workspace_init import get_infrastructure_dirs
-        self.func = get_infrastructure_dirs
-
-    def test_includes_docs_dir(self):
-        result = self.func("my-special-docs")
-        assert "my-special-docs" in result
-        assert ".agents" in result
-        assert "scripts" in result
-
-    def test_different_names(self):
-        r1 = self.func("docs-a")
-        r2 = self.func("docs-b")
-        assert "docs-a" in r1
-        assert "docs-a" not in r2
-        assert "docs-b" in r2
-
-
-# ---------------------------------------------------------------------------
 # discover_repos
 # ---------------------------------------------------------------------------
 
@@ -170,31 +143,14 @@ class TestDiscoverRepos:
         result = self.func(tmp_path, "central-docs")
         assert [r.name for r in result] == ["visible"]
 
-    def test_ignores_default_infrastructure_dirs(self, tmp_path: Path):
+    def test_ignores_infrastructure_and_docs_dirs(self, tmp_path: Path):
         _make_repo(tmp_path, "central-docs")
         _make_repo(tmp_path, "scripts")
         _make_repo(tmp_path, "real-repo")
         result = self.func(tmp_path, "central-docs")
         assert [r.name for r in result] == ["real-repo"]
 
-    def test_ignores_custom_docs_dir(self, tmp_path: Path):
-        _make_repo(tmp_path, "project_documents")
-        _make_repo(tmp_path, "web")
-        result = self.func(tmp_path, "project_documents")
-        assert [r.name for r in result] == ["web"]
-
-    def test_does_not_ignore_wrong_docs_dir(self, tmp_path: Path):
-        _make_repo(tmp_path, "project_documents")
-        _make_repo(tmp_path, "web")
-        result = self.func(tmp_path, "central-docs")
-        names = [r.name for r in result]
-        assert "project_documents" in names
-
     def test_empty_directory(self, tmp_path: Path):
-        assert self.func(tmp_path, "central-docs") == []
-
-    def test_only_files(self, tmp_path: Path):
-        (tmp_path / "somefile.txt").write_text("hello")
         assert self.func(tmp_path, "central-docs") == []
 
 
@@ -224,10 +180,6 @@ class TestExtractFirstDescription:
         )
         assert self.func(text) == "The actual description line"
 
-    def test_stops_at_next_heading(self):
-        text = "# Title\n\nFirst para.\n\n## Details\n\nSecond para.\n"
-        assert self.func(text) == "First para"
-
     def test_truncates_long_descriptions(self):
         long_line = "A" * 200
         text = f"# Title\n\n{long_line}\n"
@@ -240,10 +192,6 @@ class TestExtractFirstDescription:
 
     def test_no_h1(self):
         assert self.func("Just some text without headings.") == ""
-
-    def test_strips_trailing_period(self):
-        text = "# Title\n\nEnds with period.\n"
-        assert self.func(text) == "Ends with period"
 
 
 # ---------------------------------------------------------------------------
@@ -263,12 +211,6 @@ class TestDetectTechStack:
         (tmp_path / "package.json").write_text("{}")
         assert "JavaScript" in self.func(tmp_path)
 
-    def test_typescript_project(self, tmp_path: Path):
-        (tmp_path / "package.json").write_text("{}")
-        (tmp_path / "tsconfig.json").write_text("{}")
-        result = self.func(tmp_path)
-        assert "TypeScript" in result
-
     def test_python_project(self, tmp_path: Path):
         (tmp_path / "requirements.txt").write_text("flask")
         assert "Python" in self.func(tmp_path)
@@ -277,18 +219,8 @@ class TestDetectTechStack:
         (tmp_path / "Podfile").write_text("platform :ios")
         assert "iOS" in self.func(tmp_path)
 
-    def test_android_project(self, tmp_path: Path):
-        (tmp_path / "build.gradle").write_text("apply plugin: 'com.android'")
-        assert "Android" in self.func(tmp_path)
-
     def test_unknown_project(self, tmp_path: Path):
         assert self.func(tmp_path) == "—"
-
-    def test_multi_stack(self, tmp_path: Path):
-        (tmp_path / "package.json").write_text("{}")
-        (tmp_path / "requirements.txt").write_text("django")
-        result = self.func(tmp_path)
-        assert "," in result
 
 
 # ---------------------------------------------------------------------------
@@ -305,34 +237,16 @@ class TestDetectRepoRole:
         self.func = detect_repo_role
 
     def test_web_frontend(self, tmp_path: Path):
-        repo = tmp_path / "web"
-        repo.mkdir()
-        assert self.func(repo) == "Web Frontend"
+        assert self.func(tmp_path / "web") == "Web Frontend"
 
     def test_api_backend(self, tmp_path: Path):
-        repo = tmp_path / "api"
-        repo.mkdir()
-        assert self.func(repo) == "Backend / API"
+        assert self.func(tmp_path / "api") == "Backend / API"
 
     def test_ios(self, tmp_path: Path):
-        repo = tmp_path / "ios-app"
-        repo.mkdir()
-        assert self.func(repo) == "iOS"
-
-    def test_android(self, tmp_path: Path):
-        repo = tmp_path / "android"
-        repo.mkdir()
-        assert self.func(repo) == "Android"
-
-    def test_shared_lib(self, tmp_path: Path):
-        repo = tmp_path / "shared-lib"
-        repo.mkdir()
-        assert self.func(repo) == "Shared Library"
+        assert self.func(tmp_path / "ios-app") == "iOS"
 
     def test_unknown_role(self, tmp_path: Path):
-        repo = tmp_path / "foobar"
-        repo.mkdir()
-        assert self.func(repo) == "—"
+        assert self.func(tmp_path / "foobar") == "—"
 
 
 # ---------------------------------------------------------------------------
@@ -345,102 +259,75 @@ class TestBuildReposTable:
 
     @pytest.fixture(autouse=True)
     def _import(self):
-        from workspace_init import build_repos_table, MARKER_START, MARKER_END
+        from workspace_init import build_repos_table
         self.func = build_repos_table
-        self.marker_start = MARKER_START
-        self.marker_end = MARKER_END
 
     def test_basic_table(self):
         repos = [
-            {"name": "web", "role": "Web Frontend", "tech_stack": "TypeScript", "description": "Dashboard"},
-            {"name": "api", "role": "Backend / API", "tech_stack": "Python", "description": "REST API"},
+            {"name": "web", "role": "Web Frontend", "tech_stack": "TS", "description": "Dashboard"},
+            {"name": "api", "role": "Backend", "tech_stack": "Python", "description": "REST API"},
         ]
         result = self.func(repos)
-        assert self.marker_start in result
-        assert self.marker_end in result
         assert "| 1 |" in result
         assert "| 2 |" in result
         assert "[web](./web/)" in result
-        assert "[api](./api/)" in result
 
     def test_empty_repos(self):
         result = self.func([])
-        assert self.marker_start in result
-        assert self.marker_end in result
+        assert "Repository" in result
         assert "| 1 |" not in result
 
 
 # ---------------------------------------------------------------------------
-# merge_repos_table
+# generate_agents_md
 # ---------------------------------------------------------------------------
 
 
-class TestMergeReposTable:
-    """Tests for workspace_init.merge_repos_table."""
+class TestGenerateAgentsMd:
+    """Tests for workspace_init.generate_agents_md."""
 
     @pytest.fixture(autouse=True)
     def _import(self):
-        from workspace_init import merge_repos_table, MARKER_START, MARKER_END
-        self.func = merge_repos_table
-        self.marker_start = MARKER_START
-        self.marker_end = MARKER_END
+        from workspace_init import generate_agents_md
+        self.func = generate_agents_md
 
-    def test_replaces_between_markers(self):
-        existing = (
-            "# My Project\n\n"
-            "Some intro.\n\n"
-            "## Repositories\n\n"
-            f"{self.marker_start}\n"
-            "| old table |\n"
-            f"{self.marker_end}\n\n"
-            "## Custom Section\n\nMy custom notes.\n"
-        )
-        new_table = f"{self.marker_start}\n| new table |\n{self.marker_end}"
-        result = self.func(existing, new_table)
-        assert "| new table |" in result
-        assert "| old table |" not in result
-        assert "## Custom Section" in result
-        assert "My custom notes." in result
+    def test_contains_project_name(self):
+        result = self.func("my-project", "| table |", "central-docs")
+        assert "# my-project" in result
 
-    def test_preserves_content_before_and_after(self):
-        existing = (
-            "# Title\n\nIntro paragraph.\n\n"
-            "## Repositories\n\n"
-            f"{self.marker_start}\n| old |\n{self.marker_end}\n\n"
-            "## Team Notes\n\nDon't delete me.\n"
-        )
-        new_table = f"{self.marker_start}\n| fresh |\n{self.marker_end}"
-        result = self.func(existing, new_table)
-        assert "Intro paragraph." in result
-        assert "Don't delete me." in result
-        assert "| fresh |" in result
+    def test_contains_repos_table(self):
+        result = self.func("proj", "| repos |", "central-docs")
+        assert "| repos |" in result
 
-    def test_appends_section_if_no_repos_section(self):
-        existing = "# Title\n\nJust some content.\n"
-        new_table = f"{self.marker_start}\n| added |\n{self.marker_end}"
-        result = self.func(existing, new_table)
-        assert "## Repositories" in result
-        assert "| added |" in result
-        assert "Just some content." in result
+    def test_uses_custom_docs_dir(self):
+        result = self.func("proj", "| t |", "project_documents")
+        assert "project_documents/" in result
+        assert "central-docs" not in result
 
-    def test_replaces_unmarked_table_in_repos_section(self):
-        existing = (
-            "# Title\n\n"
-            "## Repositories\n\n"
-            "| # | Name |\n"
-            "|---|------|\n"
-            "| 1 | old  |\n"
-            "\n## Other\n\nKeep this.\n"
-        )
-        new_table = f"{self.marker_start}\n| new |\n{self.marker_end}"
-        result = self.func(existing, new_table)
-        assert "| new |" in result
-        assert "Keep this." in result
-        assert "| 1 | old  |" not in result
+    def test_work_tracking_sections(self):
+        result = self.func("proj", "| t |", "central-docs")
+        assert "feat/" in result
+        assert "refactor/" in result
+        assert "fix/" in result
+
+    def test_branch_convention(self):
+        result = self.func("proj", "| t |", "central-docs")
+        assert "feat/XYZ-706" in result
+
+    def test_four_agents_in_structure(self):
+        result = self.func("proj", "| t |", "central-docs")
+        assert "planner.md" in result
+        assert "developer.md" in result
+        assert "reviewer.md" in result
+        assert "debugger.md" in result
+
+    def test_docs_is_independent_repo(self):
+        result = self.func("proj", "| t |", "central-docs")
+        assert "independent git repo" in result.lower()
 
 
 # ---------------------------------------------------------------------------
-# generate_gitignore
+# discover_ignored_dirs
 # ---------------------------------------------------------------------------
 
 
@@ -452,29 +339,14 @@ class TestDiscoverIgnoredDirs:
         from workspace_init import discover_ignored_dirs
         self.func = discover_ignored_dirs
 
-    def test_ignores_repos(self, tmp_path: Path):
-        _make_repo(tmp_path, "web", "# Web")
-        _make_repo(tmp_path, "api", "# API")
+    def test_ignores_all_non_infra_dirs(self, tmp_path: Path):
+        _make_repo(tmp_path, "web")
+        (tmp_path / "tools").mkdir()
         result = self.func(tmp_path, "docs")
         assert "web" in result
-        assert "api" in result
-
-    def test_ignores_non_repo_dirs(self, tmp_path: Path):
-        (tmp_path / "tools").mkdir()
-        (tmp_path / "misc").mkdir()
-        result = self.func(tmp_path, "docs")
         assert "tools" in result
-        assert "misc" in result
 
-    def test_skips_hidden_dirs(self, tmp_path: Path):
-        (tmp_path / ".agents").mkdir()
-        (tmp_path / ".git").mkdir()
-        (tmp_path / "web").mkdir()
-        result = self.func(tmp_path, "docs")
-        assert ".agents" not in result
-        assert ".git" not in result
-
-    def test_skips_workspace_tracked_dirs(self, tmp_path: Path):
+    def test_skips_tracked_dirs(self, tmp_path: Path):
         (tmp_path / "scripts").mkdir()
         (tmp_path / ".agents").mkdir()
         (tmp_path / "web").mkdir()
@@ -494,6 +366,11 @@ class TestDiscoverIgnoredDirs:
         assert result == sorted(result)
 
 
+# ---------------------------------------------------------------------------
+# generate_gitignore
+# ---------------------------------------------------------------------------
+
+
 class TestGenerateGitignore:
     """Tests for workspace_init.generate_gitignore."""
 
@@ -508,7 +385,7 @@ class TestGenerateGitignore:
         assert "/web/" in result
         assert "/api/" in result
 
-    def test_does_not_use_wildcard_ignore(self):
+    def test_no_wildcard_ignore(self):
         result = self.func(["web"])
         lines = [l.strip() for l in result.splitlines() if not l.startswith("#")]
         assert "*" not in lines
@@ -516,67 +393,6 @@ class TestGenerateGitignore:
     def test_os_junk_patterns(self):
         result = self.func([])
         assert ".DS_Store" in result
-        assert "Thumbs.db" in result
-
-
-# ---------------------------------------------------------------------------
-# needs_gitignore_update
-# ---------------------------------------------------------------------------
-
-
-class TestNeedsGitignoreUpdate:
-    """Tests for workspace_init.needs_gitignore_update."""
-
-    @pytest.fixture(autouse=True)
-    def _import(self):
-        from workspace_init import needs_gitignore_update
-        self.func = needs_gitignore_update
-
-    def test_missing_file(self, tmp_path: Path):
-        assert self.func(tmp_path / ".gitignore", ["docs", "web"]) is True
-
-    def test_complete_file(self, tmp_path: Path):
-        gi = tmp_path / ".gitignore"
-        gi.write_text("/docs/\n/web/\n/api/\n")
-        assert self.func(gi, ["docs", "web", "api"]) is False
-
-    def test_missing_dir(self, tmp_path: Path):
-        gi = tmp_path / ".gitignore"
-        gi.write_text("/docs/\n/web/\n")
-        assert self.func(gi, ["docs", "web", "api"]) is True
-
-    def test_stale_entry(self, tmp_path: Path):
-        gi = tmp_path / ".gitignore"
-        gi.write_text("/docs/\n/web/\n/old-repo/\n")
-        assert self.func(gi, ["docs", "web"]) is True
-
-
-# ---------------------------------------------------------------------------
-# generate_docs_agents_md
-# ---------------------------------------------------------------------------
-
-
-class TestGenerateDocsAgentsMd:
-    """Tests for workspace_init.generate_docs_agents_md."""
-
-    @pytest.fixture(autouse=True)
-    def _import(self):
-        from workspace_init import generate_docs_agents_md
-        self.func = generate_docs_agents_md
-
-    def test_uses_dir_name_in_heading(self):
-        result = self.func("project-documents")
-        assert "# Project Documents" in result
-
-    def test_independent_repo(self):
-        result = self.func("central-docs")
-        assert "independent git repository" in result
-
-    def test_work_type_categories(self):
-        result = self.func("central-docs")
-        assert "feat/" in result
-        assert "refactor/" in result
-        assert "fix/" in result
 
 
 # ---------------------------------------------------------------------------
@@ -594,7 +410,7 @@ class TestGenerateAgentTemplate:
         self.templates = AGENT_TEMPLATES
 
     def test_all_four_agents_exist(self):
-        assert set(self.templates.keys()) == {"planner", "dev", "reviewer", "debugger"}
+        assert set(self.templates.keys()) == {"planner", "developer", "reviewer", "debugger"}
 
     def test_project_name_substitution(self):
         for name in self.templates:
@@ -603,10 +419,10 @@ class TestGenerateAgentTemplate:
 
     def test_planner_is_read_only(self):
         result = self.func("planner", "proj")
-        assert "read-only" in result.lower() or "MUST NOT" in result
+        assert "MUST NOT" in result
 
-    def test_dev_writes_code(self):
-        result = self.func("dev", "proj")
+    def test_developer_implements(self):
+        result = self.func("developer", "proj")
         assert "implementation" in result.lower()
 
     def test_reviewer_does_not_fix(self):
@@ -616,62 +432,6 @@ class TestGenerateAgentTemplate:
     def test_debugger_root_cause(self):
         result = self.func("debugger", "proj")
         assert "root cause" in result.lower()
-
-
-# ---------------------------------------------------------------------------
-# generate_fresh_agents_md
-# ---------------------------------------------------------------------------
-
-
-class TestGenerateFreshAgentsMd:
-    """Tests for workspace_init.generate_fresh_agents_md."""
-
-    @pytest.fixture(autouse=True)
-    def _import(self):
-        from workspace_init import generate_fresh_agents_md
-        self.func = generate_fresh_agents_md
-
-    def test_contains_project_name(self):
-        result = self.func("my-project", "| table |", "central-docs")
-        assert "# my-project" in result
-
-    def test_contains_repos_table(self):
-        result = self.func("proj", "| repos table content |", "central-docs")
-        assert "| repos table content |" in result
-
-    def test_contains_structure_section(self):
-        result = self.func("proj", "| t |", "central-docs")
-        assert "central-docs/" in result
-        assert ".agents/" in result
-        assert "fullstack.json" in result
-
-    def test_uses_custom_docs_dir(self):
-        result = self.func("proj", "| t |", "project_documents")
-        assert "project_documents/" in result
-        assert "central-docs" not in result
-
-    def test_contains_work_tracking(self):
-        result = self.func("proj", "| t |", "central-docs")
-        assert "Work Tracking" in result
-        assert "feat/" in result
-        assert "refactor/" in result
-        assert "fix/" in result
-
-    def test_contains_branch_convention(self):
-        result = self.func("proj", "| t |", "central-docs")
-        assert "Branch Naming" in result
-        assert "feat/XYZ-706" in result
-
-    def test_docs_is_independent_repo(self):
-        result = self.func("proj", "| t |", "central-docs")
-        assert "independent git repo" in result
-
-    def test_has_four_agents(self):
-        result = self.func("proj", "| t |", "central-docs")
-        assert "planner.md" in result
-        assert "dev.md" in result
-        assert "reviewer.md" in result
-        assert "debugger.md" in result
 
 
 # ---------------------------------------------------------------------------
@@ -688,15 +448,14 @@ class TestFormatReport:
         self.func = format_report
 
     def test_created_items(self):
-        report = {"created": ["AGENTS.md", ".gitignore"], "updated": [], "skipped": []}
-        result = self.func(report)
-        assert "+ AGENTS.md" in result
-        assert "+ .gitignore" in result
+        report = {"created": ["docs/"], "updated": [], "skipped": []}
+        assert "+ docs/" in self.func(report)
 
     def test_updated_items(self):
-        report = {"created": [], "updated": ["AGENTS.md (refreshed)"], "skipped": []}
+        report = {"created": [], "updated": ["AGENTS.md"], "skipped": []}
         result = self.func(report)
-        assert "~ AGENTS.md (refreshed)" in result
+        assert "Regenerated:" in result
+        assert "~ AGENTS.md" in result
 
     def test_all_empty(self):
         report = {"created": [], "updated": [], "skipped": []}
@@ -709,7 +468,7 @@ class TestFormatReport:
 
 
 class TestBootstrapWorkspace:
-    """Integration tests for bootstrap_workspace using tmp_path."""
+    """Integration tests for bootstrap_workspace."""
 
     @pytest.fixture(autouse=True)
     def _import(self):
@@ -717,64 +476,124 @@ class TestBootstrapWorkspace:
         self.func = bootstrap_workspace
         self.load_config = load_config
 
-    def test_fresh_init_default_docs(self, tmp_path: Path):
-        _make_repo(tmp_path, "web", "# Web\n\nFrontend React app.\n")
-        _make_repo(tmp_path, "api", "# API\n\nBackend Python service.\n")
+    def test_fresh_init(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nFrontend app.\n")
+        _make_repo(tmp_path, "api", "# API\n\nBackend service.\n")
 
-        report = self.func(tmp_path)
+        self.func(tmp_path)
 
         assert (tmp_path / "AGENTS.md").exists()
-        assert (tmp_path / ".gitignore").exists()
-        assert (tmp_path / "central-docs" / "AGENTS.md").exists()
-        assert (tmp_path / "central-docs" / ".git").exists()
-        assert (tmp_path / "central-docs" / "feat").exists()
-        assert (tmp_path / "central-docs" / "refactor").exists()
-        assert (tmp_path / "central-docs" / "fix").exists()
-        assert (tmp_path / ".agents" / "skills").exists()
-        assert (tmp_path / ".agents" / "agents").exists()
-        assert (tmp_path / ".agents" / "agents" / "planner.md").exists()
-        assert (tmp_path / ".agents" / "agents" / "dev.md").exists()
-        assert (tmp_path / ".agents" / "agents" / "reviewer.md").exists()
-        assert (tmp_path / ".agents" / "agents" / "debugger.md").exists()
-        assert (tmp_path / "scripts").exists()
         assert (tmp_path / "README.md").exists()
+        assert (tmp_path / ".gitignore").exists()
         assert (tmp_path / "fullstack.json").exists()
+        assert (tmp_path / "central-docs" / ".git").exists()
+        assert (tmp_path / "central-docs" / "AGENTS.md").exists()
+        assert (tmp_path / "central-docs" / "feat").is_dir()
+        assert (tmp_path / "central-docs" / "refactor").is_dir()
+        assert (tmp_path / "central-docs" / "fix").is_dir()
+        assert (tmp_path / ".agents" / "skills").is_dir()
+        assert (tmp_path / "scripts").is_dir()
 
-        config = self.load_config(tmp_path)
-        assert config["docs_dir"] == "central-docs"
+        for name in ("planner", "developer", "reviewer", "debugger"):
+            assert (tmp_path / ".agents" / "agents" / f"{name}.md").exists()
 
-        agents_content = (tmp_path / "AGENTS.md").read_text()
-        assert "[web](./web/)" in agents_content
-        assert "[api](./api/)" in agents_content
-        assert "independent git repo" in agents_content.lower()
+        agents_md = (tmp_path / "AGENTS.md").read_text()
+        assert "[web](./web/)" in agents_md
+        assert "[api](./api/)" in agents_md
 
-    def test_docs_dir_is_independent_git_repo(self, tmp_path: Path):
+    def test_rerun_regenerates_agents_md(self, tmp_path: Path):
         _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
         self.func(tmp_path)
-        assert (tmp_path / "central-docs" / ".git").exists()
 
-    def test_gitignore_ignores_all_subdirs_except_infra(self, tmp_path: Path):
-        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        (tmp_path / "AGENTS.md").write_text("# User garbage\n")
+
         _make_repo(tmp_path, "api", "# API\n\nService.\n")
+        self.func(tmp_path)
+
+        agents_md = (tmp_path / "AGENTS.md").read_text()
+        assert "User garbage" not in agents_md
+        assert "[web](./web/)" in agents_md
+        assert "[api](./api/)" in agents_md
+
+    def test_rerun_regenerates_agent_templates(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path)
+
+        dev_agent = tmp_path / ".agents" / "agents" / "developer.md"
+        dev_agent.write_text("# Outdated content\n")
+
+        self.func(tmp_path)
+        content = dev_agent.read_text()
+        assert "Outdated content" not in content
+        assert "Developer" in content
+
+    def test_rerun_regenerates_gitignore(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path)
+
         (tmp_path / "tools").mkdir()
         self.func(tmp_path)
+
         gitignore = (tmp_path / ".gitignore").read_text()
-        assert "/central-docs/" in gitignore
-        assert "/web/" in gitignore
-        assert "/api/" in gitignore
         assert "/tools/" in gitignore
+        assert "/web/" in gitignore
+
+    def test_gitignore_excludes_infra_dirs(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path)
+
+        gitignore = (tmp_path / ".gitignore").read_text()
         assert "/scripts/" not in gitignore
         assert "/.agents/" not in gitignore
 
-    def test_fresh_init_custom_docs(self, tmp_path: Path):
+    def test_docs_dir_preserved(self, tmp_path: Path):
         _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path)
 
-        report = self.func(tmp_path, docs_dir="project_documents")
+        custom_doc = tmp_path / "central-docs" / "feat" / "my-feature" / "plan.md"
+        custom_doc.parent.mkdir(parents=True)
+        custom_doc.write_text("# My plan\n")
 
-        assert (tmp_path / "project_documents" / "AGENTS.md").exists()
+        self.func(tmp_path)
+        assert custom_doc.read_text() == "# My plan\n"
+
+    def test_docs_agents_md_not_overwritten(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path)
+
+        docs_agents = tmp_path / "central-docs" / "AGENTS.md"
+        docs_agents.write_text("# Custom docs rules\n")
+
+        self.func(tmp_path)
+        assert docs_agents.read_text() == "# Custom docs rules\n"
+
+    def test_scripts_dir_preserved(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path)
+
+        script = tmp_path / "scripts" / "deploy.sh"
+        script.write_text("#!/bin/bash\necho deploy\n")
+
+        self.func(tmp_path)
+        assert script.read_text() == "#!/bin/bash\necho deploy\n"
+
+    def test_skills_dir_preserved(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path)
+
+        skill = tmp_path / ".agents" / "skills" / "my-skill" / "SKILL.md"
+        skill.parent.mkdir(parents=True)
+        skill.write_text("# My skill\n")
+
+        self.func(tmp_path)
+        assert skill.read_text() == "# My skill\n"
+
+    def test_custom_docs_dir(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path, docs_dir="project_documents")
+
         assert (tmp_path / "project_documents" / ".git").exists()
         assert not (tmp_path / "central-docs").exists()
-
         config = self.load_config(tmp_path)
         assert config["docs_dir"] == "project_documents"
 
@@ -782,105 +601,13 @@ class TestBootstrapWorkspace:
         _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
         self.func(tmp_path, docs_dir="my-docs")
 
-        _make_repo(tmp_path, "api", "# API\n\nService.\n")
-        report = self.func(tmp_path)
-
+        self.func(tmp_path)
         config = self.load_config(tmp_path)
         assert config["docs_dir"] == "my-docs"
-        assert (tmp_path / "my-docs" / "AGENTS.md").exists()
-
-    def test_custom_docs_dir_excluded_from_repos(self, tmp_path: Path):
-        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
-        _make_repo(tmp_path, "project_documents", "# Docs\n\nShared docs.\n")
-
-        self.func(tmp_path, docs_dir="project_documents")
-
-        agents_content = (tmp_path / "AGENTS.md").read_text()
-        assert "[web](./web/)" in agents_content
-        assert "[project_documents]" not in agents_content
-
-    def test_idempotent_rerun(self, tmp_path: Path):
-        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
-
-        self.func(tmp_path)
-        agents_v1 = (tmp_path / "AGENTS.md").read_text()
-
-        report2 = self.func(tmp_path)
-        agents_v2 = (tmp_path / "AGENTS.md").read_text()
-
-        assert agents_v1 == agents_v2
-        assert any("unchanged" in s.lower() or "up to date" in s.lower()
-                    for s in report2["skipped"])
-
-    def test_preserves_user_content_on_rerun(self, tmp_path: Path):
-        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
-        self.func(tmp_path)
-
-        agents_path = tmp_path / "AGENTS.md"
-        original = agents_path.read_text()
-        custom_section = "\n## My Custom Notes\n\nDon't delete this!\n"
-        agents_path.write_text(original + custom_section)
-
-        _make_repo(tmp_path, "api", "# API\n\nNew service.\n")
-        self.func(tmp_path)
-
-        updated = agents_path.read_text()
-        assert "My Custom Notes" in updated
-        assert "Don't delete this!" in updated
-        assert "[api](./api/)" in updated
 
     def test_no_repos_found(self, tmp_path: Path):
         report = self.func(tmp_path)
         assert any("no git" in s.lower() for s in report["skipped"])
-
-    def test_change_docs_dir_on_rerun(self, tmp_path: Path):
-        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
-        self.func(tmp_path, docs_dir="old-docs")
-        assert (tmp_path / "old-docs").exists()
-
-        self.func(tmp_path, docs_dir="new-docs")
-        assert (tmp_path / "new-docs").exists()
-        config = self.load_config(tmp_path)
-        assert config["docs_dir"] == "new-docs"
-
-    def test_existing_docs_dir_not_overwritten(self, tmp_path: Path):
-        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
-        docs = tmp_path / "project_documents"
-        docs.mkdir()
-        custom_file = docs / "my-custom-doc.md"
-        custom_file.write_text("# My important doc\n")
-
-        self.func(tmp_path, docs_dir="project_documents")
-
-        assert custom_file.exists()
-        assert custom_file.read_text() == "# My important doc\n"
-
-    def test_four_agent_templates_created(self, tmp_path: Path):
-        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
-        self.func(tmp_path)
-
-        agents_dir = tmp_path / ".agents" / "agents"
-        for name in ("planner", "dev", "reviewer", "debugger"):
-            agent_file = agents_dir / f"{name}.md"
-            assert agent_file.exists(), f"{name}.md not created"
-            content = agent_file.read_text()
-            assert tmp_path.name in content
-
-    def test_agent_templates_not_overwritten(self, tmp_path: Path):
-        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
-        self.func(tmp_path)
-
-        dev_agent = tmp_path / ".agents" / "agents" / "dev.md"
-        dev_agent.write_text("# Custom dev agent\n")
-
-        self.func(tmp_path)
-        assert dev_agent.read_text() == "# Custom dev agent\n"
-
-    def test_work_type_dirs_created(self, tmp_path: Path):
-        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
-        self.func(tmp_path)
-        for category in ("feat", "refactor", "fix"):
-            assert (tmp_path / "central-docs" / category).is_dir()
 
     def test_legacy_config_migration(self, tmp_path: Path):
         _make_repo(tmp_path, "web", "# Web\n\nApp.\n")

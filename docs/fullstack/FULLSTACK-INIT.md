@@ -20,9 +20,24 @@ Pain points:
    version-controlled because the root isn't a git repo.
 3. No shared documentation directory — cross-cutting docs have no canonical home.
 4. When new repos are added, the context must be manually updated.
-5. Re-running init risks overwriting user-added content.
-6. No workspace-level agent definitions for coordinated dev/review workflows.
-7. No convention for tracking work (features, refactors, fixes) across repos.
+5. No workspace-level agent definitions for coordinated dev/review workflows.
+6. No convention for tracking work (features, refactors, fixes) across repos.
+
+## Design Philosophy
+
+**Every run is a full refresh.** Generated files (AGENTS.md, README.md,
+.gitignore, agent templates) are overwritten on every invocation. The only
+persistent state is `fullstack.json`. User content lives in preserved
+directories (docs, scripts, .agents/skills).
+
+This eliminates:
+- Merge logic (marker-based table replacement)
+- Migration logic (rename mappings, legacy file detection)
+- Stale state detection (needs_update checks)
+- Versioning concerns (old templates vs new templates)
+
+The result is a simpler, more predictable tool. Re-running always produces
+a correct workspace — no matter what state it was in before.
 
 ## Workflow
 
@@ -43,7 +58,7 @@ flowchart TD
     I --> J
 
     J --> K[Analyze each repo: README, AGENTS.md, tech stack, role]
-    K --> L[Build repos table with markers]
+    K --> L[Build repos table]
 
     L --> M{Workspace .git exists?}
     M -- No --> N[git init workspace]
@@ -52,35 +67,23 @@ flowchart TD
     N --> P[Save fullstack.json]
     O --> P
 
-    P --> Q[Create directories]
+    P --> Q[Create-only directories]
     Q --> Q1[.agents/skills/]
-    Q --> Q2[.agents/agents/]
     Q --> Q3["docs-dir/ + git init"]
     Q --> Q4[docs-dir/feat/]
     Q --> Q5[docs-dir/refactor/]
     Q --> Q6[docs-dir/fix/]
     Q --> Q7[scripts/]
+    Q --> Q8["docs-dir/AGENTS.md (if missing)"]
 
-    Q2 --> R[Write agent templates if missing]
-    R --> R1[planner.md]
-    R --> R2[dev.md]
-    R --> R3[reviewer.md]
-    R --> R4[debugger.md]
+    P --> R["REGENERATE all scaffolding"]
+    R --> R1[".agents/agents/*.md (4 agents)"]
+    R --> R2[.gitignore]
+    R --> R3[AGENTS.md]
+    R --> R4[README.md]
 
-    Q3 --> S[Write docs-dir/AGENTS.md if missing]
-
-    P --> T[Write .gitignore - ignore all subdirs except infra]
-    P --> U{AGENTS.md exists?}
-    U -- Yes --> V[Merge: replace repo table, preserve user content]
-    U -- No --> W[Generate fresh AGENTS.md]
-    P --> X[Create README.md if missing]
-
-    V --> Y[Report: created / updated / skipped]
-    W --> Y
-    X --> Y
-    R --> Y
-    S --> Y
-    T --> Y
+    R --> Y[Report: created / regenerated]
+    Q --> Y
 ```
 
 ## Requirements
@@ -90,9 +93,10 @@ flowchart TD
 Running a single script bootstraps all infrastructure: AGENTS.md, .gitignore,
 docs dir (as independent repo), agents, skills, scripts, README, .git.
 
-### R2 — Idempotent re-run (smart update)
+### R2 — Full refresh on re-run
 
-Re-running preserves user content. Only the marked repo table is refreshed.
+Every run regenerates scaffolding files from scratch. No merge, no migration,
+no stale state. Safe to re-run at any time.
 
 ### R3 — User-configurable docs directory name
 
@@ -108,7 +112,8 @@ Python 3.10+ stdlib only.
 
 ### R6 — Agent scaffolding
 
-Creates four agents: planner, dev, reviewer, debugger.
+Creates four agents: planner, developer, reviewer, debugger. Regenerated
+on every run — always up to date.
 
 ### R7 — Work tracking convention
 
@@ -124,20 +129,29 @@ The docs directory has its own `.git` and is NOT tracked by workspace git.
 
 `workspace_init.py` handles both init and update. No separate command needed.
 
+### Two categories of output
+
+| Category | Files | Behavior |
+|----------|-------|----------|
+| **Regenerated** | AGENTS.md, README.md, .gitignore, .agents/agents/*.md | Overwritten every run |
+| **Create-only** | fullstack.json, docs-dir/, docs-dir/AGENTS.md, scripts/, .agents/skills/ | Created if missing, never touched after |
+
 ### Config persistence: `fullstack.json`
 
 Priority: CLI `--docs-dir` > saved config > default `"central-docs"`.
+This is the **only** persistent state the script reads.
+
+### .gitignore strategy
+
+The script scans all non-hidden subdirectories and ignores everything except
+`WORKSPACE_TRACKED_DIRS` (`.agents/`, `scripts/`). This catches git repos,
+non-repo tool directories, docs dir — everything.
 
 ### Docs as independent git repo
 
 The docs directory is `git init`'d as its own repo. The workspace `.gitignore`
-ignores **all** non-hidden subdirectories except workspace infrastructure
-(`.agents/`, `scripts/`). This means:
-
-- Workspace git tracks root-level files and infra dirs normally
-- Every other subdirectory (repos, docs, tools, misc) is ignored by name
-- Each run re-scans and regenerates `.gitignore` to catch new/removed dirs
-  docs, API contracts, etc.
+ignores it by name. The docs dir AGENTS.md is create-only (user may customize
+documentation conventions).
 
 ### Agent quality
 
@@ -159,13 +173,12 @@ debugger.md) but adapted for cross-repo fullstack context. Key principles:
 | `detect_tech_stack` | Yes | Infer tech from config files |
 | `detect_repo_role` | Yes | Infer role from directory name |
 | `_extract_first_description` | Yes | Parse first paragraph from README.md |
-| `build_repos_table` | Yes | Generate Markdown table with markers |
-| `merge_repos_table` | Yes | Replace table preserving surrounding content |
+| `build_repos_table` | Yes | Generate Markdown table |
+| `generate_agents_md` | Yes | Generate full AGENTS.md for workspace |
+| `generate_readme` | Yes | Generate README.md |
 | `discover_ignored_dirs` | Yes | Scan all subdirs, exclude workspace infra |
 | `generate_gitignore` | Yes | Generate .gitignore from ignored dirs list |
-| `needs_gitignore_update` | Yes | Compare existing entries against expected set |
 | `generate_docs_agents_md` | Yes | Generate AGENTS.md for docs directory |
-| `generate_fresh_agents_md` | Yes | Generate full AGENTS.md for workspace |
 | `generate_agent_template` | Yes | Generate agent file by name |
 | `bootstrap_workspace` | Side-effect | Orchestrator: calls all of the above |
 
@@ -174,46 +187,53 @@ debugger.md) but adapted for cross-repo fullstack context. Key principles:
 ### Done
 
 - [x] R1 — One-command init
-- [x] R2 — Idempotent re-run with marker-based merge
+- [x] R2 — Full refresh on re-run (no merge/migration complexity)
 - [x] R3 — User-configurable docs dir with legacy migration
 - [x] R4 — Repo analysis (tech stack, role, description)
 - [x] R5 — Stdlib-only (zero dependencies)
-- [x] R6 — Four agent templates (planner, dev, reviewer, debugger)
+- [x] R6 — Four agent templates (planner, developer, reviewer, debugger)
 - [x] R7 — Work tracking (feat/, refactor/, fix/)
 - [x] R8 — Docs as independent git repo
 - [x] Plugin wrappers + marketplace.json entries
-- [x] 88 tests, all passing
+- [x] 67 tests, all passing
 - [x] Description validation under 1024 limit
 
 ### Planned / Ideas
 
 - [ ] Deep analysis mode: scan project structure for richer descriptions
-- [ ] AGENTS.md template customization
 - [ ] Interactive TUI mode for repo selection
 - [ ] Git hooks for auto-refresh
 
 ## Changelog
 
+### 2026-04-18 — v4: Full refresh model
+
+- **Breaking**: every run now regenerates AGENTS.md, README.md, .gitignore,
+  and agent templates from scratch. No more merge/migration logic.
+- Removed: marker-based table merging (`merge_repos_table`)
+- Removed: `needs_gitignore_update` detection
+- Removed: `LEGACY_AGENT_RENAMES` migration mechanism
+- Renamed `dev.md` → `developer.md`
+- Simpler codebase: ~480 lines (was ~980)
+- Simpler tests: 67 tests (was 98) — fewer edge cases needed
+
 ### 2026-04-18 — v3: Docs independence, work types, four agents
 
 - Docs dir is now an independent git repo (its own `.git`)
-- Workspace `.gitignore` ignores all subdirs except infra (no wildcard `*`)
-- Work tracking generalized: `feat/`, `refactor/`, `fix/` (was `features/`)
-- Four agents: planner, dev, reviewer, debugger (was 2: dev, review)
+- Workspace `.gitignore` ignores all subdirs except infra
+- Work tracking: `feat/`, `refactor/`, `fix/`
+- Four agents: planner, developer, reviewer, debugger
 - Agent quality improved based on opencode agent patterns
-- Branch naming convention added to workspace AGENTS.md
-- Design doc moved to `docs/fullstack/`
+- Branch naming convention added
 
-### 2026-04-18 — v2: Agent scaffolding, feature tracking, config rename
+### 2026-04-18 — v2: Agent scaffolding, config rename
 
 - Renamed `.fullstack-init.json` → `fullstack.json`
 - Added `.agents/agents/` with dev.md and review.md
 - Added `features/` directory for per-feature tracking
-- Updated AGENTS.md template with feature tracking and agent delegation
 
-### 2025-04-18 — v1: Initial implementation
+### 2026-04-18 — v1: Initial implementation
 
 - Repo discovery, tech stack detection, role inference
 - AGENTS.md generation with marker-based smart merge
 - Config persistence via `.fullstack-init.json`
-- 71 unit + integration tests
