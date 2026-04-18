@@ -27,9 +27,9 @@ Without a structured approach:
 
 ```mermaid
 flowchart TD
-    A[User invokes fullstack-impl] --> B{.fullstack.json exists?}
+    A[User invokes fullstack-impl] --> B{fullstack.json exists?}
     B -- No --> FAIL[Inform user: run fullstack-init first]
-    B -- Yes --> C[Read .fullstack.json, AGENTS.md]
+    B -- Yes --> C[Read fullstack.json, AGENTS.md]
 
     C --> D{Links in user prompt?}
     D -- Jira --> D1[Read via jira skill]

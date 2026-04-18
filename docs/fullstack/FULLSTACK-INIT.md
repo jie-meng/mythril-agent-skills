@@ -28,7 +28,7 @@ Pain points:
 
 ```mermaid
 flowchart TD
-    A[User invokes fullstack-init] --> B{.fullstack.json exists?}
+    A[User invokes fullstack-init] --> B{fullstack.json exists?}
     B -- Yes --> C[Read saved docs_dir]
     B -- No --> D{Legacy .fullstack-init.json?}
     D -- Yes --> E[Migrate legacy config]
@@ -49,7 +49,7 @@ flowchart TD
     M -- No --> N[git init workspace]
     M -- Yes --> O[Skip]
 
-    N --> P[Save .fullstack.json]
+    N --> P[Save fullstack.json]
     O --> P
 
     P --> Q[Create directories]
@@ -96,7 +96,7 @@ Re-running preserves user content. Only the marked repo table is refreshed.
 
 ### R3 — User-configurable docs directory name
 
-Persisted in `.fullstack.json`. Legacy `.fullstack-init.json` auto-migrated.
+Persisted in `fullstack.json`. Legacy `.fullstack-init.json` auto-migrated.
 
 ### R4 — Repo analysis
 
@@ -124,7 +124,7 @@ The docs directory has its own `.git` and is NOT tracked by workspace git.
 
 `workspace_init.py` handles both init and update. No separate command needed.
 
-### Config persistence: `.fullstack.json`
+### Config persistence: `fullstack.json`
 
 Priority: CLI `--docs-dir` > saved config > default `"central-docs"`.
 
@@ -133,7 +133,7 @@ Priority: CLI `--docs-dir` > saved config > default `"central-docs"`.
 The docs directory is `git init`'d as its own repo. The workspace `.gitignore`
 does NOT include `!<docs-dir>/` patterns. This means:
 
-- Workspace git tracks: AGENTS.md, README.md, .gitignore, .fullstack.json,
+- Workspace git tracks: AGENTS.md, README.md, .gitignore, fullstack.json,
   .agents/, scripts/
 - Docs repo tracks: its own AGENTS.md, feat/, refactor/, fix/, architecture
   docs, API contracts, etc.
@@ -152,7 +152,7 @@ debugger.md) but adapted for cross-repo fullstack context. Key principles:
 
 | Function | Pure? | Purpose |
 |----------|-------|---------|
-| `load_config` / `save_config` | Yes/Side-effect | Read/write `.fullstack.json` (with legacy migration) |
+| `load_config` / `save_config` | Yes/Side-effect | Read/write `fullstack.json` (with legacy migration) |
 | `resolve_docs_dir` | Yes | Priority resolution: CLI > config > default |
 | `discover_repos` | Yes | Find git repos, exclude infrastructure dirs |
 | `detect_tech_stack` | Yes | Infer tech from config files |
@@ -204,7 +204,7 @@ debugger.md) but adapted for cross-repo fullstack context. Key principles:
 
 ### 2026-04-18 — v2: Agent scaffolding, feature tracking, config rename
 
-- Renamed `.fullstack-init.json` → `.fullstack.json`
+- Renamed `.fullstack-init.json` → `fullstack.json`
 - Added `.agents/agents/` with dev.md and review.md
 - Added `features/` directory for per-feature tracking
 - Updated AGENTS.md template with feature tracking and agent delegation

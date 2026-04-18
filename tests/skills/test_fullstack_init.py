@@ -39,12 +39,12 @@ class TestLoadConfig:
         assert self.func(tmp_path) == {}
 
     def test_valid_config(self, tmp_path: Path):
-        cfg = tmp_path / ".fullstack.json"
+        cfg = tmp_path / "fullstack.json"
         cfg.write_text('{"docs_dir": "my-docs"}')
         assert self.func(tmp_path) == {"docs_dir": "my-docs"}
 
     def test_corrupt_json(self, tmp_path: Path):
-        cfg = tmp_path / ".fullstack.json"
+        cfg = tmp_path / "fullstack.json"
         cfg.write_text("not json at all")
         assert self.func(tmp_path) == {}
 
@@ -54,7 +54,7 @@ class TestLoadConfig:
         assert self.func(tmp_path) == {"docs_dir": "old-docs"}
 
     def test_new_config_takes_priority_over_legacy(self, tmp_path: Path):
-        (tmp_path / ".fullstack.json").write_text('{"docs_dir": "new"}')
+        (tmp_path / "fullstack.json").write_text('{"docs_dir": "new"}')
         (tmp_path / ".fullstack-init.json").write_text('{"docs_dir": "old"}')
         assert self.func(tmp_path) == {"docs_dir": "new"}
 
@@ -83,7 +83,7 @@ class TestSaveConfig:
         legacy.write_text('{"docs_dir": "old"}')
         self.save(tmp_path, {"docs_dir": "new"})
         assert not legacy.exists()
-        assert (tmp_path / ".fullstack.json").exists()
+        assert (tmp_path / "fullstack.json").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -466,7 +466,7 @@ class TestGenerateGitignore:
         assert "!AGENTS.md" in result
         assert "!.agents/" in result
         assert "!scripts/" in result
-        assert "!.fullstack.json" in result
+        assert "!fullstack.json" in result
 
 
 # ---------------------------------------------------------------------------
@@ -487,7 +487,7 @@ class TestNeedsGitignoreUpdate:
 
     def test_complete_file(self, tmp_path: Path):
         gi = tmp_path / ".gitignore"
-        gi.write_text("!AGENTS.md\n!.agents/\n!.fullstack.json\n*\n")
+        gi.write_text("!AGENTS.md\n!.agents/\n!fullstack.json\n*\n")
         assert self.func(gi, "central-docs") is False
 
     def test_incomplete_file(self, tmp_path: Path):
@@ -588,7 +588,7 @@ class TestGenerateFreshAgentsMd:
         result = self.func("proj", "| t |", "central-docs")
         assert "central-docs/" in result
         assert ".agents/" in result
-        assert ".fullstack.json" in result
+        assert "fullstack.json" in result
 
     def test_uses_custom_docs_dir(self):
         result = self.func("proj", "| t |", "project_documents")
@@ -683,7 +683,7 @@ class TestBootstrapWorkspace:
         assert (tmp_path / ".agents" / "agents" / "debugger.md").exists()
         assert (tmp_path / "scripts").exists()
         assert (tmp_path / "README.md").exists()
-        assert (tmp_path / ".fullstack.json").exists()
+        assert (tmp_path / "fullstack.json").exists()
 
         config = self.load_config(tmp_path)
         assert config["docs_dir"] == "central-docs"
@@ -829,7 +829,7 @@ class TestBootstrapWorkspace:
         self.func(tmp_path)
 
         assert not legacy.exists()
-        assert (tmp_path / ".fullstack.json").exists()
+        assert (tmp_path / "fullstack.json").exists()
         config = self.load_config(tmp_path)
         assert config["docs_dir"] == "my-docs"
         assert (tmp_path / "my-docs").exists()

@@ -7,7 +7,7 @@ project table. Also bootstraps .gitignore, shared docs dir (as its own
 independent repo), .agents/, and scripts/ directories as needed.
 
 The shared docs directory name is user-configurable (defaults to
-"central-docs") and persisted in .fullstack.json so re-runs pick it
+"central-docs") and persisted in fullstack.json so re-runs pick it
 up automatically.
 
 Designed for idempotent operation: running it multiple times preserves
@@ -31,7 +31,7 @@ from pathlib import Path
 # Constants
 # ---------------------------------------------------------------------------
 
-CONFIG_FILENAME = ".fullstack.json"
+CONFIG_FILENAME = "fullstack.json"
 LEGACY_CONFIG_FILENAME = ".fullstack-init.json"
 
 MARKER_START = "<!-- fullstack-init:repos-table:start -->"
@@ -53,7 +53,7 @@ DEFAULT_DOCS_DIR = "central-docs"
 # ---------------------------------------------------------------------------
 
 def load_config(root: Path) -> dict[str, str]:
-    """Load workspace config from .fullstack.json (with legacy fallback)."""
+    """Load workspace config from fullstack.json (with legacy fallback)."""
     config_path = root / CONFIG_FILENAME
     if config_path.exists():
         try:
@@ -71,7 +71,7 @@ def load_config(root: Path) -> dict[str, str]:
 
 
 def save_config(root: Path, config: dict[str, str]) -> None:
-    """Save workspace config to .fullstack.json (removes legacy file if present)."""
+    """Save workspace config to fullstack.json (removes legacy file if present)."""
     config_path = root / CONFIG_FILENAME
     config_path.write_text(
         json.dumps(config, indent=2, ensure_ascii=False) + "\n",
@@ -90,7 +90,7 @@ def resolve_docs_dir(
 
     Priority:
     1. Explicit CLI argument (--docs-dir)
-    2. Previously saved value in .fullstack-init.json
+    2. Previously saved value in fullstack.json
     3. Default: "central-docs"
     """
     if cli_docs_dir:
@@ -333,7 +333,7 @@ Branch names use Title-Case-With-Hyphens for the descriptive part.
 ├── AGENTS.md          # This file — workspace-level AI guidelines
 ├── README.md          # Human-readable project overview
 ├── .gitignore         # Tracks only workspace-level files
-├── .fullstack.json    # Workspace config (docs dir, etc.)
+├── fullstack.json     # Workspace config (docs dir, etc.)
 ├── .agents/
 │   ├── agents/        # Workspace-level sub-agents
 │   │   ├── planner.md # Plans before implementation
@@ -401,7 +401,7 @@ def generate_gitignore(docs_dir: str) -> str:
 !AGENTS.md
 !README.md
 !.gitignore
-!.fullstack.json
+!fullstack.json
 !.agents/
 !.agents/**
 !scripts/
@@ -424,7 +424,7 @@ def needs_gitignore_update(gitignore_path: Path, docs_dir: str) -> bool:
     if not gitignore_path.exists():
         return True
     content = gitignore_path.read_text(encoding="utf-8", errors="replace")
-    key_patterns = ["!AGENTS.md", "!.agents/", "!.fullstack.json"]
+    key_patterns = ["!AGENTS.md", "!.agents/", "!fullstack.json"]
     return not all(p in content for p in key_patterns)
 
 
@@ -908,7 +908,7 @@ def main() -> None:
         default=None,
         help=(
             "Name of the shared documentation directory "
-            "(default: value from .fullstack.json, or 'central-docs')"
+            "(default: value from fullstack.json, or 'central-docs')"
         ),
     )
     parser.add_argument(

@@ -17,9 +17,9 @@ repos, review, and track progress.
 ## Prerequisites
 
 This skill requires a workspace initialized by `fullstack-init`. Verify by
-checking for `.fullstack.json` in the workspace root.
+checking for `fullstack.json` in the workspace root.
 
-If `.fullstack.json` is missing, inform the user:
+If `fullstack.json` is missing, inform the user:
 > This workspace hasn't been initialized yet. Run `fullstack-init` first
 > to set up the workspace infrastructure.
 
@@ -45,7 +45,7 @@ start planning or implementing with incomplete context.
 
 Read these files from the workspace root:
 
-1. **`.fullstack.json`** — get the docs directory name
+1. **`fullstack.json`** — get the docs directory name
 2. **`AGENTS.md`** — understand the repo table, conventions, and structure
 3. **`<docs-dir>/AGENTS.md`** — understand documentation conventions
 
@@ -335,5 +335,5 @@ user starts a new session wanting to continue.
 ## Requirements
 
 - Python 3.10+
-- Workspace initialized by `fullstack-init` (`.fullstack.json` present)
+- Workspace initialized by `fullstack-init` (`fullstack.json` present)
 - Other skills as needed: `jira`, `confluence`, `gh-operations`, `figma`

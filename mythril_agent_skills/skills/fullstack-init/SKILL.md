@@ -34,7 +34,7 @@ android, and other repos live as sibling directories under one root.
 | `scripts/` | Workspace-level automation | Created if missing, never overwritten |
 | `README.md` | Human-readable overview | Created if missing, never overwritten |
 | `.git` | Workspace-level git repo | Initialized if missing |
-| `.fullstack.json` | Config persistence (docs dir name, etc.) | Updated when settings change |
+| `fullstack.json` | Config persistence (docs dir name, etc.) | Updated when settings change |
 
 ## Shared Docs Directory — Independent Git Repo
 
@@ -53,7 +53,7 @@ The directory name is **user-configurable** (defaults to `central-docs`).
 
 **IMPORTANT**: Before running the script, follow this decision tree:
 
-1. **Check if `.fullstack.json` exists** in the workspace root.
+1. **Check if `fullstack.json` exists** in the workspace root.
    - If YES → the docs dir is already configured. Read it and confirm with user.
      No need to ask again. Proceed to run the script (no `--docs-dir` needed).
    - If NO → check for legacy `.fullstack-init.json` (auto-migrated). Continue to step 2.
@@ -73,7 +73,7 @@ The directory name is **user-configurable** (defaults to `central-docs`).
 ### Changing the docs dir name later
 
 Pass `--docs-dir <new-name>` to update. The script will:
-- Update `.fullstack.json`
+- Update `fullstack.json`
 - Create the new directory + git init if needed
 - Old directory is NOT deleted/renamed
 
@@ -95,7 +95,7 @@ python3 SKILL_PATH/scripts/workspace_init.py
 ```
 
 The script:
-- **Reads** `.fullstack.json` for the saved docs dir name
+- **Reads** `fullstack.json` for the saved docs dir name
 - **Preserves** all user-added sections in AGENTS.md
 - **Refreshes** only the auto-generated repo table between marker comments
 - **Preserves** all files in `.agents/`, docs dir, and `scripts/`
@@ -141,7 +141,7 @@ The init script creates four agent definitions in `.agents/agents/`:
 - **Docs directory**: Your shared docs are never touched.
 - **`scripts/`**: Your automation scripts are never touched.
 - **`.gitignore`**: Only updated if missing critical workspace patterns.
-- **`.fullstack.json`**: Preserves all saved settings; only changed fields
+- **`fullstack.json`**: Preserves all saved settings; only changed fields
   are updated.
 
 ## Typical Workspace Layout After Init
@@ -151,7 +151,7 @@ project-workspace/                # Workspace root (its own git repo)
 ├── AGENTS.md                     # AI context with repo table (auto-managed)
 ├── README.md                     # Project overview
 ├── .gitignore                    # Tracks workspace files only (NOT docs dir)
-├── .fullstack.json               # Config: {"docs_dir": "central-docs"}
+├── fullstack.json               # Config: {"docs_dir": "central-docs"}
 ├── .agents/
 │   ├── agents/                   # Workspace-level sub-agents
 │   │   ├── planner.md            # Requirements & solution design
