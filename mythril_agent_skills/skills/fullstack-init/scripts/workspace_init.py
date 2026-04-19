@@ -279,6 +279,7 @@ Each work directory contains:
 
 ```
 <category>/<work-name>/
+├── analysis.md        # Technical analysis (architecture, root cause, design options)
 ├── plan.md            # Implementation plan (repos involved, tasks, approach)
 ├── progress.md        # Current status, completed steps, blockers
 └── review.md          # Review findings and fix history (append-only)

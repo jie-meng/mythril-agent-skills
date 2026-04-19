@@ -3,7 +3,7 @@
 Design document for the `fullstack-impl` skill. Covers requirements, solution
 architecture, agent coordination, and workflow details.
 
-**Last updated**: 2026-04-18
+**Last updated**: 2026-04-19
 
 ---
 
@@ -55,9 +55,12 @@ flowchart TD
     J -- Yes --> K[Resume: read plan.md + progress.md]
     J -- No --> L[Create work directory in docs repo]
 
-    L --> L1[Write plan.md]
-    L --> L2[Write progress.md]
-    L --> L3[Write review.md header]
+    L --> L0{Work type?}
+    L0 -- feat/refactor --> L0a[Planner writes analysis.md]
+    L0 -- fix --> L0b[Debugger writes analysis.md]
+    L0a & L0b --> L1[Write plan.md]
+    L1 --> L2[Write progress.md]
+    L2 --> L3[Write review.md header]
 
     K --> M[Branch management per repo]
     L1 & L2 & L3 --> M
@@ -136,19 +139,30 @@ even when confident.
 
 ### R5 — Agent coordination
 
-Four agents with clear boundaries:
+Four agents with clear boundaries and work-type-based dispatch:
 
-| Agent | Writes code? | Modifies review.md? | Modifies plan.md? |
-|-------|-------------|---------------------|-------------------|
-| Planner | No | No | Yes (creates) |
-| Dev | Yes | No | No (after start) |
-| Reviewer | No | Yes (append-only) | No |
-| Debugger | Yes | No | May add follow-ups |
+| Agent | Writes | Reads | Never touches |
+|-------|--------|-------|---------------|
+| Planner | `analysis.md` (feat/refactor), `plan.md` | everything | source code, `review.md` |
+| Debugger | `analysis.md` (fix) | everything | `plan.md`, `review.md` |
+| Dev | source code, `progress.md` | `analysis.md`, `plan.md` | `review.md` |
+| Reviewer | `review.md` (append-only) | everything | source code, `plan.md` |
+
+Lifecycle per work type:
+
+| Phase | `feat/` / `refactor/` | `fix/` |
+|-------|----------------------|--------|
+| Analysis | Planner → `analysis.md` | Debugger → `analysis.md` |
+| Planning | Planner → `plan.md` | Planner → `plan.md` (from debugger's analysis) |
+| Implementation | Developer | Developer |
+| Review | Reviewer → `review.md` | Reviewer → `review.md` |
 
 ### R6 — Work tracking
 
-Every work item creates plan.md, progress.md, review.md. Progress is updated
-after every meaningful change. Review is append-only.
+Every work item creates analysis.md, plan.md, progress.md, review.md.
+Analysis captures the technical thinking (architecture, root cause, design
+options). Progress is updated after every meaningful change. Review is
+append-only. Analysis may be skipped for trivial work.
 
 ### R7 — Resume capability
 
@@ -193,11 +207,22 @@ can rely on upstream changes being committed and validated.
 
 ### R14 — Language-aware documentation
 
-All generated work tracking documents (plan.md, progress.md, review.md)
-must match the language of the user's prompt. If the prompt contains any
-Chinese characters, use Chinese templates; otherwise English. Each
-invocation detects language independently — mixed languages across work
-items is acceptable. Branch names and directory names always remain English.
+All generated work tracking documents (analysis.md, plan.md, progress.md,
+review.md) must match the language of the user's prompt. If the prompt
+contains any Chinese characters, use Chinese templates; otherwise English.
+Each invocation detects language independently — mixed languages across
+work items is acceptable. Branch names and directory names always remain
+English.
+
+### R15 — Technical analysis document
+
+Non-trivial work items produce `analysis.md` before `plan.md`. This
+document captures the deep technical thinking — architecture diagrams,
+root cause analysis, design option trade-offs, flow visualizations — that
+informs the plan but doesn't belong in an execution checklist. Content
+must favor visual formats (mermaid diagrams, markdown tables) over prose.
+The analysis agent varies by work type: Planner for feat/refactor,
+Debugger for fix. May be skipped for trivial work.
 
 ## Agent Coordination Model
 
@@ -242,19 +267,28 @@ sequenceDiagram
     participant User
     participant Skill as fullstack-impl
     participant Planner
+    participant Debugger
     participant Dev
     participant Reviewer
-    participant Debugger
 
     User->>Skill: Implement this feature (+ links)
     Skill->>Skill: Gather context (Jira, Confluence, Figma, GitHub)
     Skill->>User: Confirm repos, branch, dependency order
     User->>Skill: Confirmed
 
-    alt Complex work
-        Skill->>Planner: Analyze and create plan.md
-        Planner->>Planner: Determine dependency order
-        Planner-->>Skill: plan.md with ordered repos
+    alt feat / refactor
+        Skill->>Planner: Analyze requirements & architecture
+        Planner->>Planner: Write analysis.md (diagrams, trade-offs)
+        Planner->>Planner: Write plan.md (tasks, deps, order)
+        Planner-->>Skill: analysis.md + plan.md
+    end
+
+    alt fix
+        Skill->>Debugger: Root-cause analysis
+        Debugger->>Debugger: Reproduce, isolate, confirm cause
+        Debugger->>Debugger: Write analysis.md (root cause, fix strategy)
+        Debugger-->>Skill: analysis.md
+        Skill->>Skill: Write plan.md (from debugger's analysis)
     end
 
     loop For each repo (in dependency order)
@@ -279,12 +313,6 @@ sequenceDiagram
         Dev-->>Skill: Fixes applied
         Skill->>Reviewer: Re-review
         Reviewer-->>Skill: Updated review.md
-    end
-
-    alt Fix work type
-        Skill->>Debugger: Root-cause analysis
-        Debugger->>Debugger: Reproduce, isolate, confirm cause
-        Debugger-->>Skill: Analysis + minimal fix
     end
 
     Skill->>User: Summary of completed work
@@ -367,6 +395,7 @@ to the AI agent following the workspace agents' guidelines.
 - [x] R12 — Mandatory test execution (lint → type-check → test → build)
 - [x] R13 — Dependency-ordered implementation
 - [x] R14 — Language-aware documentation (EN/ZH based on user prompt)
+- [x] R15 — Technical analysis document (analysis.md with mermaid/table emphasis)
 - [x] Plugin wrapper + marketplace.json entry
 - [x] Description validation under 1024 limit
 
@@ -379,6 +408,23 @@ to the AI agent following the workspace agents' guidelines.
 - [ ] Template customization: let users define their own plan.md template
 
 ## Changelog
+
+### 2026-04-19 — v6: Technical analysis document, explicit agent dispatch
+
+- Added R15: `analysis.md` — a technical thinking document that precedes
+  `plan.md`. Contains architecture diagrams, root cause analysis, design
+  option trade-offs, flow visualizations. Must favor mermaid diagrams and
+  markdown tables over prose.
+- Work directory now contains 4 files: analysis.md, plan.md, progress.md,
+  review.md (analysis.md may be skipped for trivial work)
+- Explicit agent dispatch rules per work type: Planner writes analysis for
+  feat/refactor, Debugger writes analysis for fix
+- Clear agent boundary table: who writes what, who reads what, who never
+  touches what
+- Full lifecycle table per work type showing all 5 phases
+- Updated sequence diagram to show analysis phase before implementation
+- Bilingual analysis.md templates with mermaid emphasis (feat/refactor
+  template + fix template, each in EN and ZH)
 
 ### 2026-04-18 — v5: Language-aware docs, mandatory review, finalize fix
 

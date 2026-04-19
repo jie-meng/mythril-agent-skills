@@ -69,6 +69,7 @@ Each run strictly follows the language of that run's prompt.
 
 ### What this affects
 
+- **analysis.md** — section headers, diagram labels, analysis content
 - **plan.md** — section headers, field labels, content
 - **progress.md** — section headers, status labels, changelog entries
 - **review.md** — header text
@@ -237,10 +238,38 @@ Create a work directory under `<docs-dir>/<type>/`:
 
 ```
 <docs-dir>/<type>/<work-name>/
+├── analysis.md   (technical analysis — created by planner or debugger)
 ├── plan.md
 ├── progress.md
 └── review.md     (created empty, filled during review)
 ```
+
+### Agent dispatch — analysis before planning
+
+Different work types require different analysis. The skill dispatches to
+the appropriate workspace agent based on work type:
+
+| Work type | Analysis agent | Analysis focus |
+|-----------|---------------|----------------|
+| `feat/` | **Planner** | Requirements flow, architecture design, tech trade-offs |
+| `refactor/` | **Planner** | Current-state analysis, target architecture, migration path |
+| `fix/` | **Debugger** | Root-cause analysis, reproduction, fix strategy |
+
+**Dispatch sequence:**
+
+1. **Read the agent file** — `.agents/agents/planner.md` (feat/refactor)
+   or `.agents/agents/debugger.md` (fix).
+2. **Write `analysis.md`** — the analysis agent writes the technical
+   thinking document using the appropriate template (see below).
+3. **Then write `plan.md`** — informed by the analysis. For `feat/refactor`,
+   the Planner writes both sequentially. For `fix/`, the Debugger writes
+   `analysis.md` first, then the skill creates `plan.md` based on the
+   debugger's findings.
+
+**When to skip `analysis.md`**: Simple, self-evident work (single repo,
+clear scope, no architectural decisions, no root cause to investigate).
+Examples: typo fix, config change, version bump. When skipping, proceed
+directly to `plan.md`.
 
 ### Work name
 
@@ -404,6 +433,348 @@ android). The implementation phase follows this exact order.
 - 创建分支：<list>
 ```
 
+### analysis.md template
+
+`analysis.md` is a **technical thinking document** — it contains the deep
+analysis that informs the plan. Unlike `plan.md` (which is an execution
+checklist), `analysis.md` captures *why* decisions were made, visualizes
+system behavior, and documents trade-offs.
+
+**Visualization rules** — prefer visual formats over prose wherever possible:
+
+- **System architecture** → mermaid `flowchart` or `graph`
+- **Request/data flows** → mermaid `sequenceDiagram`
+- **State transitions** → mermaid `stateDiagram-v2`
+- **Before/after comparisons** → markdown tables or side-by-side code blocks
+- **Decision matrices** → markdown tables with trade-off columns
+- **Timelines** → mermaid `gantt` or numbered lists
+- **Component relationships** → mermaid `classDiagram` or `erDiagram`
+
+The template varies by work type. Use the matching template below.
+
+#### Feature / Refactor analysis (written by Planner)
+
+**English:**
+
+```markdown
+# Analysis: <Work Name>
+
+**Created**: <date>
+**Type**: feat | refactor
+**Author**: Planner
+
+## Current State
+
+<Describe the existing system behavior, architecture, or user flow.>
+
+### Architecture (as-is)
+
+```mermaid
+flowchart LR
+    A[Component A] --> B[Component B]
+    B --> C[Component C]
+```
+
+## Requirements Analysis
+
+<Break down requirements into concrete behaviors, inputs, outputs.>
+
+### User Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant API
+    participant DB
+    User->>Frontend: Action
+    Frontend->>API: Request
+    API->>DB: Query
+    DB-->>API: Result
+    API-->>Frontend: Response
+    Frontend-->>User: Display
+```
+
+## Design Options
+
+| Option | Approach | Pros | Cons | Complexity |
+|--------|----------|------|------|------------|
+| A | ... | ... | ... | Low |
+| B | ... | ... | ... | Medium |
+
+**Recommended**: Option <X> — <rationale>
+
+## Target Architecture
+
+```mermaid
+flowchart LR
+    A[Component A] --> B[Component B]
+    B --> D[New Component D]
+    D --> C[Component C]
+```
+
+## Cross-Repo Impact
+
+| Repo | Impact | Breaking Change? |
+|------|--------|-----------------|
+| shared-lib | New types added | No |
+| api | New endpoint | No |
+| web | New page | No |
+
+## Risks & Mitigations
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| ... | Medium | High | ... |
+```
+
+**Chinese:**
+
+```markdown
+# 分析：<工作名称>
+
+**创建时间**：<date>
+**类型**：feat | refactor
+**作者**：Planner
+
+## 现状
+
+<描述现有的系统行为、架构或用户流程。>
+
+### 现有架构
+
+```mermaid
+flowchart LR
+    A[组件 A] --> B[组件 B]
+    B --> C[组件 C]
+```
+
+## 需求分析
+
+<将需求拆解为具体的行为、输入、输出。>
+
+### 用户流程
+
+```mermaid
+sequenceDiagram
+    participant 用户
+    participant 前端
+    participant API
+    participant 数据库
+    用户->>前端: 操作
+    前端->>API: 请求
+    API->>数据库: 查询
+    数据库-->>API: 结果
+    API-->>前端: 响应
+    前端-->>用户: 展示
+```
+
+## 设计方案
+
+| 方案 | 思路 | 优势 | 劣势 | 复杂度 |
+|------|------|------|------|--------|
+| A | ... | ... | ... | 低 |
+| B | ... | ... | ... | 中 |
+
+**推荐**：方案 <X> — <理由>
+
+## 目标架构
+
+```mermaid
+flowchart LR
+    A[组件 A] --> B[组件 B]
+    B --> D[新组件 D]
+    D --> C[组件 C]
+```
+
+## 跨仓库影响
+
+| 仓库 | 影响 | 是否破坏性变更？ |
+|------|------|-----------------|
+| shared-lib | 新增类型定义 | 否 |
+| api | 新增接口 | 否 |
+| web | 新增页面 | 否 |
+
+## 风险与应对
+
+| 风险 | 可能性 | 影响 | 应对措施 |
+|------|--------|------|---------|
+| ... | 中 | 高 | ... |
+```
+
+#### Fix analysis (written by Debugger)
+
+**English:**
+
+```markdown
+# Analysis: <Work Name>
+
+**Created**: <date>
+**Type**: fix
+**Severity**: <Critical | High | Medium | Low> — <one-line impact>
+**Author**: Debugger
+
+## Symptom
+
+<Exact observable behavior: error messages, logs, incorrect output.>
+
+## Reproduction
+
+1. <Step-by-step reproduction>
+2. ...
+
+**Environment**: <OS, versions, config>
+
+## Root Cause
+
+### System Model
+
+```mermaid
+sequenceDiagram
+    participant A as Component A
+    participant B as Component B
+    participant C as Component C
+    A->>B: Normal call
+    B->>C: Expected path
+    Note over B,C: ✗ Failure occurs here
+    C-->>B: Error / unexpected state
+```
+
+### Cause
+
+<Explain the root cause with evidence. "X is null" is a symptom;
+"API changed response format but consumer still expects old format"
+is a root cause.>
+
+### Evidence
+
+- Log line: `...`
+- Code path: `file:line` → `file:line`
+- Timing: ...
+
+## Fix Strategy
+
+| Approach | Description | Risk | Scope |
+|----------|-------------|------|-------|
+| A | ... | Low | 1 file |
+| B | ... | Medium | 3 files |
+
+**Chosen**: Approach <X> — <rationale>
+
+### Before vs After
+
+**Before:**
+```
+<problematic flow or code>
+```
+
+**After:**
+```
+<fixed flow or code>
+```
+
+## Affected Repos
+
+| Repo | Files Changed | Nature of Change |
+|------|--------------|-----------------|
+| ... | ... | ... |
+
+## Verification
+
+- [ ] Original reproduction steps → no longer fails
+- [ ] Regression tests pass
+- [ ] Adjacent functionality unaffected
+
+## Follow-ups
+
+- <Preventive measures: tests, monitoring, guards>
+```
+
+**Chinese:**
+
+```markdown
+# 分析：<工作名称>
+
+**创建时间**：<date>
+**类型**：fix
+**严重程度**：<严重 | 高 | 中 | 低> — <一句话影响>
+**作者**：Debugger
+
+## 问题现象
+
+<确切的可观察行为：错误信息、日志、异常输出。>
+
+## 复现步骤
+
+1. <逐步复现>
+2. ...
+
+**环境**：<操作系统、版本、配置>
+
+## 根因分析
+
+### 系统模型
+
+```mermaid
+sequenceDiagram
+    participant A as 组件 A
+    participant B as 组件 B
+    participant C as 组件 C
+    A->>B: 正常调用
+    B->>C: 预期路径
+    Note over B,C: ✗ 故障发生在此
+    C-->>B: 错误 / 异常状态
+```
+
+### 根因
+
+<用证据解释根因。"X 为空"是表象；"API 改了响应格式但消费端仍按旧格式解析"
+是根因。>
+
+### 证据
+
+- 日志：`...`
+- 代码路径：`file:line` → `file:line`
+- 时序：...
+
+## 修复策略
+
+| 方案 | 描述 | 风险 | 影响范围 |
+|------|------|------|---------|
+| A | ... | 低 | 1 个文件 |
+| B | ... | 中 | 3 个文件 |
+
+**选择**：方案 <X> — <理由>
+
+### 修复前 vs 修复后
+
+**修复前：**
+```
+<问题流程或代码>
+```
+
+**修复后：**
+```
+<修复后流程或代码>
+```
+
+## 涉及仓库
+
+| 仓库 | 变更文件 | 变更性质 |
+|------|---------|---------|
+| ... | ... | ... |
+
+## 验证
+
+- [ ] 原始复现步骤 → 不再出现故障
+- [ ] 回归测试通过
+- [ ] 相邻功能不受影响
+
+## 后续
+
+- <预防措施：测试、监控、防护>
+```
+
 ### review.md — create with just a header:
 
 **English:**
@@ -447,16 +818,34 @@ default to serial.
 
 ### Agent roles during implementation
 
-Read `.agents/agents/planner.md` first if the work is complex enough to
-warrant planning (multi-phase, multiple repos, unclear approach). For
-straightforward work, proceed directly to implementation.
+Read the appropriate agent file from `.agents/agents/` before delegating.
+The dispatch depends on work type:
 
-| Agent | When | What |
-|-------|------|------|
-| Planner | Complex work | Analyze requirements, create `plan.md` |
-| Developer | Always | Implement code, fix tests, the only agent that writes code |
-| Reviewer | After impl | Review diffs, cross-repo consistency, append `review.md` |
-| Debugger | `fix/` type | Root-cause analysis before implementing the fix |
+**Full lifecycle per work type:**
+
+| Phase | `feat/` | `refactor/` | `fix/` |
+|-------|---------|-------------|--------|
+| 1. Analysis | Planner → `analysis.md` | Planner → `analysis.md` | Debugger → `analysis.md` |
+| 2. Planning | Planner → `plan.md` | Planner → `plan.md` | Planner → `plan.md` (informed by debugger's analysis) |
+| 3. Implementation | Developer | Developer | Developer |
+| 4. Review | Reviewer → `review.md` | Reviewer → `review.md` | Reviewer → `review.md` |
+| 5. Fix cycle | Developer (fix) → Reviewer (re-review) | Developer (fix) → Reviewer (re-review) | Developer (fix) → Reviewer (re-review) |
+
+**When to skip analysis**: If the work is simple and self-evident (single
+repo, clear what to do, no architectural decisions), skip `analysis.md`
+and go straight to `plan.md`. The agent dispatch for Step 5 describes
+when analysis is warranted.
+
+**Agent summary:**
+
+| Agent | Writes | Reads | Never touches |
+|-------|--------|-------|---------------|
+| Planner | `analysis.md` (feat/refactor), `plan.md` | everything | source code, `review.md` |
+| Debugger | `analysis.md` (fix) | everything | `plan.md`, `review.md` |
+| Developer | source code, `progress.md` | `analysis.md`, `plan.md` | `review.md` |
+| Reviewer | `review.md` (append-only) | everything | source code, `plan.md` |
+
+**Agent hierarchy:**
 
 - **Workspace agents** (`.agents/agents/`) handle cross-repo coordination
 - **Repo-level agents** (`<repo>/.agents/agents/`) handle repo-internal concerns
