@@ -63,6 +63,7 @@ extraPaths = [
     "mythril_agent_skills/skills/figma/scripts",
     "mythril_agent_skills/skills/git-repo-reader/scripts",
     "mythril_agent_skills/skills/github-code-review-pr/scripts",
+    "mythril_agent_skills/skills/github-pr-create/scripts",
     "mythril_agent_skills/skills/jira/scripts",
     "mythril_agent_skills/skills/skill-creator/scripts",
     "mythril_agent_skills/skills/excel/scripts",

@@ -142,6 +142,24 @@
       "strict": false
     },
     {
+      "name": "github-pr-create",
+      "source": "./plugins/github-pr-create",
+      "description": "Create GitHub Pull Requests via gh CLI with PR template support and auto-filled content",
+      "version": "0.2.10",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "development",
+      "tags": [
+        "github",
+        "pull-request",
+        "gh",
+        "create"
+      ],
+      "strict": false
+    },
+    {
       "name": "jira",
       "source": "./plugins/jira",
       "description": "Jira REST API integration for issues, sprints, boards, and workflows",

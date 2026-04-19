@@ -90,6 +90,13 @@ Use GitHub CLI (`gh`) for GitHub issue/PR workflows: read/write issues, inspect/
 - **Try:** Look at this issue: https://github.com/xxx/yyy/issues/18331
 - **Deps:** `gh` CLI
 
+**[GitHub PR Create](./mythril_agent_skills/skills/github-pr-create/)**
+
+Create GitHub Pull Requests via `gh` CLI. Auto-detects PR templates, fills content from code changes, and supports GitHub Enterprise. Ensures PRs are created from feature branches to the correct base branch.
+
+- **Try:** Create a PR
+- **Deps:** `git` CLI, `gh` CLI
+
 </details>
 
 <details>

@@ -80,6 +80,7 @@ SKILL_GH_OPERATIONS = "gh-operations"
 SKILL_CODE_REVIEW_STAGED = "code-review-staged"
 SKILL_BRANCH_DIFF_REVIEW = "branch-diff-review"
 SKILL_CODE_REVIEW_PR = "github-code-review-pr"
+SKILL_PR_CREATE = "github-pr-create"
 SKILL_JIRA = "jira"
 SKILL_CONFLUENCE = "confluence"
 SKILL_FIGMA = "figma"
@@ -97,6 +98,7 @@ CHECKABLE_SKILLS = [
     SKILL_BRANCH_DIFF_REVIEW,
     SKILL_GH_OPERATIONS,
     SKILL_CODE_REVIEW_PR,
+    SKILL_PR_CREATE,
     SKILL_JIRA,
     SKILL_CONFLUENCE,
     SKILL_FIGMA,
@@ -1075,11 +1077,16 @@ def main() -> None:
         or SKILL_BRANCH_DIFF_REVIEW in skills
         or SKILL_GH_OPERATIONS in skills
         or SKILL_CODE_REVIEW_PR in skills
+        or SKILL_PR_CREATE in skills
     ):
         if not check_git(config_path):
             all_configured = False
 
-    if SKILL_GH_OPERATIONS in skills or SKILL_CODE_REVIEW_PR in skills:
+    if (
+        SKILL_GH_OPERATIONS in skills
+        or SKILL_CODE_REVIEW_PR in skills
+        or SKILL_PR_CREATE in skills
+    ):
         if not check_gh_operations(config_path):
             all_configured = False
 
