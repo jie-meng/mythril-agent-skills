@@ -87,6 +87,40 @@ class TestSaveConfig:
 
 
 # ---------------------------------------------------------------------------
+# resolve_github_repos
+# ---------------------------------------------------------------------------
+
+
+class TestResolveGithubRepos:
+    """Tests for workspace_init.resolve_github_repos."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from workspace_init import resolve_github_repos, save_config
+        self.func = resolve_github_repos
+        self.save = save_config
+
+    def test_cli_true_wins(self, tmp_path: Path):
+        self.save(tmp_path, {"docs_dir": "docs", "github_repos": False})
+        assert self.func(tmp_path, True) is True
+
+    def test_cli_false_wins(self, tmp_path: Path):
+        self.save(tmp_path, {"docs_dir": "docs", "github_repos": True})
+        assert self.func(tmp_path, False) is False
+
+    def test_saved_config_used(self, tmp_path: Path):
+        self.save(tmp_path, {"docs_dir": "docs", "github_repos": True})
+        assert self.func(tmp_path, None) is True
+
+    def test_default_false_when_nothing(self, tmp_path: Path):
+        assert self.func(tmp_path, None) is False
+
+    def test_none_cli_reads_saved_false(self, tmp_path: Path):
+        self.save(tmp_path, {"docs_dir": "docs", "github_repos": False})
+        assert self.func(tmp_path, None) is False
+
+
+# ---------------------------------------------------------------------------
 # resolve_docs_dir
 # ---------------------------------------------------------------------------
 
@@ -651,3 +685,28 @@ class TestBootstrapWorkspace:
         self.func(tmp_path, docs_dir="my-docs")
         readme = (tmp_path / "README.md").read_text()
         assert "my-docs" in readme
+
+    def test_github_repos_saved_true(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path, github_repos=True)
+        config = self.load_config(tmp_path)
+        assert config["github_repos"] is True
+
+    def test_github_repos_saved_false(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path, github_repos=False)
+        config = self.load_config(tmp_path)
+        assert config["github_repos"] is False
+
+    def test_github_repos_defaults_false(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path)
+        config = self.load_config(tmp_path)
+        assert config["github_repos"] is False
+
+    def test_github_repos_preserved_on_rerun(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path, github_repos=True)
+        self.func(tmp_path)
+        config = self.load_config(tmp_path)
+        assert config["github_repos"] is True

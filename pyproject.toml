@@ -69,6 +69,7 @@ extraPaths = [
     "mythril_agent_skills/skills/excel/scripts",
     "mythril_agent_skills/skills/pdf/scripts",
     "mythril_agent_skills/skills/md-to-pdf/scripts",
+    "mythril_agent_skills/skills/fullstack-impl/scripts",
     "mythril_agent_skills/skills/fullstack-init/scripts",
 ]
 

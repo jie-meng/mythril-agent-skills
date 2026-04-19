@@ -91,6 +91,14 @@ def resolve_docs_dir(root: Path, cli_docs_dir: str | None) -> str:
     return DEFAULT_DOCS_DIR
 
 
+def resolve_github_repos(root: Path, cli_github: bool | None) -> bool:
+    """Determine if repos use GitHub: CLI arg > saved config > False."""
+    if cli_github is not None:
+        return cli_github
+    config = load_config(root)
+    return bool(config.get("github_repos", False))
+
+
 # ---------------------------------------------------------------------------
 # Repo discovery and analysis
 # ---------------------------------------------------------------------------
@@ -396,6 +404,7 @@ The skill will:
 5. Implement changes repo by repo (in dependency order)
 6. Run tests and linting in each repo
 7. Review changes for cross-repo consistency
+8. Create Pull Requests for each repo (if repos are on GitHub)
 
 ### Resume previous work
 
@@ -498,6 +507,7 @@ fullstack 技能管理的多仓库全栈工作区。
 5. 按依赖顺序逐仓库实现变更
 6. 在每个仓库中运行测试和代码检查
 7. 跨仓库一致性审查
+8. 为每个仓库创建 Pull Request（仓库在 GitHub 上时）
 
 ### 继续上一次的工作
 
@@ -842,6 +852,7 @@ def bootstrap_workspace(
     docs_dir: str | None = None,
     dry_run: bool = False,
     lang: str = "en",
+    github_repos: bool | None = None,
 ) -> dict[str, list[str]]:
     """Bootstrap or update workspace infrastructure. Return a report.
 
@@ -857,6 +868,7 @@ def bootstrap_workspace(
 
     project_name = root.name
     resolved_docs_dir = resolve_docs_dir(root, docs_dir)
+    resolved_github = resolve_github_repos(root, github_repos)
 
     # --- Discover repos ---
     repos = discover_repos(root, resolved_docs_dir)
@@ -872,14 +884,18 @@ def bootstrap_workspace(
         for info in repo_infos:
             print(f"  - {info['name']} ({info['role']}, {info['tech_stack']})")
         print(f"\n[dry-run] Docs directory: {resolved_docs_dir}")
+        print(f"[dry-run] GitHub repos: {resolved_github}")
         print(f"\n[dry-run] Would generate repos table:\n{repos_table}")
         return report
 
     # --- Save config ---
     config = load_config(root)
     config["docs_dir"] = resolved_docs_dir
+    config["github_repos"] = resolved_github
     save_config(root, config)
-    report["updated"].append(f"{CONFIG_FILENAME} (docs_dir: {resolved_docs_dir})")
+    report["updated"].append(
+        f"{CONFIG_FILENAME} (docs_dir: {resolved_docs_dir}, github_repos: {resolved_github})"
+    )
 
     # --- Create-only directories (never overwrite contents) ---
     for dirname, desc in [
@@ -996,6 +1012,18 @@ def main() -> None:
         help="Language for generated README.md ('en' or 'zh'). Default: en.",
     )
     parser.add_argument(
+        "--github",
+        action="store_true",
+        default=None,
+        help="Mark repos as GitHub / GitHub Enterprise hosted (enables PR creation in fullstack-impl)",
+    )
+    parser.add_argument(
+        "--no-github",
+        action="store_true",
+        default=False,
+        help="Mark repos as NOT GitHub hosted (disables PR creation in fullstack-impl)",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         dest="json_output",
@@ -1009,9 +1037,19 @@ def main() -> None:
         print(f"Error: {root} is not a directory", file=sys.stderr)
         sys.exit(1)
 
+    github_repos: bool | None = None
+    if args.github:
+        github_repos = True
+    elif args.no_github:
+        github_repos = False
+
     lang = args.lang or "en"
     report = bootstrap_workspace(
-        root, docs_dir=args.docs_dir, dry_run=args.dry_run, lang=lang,
+        root,
+        docs_dir=args.docs_dir,
+        dry_run=args.dry_run,
+        lang=lang,
+        github_repos=github_repos,
     )
 
     if args.json_output:

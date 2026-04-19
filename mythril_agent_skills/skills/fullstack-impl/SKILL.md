@@ -105,7 +105,8 @@ start planning or implementing with incomplete context.
 
 Read these files from the workspace root:
 
-1. **`fullstack.json`** — get the docs directory name
+1. **`fullstack.json`** — get the docs directory name and the `github_repos`
+   flag (determines whether PRs will be created in Step 8)
 2. **`AGENTS.md`** — understand the repo table, conventions, and structure
 3. **`<docs-dir>/AGENTS.md`** — understand documentation conventions
 
@@ -987,9 +988,142 @@ If the review finds issues:
 3. Re-run review (only on fixed items)
 4. Repeat until verdict is PASS (max 3 cycles)
 
-## Step 8 — Finalize
+## Step 8 — Create Pull Requests (GitHub repos only)
 
-After review passes:
+### MANDATORY: Use the bundled script to decide
+
+**Do NOT read `fullstack.json` yourself or guess from repo URLs.** Always
+run the bundled detection script — it gives a deterministic answer:
+
+```bash
+python3 scripts/check_github_repos.py
+```
+
+**How to locate the script:**
+
+Check these fixed paths in order. Use the first one that exists:
+
+```python
+import pathlib, subprocess, sys
+
+candidates = [
+    pathlib.Path.home() / ".config/opencode/skills/fullstack-impl/scripts/check_github_repos.py",
+    pathlib.Path.home() / ".claude/skills/fullstack-impl/scripts/check_github_repos.py",
+    pathlib.Path.home() / ".copilot/skills/fullstack-impl/scripts/check_github_repos.py",
+    pathlib.Path.home() / ".cursor/skills/fullstack-impl/scripts/check_github_repos.py",
+    pathlib.Path.home() / ".gemini/skills/fullstack-impl/scripts/check_github_repos.py",
+    pathlib.Path.home() / ".codex/skills/fullstack-impl/scripts/check_github_repos.py",
+    pathlib.Path.home() / ".qwen/skills/fullstack-impl/scripts/check_github_repos.py",
+    pathlib.Path.home() / ".grok/skills/fullstack-impl/scripts/check_github_repos.py",
+]
+script = next((p for p in candidates if p.exists()), None)
+if not script:
+    print("ERROR: check_github_repos.py not found", file=sys.stderr)
+    sys.exit(1)
+result = subprocess.run([sys.executable, str(script)], capture_output=True, text=True)
+print(result.stdout)
+```
+
+Machine-readable output:
+- `GITHUB_REPOS=true|false` — the deterministic answer
+- `CONFIG_PATH=<path>` — which fullstack.json was read
+- `CONFIG_FOUND=true|false` — whether fullstack.json exists
+
+**Decision logic:**
+- `GITHUB_REPOS=true` → proceed with PR creation below
+- `GITHUB_REPOS=false` → **skip this entire step**, go to Step 9
+- Exit code 1 (config not found) → skip, workspace may not be initialized
+
+**WHY a script instead of reading JSON directly:** The LLM must NEVER
+decide whether a repo is "GitHub" or "not GitHub" based on domain names,
+remote URLs, or any heuristic. The `fullstack-init` skill already asked
+the user during workspace setup and saved the answer. This script simply
+reads that saved answer. This eliminates the failure mode where a
+GitHub Enterprise URL like `git.company.com` gets misclassified.
+
+### Pre-conditions
+
+- All repos must have their changes committed and pushed
+- Review verdict must be PASS
+- The current branch in each repo must be a feature branch (not the
+  default branch)
+
+### Per-repo PR creation
+
+For each affected code repo (in the same dependency order as `plan.md`):
+
+1. `cd` into the repo directory
+2. Push the branch if not already pushed: `git push -u origin HEAD`
+3. Use the `github-pr-create` skill to create the PR:
+   - The base branch is the repo's default branch (main/master/dev)
+   - The PR title should reflect the work item (derived from branch name
+     or plan.md title)
+   - The PR body should be filled according to the repo's PR template
+     (if one exists). Use the code changes diff + plan.md context to fill it.
+   - If the user provided a Jira ticket, include it in the PR body
+     (in template placeholders or as a reference)
+4. Record the PR URL returned by the skill
+
+**IMPORTANT rules for PR body filling:**
+- If the repo has a PR template, follow it strictly — only fill sections
+  where you have information from the implementation
+- Leave screenshot/image placeholders as-is
+- Leave unfamiliar link placeholders as-is
+- If a template field asks for Jira/ticket links and you have one from
+  the plan, fill it in
+- If a template field asks for tech doc links and you have one from the
+  gathered context, fill it in
+- When in doubt, preserve the template's original text
+
+### After all PRs are created
+
+Collect all PR URLs and:
+
+1. **Update `progress.md`** — add a "Pull Requests" section:
+
+   **English:**
+   ```markdown
+   ## Pull Requests
+
+   | Repository | PR URL | Status |
+   |-----------|--------|--------|
+   | shared-lib | https://github.com/owner/shared-lib/pull/42 | Created |
+   | api | https://github.com/owner/api/pull/99 | Created |
+   | web | https://github.com/owner/web/pull/77 | Created |
+   ```
+
+   **Chinese:**
+   ```markdown
+   ## Pull Requests
+
+   | 仓库 | PR 链接 | 状态 |
+   |------|---------|------|
+   | shared-lib | https://github.com/owner/shared-lib/pull/42 | 已创建 |
+   | api | https://github.com/owner/api/pull/99 | 已创建 |
+   | web | https://github.com/owner/web/pull/77 | 已创建 |
+   ```
+
+2. **Commit** the docs repo with the updated progress
+
+### Error handling
+
+- If `gh pr create` **fails for a repo** (auth error, not a GitHub remote,
+  branch not pushed, etc.), **record the failure** in `progress.md` and
+  move on to the next repo. Do NOT retry or investigate the platform —
+  just report the `gh` error message to the user:
+
+  ```markdown
+  | api | — | Failed: `gh` error: ... |
+  ```
+
+- After all repos are attempted, report successes and failures together.
+  The user can manually create PRs for the failed repos if needed.
+- Do NOT block the entire finalization on a single repo's PR failure —
+  create PRs for all repos that succeed and report failures separately
+
+## Step 9 — Finalize
+
+After review passes (and PRs are created if applicable):
 
 1. **Update `progress.md`**:
    - Set `**Overall status**` (or `**整体状态**`) to "Complete" (or "已完成")
@@ -998,7 +1132,27 @@ After review passes:
    - Set `**Status**` (or `**状态**`) to "Done" (or "已完成")
    - Check off all completed tasks (`- [x]`)
 3. **Commit** the docs repo with all tracking doc updates
-4. **Report to user**: Summarize what was implemented across which repos
+4. **Report to user**: Summarize what was implemented across which repos.
+   If PRs were created, list all PR URLs clearly so the user can click
+   them directly:
+
+   **English example:**
+   ```
+   Implementation complete. Pull Requests created:
+
+     1. shared-lib — https://github.com/owner/shared-lib/pull/42
+     2. api       — https://github.com/owner/api/pull/99
+     3. web       — https://github.com/owner/web/pull/77
+   ```
+
+   **Chinese example:**
+   ```
+   实现完成。已创建 Pull Request：
+
+     1. shared-lib — https://github.com/owner/shared-lib/pull/42
+     2. api       — https://github.com/owner/api/pull/99
+     3. web       — https://github.com/owner/web/pull/77
+   ```
 
 ## Resuming Previous Work
 
@@ -1042,3 +1196,5 @@ user starts a new session wanting to continue.
 - Workspace initialized by `fullstack-init` (must pass workspace validation gate:
   `fullstack.json` + `AGENTS.md` + `.agents/` directory all present)
 - Other skills as needed: `jira`, `confluence`, `gh-operations`, `figma`
+- For PR creation (Step 8): `github-pr-create` skill + `gh` CLI installed
+  and authenticated (only when `fullstack.json` has `"github_repos": true`)

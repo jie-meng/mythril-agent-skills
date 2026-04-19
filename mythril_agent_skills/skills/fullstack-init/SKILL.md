@@ -58,10 +58,31 @@ The name is configurable (defaults to `central-docs`) and stored in
 python3 SKILL_PATH/scripts/workspace_init.py                         # first run
 python3 SKILL_PATH/scripts/workspace_init.py --docs-dir my-docs      # custom docs dir
 python3 SKILL_PATH/scripts/workspace_init.py --lang zh               # Chinese README
+python3 SKILL_PATH/scripts/workspace_init.py --github                # repos are on GitHub
+python3 SKILL_PATH/scripts/workspace_init.py --no-github             # repos are NOT on GitHub
 python3 SKILL_PATH/scripts/workspace_init.py                         # re-run: safe refresh
 python3 SKILL_PATH/scripts/workspace_init.py --dry-run               # preview only
 python3 SKILL_PATH/scripts/workspace_init.py --json                  # JSON output
 ```
+
+### How the AI agent MUST handle the GitHub repos setting
+
+1. **Check if `fullstack.json` exists and has `github_repos` set** — if YES,
+   the setting is already configured. No need to ask. Run the script.
+2. **Check if user specified it** in their prompt (e.g., "repos are on GitHub",
+   "仓库在GitHub上") — if YES, pass `--github`.
+3. **Otherwise, ask the user** (MANDATORY — do NOT silently use the default):
+   > Are these repositories hosted on GitHub or GitHub Enterprise? (yes/no)
+   >
+   > If yes, `fullstack-impl` will be able to create Pull Requests
+   > automatically after implementation and review are done.
+
+   This includes GitHub Enterprise with custom domains (e.g., `git.company.com`).
+   If the user answers yes, pass `--github`. If no, pass `--no-github`.
+
+The setting is saved to `fullstack.json` as `"github_repos": true|false` and
+persists across re-runs. Changing it requires passing `--github` or
+`--no-github` explicitly on a future run.
 
 ### README language selection
 
