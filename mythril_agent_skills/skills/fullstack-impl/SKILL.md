@@ -776,14 +776,15 @@ sequenceDiagram
 - <预防措施：测试、监控、防护>
 ```
 
-### review.md — create with just a header:
+### review.md — create with header and instructions:
 
 **English:**
 
 ```markdown
 # Review: <Work Name>
 
-Review findings will be appended here by the reviewer agent.
+Review findings will be appended below by the reviewer agent.
+A `### Verdict` section is required before finalization can proceed.
 ```
 
 **Chinese:**
@@ -791,7 +792,8 @@ Review findings will be appended here by the reviewer agent.
 ```markdown
 # 审查：<工作名称>
 
-审查结果将由 reviewer agent 追加到此文件。
+审查结果将由 reviewer agent 追加到下方。
+完成审查后必须包含 `### 结论` 部分，否则无法进入收尾阶段。
 ```
 
 ## Step 6 — Implement
@@ -926,25 +928,66 @@ moving to the next repo.
   - Test results (pass/fail, number of tests)
   - Any issues encountered and how they were resolved
 
-## Step 7 — Review (MANDATORY)
+## Step 7 — Review (MANDATORY — must produce written output)
 
-**Do NOT skip this step.** After implementation is complete in all repos,
-you MUST perform a review pass before finalizing. This catches cross-repo
-inconsistencies, convention violations, and bugs that per-repo validation
-misses.
+**Do NOT skip this step. Do NOT produce an empty review.**
 
-1. **Read `.agents/agents/reviewer.md`** for review guidelines
-2. For each affected repo, review the changes:
-   - Run `git diff <default-branch>...<feature-branch>` to see all changes
-   - Check against the repo's `AGENTS.md` conventions
-   - Verify tests pass (re-run in the correct environment)
-3. **Cross-repo consistency checks** (critical for multi-repo work):
-   - API contracts: request/response shapes match between producer and consumer
-   - Shared types: type definitions in shared-lib match usage in all consumers
-   - Environment variables: any new env vars are documented in all affected repos
-   - Database migrations: schema changes are compatible across services
-4. If a repo has its own review agent, defer to it for repo-specific concerns
-5. **Append findings to `review.md`** in the work directory
+After implementation is complete in all repos, you MUST perform a full
+review pass and write concrete findings to `review.md` before finalizing.
+Step 9 will check that `review.md` contains a `### Verdict` section — if
+it doesn't, finalization is blocked.
+
+### 7a. Prepare — read reviewer guidelines
+
+Read `.agents/agents/reviewer.md` to load the reviewer mindset and format.
+
+### 7b. Collect diffs — one per repo
+
+For **each** affected repo, run:
+
+```bash
+cd <repo-dir>
+git diff <default-branch>...<feature-branch>
+```
+
+Save or remember the output — this is the primary review input. Do NOT
+skip this step or substitute it with "I already saw the code while
+implementing." The diff is the ground truth of what changed.
+
+### 7c. Per-repo review
+
+For each repo, answer these questions by reading the diff:
+
+1. **Correctness** — Does the code do what `plan.md` says it should?
+   Look for off-by-one errors, missing error handling, wrong return types,
+   incomplete implementations.
+2. **Convention compliance** — Check against the repo's `AGENTS.md`:
+   naming, code style, commit format, test coverage expectations.
+3. **Edge cases** — What inputs, states, or timing could break this?
+4. **Test coverage** — Are the new/changed code paths tested? Re-run
+   tests in the correct environment to confirm they pass.
+
+### 7d. Cross-repo consistency (critical for multi-repo work)
+
+- **API contracts**: request/response shapes match between producer and consumer
+- **Shared types**: type definitions in shared-lib match usage in all consumers
+- **Environment variables**: any new env vars are documented in all affected repos
+- **Database migrations**: schema changes are compatible across services
+- **Error contracts**: error codes/messages are consistent across boundaries
+
+### 7e. Write findings to review.md
+
+**This is the deliverable.** Append a complete review section to
+`review.md`. The output MUST contain ALL of these structural elements:
+
+1. `## Review Pass <N>` header with date
+2. `### Findings` section with at least one finding (use `[P2] No issues
+   found` if everything looks good — never leave findings empty)
+3. `### Verdict` line with one of: `PASS`, `NEEDS_FIXES`, `FAIL`
+
+**IMPORTANT**: Even when no issues are found, the review section MUST be
+written in full — a PASS verdict with a brief summary confirming what was
+checked is required. An empty `review.md` is never acceptable.
 
 ### Review finding format
 
@@ -961,7 +1004,7 @@ misses.
 
 ### Verdict
 
-<PASS | NEEDS_FIXES | FAIL> — <summary>
+<PASS | NEEDS_FIXES | FAIL> — <summary of what was reviewed and conclusion>
 ```
 
 **Chinese:**
@@ -977,15 +1020,15 @@ misses.
 
 ### 结论
 
-<PASS | NEEDS_FIXES | FAIL> — <summary>
+<PASS | NEEDS_FIXES | FAIL> — <审查了什么、结论是什么>
 ```
 
-### Fix cycle
+### 7f. Fix cycle
 
-If the review finds issues:
+If the review finds P0 or P1 issues:
 1. Dev agent addresses P0 and P1 findings
 2. Update `progress.md` with fixes made
-3. Re-run review (only on fixed items)
+3. Re-run review (only on fixed items) — append a new `## Review Pass <N+1>` section
 4. Repeat until verdict is PASS (max 3 cycles)
 
 ## Step 8 — Create Pull Requests (GitHub repos only)
@@ -1122,6 +1165,23 @@ Collect all PR URLs and:
   create PRs for all repos that succeed and report failures separately
 
 ## Step 9 — Finalize
+
+### Review completion gate (MANDATORY)
+
+Before finalizing, verify that `review.md` contains a `### Verdict`
+(English) or `### 结论` (Chinese) section. If it does not, **STOP** —
+go back to Step 7 and complete the review first. Do NOT proceed with
+finalization if `review.md` still only contains the initial header.
+
+```
+Check review.md for:
+  "### Verdict" OR "### 结论"  — present?
+
+YES → proceed with finalization below
+NO  → STOP. Go back to Step 7 and write the review.
+```
+
+### Finalization steps
 
 After review passes (and PRs are created if applicable):
 

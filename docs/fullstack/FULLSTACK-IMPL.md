@@ -409,6 +409,30 @@ to the AI agent following the workspace agents' guidelines.
 
 ## Changelog
 
+### 2026-04-20 — v7: Review enforcement — gate, structured output, diff-first
+
+- **Problem**: In practice, Step 7 (Review) was consistently skipped or
+  produced empty output. `review.md` ended up containing only the initial
+  header ("审查结果将由 reviewer agent 追加到此文件") with no actual review
+  findings. Root cause: the instructions were too vague ("append findings")
+  and Step 9 had no gate to block finalization when review was missing.
+- **Step 7 restructured** into explicit sub-steps (7a–7f):
+  - 7a: Read reviewer.md
+  - 7b: Collect diffs (mandatory `git diff` per repo — ground truth)
+  - 7c: Per-repo review with 4 concrete check dimensions
+  - 7d: Cross-repo consistency checks
+  - 7e: Write findings (mandatory structural elements: header + findings + verdict)
+  - 7f: Fix cycle (unchanged logic, clearer step references)
+- **Minimum output requirement**: Even a PASS review must write a full
+  `## Review Pass` section with `### Findings` and `### Verdict`. Empty
+  review.md is never acceptable.
+- **Step 9 review gate**: Before finalization, verify `review.md` contains
+  `### Verdict` (EN) or `### 结论` (ZH). If missing → STOP and go back
+  to Step 7. Prevents the "skip review, go straight to finalize" failure.
+- **review.md template updated**: Initial template now explicitly states
+  that a `### Verdict` section is required before finalization can proceed,
+  serving as a reminder to the agent when it reads the file.
+
 ### 2026-04-19 — v6: Technical analysis document, explicit agent dispatch
 
 - Added R15: `analysis.md` — a technical thinking document that precedes
