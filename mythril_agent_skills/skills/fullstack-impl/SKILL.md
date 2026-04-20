@@ -72,9 +72,9 @@ Each run strictly follows the language of that run's prompt.
 - **analysis.md** — section headers, diagram labels, analysis content
 - **plan.md** — section headers, field labels, content
 - **progress.md** — section headers, status labels, changelog entries
-- **review.md** — header text
+- **review.md** — header text, per-repo review sections, cross-repo review
 - **Confirmation messages** — the repo/branch confirmation in Step 3
-- **Final summary** — the completion report in Step 8
+- **Final summary** — the completion report in Step 9
 
 ### What this does NOT affect
 
@@ -776,15 +776,18 @@ sequenceDiagram
 - <预防措施：测试、监控、防护>
 ```
 
-### review.md — create with header and instructions:
+### review.md — create with header:
 
 **English:**
 
 ```markdown
 # Review: <Work Name>
 
-Review findings will be appended below by the reviewer agent.
-A `### Verdict` section is required before finalization can proceed.
+Per-repo staged review results and cross-repo consistency checks
+will be appended below during implementation.
+Each repo section records the full `code-review-staged` output and verdict.
+A final `### Verdict` or cross-repo `### Verdict` is required before
+finalization can proceed.
 ```
 
 **Chinese:**
@@ -792,8 +795,9 @@ A `### Verdict` section is required before finalization can proceed.
 ```markdown
 # 审查：<工作名称>
 
-审查结果将由 reviewer agent 追加到下方。
-完成审查后必须包含 `### 结论` 部分，否则无法进入收尾阶段。
+各仓库的暂存区审查结果和跨仓库一致性检查将在实现过程中追加到下方。
+每个仓库的章节记录完整的 `code-review-staged` 输出和结论。
+最终必须包含 `### 结论` 部分，否则无法进入收尾阶段。
 ```
 
 ## Step 6 — Implement
@@ -831,8 +835,14 @@ The dispatch depends on work type:
 | 1. Analysis | Planner → `analysis.md` | Planner → `analysis.md` | Debugger → `analysis.md` |
 | 2. Planning | Planner → `plan.md` | Planner → `plan.md` | Planner → `plan.md` (informed by debugger's analysis) |
 | 3. Implementation | Developer | Developer | Developer |
-| 4. Review | Reviewer → `review.md` | Reviewer → `review.md` | Reviewer → `review.md` |
-| 5. Fix cycle | Developer (fix) → Reviewer (re-review) | Developer (fix) → Reviewer (re-review) | Developer (fix) → Reviewer (re-review) |
+| 4. Per-repo review | `code-review-staged` → `review.md` | `code-review-staged` → `review.md` | `code-review-staged` → `review.md` |
+| 5. Fix cycle | Developer (fix) → `code-review-staged` (re-review) | Developer (fix) → `code-review-staged` (re-review) | Developer (fix) → `code-review-staged` (re-review) |
+| 6. Cross-repo review | Manual consistency check → `review.md` | Manual consistency check → `review.md` | Manual consistency check → `review.md` |
+
+The review phase (4-5) happens **per repo, before commit** — not after
+all repos are done. Each repo's implementation is staged (`git add .`),
+reviewed via `code-review-staged`, fixed if needed, then committed. This
+ensures issues are caught early and each commit is clean.
 
 **When to skip analysis**: If the work is simple and self-evident (single
 repo, clear what to do, no architectural decisions), skip `analysis.md`
@@ -845,8 +855,8 @@ when analysis is warranted.
 |-------|--------|-------|---------------|
 | Planner | `analysis.md` (feat/refactor), `plan.md` | everything | source code, `review.md` |
 | Debugger | `analysis.md` (fix) | everything | `plan.md`, `review.md` |
-| Developer | source code, `progress.md` | `analysis.md`, `plan.md` | `review.md` |
-| Reviewer | `review.md` (append-only) | everything | source code, `plan.md` |
+| Developer | source code, `progress.md`, `review.md` (append review output) | `analysis.md`, `plan.md` | — |
+| `code-review-staged` | (output consumed by developer) | staged diff, repo context | — |
 
 **Agent hierarchy:**
 
@@ -920,28 +930,143 @@ Run all validation steps the repo requires, in this order:
 run them. If tests fail due to your changes, you MUST fix them before
 moving to the next repo.
 
-#### 6e. Commit and update progress
+#### 6e. Stage, review, and commit (per-repo staged review loop)
 
-- Commit changes in the repo (follow the repo's commit message convention)
-- Update `progress.md` in the docs repo with:
-  - What was implemented in this repo
-  - Test results (pass/fail, number of tests)
-  - Any issues encountered and how they were resolved
+After validation passes, each repo goes through a **staged review loop**
+before committing. This uses the `code-review-staged` skill to perform a
+thorough, context-aware review of the staged diff — catching issues before
+they become commits.
 
-## Step 7 — Review (MANDATORY — must produce written output)
+**Why review before commit (not after):**
 
-**Do NOT skip this step. Do NOT produce an empty review.**
+1. Staged changes are the exact "candidate commit" — reviewing at this
+   point prevents bad code from entering git history.
+2. The `code-review-staged` skill gathers rich context (full files, project
+   config, related files) that a post-commit branch diff review cannot match.
+3. Fix cycles are cleaner — just edit files and re-stage, no amend/rebase.
 
-After implementation is complete in all repos, you MUST perform a full
-review pass and write concrete findings to `review.md` before finalizing.
-Step 9 will check that `review.md` contains a `### Verdict` section — if
-it doesn't, finalization is blocked.
+**Flow per repo:**
 
-### 7a. Prepare — read reviewer guidelines
+```
+Implement → Validate (lint/test/build) → git add . → code-review-staged
+                                                          │
+                                          ┌───────────────┴───────────────┐
+                                          │                               │
+                                     Has P0/P1                      No P0/P1
+                                          │                               │
+                                  Fix code → git add .              Commit with
+                                          │                      recommended message
+                                  code-review-staged
+                                     (round N+1)
+                                          │
+                                   max 3 rounds
+```
 
-Read `.agents/agents/reviewer.md` to load the reviewer mindset and format.
+##### 6e-i. Stage all changes
 
-### 7b. Collect diffs — one per repo
+```bash
+cd <repo-dir>
+git add .
+```
+
+Do NOT commit yet. The staged changes are the review input.
+
+##### 6e-ii. Invoke `code-review-staged`
+
+Trigger the `code-review-staged` skill. It will:
+
+1. Run `git diff --cached` to collect the staged diff
+2. Gather repo context (project structure, config files, full file contents,
+   related files)
+3. Produce a structured review with: Change Overview, Code Quality,
+   Major Issues and Risks, Incremental Suggestions, and a Recommended
+   Commit Message
+
+##### 6e-iii. Evaluate review output and record to review.md
+
+Map the `code-review-staged` output to a review verdict:
+
+| code-review-staged output | Verdict | Action |
+|---------------------------|---------|--------|
+| Section 3 (Major Issues) has critical/high-severity items | `NEEDS_FIXES` | Fix and re-review |
+| Section 2 (Code Quality) has significant violations | `NEEDS_FIXES` | Fix and re-review |
+| Only minor suggestions (Section 4) or clean review | `PASS` | Proceed to commit |
+
+**Append** the review output to `review.md` in the docs repo. Use the
+following format (one section per round, per repo):
+
+**English:**
+
+```markdown
+## <repo> — Review Round <N> — <date>
+
+### Staged Review Output
+
+<Full output from code-review-staged, preserving all sections>
+
+### Verdict
+
+<PASS | NEEDS_FIXES> — <one-line summary>
+```
+
+**Chinese:**
+
+```markdown
+## <repo> — 第 <N> 轮审查 — <date>
+
+### 暂存区审查输出
+
+<code-review-staged 的完整输出，保留所有章节>
+
+### 结论
+
+<PASS | NEEDS_FIXES> — <一句话总结>
+```
+
+##### 6e-iv. Fix cycle (max 3 rounds)
+
+If the verdict is `NEEDS_FIXES`:
+
+1. **Fix only P0/P1 issues** identified in the review — do NOT refactor
+   unrelated code or chase P2 suggestions during fix rounds.
+2. Re-run validation (lint/test/build) on the fixes.
+3. Stage the fixes: `git add .`
+4. Invoke `code-review-staged` again — it reviews the NEW staged diff
+   which now includes the fixes.
+5. Append the new review round to `review.md`.
+6. Repeat until verdict is `PASS` or 3 rounds are exhausted.
+
+**After 3 rounds**: If P0/P1 issues remain after 3 rounds, record them as
+**residual issues** in `review.md` and `progress.md`, then proceed to
+commit. These will be flagged in the final summary for the user's attention.
+
+**Convergence principle**: Each round should have FEWER findings than the
+previous round. If a round introduces MORE new issues than it fixes, the
+developer is likely over-editing — stop the cycle and commit with the
+residual issues noted.
+
+##### 6e-v. Commit
+
+Once the review passes (or max rounds exhausted):
+
+1. Use the **recommended commit message** from the last `code-review-staged`
+   output. If the repo has its own commit message convention (from
+   AGENTS.md), reconcile the two — repo convention takes priority.
+2. Commit: `git commit -m "<message>"`
+3. Update `progress.md` in the docs repo with:
+   - What was implemented in this repo
+   - Review result (PASS after N rounds, or residual issues)
+   - Test results (pass/fail, number of tests)
+   - Any issues encountered and how they were resolved
+
+## Step 7 — Cross-Repo Consistency Review (multi-repo only)
+
+**Skip this step** if only one repo was modified. For multi-repo work,
+this step verifies that changes across repos are consistent with each other.
+This is separate from the per-repo staged review (Step 6e) which focuses
+on code quality within a single repo.
+
+### 7a. Collect cross-repo diffs
 
 For **each** affected repo, run:
 
@@ -950,86 +1075,76 @@ cd <repo-dir>
 git diff <default-branch>...<feature-branch>
 ```
 
-Save or remember the output — this is the primary review input. Do NOT
-skip this step or substitute it with "I already saw the code while
-implementing." The diff is the ground truth of what changed.
+### 7b. Cross-repo consistency checks
 
-### 7c. Per-repo review
-
-For each repo, answer these questions by reading the diff:
-
-1. **Correctness** — Does the code do what `plan.md` says it should?
-   Look for off-by-one errors, missing error handling, wrong return types,
-   incomplete implementations.
-2. **Convention compliance** — Check against the repo's `AGENTS.md`:
-   naming, code style, commit format, test coverage expectations.
-3. **Edge cases** — What inputs, states, or timing could break this?
-4. **Test coverage** — Are the new/changed code paths tested? Re-run
-   tests in the correct environment to confirm they pass.
-
-### 7d. Cross-repo consistency (critical for multi-repo work)
+Verify the following across ALL affected repos:
 
 - **API contracts**: request/response shapes match between producer and consumer
 - **Shared types**: type definitions in shared-lib match usage in all consumers
 - **Environment variables**: any new env vars are documented in all affected repos
 - **Database migrations**: schema changes are compatible across services
 - **Error contracts**: error codes/messages are consistent across boundaries
+- **Version compatibility**: dependency version bumps are aligned
 
-### 7e. Write findings to review.md
+### 7c. Write cross-repo findings to review.md
 
-**This is the deliverable.** Append a complete review section to
-`review.md`. The output MUST contain ALL of these structural elements:
-
-1. `## Review Pass <N>` header with date
-2. `### Findings` section with at least one finding (use `[P2] No issues
-   found` if everything looks good — never leave findings empty)
-3. `### Verdict` line with one of: `PASS`, `NEEDS_FIXES`, `FAIL`
-
-**IMPORTANT**: Even when no issues are found, the review section MUST be
-written in full — a PASS verdict with a brief summary confirming what was
-checked is required. An empty `review.md` is never acceptable.
-
-### Review finding format
+Append a cross-repo review section. Even if no issues are found, write a
+PASS confirmation documenting what was checked.
 
 **English:**
 
 ```markdown
-## Review Pass <N> — <date>
+## Cross-Repo Consistency Review — <date>
+
+### Checks Performed
+
+- API contracts: <result>
+- Shared types: <result>
+- Environment variables: <result>
+- ...
 
 ### Findings
 
-- [P0] <repo>: <critical issue> — must fix before merge
-- [P1] <repo>: <important issue> — should fix
-- [P2] <repo>: <suggestion> — nice to have
+- [P0] <repo-A> ↔ <repo-B>: <contract mismatch> — must fix
+- [P2] No cross-repo issues found
 
 ### Verdict
 
-<PASS | NEEDS_FIXES | FAIL> — <summary of what was reviewed and conclusion>
+<PASS | NEEDS_FIXES> — <summary>
 ```
 
 **Chinese:**
 
 ```markdown
-## 第 <N> 轮审查 — <date>
+## 跨仓库一致性审查 — <date>
+
+### 检查项
+
+- API 契约：<结果>
+- 共享类型：<结果>
+- 环境变量：<结果>
+- ...
 
 ### 发现
 
-- [P0] <repo>：<严重问题> — 合并前必须修复
-- [P1] <repo>：<重要问题> — 应当修复
-- [P2] <repo>：<建议> — 可选改进
+- [P0] <repo-A> ↔ <repo-B>：<契约不匹配> — 必须修复
+- [P2] 未发现跨仓库问题
 
 ### 结论
 
-<PASS | NEEDS_FIXES | FAIL> — <审查了什么、结论是什么>
+<PASS | NEEDS_FIXES> — <总结>
 ```
 
-### 7f. Fix cycle
+### 7d. Fix cross-repo issues
 
-If the review finds P0 or P1 issues:
-1. Dev agent addresses P0 and P1 findings
-2. Update `progress.md` with fixes made
-3. Re-run review (only on fixed items) — append a new `## Review Pass <N+1>` section
-4. Repeat until verdict is PASS (max 3 cycles)
+If P0/P1 cross-repo issues are found:
+
+1. Fix the upstream repo first, then downstream.
+2. For each repo that needs fixes, go through the staged review loop
+   again (Step 6e-i through 6e-v).
+3. Re-run the cross-repo consistency check.
+4. Max 2 fix rounds for cross-repo issues — if issues persist, record
+   as residual and proceed.
 
 ## Step 8 — Create Pull Requests (GitHub repos only)
 
@@ -1168,17 +1283,19 @@ Collect all PR URLs and:
 
 ### Review completion gate (MANDATORY)
 
-Before finalizing, verify that `review.md` contains a `### Verdict`
-(English) or `### 结论` (Chinese) section. If it does not, **STOP** —
-go back to Step 7 and complete the review first. Do NOT proceed with
-finalization if `review.md` still only contains the initial header.
+Before finalizing, verify that `review.md` contains at least one
+`### Verdict` (English) or `### 结论` (Chinese) section from the per-repo
+staged reviews (Step 6e). For multi-repo work, also verify that the
+cross-repo consistency review (Step 7) has been completed. If either is
+missing, **STOP** and go back to complete the review.
 
 ```
 Check review.md for:
-  "### Verdict" OR "### 结论"  — present?
+  Per-repo: at least one "### Verdict" OR "### 结论"  — present?
+  Multi-repo: "Cross-Repo" OR "跨仓库" section  — present? (skip if single repo)
 
-YES → proceed with finalization below
-NO  → STOP. Go back to Step 7 and write the review.
+ALL required sections present → proceed with finalization below
+ANY missing → STOP. Go back and complete the review.
 ```
 
 ### Finalization steps
