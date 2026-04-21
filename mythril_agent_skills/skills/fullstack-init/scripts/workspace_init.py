@@ -282,6 +282,7 @@ When starting any cross-repo work, create a work directory under
 | Feature | `{docs_dir}/feat/<name>/` | `feat/` | New features, capabilities |
 | Refactor | `{docs_dir}/refactor/<name>/` | `refactor/` | Code restructuring, tech debt |
 | Fix | `{docs_dir}/fix/<name>/` | `fix/` | Bug fixes, issue resolution |
+| Investigation | `{docs_dir}/investigate/<name>/` | _(none)_ | Feasibility research, prototyping, spikes |
 
 Each work directory contains:
 
@@ -328,7 +329,8 @@ Branch names use Title-Case-With-Hyphens for the descriptive part.
 │   ├── AGENTS.md
 │   ├── feat/
 │   ├── refactor/
-│   └── fix/
+│   ├── fix/
+│   └── investigate/
 ├── web/               # ← Independent git repo (example)
 ├── api/               # ← Independent git repo (example)
 └── ios/               # ← Independent git repo (example)
@@ -381,6 +383,20 @@ sets up the shared documentation directory (`{docs_dir}/`).
 Re-running is safe — it refreshes generated files while preserving your
 docs, scripts, and custom skills.
 
+### Investigate before implementing
+
+Use `fullstack-investigate` to research feasibility without committing:
+
+```
+> Investigate whether OAuth2 PKCE works with our auth flow
+> 调研一下 WebSocket 能不能替换轮询
+> Can we migrate from REST to GraphQL?
+```
+
+The skill makes temporary code changes (no branches, no commits) and outputs
+analysis, findings, and a verdict. If the verdict is positive, hand off to
+`fullstack-impl` for formal implementation.
+
 ### Implement a feature / refactor / fix
 
 Use `fullstack-impl` to start cross-repo work:
@@ -389,6 +405,7 @@ Use `fullstack-impl` to start cross-repo work:
 > Implement the dark mode feature (Jira: PROJ-123)
 > Refactor the authentication module across all services
 > Fix the login crash on empty password
+> Implement oauth2-pkce based on the investigation
 ```
 
 You can include links to Jira tickets, Confluence pages, GitHub issues, or
@@ -433,7 +450,8 @@ which branches are already checked out, and picks up where it left off.
 ├── {docs_dir + "/":<23s}# Shared docs — independent git repo
 │   ├── feat/          #   Feature work tracking
 │   ├── refactor/      #   Refactor work tracking
-│   └── fix/           #   Fix work tracking
+│   ├── fix/           #   Fix work tracking
+│   └── investigate/   #   Investigation work tracking
 ├── scripts/           # Workspace-level scripts (preserved)
 └── <repos...>/        # Your git repositories
 ```
@@ -447,6 +465,11 @@ Every cross-repo work item gets its own directory under `{docs_dir}/`:
 ├── plan.md            # What to do, which repos, in what order
 ├── progress.md        # What's done, what's in progress, blockers
 └── review.md          # Review findings and fix history
+
+{docs_dir}/investigate/<work-name>/
+├── analysis.md        # Technical analysis and feasibility
+├── findings.md        # Experiment records and observations
+└── verdict.md         # Conclusion and recommendation
 ```
 
 These are never deleted — they serve as project history.
@@ -485,6 +508,19 @@ fullstack 技能管理的多仓库全栈工作区。
 
 重复运行是安全的——会刷新生成的文件，但保留你的文档、脚本和自定义技能。
 
+### 先调研再实现
+
+使用 `fullstack-investigate` 做可行性调研，不创建分支、不提交：
+
+```
+> 调研一下 OAuth2 PKCE 能不能用在我们的鉴权流程里
+> 试试 WebSocket 能不能替换轮询
+> 先研究一下 REST 迁移 GraphQL 的可行性
+```
+
+该技能只做临时代码改动（不开分支、不提交），输出分析、调研发现和结论。
+如果结论可行，可以交给 `fullstack-impl` 正式实现。
+
 ### 开发新功能 / 重构 / 修复 Bug
 
 使用 `fullstack-impl` 开始跨仓库开发：
@@ -493,6 +529,7 @@ fullstack 技能管理的多仓库全栈工作区。
 > 实现暗色模式功能（Jira: PROJ-123）
 > 重构所有服务的鉴权模块
 > 修复空密码登录崩溃问题
+> 基于调研结果实现 oauth2-pkce
 ```
 
 你可以在消息中附带 Jira 卡片、Confluence 页面、GitHub Issue 或 Figma 设计
@@ -535,7 +572,8 @@ fullstack 技能管理的多仓库全栈工作区。
 ├── {docs_dir + "/":<23s}# 共享文档 — 独立 git 仓库
 │   ├── feat/          #   功能开发跟踪
 │   ├── refactor/      #   重构跟踪
-│   └── fix/           #   Bug 修复跟踪
+│   ├── fix/           #   Bug 修复跟踪
+│   └── investigate/   #   调研跟踪
 ├── scripts/           # 工作区级脚本（跨运行保留）
 └── <repos...>/        # 你的各个 git 子仓库
 ```
@@ -549,6 +587,11 @@ fullstack 技能管理的多仓库全栈工作区。
 ├── plan.md            # 做什么、涉及哪些仓库、按什么顺序
 ├── progress.md        # 已完成、进行中、阻塞项
 └── review.md          # 审查发现和修复记录
+
+{docs_dir}/investigate/<work-name>/
+├── analysis.md        # 技术分析和可行性
+├── findings.md        # 实验记录和观察
+└── verdict.md         # 结论和建议
 ```
 
 这些目录不会被删除——它们是项目的实施历史记录。
@@ -582,14 +625,15 @@ version control, separate from the workspace-level git repo.
 
 ## Work Tracking
 
-The `feat/`, `refactor/`, and `fix/` directories contain per-work-item
-documentation created by the `fullstack-impl` skill:
+The `feat/`, `refactor/`, `fix/`, and `investigate/` directories contain
+per-work-item documentation created by the fullstack skills:
 
 | Directory | Branch prefix | Use for |
 |-----------|--------------|---------|
 | `feat/` | `feat/` | New features and capabilities |
 | `refactor/` | `refactor/` | Code restructuring, tech debt |
 | `fix/` | `fix/` | Bug fixes, issue resolution |
+| `investigate/` | _(none)_ | Feasibility research, prototyping, spikes |
 
 Each work item gets its own subdirectory:
 
@@ -611,6 +655,7 @@ implementation history. Do not modify docs created by other work items.
 ├── feat/              # Feature work tracking
 ├── refactor/          # Refactor work tracking
 ├── fix/               # Fix work tracking
+├── investigate/       # Investigation work tracking
 ├── architecture.md    # System-wide architecture overview (example)
 ├── api-contracts/     # Shared API schemas, contracts (example)
 └── onboarding/        # New-member onboarding guides (example)
@@ -904,6 +949,7 @@ def bootstrap_workspace(
         (f"{resolved_docs_dir}/feat", "feature work tracking"),
         (f"{resolved_docs_dir}/refactor", "refactor work tracking"),
         (f"{resolved_docs_dir}/fix", "fix work tracking"),
+        (f"{resolved_docs_dir}/investigate", "investigation work tracking"),
         ("scripts", "workspace-level scripts"),
     ]:
         if ensure_directory(root / dirname):

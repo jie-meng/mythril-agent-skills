@@ -1,10 +1,10 @@
 ---
 name: fullstack-init
 description: |
-  Initialize or update a multi-repo fullstack workspace. Every run is a full
-  refresh — AGENTS.md, README.md, and agent templates are regenerated. Only
-  fullstack.json (config) and user directories (docs, scripts,
-  .agents/skills) are preserved. Workspace root is NOT a git repo.
+  Initialize or update a multi-repo fullstack workspace — discover repos,
+  generate AGENTS.md, create docs directory and workspace agents.
+  Trigger: "fullstack init", "fullstack initialize", "fullstack setup",
+  "全栈初始化", "初始化全栈工作区", "全栈 init".
 license: Apache-2.0
 ---
 
@@ -142,7 +142,8 @@ project-workspace/
 │   ├── AGENTS.md
 │   ├── feat/
 │   ├── refactor/
-│   └── fix/
+│   ├── fix/
+│   └── investigate/
 ├── scripts/                      # Preserved (user content)
 ├── web/                          # Independent repo
 ├── api/                          # Independent repo

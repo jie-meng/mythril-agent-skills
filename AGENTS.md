@@ -278,7 +278,7 @@ Skills appear in multiple listings: the README "Available Skills" table, the `sk
 | 5 | **Data Processing** | Python-based file processing tools | excel, pdf |
 | 6 | **Media Processing** | Standalone CLI tools for media files | imagemagick, ffmpeg |
 | 7 | **Content** | Content creation and writing tools | blog-writer |
-| 8 | **Fullstack Workspace** | Multi-repo workspace scaffolding and cross-repo implementation | fullstack-init, fullstack-impl |
+| 8 | **Fullstack Workspace** | Multi-repo workspace scaffolding and cross-repo implementation | fullstack-init, fullstack-investigate, fullstack-impl |
 
 **Within each category**, order by dependency complexity — no deps first, then CLI deps, then API credential deps:
 - No external dependencies → CLI tool dependency (`git`) → Platform CLI dependency (`gh`) → API token dependency

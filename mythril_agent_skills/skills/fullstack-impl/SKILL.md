@@ -2,8 +2,9 @@
 name: fullstack-impl
 description: |
   Implement features, refactors, and fixes across a multi-repo fullstack
-  workspace. Gathers context from Jira/Confluence/GitHub/Figma, creates
-  branches, delegates to workspace agents, and tracks progress in docs repo.
+  workspace — gather context, create branches, implement, review, and
+  create PRs. Trigger: "fullstack implement", "fullstack develop",
+  "fullstack impl", "全栈实现", "全栈开发", "全栈 impl".
 license: Apache-2.0
 ---
 
@@ -109,6 +110,31 @@ Read these files from the workspace root:
    flag (determines whether PRs will be created in Step 8)
 2. **`AGENTS.md`** — understand the repo table, conventions, and structure
 3. **`<docs-dir>/AGENTS.md`** — understand documentation conventions
+
+### Prior investigation context
+
+If the user mentions a previous investigation (e.g. "implement based on
+the investigation", "基于调研结果实现", or references a work name that
+exists under `<docs-dir>/investigate/`), read the investigation documents:
+
+1. **`<docs-dir>/investigate/<name>/analysis.md`** — technical analysis,
+   hypothesis, and investigation approach
+2. **`<docs-dir>/investigate/<name>/findings.md`** — experiment records,
+   observations, what worked and what didn't
+3. **`<docs-dir>/investigate/<name>/verdict.md`** — conclusion, evidence,
+   and recommendations for implementation
+
+Use these as **additional context** for planning. The investigation's
+analysis replaces or supplements the Planner's analysis in Step 5 — if
+the investigation already contains a thorough technical analysis, the
+Planner can reference it instead of starting from scratch. Record the
+investigation reference in `plan.md` under the **Source** field.
+
+**Note**: The investigation may have left temporary code changes in the
+affected repos. These changes are **not committed** — they exist only in
+the working directory. The implementation should start from a clean state:
+run `git checkout .` in affected repos before creating feature branches,
+unless the user explicitly says to keep the investigation changes.
 
 ## Step 2 — Determine Work Type
 
