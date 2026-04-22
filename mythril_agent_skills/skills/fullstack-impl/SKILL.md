@@ -112,33 +112,33 @@ Read these files from the workspace root:
 2. **`AGENTS.md`** — understand the repo table, conventions, and structure
 3. **`<docs-dir>/AGENTS.md`** — understand documentation conventions
 
-### Prior investigation context
+### Prior spike context
 
-If the user mentions a previous investigation (e.g. "implement based on
-the investigation", "基于调研结果实现", or references a work name that
-exists under `<docs-dir>/investigate/`), read the investigation documents:
+If the user mentions a previous spike (e.g. "implement based on
+the spike", "基于 spike 结果实现", or references a work name that
+exists under `<docs-dir>/spike/`), read the spike documents:
 
-1. **`<docs-dir>/investigate/<name>/analysis.md`** — technical analysis,
-   hypothesis, and investigation approach
-2. **`<docs-dir>/investigate/<name>/findings.md`** — experiment records,
+1. **`<docs-dir>/spike/<name>/analysis.md`** — technical analysis,
+   hypothesis, and spike approach
+2. **`<docs-dir>/spike/<name>/findings.md`** — experiment records,
    observations, what worked and what didn't
-3. **`<docs-dir>/investigate/<name>/verdict.md`** — conclusion, evidence,
+3. **`<docs-dir>/spike/<name>/verdict.md`** — conclusion, evidence,
    and recommendations for implementation
 
 Use these as **additional context** for planning. The `analysis.md` in
 the work directory is still REQUIRED (four-file invariant) — but it may
-reference and summarize the investigation's analysis instead of
-repeating it from scratch. For example: "Based on investigation
-`investigate/<name>/`, the recommended approach is X (see
-`investigate/<name>/verdict.md` for full rationale)." Record the
-investigation reference in both `analysis.md` and `plan.md` under the
+reference and summarize the spike's analysis instead of
+repeating it from scratch. For example: "Based on spike
+`spike/<name>/`, the recommended approach is X (see
+`spike/<name>/verdict.md` for full rationale)." Record the
+spike reference in both `analysis.md` and `plan.md` under the
 **Source** field.
 
-**Note**: The investigation may have left temporary code changes in the
+**Note**: The spike may have left temporary code changes in the
 affected repos. These changes are **not committed** — they exist only in
 the working directory. The implementation should start from a clean state:
 run `git checkout .` in affected repos before creating feature branches,
-unless the user explicitly says to keep the investigation changes.
+unless the user explicitly says to keep the spike changes.
 
 ## Step 2 — Determine Work Type
 

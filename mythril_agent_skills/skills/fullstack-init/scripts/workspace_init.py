@@ -282,7 +282,7 @@ When starting any cross-repo work, create a work directory under
 | Feature | `{docs_dir}/feat/<name>/` | `feat/` | New features, capabilities |
 | Refactor | `{docs_dir}/refactor/<name>/` | `refactor/` | Code restructuring, tech debt |
 | Fix | `{docs_dir}/fix/<name>/` | `fix/` | Bug fixes, issue resolution |
-| Investigation | `{docs_dir}/investigate/<name>/` | _(none)_ | Feasibility research, prototyping, spikes |
+| Spike | `{docs_dir}/spike/<name>/` | _(none)_ | Time-boxed prototyping, technical validation, PoCs |
 
 Each work directory contains:
 
@@ -292,6 +292,11 @@ Each work directory contains:
 ├── plan.md            # Implementation plan (repos involved, tasks, approach)
 ├── progress.md        # Current status, completed steps, blockers
 └── review.md          # Review findings and fix history (append-only)
+
+spike/<work-name>/
+├── analysis.md        # Technical analysis and feasibility
+├── findings.md        # Experiment records and observations
+└── verdict.md         # Conclusion and recommendation
 ```
 
 Work directories are **never deleted** — they serve as project history.
@@ -330,7 +335,7 @@ Branch names use Title-Case-With-Hyphens for the descriptive part.
 │   ├── feat/
 │   ├── refactor/
 │   ├── fix/
-│   └── investigate/
+│   └── spike/
 ├── web/               # ← Independent git repo (example)
 ├── api/               # ← Independent git repo (example)
 └── ios/               # ← Independent git repo (example)
@@ -385,7 +390,7 @@ docs, scripts, and custom skills.
 
 ### Investigate before implementing
 
-Use `fullstack-investigate` to research feasibility without committing:
+Use `fullstack-spike` to run a time-boxed spike without committing:
 
 ```
 > Investigate whether OAuth2 PKCE works with our auth flow
@@ -451,7 +456,7 @@ which branches are already checked out, and picks up where it left off.
 │   ├── feat/          #   Feature work tracking
 │   ├── refactor/      #   Refactor work tracking
 │   ├── fix/           #   Fix work tracking
-│   └── investigate/   #   Investigation work tracking
+│   └── spike/         #   Spike work tracking
 ├── scripts/           # Workspace-level scripts (preserved)
 └── <repos...>/        # Your git repositories
 ```
@@ -466,7 +471,7 @@ Every cross-repo work item gets its own directory under `{docs_dir}/`:
 ├── progress.md        # What's done, what's in progress, blockers
 └── review.md          # Review findings and fix history
 
-{docs_dir}/investigate/<work-name>/
+{docs_dir}/spike/<work-name>/
 ├── analysis.md        # Technical analysis and feasibility
 ├── findings.md        # Experiment records and observations
 └── verdict.md         # Conclusion and recommendation
@@ -510,7 +515,7 @@ fullstack 技能管理的多仓库全栈工作区。
 
 ### 先调研再实现
 
-使用 `fullstack-investigate` 做可行性调研，不创建分支、不提交：
+使用 `fullstack-spike` 做有时限的技术验证（spike），不创建分支、不提交：
 
 ```
 > 调研一下 OAuth2 PKCE 能不能用在我们的鉴权流程里
@@ -573,7 +578,7 @@ fullstack 技能管理的多仓库全栈工作区。
 │   ├── feat/          #   功能开发跟踪
 │   ├── refactor/      #   重构跟踪
 │   ├── fix/           #   Bug 修复跟踪
-│   └── investigate/   #   调研跟踪
+│   └── spike/         #   Spike 跟踪
 ├── scripts/           # 工作区级脚本（跨运行保留）
 └── <repos...>/        # 你的各个 git 子仓库
 ```
@@ -588,7 +593,7 @@ fullstack 技能管理的多仓库全栈工作区。
 ├── progress.md        # 已完成、进行中、阻塞项
 └── review.md          # 审查发现和修复记录
 
-{docs_dir}/investigate/<work-name>/
+{docs_dir}/spike/<work-name>/
 ├── analysis.md        # 技术分析和可行性
 ├── findings.md        # 实验记录和观察
 └── verdict.md         # 结论和建议
@@ -625,7 +630,7 @@ version control, separate from the workspace-level git repo.
 
 ## Work Tracking
 
-The `feat/`, `refactor/`, `fix/`, and `investigate/` directories contain
+The `feat/`, `refactor/`, `fix/`, and `spike/` directories contain
 per-work-item documentation created by the fullstack skills:
 
 | Directory | Branch prefix | Use for |
@@ -633,7 +638,7 @@ per-work-item documentation created by the fullstack skills:
 | `feat/` | `feat/` | New features and capabilities |
 | `refactor/` | `refactor/` | Code restructuring, tech debt |
 | `fix/` | `fix/` | Bug fixes, issue resolution |
-| `investigate/` | _(none)_ | Feasibility research, prototyping, spikes |
+| `spike/` | _(none)_ | Time-boxed prototyping, technical validation, PoCs |
 
 Each work item gets its own subdirectory:
 
@@ -655,7 +660,7 @@ implementation history. Do not modify docs created by other work items.
 ├── feat/              # Feature work tracking
 ├── refactor/          # Refactor work tracking
 ├── fix/               # Fix work tracking
-├── investigate/       # Investigation work tracking
+├── spike/            # Spike work tracking
 ├── architecture.md    # System-wide architecture overview (example)
 ├── api-contracts/     # Shared API schemas, contracts (example)
 └── onboarding/        # New-member onboarding guides (example)
@@ -949,7 +954,7 @@ def bootstrap_workspace(
         (f"{resolved_docs_dir}/feat", "feature work tracking"),
         (f"{resolved_docs_dir}/refactor", "refactor work tracking"),
         (f"{resolved_docs_dir}/fix", "fix work tracking"),
-        (f"{resolved_docs_dir}/investigate", "investigation work tracking"),
+        (f"{resolved_docs_dir}/spike", "spike work tracking"),
         ("scripts", "workspace-level scripts"),
     ]:
         if ensure_directory(root / dirname):

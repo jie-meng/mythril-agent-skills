@@ -143,7 +143,7 @@ project-workspace/
 │   ├── feat/
 │   ├── refactor/
 │   ├── fix/
-│   └── investigate/
+│   └── spike/
 ├── scripts/                      # Preserved (user content)
 ├── web/                          # Independent repo
 ├── api/                          # Independent repo

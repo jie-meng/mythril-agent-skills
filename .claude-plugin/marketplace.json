@@ -355,9 +355,9 @@
       "strict": false
     },
     {
-      "name": "fullstack-investigate",
-      "source": "./plugins/fullstack-investigate",
-      "description": "Investigate feasibility and prototype across a multi-repo fullstack workspace without creating branches or committing code",
+      "name": "fullstack-spike",
+      "source": "./plugins/fullstack-spike",
+      "description": "Run time-boxed spikes across a multi-repo fullstack workspace — prototype, validate, and estimate without creating branches or committing code",
       "version": "0.2.10",
       "author": {
         "name": "Jie Meng"
@@ -368,7 +368,7 @@
         "workspace",
         "fullstack",
         "multi-repo",
-        "investigation",
+        "spike",
         "prototype"
       ],
       "strict": false

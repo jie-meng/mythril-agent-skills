@@ -204,16 +204,16 @@ Initialize or update a multi-repo fullstack workspace with unified AI context. C
 - **Try:** Initialize this fullstack workspace
 - **Deps:** `git` CLI
 
-**[Fullstack Investigate](./mythril_agent_skills/skills/fullstack-investigate/)**
+**[Fullstack Spike](./mythril_agent_skills/skills/fullstack-spike/)**
 
-Investigate feasibility and prototype ideas across a multi-repo fullstack workspace WITHOUT creating branches or committing. Temporary code changes stay unstaged. Outputs analysis, findings, and a verdict. If feasible, hand off to `fullstack-impl` for formal implementation.
+Run a time-boxed spike across a multi-repo fullstack workspace — write throwaway code to validate a technical hypothesis, reduce uncertainty, or estimate effort. No branches, no commits. Outputs analysis, findings, and a verdict. If feasible, hand off to `fullstack-impl` for formal implementation.
 
-- **Try:** Investigate whether we can migrate to GraphQL
+- **Try:** Spike whether we can migrate to GraphQL
 - **Deps:** Workspace initialized by `fullstack-init`
 
 **[Fullstack Impl](./mythril_agent_skills/skills/fullstack-impl/)**
 
-Implement features, refactors, and fixes across a multi-repo fullstack workspace. Gathers context from Jira/Confluence/GitHub/Figma, creates branches, delegates to workspace agents, and tracks progress in docs repo. Can build on prior investigation results.
+Implement features, refactors, and fixes across a multi-repo fullstack workspace. Gathers context from Jira/Confluence/GitHub/Figma, creates branches, delegates to workspace agents, and tracks progress in docs repo. Can build on prior spike results.
 
 - **Try:** Implement this Jira ticket across the workspace
 - **Deps:** Workspace initialized by `fullstack-init`
@@ -340,7 +340,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `ffmpeg` | Video and audio processing via FFmpeg CLI |
 | `blog-writer` | Write, refine, and adapt tech-first multilingual blog posts |
 | `fullstack-init` | Initialize multi-repo fullstack workspace with AI context |
-| `fullstack-investigate` | Investigate feasibility without committing |
+| `fullstack-spike` | Run time-boxed spikes without committing |
 | `fullstack-impl` | Implement features/fixes across a fullstack workspace |
 
 </details>
@@ -580,7 +580,7 @@ mythril-agent-skills/
 │       ├── git-repo-reader/     # Clone and read any git repo
 │       ├── blog-writer/         # Tech-first multilingual blog writing
 │       ├── fullstack-init/      # Initialize multi-repo workspace
-│       ├── fullstack-investigate/ # Investigate feasibility without committing
+│       ├── fullstack-spike/       # Run time-boxed spikes without committing
 │       └── fullstack-impl/      # Implement across fullstack workspace
 ├── plugins/                     # Per-skill plugin wrappers (symlinks into skills/)
 ├── scripts/                     # Dev scripts & backward-compatible wrappers

@@ -1,21 +1,21 @@
 ---
-name: fullstack-investigate
+name: fullstack-spike
 description: |
-  Investigate feasibility and prototype across a multi-repo fullstack
-  workspace — no branches, no commits. Temporary changes only, with
-  analysis, findings, and verdict output. Trigger: "fullstack investigate",
-  "fullstack research", "fullstack spike", "全栈调研", "全栈研究",
-  "全栈 investigate".
+  Run a time-boxed spike across a multi-repo fullstack workspace — write
+  throwaway code to validate a technical hypothesis, reduce uncertainty,
+  or estimate effort. No branches, no commits to code repos. Temporary
+  changes only, with analysis, findings, and verdict output.
+  Trigger: "fullstack spike", "fullstack prototype", "fullstack poc",
+  "全栈 spike", "全栈探针", "全栈验证", "全栈 poc".
 license: Apache-2.0
 ---
 
-# Fullstack Investigation
+# Fullstack Spike
 
-Investigate feasibility, prototype, and validate ideas across a multi-repo
-fullstack workspace initialized by `fullstack-init`. This skill handles
-exploratory work: research, prototyping, and validation — WITHOUT creating
-branches, committing, or creating PRs. All code changes remain temporary
-and unstaged.
+Run a time-boxed spike across a multi-repo fullstack workspace initialized
+by `fullstack-init`. A spike is a short, hands-on experiment — write
+throwaway code to validate a technical hypothesis, reduce uncertainty, or
+estimate effort before committing to a full implementation.
 
 ## Core Principle — No Git Side Effects
 
@@ -30,11 +30,11 @@ All code modifications are **temporary working directory changes**. The user
 can verify them locally (run the app, run tests, inspect output), then either:
 
 - **Proceed to implementation**: invoke `fullstack-impl` with the
-  investigation docs as context
+  spike docs as context
 - **Discard**: `git checkout .` in each affected repo to clean up
 
 The ONLY git writes this skill makes are commits to the **docs repo**
-(investigation tracking documents).
+(spike tracking documents).
 
 ## Prerequisites — Workspace Validation Gate
 
@@ -60,7 +60,7 @@ ANY missing → STOP and show the error below
 
 ### If validation fails
 
-**Do NOT proceed with any investigation work.** Instead, inform the user:
+**Do NOT proceed with any spike work.** Instead, inform the user:
 
 > **Workspace not detected.** This skill requires a fullstack workspace
 > initialized by `fullstack-init`. The current directory is missing:
@@ -71,7 +71,7 @@ ANY missing → STOP and show the error below
 
 ## Document Language Selection
 
-All generated investigation documents (analysis.md, findings.md, verdict.md)
+All generated spike documents (analysis.md, findings.md, verdict.md)
 and user-facing messages MUST match the language of the user's prompt.
 
 ### Detection rule
@@ -95,7 +95,7 @@ and user-facing messages MUST match the language of the user's prompt.
 
 ## Step 1 — Gather Context
 
-Before doing ANY investigation work, gather all available context.
+Before doing ANY spike work, gather all available context.
 
 ### External links in the user's prompt
 
@@ -118,19 +118,19 @@ Read these files from the workspace root:
 2. **`AGENTS.md`** — understand the repo table, conventions, and structure
 3. **`<docs-dir>/AGENTS.md`** — understand documentation conventions
 
-### Existing investigation context
+### Existing spike context
 
-Check if the user references a previous investigation. If so, read its
-documents from `<docs-dir>/investigate/<name>/` to build on prior work.
+Check if the user references a previous spike. If so, read its
+documents from `<docs-dir>/spike/<name>/` to build on prior work.
 
-## Step 2 — Determine Investigation Scope
+## Step 2 — Determine Spike Scope
 
-Define what is being investigated. Unlike `fullstack-impl` which classifies
-into feat/refactor/fix, investigation has a single category.
+Define what is being spiked. Unlike `fullstack-impl` which classifies
+into feat/refactor/fix, spikes have a single category.
 
 | Category | Directory | Use for |
 |----------|-----------|---------|
-| Investigation | `<docs-dir>/investigate/` | Feasibility research, prototyping, spikes, validation |
+| Spike | `<docs-dir>/spike/` | Technical validation, prototyping, PoCs, effort estimation |
 
 ## Step 3 — Identify Affected Repos
 
@@ -148,12 +148,12 @@ examined or temporarily modified.
 **ALWAYS** present your analysis to the user for confirmation. Format:
 
 ```
-Based on the investigation scope, I plan to examine/modify these repositories:
+Based on the spike scope, I plan to examine/modify these repositories:
 
   1. api/ — Test new authentication flow
   2. web/ — Prototype the new login page
 
-Investigation scope: Verify OAuth2 PKCE integration feasibility
+Spike scope: Verify OAuth2 PKCE integration feasibility
 
 Note: No branches will be created. All code changes are temporary
 and can be cleaned up with `git checkout .` in each repo.
@@ -163,12 +163,12 @@ Does this look correct?
 
 **Do NOT proceed until the user confirms.**
 
-## Step 4 — Create Investigation Docs
+## Step 4 — Create Spike Docs
 
-Create a work directory under `<docs-dir>/investigate/`:
+Create a work directory under `<docs-dir>/spike/`:
 
 ```
-<docs-dir>/investigate/<work-name>/
+<docs-dir>/spike/<work-name>/
 ├── analysis.md    # Technical analysis (architecture, feasibility, design options)
 ├── findings.md    # What was tried, what worked, what didn't
 └── verdict.md     # Created with header, filled at the end
@@ -176,14 +176,14 @@ Create a work directory under `<docs-dir>/investigate/`:
 
 ### Work name
 
-Derive from the investigation topic. Use lowercase-hyphenated format:
+Derive from the spike topic. Use lowercase-hyphenated format:
 - "Can we use OAuth2 PKCE?" → `oauth2-pkce-feasibility`
 - "试试 WebSocket 替换轮询" → `websocket-replace-polling`
 
 ### Agent dispatch — analysis
 
 Read the Planner agent file from `.agents/agents/planner.md` and use it
-to write the technical analysis. The analysis for investigation focuses
+to write the technical analysis. The analysis for a spike focuses
 more on **feasibility** and **unknowns** than on implementation planning.
 
 ### analysis.md template
@@ -194,17 +194,17 @@ more on **feasibility** and **unknowns** than on implementation planning.
 # Analysis: <Work Name>
 
 **Created**: <date>
-**Type**: investigation
+**Type**: spike
 **Author**: Planner
 
 ## Objective
 
-<What are we trying to find out? What question does this investigation answer?>
+<What are we trying to find out? What question does this spike answer?>
 
 ## Current State
 
 <Describe the existing system behavior, architecture, or limitations
-that motivate this investigation.>
+that motivate this spike.>
 
 ### Architecture (as-is)
 
@@ -218,7 +218,7 @@ flowchart LR
 
 <What do we believe will work? What assumptions are we testing?>
 
-## Investigation Approach
+## Spike Approach
 
 | Step | What to try | Repo | Expected outcome | Risk |
 |------|-------------|------|-----------------|------|
@@ -233,7 +233,7 @@ flowchart LR
 
 ## Success Criteria
 
-<How do we know the investigation succeeded? What evidence do we need?>
+<How do we know the spike succeeded? What evidence do we need?>
 
 - [ ] Criterion 1
 - [ ] Criterion 2
@@ -245,16 +245,16 @@ flowchart LR
 # 分析：<工作名称>
 
 **创建时间**：<date>
-**类型**：investigation
+**类型**：spike
 **作者**：Planner
 
 ## 目标
 
-<我们要弄清楚什么？这次调研要回答什么问题？>
+<我们要弄清楚什么？这次 spike 要回答什么问题？>
 
 ## 现状
 
-<描述现有的系统行为、架构或限制，说明为什么要做这次调研。>
+<描述现有的系统行为、架构或限制，说明为什么要做这次 spike。>
 
 ### 现有架构
 
@@ -268,7 +268,7 @@ flowchart LR
 
 <我们认为什么方案可行？我们在验证什么假设？>
 
-## 调研方案
+## Spike 方案
 
 | 步骤 | 尝试内容 | 仓库 | 预期结果 | 风险 |
 |------|---------|------|---------|------|
@@ -283,7 +283,7 @@ flowchart LR
 
 ## 成功标准
 
-<如何判定调研成功？需要什么证据？>
+<如何判定 spike 成功？需要什么证据？>
 
 - [ ] 标准 1
 - [ ] 标准 2
@@ -332,7 +332,7 @@ flowchart LR
 **Chinese:**
 
 ```markdown
-# 调研发现：<工作名称>
+# Spike 发现：<工作名称>
 
 **最后更新**：<date>
 **状态**：进行中
@@ -374,7 +374,7 @@ flowchart LR
 ```markdown
 # Verdict: <Work Name>
 
-Investigation conclusion and recommendation will be written here
+Spike conclusion and recommendation will be written here
 after all experiments are completed.
 ```
 
@@ -383,10 +383,10 @@ after all experiments are completed.
 ```markdown
 # 结论：<工作名称>
 
-调研结论和建议将在所有实验完成后写入此处。
+Spike 结论和建议将在所有实验完成后写入此处。
 ```
 
-## Step 5 — Investigate
+## Step 5 — Execute the Spike
 
 ### Read repo conventions first
 
@@ -404,7 +404,7 @@ nvm use, etc.) so that temporary changes can be tested properly.
 
 ### Make temporary changes
 
-- Modify code as needed for the investigation
+- Modify code as needed for the spike
 - **Do NOT run `git add` or `git commit`** on any code repo
 - Run tests, start dev servers, check logs — whatever validates the hypothesis
 - Record each experiment and its results in `findings.md`
@@ -420,13 +420,13 @@ After each significant experiment:
 
 ## Step 6 — Review & Verdict
 
-After investigation is complete, perform a review of the findings and
+After the spike is complete, perform a review of the findings and
 write the verdict.
 
-### 6a. Review the investigation
+### 6a. Review the spike
 
 Read `.agents/agents/reviewer.md` and use the Reviewer perspective to
-evaluate the investigation:
+evaluate the spike:
 
 - Were the success criteria met?
 - Is the evidence sufficient to draw a conclusion?
@@ -448,7 +448,7 @@ Replace the placeholder content with the full verdict.
 
 ## Summary
 
-<One paragraph: what was investigated, what was found, and the conclusion.>
+<One paragraph: what was spiked, what was found, and the conclusion.>
 
 ## Evidence
 
@@ -463,12 +463,12 @@ Replace the placeholder content with the full verdict.
 
 ### If proceeding to implementation
 
-To implement based on this investigation, tell your AI agent:
+To implement based on this spike, tell your AI agent:
 
-> Implement <work-name> based on the investigation at
-> `<docs-dir>/investigate/<work-name>/`
+> Implement <work-name> based on the spike at
+> `<docs-dir>/spike/<work-name>/`
 
-The `fullstack-impl` skill will read the investigation documents
+The `fullstack-impl` skill will read the spike documents
 (analysis.md, findings.md, verdict.md) as additional context for planning.
 
 ### If not proceeding
@@ -503,7 +503,7 @@ cd <repo-2> && git checkout .
 
 ## 摘要
 
-<一段话：调研了什么、发现了什么、得出了什么结论。>
+<一段话：spike 了什么、发现了什么、得出了什么结论。>
 
 ## 证据
 
@@ -518,11 +518,11 @@ cd <repo-2> && git checkout .
 
 ### 如果进入实现阶段
 
-基于本次调研进入实现，告诉你的 AI agent：
+基于本次 spike 进入实现，告诉你的 AI agent：
 
-> 基于 `<docs-dir>/investigate/<work-name>/` 的调研结果，实现 <work-name>
+> 基于 `<docs-dir>/spike/<work-name>/` 的 spike 结果，实现 <work-name>
 
-`fullstack-impl` 技能会读取调研文档（analysis.md、findings.md、verdict.md）
+`fullstack-impl` 技能会读取 spike 文档（analysis.md、findings.md、verdict.md）
 作为规划的额外上下文。
 
 ### 如果不实现
@@ -548,12 +548,12 @@ cd <repo-2> && git checkout .
 
 ## Step 7 — Finalize
 
-1. **Ensure all investigation docs are complete**:
+1. **Ensure all spike docs are complete**:
    - `analysis.md` — has the technical analysis
    - `findings.md` — has all experiment records and the temporary changes table
    - `verdict.md` — has the full verdict with recommendation
 2. **Commit** all docs to the docs repo
-3. **Report to user**: Summarize the investigation results, including:
+3. **Report to user**: Summarize the spike results, including:
    - The verdict (FEASIBLE / NOT_FEASIBLE / NEEDS_MORE_RESEARCH)
    - Key findings
    - Next steps (proceed to impl, or discard and clean up)
@@ -561,7 +561,7 @@ cd <repo-2> && git checkout .
 
    **English example:**
    ```
-   Investigation complete.
+   Spike complete.
 
    Verdict: FEASIBLE — OAuth2 PKCE integration is viable with the
    current architecture. Minor changes needed in api/ and web/.
@@ -571,13 +571,13 @@ cd <repo-2> && git checkout .
      - web/ (src/Login.tsx)
 
    Next steps:
-     - To implement: "Implement oauth2-pkce based on the investigation"
+     - To implement: "Implement oauth2-pkce based on the spike"
      - To clean up: run `git checkout .` in api/ and web/
    ```
 
    **Chinese example:**
    ```
-   调研完成。
+   Spike 完成。
 
    结论：可行 — OAuth2 PKCE 集成在当前架构下可行，api/ 和 web/ 需少量改动。
 
@@ -586,19 +586,19 @@ cd <repo-2> && git checkout .
      - web/（src/Login.tsx）
 
    后续步骤：
-     - 进入实现：「基于调研结果实现 oauth2-pkce」
+     - 进入实现：「基于 spike 结果实现 oauth2-pkce」
      - 清理代码：在 api/ 和 web/ 中执行 `git checkout .`
    ```
 
-## Resuming Previous Investigation
+## Resuming Previous Spike
 
-When this skill is invoked, check for existing investigation directories
-under `<docs-dir>/investigate/`.
+When this skill is invoked, check for existing spike directories
+under `<docs-dir>/spike/`.
 
-If the user says something like "continue the OAuth investigation" or
-"继续之前的调研":
+If the user says something like "continue the OAuth spike" or
+"继续之前的 spike":
 
-1. Find the matching investigation directory
+1. Find the matching spike directory
 2. Read `analysis.md` and `findings.md` to understand current state
 3. Check what experiments have been completed
 4. Resume from the last incomplete step
