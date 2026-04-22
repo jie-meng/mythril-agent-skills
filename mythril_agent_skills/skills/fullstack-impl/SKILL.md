@@ -55,8 +55,9 @@ workspace would produce errors or incorrect behavior.
 
 ## Document Language Selection
 
-All generated work tracking documents (plan.md, progress.md, review.md)
-and user-facing messages MUST match the language of the user's prompt.
+All four work tracking documents (analysis.md, plan.md, progress.md,
+review.md) and user-facing messages MUST match the language of the
+user's prompt.
 
 ### Detection rule
 
@@ -124,11 +125,14 @@ exists under `<docs-dir>/investigate/`), read the investigation documents:
 3. **`<docs-dir>/investigate/<name>/verdict.md`** — conclusion, evidence,
    and recommendations for implementation
 
-Use these as **additional context** for planning. The investigation's
-analysis replaces or supplements the Planner's analysis in Step 5 — if
-the investigation already contains a thorough technical analysis, the
-Planner can reference it instead of starting from scratch. Record the
-investigation reference in `plan.md` under the **Source** field.
+Use these as **additional context** for planning. The `analysis.md` in
+the work directory is still REQUIRED (four-file invariant) — but it may
+reference and summarize the investigation's analysis instead of
+repeating it from scratch. For example: "Based on investigation
+`investigate/<name>/`, the recommended approach is X (see
+`investigate/<name>/verdict.md` for full rationale)." Record the
+investigation reference in both `analysis.md` and `plan.md` under the
+**Source** field.
 
 **Note**: The investigation may have left temporary code changes in the
 affected repos. These changes are **not committed** — they exist only in
@@ -265,11 +269,49 @@ Create a work directory under `<docs-dir>/<type>/`:
 
 ```
 <docs-dir>/<type>/<work-name>/
-├── analysis.md   (technical analysis — created by planner or debugger)
-├── plan.md
-├── progress.md
-└── review.md     (created empty, filled during review)
+├── analysis.md   (technical analysis — ALWAYS created first)
+├── plan.md       (execution plan — derived from analysis)
+├── progress.md   (status tracking — updated throughout)
+└── review.md     (review findings — filled during review)
 ```
+
+### Four-File Invariant (MANDATORY)
+
+All four files (`analysis.md`, `plan.md`, `progress.md`, `review.md`)
+MUST be created in the work directory. No exceptions.
+
+```
+RULE: Every work directory MUST contain all four files.
+      analysis.md is NEVER optional — even for "simple" work.
+      If you think the work is trivial, write a brief analysis.
+      A one-page analysis.md is fine. A missing analysis.md is NOT.
+```
+
+**Why this is non-negotiable:**
+
+1. `analysis.md` is the **foundation** — it captures *why* decisions
+   were made and *what* was considered. Without it, the plan has no
+   traceable rationale.
+2. The four files form a **causal chain**: analysis → plan → progress →
+   review. Removing any link breaks traceability.
+3. External consumers (human reviewers, future sessions, other agents)
+   expect all four files. A missing file signals incomplete work.
+
+**If the user specifies an external tech doc location** (e.g., "put the
+tech doc in `docs/feature-x/`" or links to an existing design doc):
+- STILL create `analysis.md` in the work directory alongside the other
+  three files. The content may reference or summarize the external doc,
+  but the file MUST exist in the work directory.
+- Rationale: the four files must be co-located and self-contained. An
+  external doc supplements but does not replace the local `analysis.md`.
+
+**Scaling by complexity** — the analysis depth should match the work:
+
+| Work complexity | analysis.md depth |
+|----------------|-------------------|
+| Trivial (typo, config, version bump) | 1-2 sections: brief current state + change rationale |
+| Simple (single repo, clear scope) | 3-4 sections: current state, requirements, chosen approach |
+| Complex (multi-repo, architectural) | Full template: diagrams, options, trade-offs, risk matrix |
 
 ### Agent dispatch — analysis before planning
 
@@ -287,16 +329,12 @@ the appropriate workspace agent based on work type:
 1. **Read the agent file** — `.agents/agents/planner.md` (feat/refactor)
    or `.agents/agents/debugger.md` (fix).
 2. **Write `analysis.md`** — the analysis agent writes the technical
-   thinking document using the appropriate template (see below).
+   thinking document using the appropriate template (see below). This
+   is ALWAYS the first document created.
 3. **Then write `plan.md`** — informed by the analysis. For `feat/refactor`,
    the Planner writes both sequentially. For `fix/`, the Debugger writes
    `analysis.md` first, then the skill creates `plan.md` based on the
    debugger's findings.
-
-**When to skip `analysis.md`**: Simple, self-evident work (single repo,
-clear scope, no architectural decisions, no root cause to investigate).
-Examples: typo fix, config change, version bump. When skipping, proceed
-directly to `plan.md`.
 
 ### Work name
 
@@ -826,6 +864,40 @@ finalization can proceed.
 最终必须包含 `### 结论` 部分，否则无法进入收尾阶段。
 ```
 
+### Document Lifecycle & Consistency (MANDATORY)
+
+The four documents form a **causal chain** — each is derived from its
+predecessor. When any document is updated, its downstream documents
+MUST be checked for consistency and corrected if needed.
+
+```
+analysis.md ──→ plan.md ──→ progress.md ──→ review.md
+ (why)          (what)       (status)       (quality)
+```
+
+**Causal rules:**
+
+| Event | Required sync |
+|-------|---------------|
+| `analysis.md` updated (new option chosen, risk identified) | Check `plan.md` — update affected tasks, dependencies, risks |
+| `plan.md` updated (scope change, repo added/removed) | Check `progress.md` — update task list, status |
+| Review finds issues → code fixed | Update `progress.md` (changelog). If fix changes architecture or approach, update `analysis.md` and `plan.md` too |
+| Scope change mid-implementation | Update ALL four files: analysis rationale → plan tasks → progress status → review scope |
+
+**Consistency checkpoints** — the skill MUST verify consistency at:
+
+1. **Before Step 6 starts** — `analysis.md` conclusions match `plan.md`
+   approach (no stale divergence from prior edits)
+2. **After cross-repo review (Step 7)** — if review findings require
+   architectural changes, propagate back to `analysis.md` and `plan.md`
+3. **During finalization (Step 9)** — all four files reflect the final
+   state: `analysis.md` documents what was decided, `plan.md` tasks are
+   checked off, `progress.md` shows completion, `review.md` has verdicts
+
+**Anti-pattern**: Updating `review.md` with fix information but leaving
+`analysis.md` and `plan.md` stale. If a review-driven fix changes the
+technical approach, ALL upstream documents must reflect that change.
+
 ## Step 6 — Implement
 
 ### Orchestration model
@@ -869,11 +941,6 @@ The review phase (4-5) happens **per repo, before commit** — not after
 all repos are done. Each repo's implementation is staged (`git add .`),
 reviewed via `code-review-staged`, fixed if needed, then committed. This
 ensures issues are caught early and each commit is clean.
-
-**When to skip analysis**: If the work is simple and self-evident (single
-repo, clear what to do, no architectural decisions), skip `analysis.md`
-and go straight to `plan.md`. The agent dispatch for Step 5 describes
-when analysis is warranted.
 
 **Agent summary:**
 
@@ -1324,18 +1391,47 @@ ALL required sections present → proceed with finalization below
 ANY missing → STOP. Go back and complete the review.
 ```
 
+### Four-file consistency gate (MANDATORY)
+
+Before finalizing, verify that all four documents exist and are
+internally consistent:
+
+```
+Check work directory for:
+  1. analysis.md  — exists and non-empty?
+  2. plan.md      — exists and non-empty?
+  3. progress.md  — exists and non-empty?
+  4. review.md    — exists and non-empty?
+
+  ALL FOUR must exist → proceed to consistency check
+  ANY missing → STOP. Create the missing file(s) before finalizing.
+
+Consistency check:
+  5. analysis.md recommended approach matches plan.md chosen approach?
+  6. plan.md tasks match progress.md completed/in-progress items?
+  7. If review found issues that changed the approach, are analysis.md
+     and plan.md updated to reflect the final state?
+
+  ALL consistent → proceed with finalization below
+  ANY inconsistency → fix the stale document(s) first.
+```
+
 ### Finalization steps
 
 After review passes (and PRs are created if applicable):
 
-1. **Update `progress.md`**:
+1. **Update `analysis.md`** (if needed):
+   - If the review cycle or implementation changed the technical approach,
+     update the analysis to reflect the final decisions (add an
+     "Updated" date and note what changed)
+2. **Update `progress.md`**:
    - Set `**Overall status**` (or `**整体状态**`) to "Complete" (or "已完成")
    - Add final changelog entry with summary
-2. **Update `plan.md`**:
+3. **Update `plan.md`**:
    - Set `**Status**` (or `**状态**`) to "Done" (or "已完成")
    - Check off all completed tasks (`- [x]`)
-3. **Commit** the docs repo with all tracking doc updates
-4. **Report to user**: Summarize what was implemented across which repos.
+4. **Commit** the docs repo with all tracking doc updates
+5. **Report to user**: Summarize what was implemented across which repos.
    If PRs were created, list all PR URLs clearly so the user can click
    them directly:
 
