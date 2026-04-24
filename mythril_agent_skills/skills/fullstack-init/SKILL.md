@@ -24,6 +24,7 @@ or just to fix a broken workspace.
 | Category | What happens on every run |
 |----------|--------------------------|
 | **Regenerated** | `AGENTS.md`, `README.md`, `.agents/agents/*.md` |
+| **Symlinks** | `CLAUDE.md` → `AGENTS.md`, `.claude` → `.agents` (Claude Code compat) |
 | **Preserved** | `fullstack.json`, `<docs-dir>/`, `scripts/`, `.agents/skills/` |
 | **Create-only** | `<docs-dir>/` + git init, `scripts/`, `.agents/skills/` — created if missing, never touched if present |
 
@@ -128,6 +129,7 @@ For persistent custom agents, use `.agents/skills/` or repo-level agents.
 ```
 project-workspace/
 ├── AGENTS.md                     # Regenerated each run
+├── CLAUDE.md                     # → AGENTS.md (symlink for Claude Code)
 ├── README.md                     # Regenerated each run
 ├── fullstack.json                # Only persistent state
 ├── .agents/
@@ -137,6 +139,7 @@ project-workspace/
 │   │   ├── reviewer.md
 │   │   └── debugger.md
 │   └── skills/                   # Preserved (user content)
+├── .claude                       # → .agents (symlink for Claude Code)
 ├── central-docs/                 # Independent git repo (preserved)
 │   ├── .git/
 │   ├── AGENTS.md
