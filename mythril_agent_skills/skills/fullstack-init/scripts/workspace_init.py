@@ -315,6 +315,66 @@ When implementing work items, create branches in each affected repo:
 
 Branch names use Title-Case-With-Hyphens for the descriptive part.
 
+## Documentation Diagrams (Mermaid Compatibility)
+
+When writing Mermaid diagrams in any Markdown file inside this workspace
+(`AGENTS.md`, `README.md`, `plan.md`, `progress.md`, `analysis.md`,
+`findings.md`, `verdict.md`, `review.md`, etc.), target **Mermaid 10.2.3**
+compatibility. Many platforms used to render these docs (older GitHub
+Enterprise, Confluence, Notion exports, internal wikis, IDE preview
+plugins) ship Mermaid 10.2.3 or earlier. Newer syntax causes
+`Syntax error in text` rendering failures that block readers.
+
+### Allowed (safe in Mermaid 10.2.3)
+
+- `flowchart` / `graph` (`TD`, `LR`, `BT`, `RL`) with the basic node
+  shapes only: `[rect]`, `(round)`, `((circle))`, `{{diamond}}`,
+  `[/parallel/]`, `[\\parallel\\]`, `[(database)]`, `[[subroutine]]`,
+  `>flag]`, `{{{{hexagon}}}}`
+- Standard arrows: `-->`, `---`, `-.->`, `==>`, `--text-->`,
+  `-. text .->`, `== text ==>`
+- `subgraph Name ... end` (no `direction` override inside)
+- `sequenceDiagram` with `participant`, `->>`, `-->>`, `Note over`,
+  `loop`, `alt`/`else`, `opt`, `par`/`and`, `rect`, `activate`/`deactivate`
+- `classDiagram` with classes, members, `<|--`, `*--`, `o--`, `-->`, `..>`
+- `stateDiagram-v2` with states, transitions, `[*]`, `note right of`
+- `erDiagram` with basic entity-relationship syntax
+- `gantt` with sections, tasks, `dateFormat`, `axisFormat`
+- `pie`, `journey`, `gitGraph`
+- `%%{{init: {{...}}}}%%` directive with stable themes
+  (`default`, `dark`, `forest`, `neutral`)
+
+### Avoid (introduced after 10.2.3 — will fail to render)
+
+- Beta diagram types: `block-beta`, `quadrantChart`, `xychart-beta`,
+  `sankey-beta`, `packet-beta`, `architecture-beta`, `treemap`,
+  `radar`, `kanban`
+- New node-shape syntax: `A@{{ shape: ... }}` (introduced in 11.x)
+- Extended flowchart shapes: `tag`, `stadium`, `lean-r`, `trap-b`,
+  `cyl`, `f-circ`, `framed`, `fork`, `notch-rect`
+- Mermaid icon shapes: `fa:`, `mdi:`, `logos:`
+- ELK renderer config (`flowchart-elk`)
+- Sequence diagram `box ... end` grouping, `actor X as Y @{{...}}`
+- `classDiagram` namespaces, `note for <class>`, generic `~T~` on members
+- `gantt` `tickInterval`, `weekday`
+- `mindmap` advanced features (it exists in 10.2 but with limited shape
+  support — keep nodes plain text only)
+
+### Safety rules
+
+- If you are unsure whether a feature is supported, prefer a simpler
+  diagram, a Markdown table, or ASCII art over an experimental Mermaid
+  feature.
+- Wrap any node label containing `()`, `[]`, `{{}}`, `:`, `|`, `#`,
+  `&`, `"`, or `<` in double quotes: `A["Step 1: parse (AST)"]`.
+- Do NOT put raw HTML inside node labels except for `<br>`. Multi-line
+  labels should use `<br>` (line breaks via `\\n` are NOT supported in
+  10.2.3).
+- Do NOT use HTML entities like `&amp;`, `&lt;` inside labels — escape
+  by quoting the label instead.
+- One diagram, one purpose. Splitting into multiple smaller diagrams is
+  more compatible than a single complex one.
+
 ## Directory Structure
 
 ```
@@ -633,6 +693,16 @@ version control, separate from the workspace-level git repo.
 - Keep documents concise; deep-dive details belong in the relevant repo.
 - This repo does NOT use feature branches — commit work tracking docs
   directly to the main branch.
+- **Mermaid diagrams**: target Mermaid 10.2.3 compatibility. Many
+  rendering platforms (older GitHub Enterprise, Confluence, Notion
+  exports, internal wikis) still ship Mermaid 10.2.3 or earlier. Newer
+  syntax (`block-beta`, `quadrantChart`, `xychart-beta`, `sankey-beta`,
+  `architecture-beta`, `treemap`, `kanban`, `@{{ shape: ... }}` node
+  syntax, ELK renderer, extended flowchart shapes, sequence `box`,
+  `classDiagram` namespaces, etc.) causes `Syntax error in text` and
+  must be avoided. See the workspace root `AGENTS.md` →
+  *Documentation Diagrams (Mermaid Compatibility)* section for the full
+  allowed/avoid list and safety rules.
 
 ## Work Tracking
 

@@ -359,6 +359,80 @@ class TestGenerateAgentsMd:
         result = self.func("proj", "| t |", "central-docs")
         assert "independent git repo" in result.lower()
 
+    def test_mermaid_compatibility_section_present(self):
+        result = self.func("proj", "| t |", "central-docs")
+        assert "Mermaid Compatibility" in result
+        assert "10.2.3" in result
+
+    def test_mermaid_section_lists_unsupported_features(self):
+        result = self.func("proj", "| t |", "central-docs")
+        for keyword in (
+            "block-beta",
+            "quadrantChart",
+            "xychart-beta",
+            "sankey-beta",
+            "architecture-beta",
+            "@{ shape:",
+        ):
+            assert keyword in result, f"missing avoid-list keyword: {keyword}"
+
+    def test_mermaid_section_lists_safe_features(self):
+        result = self.func("proj", "| t |", "central-docs")
+        for keyword in (
+            "flowchart",
+            "sequenceDiagram",
+            "classDiagram",
+            "stateDiagram-v2",
+            "erDiagram",
+            "gantt",
+        ):
+            assert keyword in result, f"missing allowed-list keyword: {keyword}"
+
+    def test_mermaid_section_explains_failure_mode(self):
+        result = self.func("proj", "| t |", "central-docs")
+        assert "Syntax error in text" in result
+
+
+# ---------------------------------------------------------------------------
+# generate_docs_agents_md
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateDocsAgentsMd:
+    """Tests for workspace_init.generate_docs_agents_md."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from workspace_init import generate_docs_agents_md
+        self.func = generate_docs_agents_md
+
+    def test_contains_docs_dir_name(self):
+        result = self.func("project_documents")
+        assert "project_documents" in result
+
+    def test_title_is_humanized(self):
+        result = self.func("central-docs")
+        assert "# Central Docs" in result
+
+    def test_independent_repo_note(self):
+        result = self.func("central-docs")
+        assert "independent git repository" in result.lower()
+
+    def test_work_tracking_table(self):
+        result = self.func("central-docs")
+        for keyword in ("feat/", "refactor/", "fix/", "spike/"):
+            assert keyword in result
+
+    def test_mermaid_compatibility_note_present(self):
+        result = self.func("central-docs")
+        assert "Mermaid" in result
+        assert "10.2.3" in result
+        assert "Syntax error in text" in result
+
+    def test_mermaid_note_points_to_workspace_agents_md(self):
+        result = self.func("central-docs")
+        assert "workspace root `AGENTS.md`" in result
+
 
 # ---------------------------------------------------------------------------
 # generate_agent_template
