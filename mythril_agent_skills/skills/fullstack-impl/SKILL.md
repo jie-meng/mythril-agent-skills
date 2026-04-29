@@ -2,9 +2,18 @@
 name: fullstack-impl
 description: |
   Implement features, refactors, and fixes across a multi-repo fullstack
-  workspace — gather context, create branches, implement, review, and
-  create PRs. Trigger: "fullstack implement", "fullstack develop",
-  "fullstack impl", "全栈实现", "全栈开发", "全栈 impl".
+  workspace — gather context, create branches, implement, review, create
+  PRs, AND keep iterating after finalization. Once a work item exists in
+  the docs directory (feat, refactor, or fix), this skill stays sticky:
+  every follow-up edit driven by user feedback, error logs, manual
+  testing, or bug reports MUST go through the same staged-review plus
+  four-document-sync loop, even when the user does not re-mention the
+  skill name.
+  Trigger: "fullstack implement", "fullstack develop", "fullstack impl",
+  "全栈实现", "全栈开发", "全栈 impl"; ALSO trigger on any follow-up
+  edit/fix request inside an active fullstack work directory — phrases
+  like "this is wrong", "fix this", "调一下", "再改一下", "这里不对",
+  "log 报错", or pasted error/log output while a work item is open.
 license: Apache-2.0
 ---
 
@@ -467,6 +476,16 @@ android). The implementation phase follows this exact order.
 - Created work plan
 - Identified affected repos: <list>
 - Created branches in: <list>
+
+## Iteration Log
+
+Append one row per follow-up iteration AFTER the initial finalization
+(see "Iteration Mode" section). Every code-touching round MUST add a
+row — no exceptions. Mandatory for the post-implementation sticky loop.
+
+| # | Date | Trigger | Repos | Files | Review | analysis.md | plan.md | Commit |
+|---|------|---------|-------|-------|--------|-------------|---------|--------|
+|   |      |         |       |       |        |             |         |        |
 ```
 
 **Chinese:**
@@ -496,6 +515,15 @@ android). The implementation phase follows this exact order.
 - 创建工作计划
 - 确定涉及仓库：<list>
 - 创建分支：<list>
+
+## 迭代记录
+
+收尾完成后的每一轮后续迭代都必须在此追加一行（详见「迭代模式」章节）。
+任何涉及代码改动的轮次都必须新增一行 —— 无例外。这是收尾后粘性循环的强制约束。
+
+| # | 日期 | 触发 | 仓库 | 文件 | 审查 | analysis.md | plan.md | 提交 |
+|---|------|------|------|------|------|-------------|---------|------|
+|   |      |      |      |      |      |             |         |      |
 ```
 
 ### analysis.md template
@@ -883,6 +911,7 @@ analysis.md ──→ plan.md ──→ progress.md ──→ review.md
 | `plan.md` updated (scope change, repo added/removed) | Check `progress.md` — update task list, status |
 | Review finds issues → code fixed | Update `progress.md` (changelog). If fix changes architecture or approach, update `analysis.md` and `plan.md` too |
 | Scope change mid-implementation | Update ALL four files: analysis rationale → plan tasks → progress status → review scope |
+| **Post-finalization iteration** (any code edit after Step 9) | Run the full per-iteration doc sync checklist defined in "Iteration Mode — Post-Implementation Sticky Loop" |
 
 **Consistency checkpoints** — the skill MUST verify consistency at:
 
@@ -893,10 +922,16 @@ analysis.md ──→ plan.md ──→ progress.md ──→ review.md
 3. **During finalization (Step 9)** — all four files reflect the final
    state: `analysis.md` documents what was decided, `plan.md` tasks are
    checked off, `progress.md` shows completion, `review.md` has verdicts
+4. **After EVERY iteration round** (post-finalization) — run the
+   per-iteration doc sync checklist; finalization is NOT the end of the
+   discipline, it is just the end of round 0
 
 **Anti-pattern**: Updating `review.md` with fix information but leaving
 `analysis.md` and `plan.md` stale. If a review-driven fix changes the
 technical approach, ALL upstream documents must reflect that change.
+This anti-pattern is most dangerous in the post-finalization phase,
+where small fixes accumulate without anyone re-reading the analysis —
+see "Iteration Mode" for the strict per-round protocol.
 
 ## Step 6 — Implement
 
@@ -1152,6 +1187,20 @@ Once the review passes (or max rounds exhausted):
    - Test results (pass/fail, number of tests)
    - Any issues encountered and how they were resolved
 
+##### 6e-vi. Forward pointer — what happens AFTER initial implementation
+
+The staged-review-then-commit loop above (6e-i through 6e-v) is the
+discipline for **round 0** — the initial implementation. After Step 9
+finalizes round 0, every follow-up edit driven by user feedback, error
+logs, manual test results, or reviewer comments MUST run through the
+**same** stage → review → fix → commit loop, augmented with a per-round
+doc-sync checklist and an Iteration Log row in `progress.md`.
+
+Jump to "Iteration Mode — Post-Implementation Sticky Loop" (after
+Step 9) for the full round-N protocol. Do NOT downgrade the discipline
+just because the change is small or the user did not say
+"fullstack impl" again.
+
 ## Step 7 — Cross-Repo Consistency Review (multi-repo only)
 
 **Skip this step** if only one repo was modified. For multi-repo work,
@@ -1372,7 +1421,13 @@ Collect all PR URLs and:
 - Do NOT block the entire finalization on a single repo's PR failure —
   create PRs for all repos that succeed and report failures separately
 
-## Step 9 — Finalize
+## Step 9 — Finalize Round 0
+
+Step 9 closes the **initial implementation round** (round 0). It does
+NOT close the work item — follow-up edits driven by user feedback,
+testing, logs, or reviewer comments continue under "Iteration Mode"
+(see the section after Step 9). Treat finalization here as "the end of
+the green-field phase", not "the end of the work item".
 
 ### Review completion gate (MANDATORY)
 
@@ -1453,6 +1508,225 @@ After review passes (and PRs are created if applicable):
      3. web       — https://github.com/owner/web/pull/77
    ```
 
+## Iteration Mode — Post-Implementation Sticky Loop (MANDATORY)
+
+After Step 9 marks a work item as "Complete" / "已完成", real life rarely
+ends there. Manual testing, pasted error logs, code review feedback, QA
+pushback, edge cases, or new tiny requirements ALL produce follow-up
+edits to the same work item. Those edits MUST stay inside the same
+discipline as the initial implementation — same staged review, same
+four-document sync, same audit trail.
+
+This section defines that discipline as a sticky, autonomous loop.
+
+### When Iteration Mode is active
+
+Iteration Mode is **active** for a given work directory whenever ALL of
+the following hold:
+
+1. The work directory `<docs-dir>/<type>/<work-name>/` exists with the
+   four files in place.
+2. `plan.md` `Status` is `Done`/`已完成`, OR at least one repo has been
+   committed under the work item's feature branch (i.e. real code has
+   shipped to a branch).
+3. The user is making any change request that touches the same scope —
+   even a one-line tweak, even when the user does not say "fullstack
+   impl" again.
+
+### Detection cues — enter Iteration Mode automatically
+
+The agent MUST silently enter Iteration Mode (no announcement needed)
+when ANY of these signals appear in an active workspace with a
+finalized or in-progress work item:
+
+| Signal | Examples |
+|--------|----------|
+| Bug report on shipped code | "this is wrong", "doesn't work", "这里不对", "调一下", "再改一下" |
+| Pasted error/log/stack trace | "got this error: ...", "log says ...", "报错：..." |
+| Manual test feedback | "I clicked X and Y didn't happen", "tested on iOS, broken" |
+| Reviewer comment | "PR comment says ...", "reviewer asked to ..." |
+| Small follow-up requirement | "also add ...", "顺便加一下 ..." |
+| Direct code edit request on touched files | "change this function", "把这个改成 ..." |
+
+If the request is **clearly a brand-new unrelated work item** (different
+feature, different repos), do NOT route it into the active work
+directory — start a fresh `fullstack-impl` flow instead.
+
+### The Iteration Loop (run for EVERY follow-up edit)
+
+```
+User feedback / log / bug report
+        │
+        ▼
+1. Identify scope ──► which repo(s) and which work directory?
+        │
+        ▼
+2. For each affected repo:
+        │
+        ├─► 2a. Edit code (smallest fix that addresses the feedback)
+        │
+        ├─► 2b. Validate (lint / type / test / build per repo conventions)
+        │
+        ├─► 2c. git add .   (stage the candidate commit)
+        │
+        ├─► 2d. Invoke `code-review-staged`
+        │            │
+        │            ├─► PASS         → continue
+        │            └─► NEEDS_FIXES  → fix → re-stage → re-review
+        │                              (max 3 rounds, same as Step 6e-iv)
+        │
+        ├─► 2e. Append review round to review.md
+        │       (use the same per-round template as Step 6e-iii)
+        │
+        └─► 2f. git commit (use recommended commit message)
+        │
+        ▼
+3. Sync the four documents (see "Per-iteration doc sync" below)
+        │
+        ▼
+4. If the iteration touched MULTIPLE repos → re-run cross-repo
+   consistency review (Step 7), append to review.md
+        │
+        ▼
+5. Append a row to progress.md → Iteration Log
+        │
+        ▼
+6. Report concise summary to the user (what changed, review verdict,
+   updated docs, any residual issues)
+```
+
+### Per-iteration doc sync (MANDATORY checklist)
+
+After each iteration round, BEFORE finishing the turn, run this
+checklist. Treat it as a hard gate — do NOT skip even for "trivial"
+fixes.
+
+```
+For each iteration that produced a code change:
+
+  [ ] review.md   — appended this round's `code-review-staged` output
+                    + Verdict (PASS / NEEDS_FIXES → resolved)
+  [ ] progress.md — Iteration Log row added (date, trigger, repos,
+                    files, review verdict, commit SHA)
+  [ ] plan.md     — if scope changed: tasks added/removed; if not,
+                    explicitly note "no plan change" in the iteration
+                    log row
+  [ ] analysis.md — if root cause, chosen approach, architecture, or
+                    risk profile changed: update the relevant section
+                    and add an "Updated" date stamp; if not, explicitly
+                    note "no analysis change" in the iteration log row
+
+  [ ] Commit the docs repo with all four files in a single commit
+      (message: "<work-name>: iteration N — <one-line summary>")
+```
+
+The "explicitly note no change" requirement exists to prove the agent
+**considered** each upstream document, not just skipped it. A silent
+omission is indistinguishable from forgetting.
+
+### Iteration Log — appended to progress.md per round
+
+Every iteration round appends ONE row to the **Iteration Log** table in
+`progress.md` (see updated template in Step 5). Schema:
+
+| Field | Content |
+|-------|---------|
+| `#` | Sequential iteration number (1, 2, 3, ...) starting AFTER the initial finalization |
+| `Date` | ISO date of the iteration |
+| `Trigger` | One-line summary of the user's feedback (e.g. "iOS settings screen crashes on toggle") |
+| `Repos` | Affected repo(s) for this round |
+| `Files` | Key files changed (≤ 5; if more, write "N files in <area>") |
+| `Review` | `PASS (round N)` / `RESIDUAL: <count>` |
+| `analysis.md` | `unchanged` / `updated: <section>` |
+| `plan.md` | `unchanged` / `updated: <section>` |
+| `Commit` | Commit SHA(s) per repo (short form, e.g. `api@a1b2c3d`) |
+
+### Stopping conditions for an iteration
+
+ONE iteration round ends when ALL of:
+
+1. Code change committed in each affected repo.
+2. `review.md` updated with this round's output and verdict.
+3. `progress.md` Iteration Log row appended.
+4. `analysis.md` and `plan.md` either updated or explicitly noted as
+   unchanged for this round.
+5. Docs repo commit created.
+6. **Automated structural check passes** — see "Self-check" below.
+
+If the user gives more feedback → start round N+1. The loop continues
+indefinitely until the user explicitly closes the work item (e.g. "PR
+merged", "ship it", "this is done", "结了").
+
+### Self-check — run `iteration_log_check.py` after each round
+
+Before declaring the round done, run the bundled validator against the
+work directory. It catches the most common "the agent forgot to
+maintain the audit trail" failures (missing columns, non-sequential
+iteration numbers, more iterations than review rounds, free-form text
+where `unchanged`/`updated: ...` is required).
+
+**How to locate and invoke the script** (same convention as
+`check_github_repos.py` in Step 8):
+
+```python
+import pathlib, subprocess, sys
+
+candidates = [
+    pathlib.Path.home() / ".config/opencode/skills/fullstack-impl/scripts/iteration_log_check.py",
+    pathlib.Path.home() / ".claude/skills/fullstack-impl/scripts/iteration_log_check.py",
+    pathlib.Path.home() / ".copilot/skills/fullstack-impl/scripts/iteration_log_check.py",
+    pathlib.Path.home() / ".cursor/skills/fullstack-impl/scripts/iteration_log_check.py",
+    pathlib.Path.home() / ".gemini/skills/fullstack-impl/scripts/iteration_log_check.py",
+    pathlib.Path.home() / ".codex/skills/fullstack-impl/scripts/iteration_log_check.py",
+    pathlib.Path.home() / ".qwen/skills/fullstack-impl/scripts/iteration_log_check.py",
+    pathlib.Path.home() / ".grok/skills/fullstack-impl/scripts/iteration_log_check.py",
+]
+script = next((p for p in candidates if p.exists()), None)
+if script:
+    result = subprocess.run(
+        [sys.executable, str(script), "<docs-dir>/<type>/<work-name>"],
+        capture_output=True, text=True,
+    )
+    print(result.stdout)
+```
+
+**Decision logic from the script's output:**
+
+| Output line | Action |
+|-------------|--------|
+| `STATUS=PASS` | Round complete; report summary to user |
+| `STATUS=WARN` | Round complete BUT report each `WARNING:` line to the user so they know what to tighten next time |
+| `STATUS=FAIL` | Round NOT complete; fix every `ERROR:` line (usually means: append the missing Iteration Log row, fill empty columns, append the missing review round, or renumber rows), then re-run the script until it passes |
+
+If the script is not found at any of the candidate paths, fall back to
+manual checking against the per-iteration doc sync checklist above.
+Skipping the self-check entirely is NOT an acceptable shortcut.
+
+### Anti-patterns to refuse
+
+The agent MUST refuse / self-correct when tempted to do any of these:
+
+| Anti-pattern | Why it's wrong | Correct behavior |
+|--------------|---------------|------------------|
+| Edit code → commit directly without `code-review-staged` | Bypasses the audit loop; prior commits had reviews, this one doesn't → inconsistent history | Always stage → review → commit, even for one-line fixes |
+| Update `review.md` only, leave `progress.md` Iteration Log empty | Loses the per-iteration audit trail | Every code-touching round MUST add a log row |
+| Update `progress.md` but leave `analysis.md` stale after a root-cause discovery | Future readers see plan/progress that no longer matches the analysis | Update `analysis.md` and add an "Updated" date when the underlying technical understanding shifts |
+| Treat the "second turn" as casual chat and skip the loop | Sticky loop is the whole point; "small fixes" are where regressions hide | Run the full loop; the loop is cheap when the change is small |
+| Switch to a different work item silently when the user pastes an unrelated bug | Mixes audit trails | Recognize the scope mismatch, ask the user, and start a separate work item |
+
+### Closing the work item
+
+The work item is **closed** only when the user explicitly signals it
+(merged PR, "done", "ship it", "结了"). On closure:
+
+1. `plan.md` `Status` → `Closed` / `已关闭`
+2. `progress.md` `Overall status` → `Closed` / `已关闭`, append final
+   Iteration Log row marking closure
+3. Docs repo commit: "<work-name>: closed — N iteration rounds"
+
+After closure, any new request on the same scope creates a NEW work item
+(e.g. `feat/dark-mode-v2/`).
+
 ## Resuming Previous Work
 
 When this skill is invoked, check for existing work directories under
@@ -1462,14 +1736,30 @@ If the user says something like "continue the dark mode feature" or
 "look at the docs and keep going":
 
 1. Find the matching work directory
-2. Read `plan.md` and `progress.md` to understand current state
-3. Check which tasks are incomplete
-4. Verify the branches still exist in the affected repos
-5. If repos are already on the correct branch, skip checkout
-6. Resume from the last incomplete step
+2. Read `analysis.md`, `plan.md`, `progress.md`, and `review.md` to
+   understand current state — including any prior Iteration Log rows
+3. **Run `iteration_log_check.py` against the work directory** (see
+   "Self-check" under Iteration Mode). If it returns `STATUS=FAIL` or
+   `STATUS=WARN`, the previous session left the audit trail in a
+   degraded state — fix it BEFORE adding any new rounds, or the new
+   rows will compound the existing inconsistency.
+4. Check which tasks are incomplete
+5. Verify the branches still exist in the affected repos
+6. If repos are already on the correct branch, skip checkout
+7. **Determine routing**:
+   - If `plan.md` `Status` is still `Planning` / `In Progress` AND
+     incomplete tasks remain → resume from the last incomplete step in
+     the original Step 1-9 flow
+   - If `plan.md` `Status` is `Done` / `Complete` AND the user's
+     request is a follow-up tweak/fix/feedback → enter **Iteration
+     Mode** (the loop above)
+   - If `plan.md` `Status` is `Closed` and the user is making fresh
+     changes → ask whether to reopen as a new iteration round or start
+     a brand-new work item
 
-This handles the scenario where an AI session was closed mid-work and the
-user starts a new session wanting to continue.
+This handles both "an AI session was closed mid-work and the user starts
+a new session wanting to continue" and "the work shipped last week and
+the user is now reporting a bug from production".
 
 ## Error Handling
 
