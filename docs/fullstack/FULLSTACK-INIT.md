@@ -74,11 +74,7 @@ flowchart TD
     R --> R2[AGENTS.md]
     R --> R3[README.md]
 
-    R --> S["SYMLINKS (Claude Code compat)"]
-    S --> S1["CLAUDE.md → AGENTS.md"]
-    S --> S2[".claude → .agents"]
-
-    S --> Y[Report: created / regenerated]
+    R --> Y[Report: created / regenerated]
     Q --> Y
 ```
 
@@ -146,7 +142,6 @@ Chinese characters, generate in Chinese; otherwise English.
 | Category | Files | Behavior |
 |----------|-------|----------|
 | **Regenerated** | AGENTS.md, README.md, .agents/agents/*.md | Overwritten every run |
-| **Symlinks** | CLAUDE.md → AGENTS.md, .claude → .agents | Created if missing (Claude Code compat) |
 | **Create-only** | fullstack.json, docs-dir/, docs-dir/AGENTS.md, scripts/, .agents/skills/ | Created if missing, never touched after |
 
 ### Config persistence: `fullstack.json`
@@ -186,7 +181,6 @@ debugger.md) but adapted for cross-repo fullstack context. Key principles:
 | `generate_readme` | Yes | Generate README.md with usage guide (EN/ZH) |
 | `generate_docs_agents_md` | Yes | Generate AGENTS.md for docs directory |
 | `generate_agent_template` | Yes | Generate agent file by name |
-| `_ensure_symlink` | Side-effect | Create or fix a relative symlink |
 | `bootstrap_workspace` | Side-effect | Orchestrator: calls all of the above |
 
 ## Current Status
@@ -203,7 +197,6 @@ debugger.md) but adapted for cross-repo fullstack context. Key principles:
 - [x] R8 — Docs as independent git repo
 - [x] R9 — No workspace-level git (AI agent compatibility)
 - [x] R10 — Language-aware README with usage guide (EN/ZH)
-- [x] Claude Code compatibility symlinks (CLAUDE.md → AGENTS.md, .claude → .agents)
 - [x] Plugin wrappers + marketplace.json entries
 - [x] Description validation under 1024 limit
 

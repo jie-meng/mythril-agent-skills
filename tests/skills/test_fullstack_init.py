@@ -597,63 +597,6 @@ class TestGenerateReadme:
 
 
 # ---------------------------------------------------------------------------
-# _ensure_symlink
-# ---------------------------------------------------------------------------
-
-
-class TestEnsureSymlink:
-    """Tests for workspace_init._ensure_symlink."""
-
-    @pytest.fixture(autouse=True)
-    def _import(self):
-        from workspace_init import _ensure_symlink
-        self.func = _ensure_symlink
-
-    def test_creates_symlink(self, tmp_path: Path):
-        target = tmp_path / "real.md"
-        target.write_text("content")
-        report: dict[str, list[str]] = {"created": [], "updated": [], "skipped": []}
-        self.func(tmp_path / "link.md", "real.md", report)
-        assert (tmp_path / "link.md").is_symlink()
-        assert (tmp_path / "link.md").read_text() == "content"
-        assert len(report["created"]) == 1
-
-    def test_skips_if_correct_symlink_exists(self, tmp_path: Path):
-        target = tmp_path / "real.md"
-        target.write_text("content")
-        (tmp_path / "link.md").symlink_to("real.md")
-        report: dict[str, list[str]] = {"created": [], "updated": [], "skipped": []}
-        self.func(tmp_path / "link.md", "real.md", report)
-        assert len(report["created"]) == 0
-
-    def test_fixes_wrong_symlink(self, tmp_path: Path):
-        (tmp_path / "old.md").write_text("old")
-        (tmp_path / "new.md").write_text("new")
-        (tmp_path / "link.md").symlink_to("old.md")
-        report: dict[str, list[str]] = {"created": [], "updated": [], "skipped": []}
-        self.func(tmp_path / "link.md", "new.md", report)
-        assert (tmp_path / "link.md").resolve() == (tmp_path / "new.md").resolve()
-        assert len(report["created"]) == 1
-
-    def test_does_not_replace_real_file(self, tmp_path: Path):
-        (tmp_path / "real.md").write_text("target")
-        (tmp_path / "link.md").write_text("user content")
-        report: dict[str, list[str]] = {"created": [], "updated": [], "skipped": []}
-        self.func(tmp_path / "link.md", "real.md", report)
-        assert not (tmp_path / "link.md").is_symlink()
-        assert (tmp_path / "link.md").read_text() == "user content"
-        assert len(report["created"]) == 0
-
-    def test_does_not_replace_real_directory(self, tmp_path: Path):
-        (tmp_path / "target").mkdir()
-        (tmp_path / "link").mkdir()
-        report: dict[str, list[str]] = {"created": [], "updated": [], "skipped": []}
-        self.func(tmp_path / "link", "target", report)
-        assert not (tmp_path / "link").is_symlink()
-        assert (tmp_path / "link").is_dir()
-
-
-# ---------------------------------------------------------------------------
 # Integration: bootstrap_workspace
 # ---------------------------------------------------------------------------
 
@@ -841,27 +784,3 @@ class TestBootstrapWorkspace:
         self.func(tmp_path)
         config = self.load_config(tmp_path)
         assert config["github_repos"] is True
-
-    def test_claude_symlinks_created(self, tmp_path: Path):
-        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
-        self.func(tmp_path)
-        claude_md = tmp_path / "CLAUDE.md"
-        claude_dir = tmp_path / ".claude"
-        assert claude_md.is_symlink()
-        assert claude_dir.is_symlink()
-        assert claude_md.resolve() == (tmp_path / "AGENTS.md").resolve()
-        assert claude_dir.resolve() == (tmp_path / ".agents").resolve()
-
-    def test_claude_symlinks_survive_rerun(self, tmp_path: Path):
-        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
-        self.func(tmp_path)
-        self.func(tmp_path)
-        assert (tmp_path / "CLAUDE.md").is_symlink()
-        assert (tmp_path / ".claude").is_symlink()
-
-    def test_claude_md_not_replaced_if_real_file(self, tmp_path: Path):
-        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
-        (tmp_path / "CLAUDE.md").write_text("# User content\n")
-        self.func(tmp_path)
-        assert not (tmp_path / "CLAUDE.md").is_symlink()
-        assert (tmp_path / "CLAUDE.md").read_text() == "# User content\n"
