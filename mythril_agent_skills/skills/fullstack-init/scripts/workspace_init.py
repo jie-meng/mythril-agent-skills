@@ -365,15 +365,56 @@ plugins) ship Mermaid 10.2.3 or earlier. Newer syntax causes
 - If you are unsure whether a feature is supported, prefer a simpler
   diagram, a Markdown table, or ASCII art over an experimental Mermaid
   feature.
-- Wrap any node label containing `()`, `[]`, `{{}}`, `:`, `|`, `#`,
-  `&`, `"`, or `<` in double quotes: `A["Step 1: parse (AST)"]`.
-- Do NOT put raw HTML inside node labels except for `<br>`. Multi-line
-  labels should use `<br>` (line breaks via `\\n` are NOT supported in
-  10.2.3).
+- **Quote labels with special characters — applies to ALL label
+  positions, not just node labels.** The most common failure observed
+  in the wild is an UNQUOTED edge label that contains `(`, `[`, or
+  `{{`. Always wrap such labels in double quotes:
+
+  | Position | Bad (FAILS to parse) | Good |
+  |----------|---------------------|------|
+  | Node label | `A[Step 1: parse (AST)]` | `A["Step 1: parse (AST)"]` |
+  | Edge label | `A -->\\|hello (world)\\| B` | `A -->\\|"hello (world)"\\| B` |
+  | Edge label | `A -->\\|key[0]\\| B` | `A -->\\|"key[0]"\\| B` |
+  | Subgraph title | `subgraph My (Group)` | `subgraph "My (Group)"` |
+
+- The characters that REQUIRE quoting in **edge labels** in 10.2.3 are:
+  `(`, `)`, `[`, `]`, `{{`, `}}`. Other characters (`/`, `+`, `:`, `#`,
+  `&`, `<br/>`, Chinese, commas) work unquoted.
+- The characters that REQUIRE quoting in **node labels** are: `()`,
+  `[]`, `{{}}`, `:`, `|`, `#`, `&`, `"`, `<` (other than `<br/>`).
+- **Subgraph titles** that contain `(` or `)` MUST be quoted. Brackets
+  in subgraph titles are interpreted as the shape syntax — avoid that
+  combination unless intended.
+- **Sequence diagram participant aliases, message text, and `Note`
+  text** are LENIENT — parens, brackets, slashes, `<br/>`, Chinese
+  all work unquoted. No quoting needed there.
+- Multi-line labels — use `<br/>` (line breaks via `\\n` are NOT
+  supported in 10.2.3). When a label has BOTH `<br/>` and `()`,
+  wrapping in quotes covers both.
 - Do NOT use HTML entities like `&amp;`, `&lt;` inside labels — escape
   by quoting the label instead.
 - One diagram, one purpose. Splitting into multiple smaller diagrams is
   more compatible than a single complex one.
+
+### Validate before declaring a doc done
+
+Run the bundled `mermaid_validate.py` script (shipped with the
+`fullstack-impl` skill) on any Markdown file containing Mermaid blocks
+BEFORE declaring the document done. It is a static linter that catches
+the four most common 10.2.3 incompatibilities (unquoted edge labels,
+unquoted subgraph titles, `@{{ shape: ... }}` syntax, beta diagram
+types) without requiring a JS toolchain. The `fullstack-impl` skill
+runs it automatically after writing `analysis.md` / `plan.md`; for any
+other Markdown file you author by hand, invoke it manually:
+
+```bash
+python3 ~/.<agent>/skills/fullstack-impl/scripts/mermaid_validate.py \\
+    path/to/file.md
+```
+
+`STATUS=PASS` means safe to ship. `STATUS=FAIL` means the file will
+render as `Syntax error in text` on Mermaid 10.2.3 — fix every
+`ERROR:` line and re-run before committing.
 
 ## Directory Structure
 
@@ -694,9 +735,13 @@ version control, separate from the workspace-level git repo.
   `architecture-beta`, `treemap`, `kanban`, `@{{ shape: ... }}` node
   syntax, ELK renderer, extended flowchart shapes, sequence `box`,
   `classDiagram` namespaces, etc.) causes `Syntax error in text` and
-  must be avoided. See the workspace root `AGENTS.md` →
-  *Documentation Diagrams (Mermaid Compatibility)* section for the full
-  allowed/avoid list and safety rules.
+  must be avoided. The most frequent slip-up is an unquoted edge label
+  containing parentheses (e.g. `A -->|step (x)| B`) — always quote it
+  as `A -->|"step (x)"| B`. See the workspace root `AGENTS.md` →
+  *Documentation Diagrams (Mermaid Compatibility)* section for the
+  full allowed/avoid list and safety rules, and run the bundled
+  `mermaid_validate.py` (shipped with `fullstack-impl`) against any
+  Markdown file with Mermaid blocks before committing.
 
 ## Work Tracking
 

@@ -543,6 +543,14 @@ system behavior, and documents trade-offs.
 - **Timelines** → mermaid `gantt` or numbered lists
 - **Component relationships** → mermaid `classDiagram` or `erDiagram`
 
+**Mermaid 10.2.3 compatibility** — every diagram MUST parse on
+Mermaid 10.2.3. The biggest trap: edge labels (`|...|`) with
+parentheses, brackets, or curlies MUST be wrapped in double quotes —
+e.g. write `A -->|"step (x)"| B`, NOT `A -->|step (x)| B`. The same
+rule applies to `subgraph` titles. After writing, run the
+**Mermaid Compatibility Gate** (defined right after the template
+block); it is a hard precondition for moving on.
+
 The template varies by work type. Use the matching template below.
 
 #### Feature / Refactor analysis (written by Planner)
@@ -891,6 +899,78 @@ finalization can proceed.
 每个仓库的章节记录完整的 `code-review-staged` 输出和结论。
 最终必须包含 `### 结论` 部分，否则无法进入收尾阶段。
 ```
+
+### Mermaid Compatibility Gate (MANDATORY)
+
+After writing or updating any work-tracking document that contains
+```` ```mermaid ```` blocks (typically `analysis.md`, occasionally
+`plan.md`), validate the file against Mermaid 10.2.3 using the bundled
+linter `mermaid_validate.py`. **Skipping this gate is the single most
+common cause of docs that render as `Syntax error in text` on
+GitHub Enterprise, Confluence, Notion exports, and internal wikis.**
+
+The most frequent failure is an unquoted edge label containing
+parentheses — e.g. `A -->|step (x)| B`. The fix is always to wrap the
+label in double quotes — e.g. `A -->|"step (x)"| B`. The validator
+points at the exact line and prints the suggested replacement.
+
+#### How to locate and run the script
+
+Use the same path-candidate pattern as `iteration_log_check.py` (the
+script is shipped under `fullstack-impl/scripts/`):
+
+```python
+import pathlib, subprocess, sys
+
+candidates = [
+    pathlib.Path.home() / ".config/opencode/skills/fullstack-impl/scripts/mermaid_validate.py",
+    pathlib.Path.home() / ".claude/skills/fullstack-impl/scripts/mermaid_validate.py",
+    pathlib.Path.home() / ".copilot/skills/fullstack-impl/scripts/mermaid_validate.py",
+    pathlib.Path.home() / ".cursor/skills/fullstack-impl/scripts/mermaid_validate.py",
+    pathlib.Path.home() / ".gemini/skills/fullstack-impl/scripts/mermaid_validate.py",
+    pathlib.Path.home() / ".codex/skills/fullstack-impl/scripts/mermaid_validate.py",
+    pathlib.Path.home() / ".qwen/skills/fullstack-impl/scripts/mermaid_validate.py",
+    pathlib.Path.home() / ".grok/skills/fullstack-impl/scripts/mermaid_validate.py",
+]
+script = next((p for p in candidates if p.exists()), None)
+if script:
+    result = subprocess.run(
+        [sys.executable, str(script),
+         "<docs-dir>/<type>/<work-name>/analysis.md"],
+        capture_output=True, text=True,
+    )
+    print(result.stdout)
+```
+
+Pass every just-written/just-edited Markdown file as a separate
+positional argument. The script accepts multiple files in one call.
+
+#### Decision logic
+
+| Output line | Action |
+|-------------|--------|
+| `STATUS=PASS` | Proceed to the next step |
+| `STATUS=FAIL` | Read each `ERROR:` line — it points at the file:line and shows the recommended quoted form. Apply EVERY fix, save, then re-run the script until `STATUS=PASS`. Do NOT proceed to the next step with `STATUS=FAIL` standing. |
+
+#### When this gate runs
+
+The gate is a hard precondition for moving forward at any point a
+mermaid-bearing doc was just written:
+
+1. **Step 5** — immediately after writing `analysis.md` for the first
+   time (and `plan.md` if it contains mermaid)
+2. **Step 7d / Step 9** — if review-driven fixes updated `analysis.md`
+   to reflect a new chosen approach
+3. **Iteration Mode** — every iteration round whose doc sync touched
+   `analysis.md` (or any other mermaid-bearing file)
+4. **Resuming previous work** — once, after the initial read, to
+   confirm prior sessions did not leave broken diagrams behind
+
+If the script is not found at any of the candidate paths, fall back to
+manual review against the workspace `AGENTS.md` →
+*Documentation Diagrams (Mermaid Compatibility)* section. Skipping the
+gate entirely is NOT an acceptable shortcut — broken diagrams block
+human reviewers and silently regress the doc's usefulness.
 
 ### Document Lifecycle & Consistency (MANDATORY)
 
@@ -1467,8 +1547,18 @@ Consistency check:
   7. If review found issues that changed the approach, are analysis.md
      and plan.md updated to reflect the final state?
 
-  ALL consistent → proceed with finalization below
+  ALL consistent → proceed to mermaid gate below
   ANY inconsistency → fix the stale document(s) first.
+
+Mermaid gate (final pass):
+  8. Run `mermaid_validate.py` against EVERY .md file in the work
+     directory that contains ```mermaid blocks (typically analysis.md,
+     possibly plan.md/progress.md/review.md if diagrams were added).
+
+  STATUS=PASS for all → proceed with finalization below
+  STATUS=FAIL on any  → fix every ERROR line and re-run; do NOT
+                        finalize with broken diagrams. See
+                        "Mermaid Compatibility Gate" under Step 5.
 ```
 
 ### Finalization steps
@@ -1615,6 +1705,12 @@ For each iteration that produced a code change:
                     risk profile changed: update the relevant section
                     and add an "Updated" date stamp; if not, explicitly
                     note "no analysis change" in the iteration log row
+
+  [ ] Mermaid Gate — if analysis.md (or any other tracked .md file)
+                    was edited AND it contains ```mermaid blocks, run
+                    `mermaid_validate.py` on it; the round is NOT
+                    complete until STATUS=PASS. See "Mermaid
+                    Compatibility Gate" section under Step 5.
 
   [ ] Commit the docs repo with all four files in a single commit
       (message: "<work-name>: iteration N — <one-line summary>")

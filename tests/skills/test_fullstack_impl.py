@@ -3,6 +3,7 @@
 Covers pure/deterministic functions from:
 - check_github_repos.py — fullstack.json config reading
 - iteration_log_check.py — post-finalization iteration log consistency
+- mermaid_validate.py — Mermaid 10.2.3 compatibility lint
 """
 
 from __future__ import annotations
@@ -451,3 +452,537 @@ class TestFormatResult:
         assert "STATUS=FAIL" in out
         assert "ERROR:   broken" in out
         assert "WARNING: minor" in out
+
+
+# ---------------------------------------------------------------------------
+# mermaid_validate
+# ---------------------------------------------------------------------------
+
+
+class TestExtractMermaidBlocks:
+    """Tests for mermaid_validate.extract_mermaid_blocks."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from mermaid_validate import extract_mermaid_blocks
+        self.func = extract_mermaid_blocks
+
+    def test_no_blocks(self):
+        text = "# Title\n\nSome prose only.\n"
+        assert self.func(text) == []
+
+    def test_single_block(self):
+        text = textwrap.dedent(
+            """\
+            # Title
+
+            ```mermaid
+            flowchart LR
+                A --> B
+            ```
+
+            after
+            """
+        )
+        blocks = self.func(text)
+        assert len(blocks) == 1
+        assert blocks[0].start_line == 3
+        assert blocks[0].end_line == 6
+        assert blocks[0].body == ["flowchart LR", "    A --> B"]
+
+    def test_multiple_blocks(self):
+        text = textwrap.dedent(
+            """\
+            ```mermaid
+            flowchart LR
+                A --> B
+            ```
+
+            text
+
+            ```mermaid
+            sequenceDiagram
+                A->>B: hi
+            ```
+            """
+        )
+        blocks = self.func(text)
+        assert len(blocks) == 2
+        assert blocks[0].diagram_type == "flowchart"
+        assert blocks[1].diagram_type == "sequenceDiagram"
+
+    def test_skips_other_fenced_blocks(self):
+        text = textwrap.dedent(
+            """\
+            ```python
+            print(1)
+            ```
+
+            ```mermaid
+            flowchart LR
+                A --> B
+            ```
+            """
+        )
+        blocks = self.func(text)
+        assert len(blocks) == 1
+        assert blocks[0].diagram_type == "flowchart"
+
+    def test_unclosed_block_is_dropped(self):
+        text = "```mermaid\nflowchart LR\n  A --> B\n"
+        assert self.func(text) == []
+
+    def test_empty_block(self):
+        text = "```mermaid\n```\n"
+        blocks = self.func(text)
+        assert len(blocks) == 1
+        assert blocks[0].body == []
+        assert blocks[0].diagram_type == ""
+
+    def test_diagram_type_skips_comments(self):
+        text = "```mermaid\n%% comment\nflowchart LR\n  A --> B\n```\n"
+        blocks = self.func(text)
+        assert blocks[0].diagram_type == "flowchart"
+
+
+class TestIsQuoted:
+    """Tests for mermaid_validate.is_quoted."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from mermaid_validate import is_quoted
+        self.func = is_quoted
+
+    def test_double_quoted(self):
+        assert self.func('"hello"') is True
+
+    def test_double_quoted_with_spaces(self):
+        assert self.func('  "hello"  ') is True
+
+    def test_unquoted(self):
+        assert self.func("hello") is False
+
+    def test_single_quoted_does_not_count(self):
+        assert self.func("'hello'") is False
+
+    def test_only_open_quote(self):
+        assert self.func('"hello') is False
+
+    def test_only_close_quote(self):
+        assert self.func('hello"') is False
+
+    def test_empty(self):
+        assert self.func("") is False
+
+    def test_one_char(self):
+        assert self.func('"') is False
+
+
+class TestFindEdgeLabelIssues:
+    """Tests for mermaid_validate.find_edge_label_issues."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from mermaid_validate import find_edge_label_issues
+        self.func = find_edge_label_issues
+
+    def test_clean_label(self):
+        assert self.func("A -->|hello world| B") == []
+
+    def test_label_with_slash(self):
+        assert self.func("A -->|key/value| B") == []
+
+    def test_label_with_plus_dot_colon(self):
+        assert self.func("A -->|a + b: c.d| B") == []
+
+    def test_label_with_chinese(self):
+        assert self.func("A -->|周期扫描| B") == []
+
+    def test_label_with_br(self):
+        assert self.func("A -->|line1<br/>line2| B") == []
+
+    def test_label_with_parens_unquoted(self):
+        issues = self.func("A -->|hello (world)| B")
+        assert len(issues) == 1
+        col, label = issues[0]
+        assert "hello (world)" in label
+        assert col >= 1
+
+    def test_label_with_parens_quoted(self):
+        assert self.func('A -->|"hello (world)"| B') == []
+
+    def test_label_with_brackets_unquoted(self):
+        issues = self.func("A -->|key[0]| B")
+        assert len(issues) == 1
+        assert "key[0]" in issues[0][1]
+
+    def test_label_with_curlies_unquoted(self):
+        issues = self.func("A -->|use {x}| B")
+        assert len(issues) == 1
+        assert "{x}" in issues[0][1]
+
+    def test_lone_open_paren_flagged(self):
+        issues = self.func("A -->|(start| B")
+        assert len(issues) == 1
+
+    def test_lone_close_paren_flagged(self):
+        issues = self.func("A -->|hello)| B")
+        assert len(issues) == 1
+
+    def test_multiple_bad_labels_on_one_line(self):
+        issues = self.func("A -->|first (x)| B -->|second (y)| C")
+        assert len(issues) == 2
+        labels = [lab for _, lab in issues]
+        assert any("first (x)" in lab for lab in labels)
+        assert any("second (y)" in lab for lab in labels)
+
+    def test_one_clean_one_bad(self):
+        issues = self.func("A -->|clean| B -->|dirty (x)| C")
+        assert len(issues) == 1
+        assert "dirty (x)" in issues[0][1]
+
+    def test_label_with_brbr_and_parens_quoted(self):
+        line = 'A -->|"step 1<br/>(detail)"| B'
+        assert self.func(line) == []
+
+
+class TestFindSubgraphIssue:
+    """Tests for mermaid_validate.find_subgraph_issue."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from mermaid_validate import find_subgraph_issue
+        self.func = find_subgraph_issue
+
+    def test_bare_id(self):
+        assert self.func("subgraph SVC") is None
+
+    def test_chinese_title(self):
+        assert self.func("subgraph 客户端层") is None
+
+    def test_multiword_unquoted(self):
+        assert self.func("subgraph My Group") is None
+
+    def test_quoted_with_parens(self):
+        assert self.func('subgraph "My (Group)"') is None
+
+    def test_unquoted_with_parens(self):
+        result = self.func("subgraph My (Group)")
+        assert result == "My (Group)"
+
+    def test_indented_unquoted_with_parens(self):
+        result = self.func("    subgraph Service (v2)")
+        assert result == "Service (v2)"
+
+    def test_not_a_subgraph_line(self):
+        assert self.func("flowchart LR") is None
+
+    def test_subgraph_end_line(self):
+        assert self.func("end") is None
+
+
+class TestFindNewShapeIssue:
+    """Tests for mermaid_validate.find_new_shape_issue."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from mermaid_validate import find_new_shape_issue
+        self.func = find_new_shape_issue
+
+    def test_old_syntax_brackets(self):
+        assert self.func("    A[Hello]") is None
+
+    def test_old_syntax_round(self):
+        assert self.func("    A(Hello)") is None
+
+    def test_old_syntax_diamond(self):
+        assert self.func("    A{decision}") is None
+
+    def test_new_shape_syntax(self):
+        result = self.func("    A@{ shape: rect, label: \"Hi\" }")
+        assert result is not None
+        assert result.startswith("A@{")
+
+    def test_new_shape_syntax_with_underscore(self):
+        result = self.func("    my_node@{ shape: rect }")
+        assert result is not None
+
+    def test_init_directive_is_not_new_shape(self):
+        assert self.func("%%{init: {'theme': 'dark'}}%%") is None
+
+
+class TestFindBetaDiagramIssue:
+    """Tests for mermaid_validate.find_beta_diagram_issue."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from mermaid_validate import find_beta_diagram_issue
+        self.func = find_beta_diagram_issue
+
+    def test_flowchart_ok(self):
+        assert self.func("flowchart") is None
+
+    def test_sequence_ok(self):
+        assert self.func("sequenceDiagram") is None
+
+    def test_gantt_ok(self):
+        assert self.func("gantt") is None
+
+    def test_block_beta_flagged(self):
+        assert self.func("block-beta") == "block-beta"
+
+    def test_quadrant_chart_flagged(self):
+        assert self.func("quadrantChart") == "quadrantChart"
+
+    def test_xychart_beta_flagged(self):
+        assert self.func("xychart-beta") == "xychart-beta"
+
+    def test_sankey_beta_flagged(self):
+        assert self.func("sankey-beta") == "sankey-beta"
+
+    def test_packet_beta_flagged(self):
+        assert self.func("packet-beta") == "packet-beta"
+
+    def test_architecture_beta_flagged(self):
+        assert self.func("architecture-beta") == "architecture-beta"
+
+    def test_treemap_flagged(self):
+        assert self.func("treemap") == "treemap"
+
+    def test_radar_flagged(self):
+        assert self.func("radar") == "radar"
+
+    def test_kanban_flagged(self):
+        assert self.func("kanban") == "kanban"
+
+
+class TestLintBlock:
+    """Tests for mermaid_validate.lint_block."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from mermaid_validate import MermaidBlock, lint_block
+        self.cls = MermaidBlock
+        self.func = lint_block
+
+    def _block(self, body: str, start: int = 1) -> object:
+        lines = body.splitlines()
+        return self.cls(start_line=start, end_line=start + len(lines) + 1, body=lines)
+
+    def test_clean_flowchart(self):
+        block = self._block("flowchart LR\n    A --> B\n    A -->|label| B")
+        assert self.func(block, "f.md") == []
+
+    def test_unquoted_edge_label(self):
+        block = self._block(
+            "flowchart LR\n    A -->|hello (world)| B",
+            start=10,
+        )
+        issues = self.func(block, "f.md")
+        assert len(issues) == 1
+        assert issues[0].rule == "unquoted-edge-label"
+        assert issues[0].file == "f.md"
+        assert issues[0].line == 12  # start_line=10 + body offset 2
+
+    def test_quoted_edge_label_passes(self):
+        block = self._block(
+            'flowchart LR\n    A -->|"hello (world)"| B'
+        )
+        assert self.func(block, "f.md") == []
+
+    def test_subgraph_with_parens_flagged(self):
+        block = self._block(
+            "flowchart TD\n    subgraph My (Group)\n        A\n    end"
+        )
+        issues = self.func(block, "f.md")
+        rules = [i.rule for i in issues]
+        assert "unquoted-subgraph-title" in rules
+
+    def test_sequence_diagram_does_not_lint_edge_labels(self):
+        block = self._block(
+            "sequenceDiagram\n    A->>B: hello (world)"
+        )
+        assert self.func(block, "f.md") == []
+
+    def test_sequence_diagram_does_not_lint_subgraph(self):
+        block = self._block(
+            "sequenceDiagram\n    Note over A: my (group)"
+        )
+        assert self.func(block, "f.md") == []
+
+    def test_beta_diagram_flagged(self):
+        block = self._block("block-beta\n    columns 3", start=5)
+        issues = self.func(block, "f.md")
+        assert len(issues) == 1
+        assert issues[0].rule == "beta-diagram-type"
+        assert issues[0].line == 6
+
+    def test_new_shape_syntax_flagged(self):
+        block = self._block(
+            "flowchart LR\n    A@{ shape: rect, label: \"Hi\" }"
+        )
+        issues = self.func(block, "f.md")
+        rules = [i.rule for i in issues]
+        assert "new-shape-syntax" in rules
+
+    def test_multiple_issues_in_one_block(self):
+        block = self._block(
+            "flowchart TD\n"
+            "    subgraph My (Group)\n"
+            "        A -->|key[0]| B\n"
+            "    end"
+        )
+        issues = self.func(block, "f.md")
+        rules = sorted({i.rule for i in issues})
+        assert rules == ["unquoted-edge-label", "unquoted-subgraph-title"]
+
+    def test_comment_on_line_does_not_falsely_match(self):
+        block = self._block(
+            "flowchart LR\n    A --> B  %% note: see (foo)"
+        )
+        assert self.func(block, "f.md") == []
+
+    def test_chinese_in_clean_label(self):
+        block = self._block(
+            "flowchart LR\n    A -->|周期扫描| B"
+        )
+        assert self.func(block, "f.md") == []
+
+    def test_real_world_failing_label(self):
+        """Reproduces the exact failure that motivated this validator."""
+        block = self._block(
+            "flowchart TD\n"
+            "    RC -->|2. AliPay or ApplePay<br/>(passes orderNumber as<br/>"
+            "appAccountToken)| Bridge"
+        )
+        issues = self.func(block, "f.md")
+        assert len(issues) == 1
+        assert issues[0].rule == "unquoted-edge-label"
+        assert "appAccountToken" in issues[0].message
+
+
+class TestLintFile:
+    """Tests for mermaid_validate.lint_file."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from mermaid_validate import lint_file
+        self.func = lint_file
+
+    def test_clean_file(self, tmp_path: Path):
+        path = tmp_path / "ok.md"
+        path.write_text(
+            textwrap.dedent(
+                """\
+                # OK
+
+                ```mermaid
+                flowchart LR
+                    A --> B
+                ```
+                """
+            )
+        )
+        blocks, issues = self.func(path)
+        assert blocks == 1
+        assert issues == []
+
+    def test_failing_file(self, tmp_path: Path):
+        path = tmp_path / "broken.md"
+        path.write_text(
+            textwrap.dedent(
+                """\
+                # Broken
+
+                ```mermaid
+                flowchart LR
+                    A -->|hello (world)| B
+                ```
+                """
+            )
+        )
+        blocks, issues = self.func(path)
+        assert blocks == 1
+        assert len(issues) == 1
+        assert issues[0].rule == "unquoted-edge-label"
+
+    def test_no_mermaid_blocks(self, tmp_path: Path):
+        path = tmp_path / "plain.md"
+        path.write_text("# Plain\n\nNo diagrams here.\n")
+        blocks, issues = self.func(path)
+        assert blocks == 0
+        assert issues == []
+
+    def test_mixed_clean_and_broken(self, tmp_path: Path):
+        path = tmp_path / "mixed.md"
+        path.write_text(
+            textwrap.dedent(
+                """\
+                ```mermaid
+                flowchart LR
+                    A --> B
+                ```
+
+                ```mermaid
+                flowchart LR
+                    A -->|hello (world)| B
+                ```
+                """
+            )
+        )
+        blocks, issues = self.func(path)
+        assert blocks == 2
+        assert len(issues) == 1
+
+
+class TestMermaidValidateMain:
+    """Tests for mermaid_validate.main (CLI entry point)."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from mermaid_validate import main
+        self.func = main
+
+    def test_no_args_returns_2(self, capsys):
+        rc = self.func([])
+        assert rc == 2
+        err = capsys.readouterr().err
+        assert "usage" in err.lower()
+
+    def test_missing_file_returns_2(self, tmp_path: Path, capsys):
+        missing = tmp_path / "does-not-exist.md"
+        rc = self.func([str(missing)])
+        assert rc == 2
+
+    def test_clean_file_returns_0(self, tmp_path: Path, capsys):
+        path = tmp_path / "ok.md"
+        path.write_text("```mermaid\nflowchart LR\n  A --> B\n```\n")
+        rc = self.func([str(path)])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "STATUS=PASS" in out
+        assert "BLOCKS_CHECKED=1" in out
+
+    def test_broken_file_returns_1(self, tmp_path: Path, capsys):
+        path = tmp_path / "bad.md"
+        path.write_text(
+            "```mermaid\nflowchart LR\n  A -->|hello (x)| B\n```\n"
+        )
+        rc = self.func([str(path)])
+        out = capsys.readouterr().out
+        assert rc == 1
+        assert "STATUS=FAIL" in out
+        assert "ERROR:" in out
+
+    def test_multiple_files(self, tmp_path: Path, capsys):
+        ok = tmp_path / "ok.md"
+        ok.write_text("```mermaid\nflowchart LR\n  A --> B\n```\n")
+        bad = tmp_path / "bad.md"
+        bad.write_text(
+            "```mermaid\nflowchart LR\n  A -->|hello (x)| B\n```\n"
+        )
+        rc = self.func([str(ok), str(bad)])
+        out = capsys.readouterr().out
+        assert rc == 1
+        assert "STATUS=FAIL" in out
+        assert "BLOCKS_CHECKED=2" in out

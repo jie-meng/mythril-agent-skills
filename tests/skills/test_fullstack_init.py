@@ -392,6 +392,30 @@ class TestGenerateAgentsMd:
         result = self.func("proj", "| t |", "central-docs")
         assert "Syntax error in text" in result
 
+    def test_mermaid_section_covers_edge_label_quoting(self):
+        """Edge labels with parens are the most common 10.2.3 failure."""
+        result = self.func("proj", "| t |", "central-docs")
+        assert "Edge label" in result
+        assert "edge labels" in result.lower()
+        assert "double quotes" in result.lower()
+
+    def test_mermaid_section_covers_subgraph_quoting(self):
+        result = self.func("proj", "| t |", "central-docs")
+        assert "subgraph" in result.lower()
+        assert "Subgraph title" in result
+
+    def test_mermaid_section_recommends_validator(self):
+        result = self.func("proj", "| t |", "central-docs")
+        assert "mermaid_validate.py" in result
+
+    def test_mermaid_section_distinguishes_label_positions(self):
+        """The refined rules must clarify edge labels vs node labels vs aliases."""
+        result = self.func("proj", "| t |", "central-docs")
+        for token in ("edge label", "node label", "Subgraph title"):
+            assert token.lower() in result.lower(), (
+                f"missing label-position discriminator: {token}"
+            )
+
 
 # ---------------------------------------------------------------------------
 # generate_docs_agents_md
@@ -432,6 +456,15 @@ class TestGenerateDocsAgentsMd:
     def test_mermaid_note_points_to_workspace_agents_md(self):
         result = self.func("central-docs")
         assert "workspace root `AGENTS.md`" in result
+
+    def test_mermaid_note_calls_out_edge_label_trap(self):
+        """Docs AGENTS.md must mention the unquoted edge label trap."""
+        result = self.func("central-docs")
+        assert "edge label" in result.lower()
+
+    def test_mermaid_note_recommends_validator(self):
+        result = self.func("central-docs")
+        assert "mermaid_validate.py" in result
 
 
 # ---------------------------------------------------------------------------
