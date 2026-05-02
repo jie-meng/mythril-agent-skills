@@ -1,7 +1,10 @@
 """Tests for fullstack-impl skill scripts.
 
 Covers pure/deterministic functions from:
-- check_github_repos.py — fullstack.json config reading
+- check_workspace.py — workspace validation gate (3 markers + config)
+- check_github_repos.py — fullstack.json config reading (legacy wrapper)
+- route_check.py — Mode routing helper (status normalization, verb
+  detection, decision tree)
 - iteration_log_check.py — post-finalization iteration log consistency
 - mermaid_validate.py — Mermaid 10.2.3 compatibility lint
 """
@@ -15,8 +18,86 @@ from pathlib import Path
 import pytest
 
 
+class TestCheckWorkspace:
+    """Tests for check_workspace.check_workspace."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from check_workspace import check_workspace
+        self.func = check_workspace
+
+    def _make_valid_workspace(self, tmp_path: Path, config: dict | None = None) -> None:
+        if config is None:
+            config = {"docs_dir": "docs", "github_repos": True}
+        (tmp_path / "fullstack.json").write_text(json.dumps(config))
+        (tmp_path / "AGENTS.md").write_text("# AGENTS")
+        (tmp_path / ".agents").mkdir()
+
+    def test_valid_workspace(self, tmp_path: Path):
+        self._make_valid_workspace(tmp_path)
+        result = self.func(tmp_path)
+        assert result["WORKSPACE_VALID"] == "true"
+        assert result["MISSING"] == ""
+        assert result["DOCS_DIR"] == "docs"
+        assert result["GITHUB_REPOS"] == "true"
+
+    def test_missing_fullstack_json(self, tmp_path: Path):
+        (tmp_path / "AGENTS.md").write_text("# AGENTS")
+        (tmp_path / ".agents").mkdir()
+        result = self.func(tmp_path)
+        assert result["WORKSPACE_VALID"] == "false"
+        assert "fullstack.json" in result["MISSING"]
+
+    def test_missing_agents_md(self, tmp_path: Path):
+        (tmp_path / "fullstack.json").write_text(json.dumps({}))
+        (tmp_path / ".agents").mkdir()
+        result = self.func(tmp_path)
+        assert result["WORKSPACE_VALID"] == "false"
+        assert "AGENTS.md" in result["MISSING"]
+
+    def test_missing_agents_dir(self, tmp_path: Path):
+        (tmp_path / "fullstack.json").write_text(json.dumps({}))
+        (tmp_path / "AGENTS.md").write_text("# AGENTS")
+        result = self.func(tmp_path)
+        assert result["WORKSPACE_VALID"] == "false"
+        assert ".agents" in result["MISSING"]
+
+    def test_all_three_missing(self, tmp_path: Path):
+        result = self.func(tmp_path)
+        assert result["WORKSPACE_VALID"] == "false"
+        for marker in ("fullstack.json", "AGENTS.md", ".agents"):
+            assert marker in result["MISSING"]
+
+    def test_corrupt_config_marks_invalid(self, tmp_path: Path):
+        (tmp_path / "fullstack.json").write_text("not valid json {")
+        (tmp_path / "AGENTS.md").write_text("# AGENTS")
+        (tmp_path / ".agents").mkdir()
+        result = self.func(tmp_path)
+        assert result["WORKSPACE_VALID"] == "false"
+        assert "corrupt" in result["MISSING"]
+
+    def test_agents_file_not_dir_is_invalid(self, tmp_path: Path):
+        """A file at .agents (not a directory) does not count as the marker."""
+        (tmp_path / "fullstack.json").write_text(json.dumps({}))
+        (tmp_path / "AGENTS.md").write_text("# AGENTS")
+        (tmp_path / ".agents").write_text("oops")
+        result = self.func(tmp_path)
+        assert result["WORKSPACE_VALID"] == "false"
+        assert ".agents" in result["MISSING"]
+
+    def test_docs_dir_default_empty(self, tmp_path: Path):
+        self._make_valid_workspace(tmp_path, {"github_repos": True})
+        result = self.func(tmp_path)
+        assert result["DOCS_DIR"] == ""
+
+    def test_github_repos_false(self, tmp_path: Path):
+        self._make_valid_workspace(tmp_path, {"docs_dir": "docs", "github_repos": False})
+        result = self.func(tmp_path)
+        assert result["GITHUB_REPOS"] == "false"
+
+
 class TestCheckGithubRepos:
-    """Tests for check_github_repos.check_github_repos."""
+    """Tests for check_github_repos.check_github_repos (legacy wrapper)."""
 
     @pytest.fixture(autouse=True)
     def _import(self):
@@ -986,3 +1067,476 @@ class TestMermaidValidateMain:
         assert rc == 1
         assert "STATUS=FAIL" in out
         assert "BLOCKS_CHECKED=2" in out
+
+
+# ---------------------------------------------------------------------------
+# route_check
+# ---------------------------------------------------------------------------
+
+
+def _make_workspace(tmp_path: Path, docs_dir: str = "docs") -> Path:
+    """Create a minimal valid workspace and return its docs directory."""
+    (tmp_path / "fullstack.json").write_text(
+        json.dumps({"docs_dir": docs_dir, "github_repos": True})
+    )
+    (tmp_path / "AGENTS.md").write_text("# AGENTS")
+    (tmp_path / ".agents").mkdir()
+    docs_root = tmp_path / docs_dir
+    for work_type in ("feat", "refactor", "fix"):
+        (docs_root / work_type).mkdir(parents=True, exist_ok=True)
+    return docs_root
+
+
+def _make_work_dir(
+    docs_root: Path,
+    *,
+    name: str,
+    work_type: str = "feat",
+    status: str = "Done",
+    progress_extra: str = "",
+) -> Path:
+    """Create a work directory with plan.md and progress.md."""
+    work_dir = docs_root / work_type / name
+    work_dir.mkdir(parents=True, exist_ok=True)
+    (work_dir / "plan.md").write_text(
+        f"# {name}\n\n**Status**: {status}\n", encoding="utf-8"
+    )
+    (work_dir / "progress.md").write_text(
+        f"# Progress: {name}\n\n**Overall status**: {status}\n{progress_extra}",
+        encoding="utf-8",
+    )
+    return work_dir
+
+
+class TestNormalizeStatus:
+    """Tests for route_check.normalize_status."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from route_check import normalize_status
+        self.func = normalize_status
+
+    def test_empty_is_unknown(self):
+        assert self.func("") == "Unknown"
+
+    def test_done_exact(self):
+        assert self.func("Done") == "Done"
+
+    def test_done_with_description(self):
+        """The user's actual case: 'Done v3 — final approach'."""
+        assert self.func("Done v3 — final approach") == "Done"
+
+    def test_done_chinese_freeform(self):
+        """Another real case: '已实现并测试通过'."""
+        assert self.func("已实现并测试通过") == "Done"
+
+    def test_complete(self):
+        assert self.func("Complete") == "Done"
+
+    def test_in_progress_english(self):
+        assert self.func("In Progress") == "InProgress"
+
+    def test_in_progress_hyphenated(self):
+        assert self.func("in-progress") == "InProgress"
+
+    def test_in_progress_chinese(self):
+        assert self.func("进行中") == "InProgress"
+
+    def test_planning(self):
+        assert self.func("Planning") == "Planning"
+
+    def test_planning_chinese(self):
+        assert self.func("规划中") == "Planning"
+
+    def test_closed(self):
+        assert self.func("Closed") == "Closed"
+
+    def test_closed_chinese(self):
+        assert self.func("已关闭") == "Closed"
+
+    def test_merged_counts_as_closed(self):
+        assert self.func("Merged into main") == "Closed"
+
+    def test_unknown_freeform(self):
+        assert self.func("foo bar") == "Unknown"
+
+    def test_closed_takes_precedence_over_done(self):
+        """If both keywords appear, Closed wins (it is a stricter terminal state)."""
+        assert self.func("Done and closed") == "Closed"
+
+
+class TestParseStatus:
+    """Tests for route_check.parse_status."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from route_check import parse_status
+        self.func = parse_status
+
+    def test_english_status(self):
+        text = "# X\n\n**Source**: foo\n**Status**: Done\n"
+        assert self.func(text) == "Done"
+
+    def test_chinese_status(self):
+        text = "# X\n\n**来源**：foo\n**状态**：已完成\n"
+        assert self.func(text) == "已完成"
+
+    def test_status_with_full_width_colon(self):
+        text = "**状态**：Done v3\n"
+        assert self.func(text) == "Done v3"
+
+    def test_no_status_returns_empty(self):
+        assert self.func("# X\n\nno status here\n") == ""
+
+    def test_first_match_wins(self):
+        text = "**Status**: Planning\n\n**Status**: Done\n"
+        assert self.func(text) == "Planning"
+
+
+class TestFindLatestSuccessor:
+    """Tests for route_check.find_latest_successor."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from route_check import find_latest_successor
+        self.func = find_latest_successor
+
+    def test_no_successors_section(self):
+        text = "# Progress\n\n## Change Log\n\nstuff\n"
+        has, latest = self.func(text)
+        assert has is False
+        assert latest is None
+
+    def test_english_single_successor(self):
+        text = textwrap.dedent(
+            """\
+            ## Successors
+
+            | Date | Successor | Type | Reason |
+            |------|-----------|------|--------|
+            | 2026-05-01 | [`feat/dark-mode-v2/`](../dark-mode-v2/) | feat | Extension |
+            """
+        )
+        has, latest = self.func(text)
+        assert has is True
+        assert latest == "../dark-mode-v2/"
+
+    def test_chinese_single_successor(self):
+        text = textwrap.dedent(
+            """\
+            ## 后续工作
+
+            | 日期 | 后续工作 | 类型 | 原因 |
+            |------|----------|------|------|
+            | 2026-05-01 | [`feat/dark-mode-v2/`](../dark-mode-v2/) | feat | 扩展 |
+            """
+        )
+        has, latest = self.func(text)
+        assert has is True
+        assert latest == "../dark-mode-v2/"
+
+    def test_returns_latest_when_multiple(self):
+        text = textwrap.dedent(
+            """\
+            ## Successors
+
+            | Date | Successor | Type | Reason |
+            |------|-----------|------|--------|
+            | 2026-05-01 | [`feat/dark-mode-v2/`](../dark-mode-v2/) | feat | A |
+            | 2026-06-01 | [`feat/dark-mode-v3/`](../dark-mode-v3/) | feat | B |
+            """
+        )
+        has, latest = self.func(text)
+        assert has is True
+        assert latest == "../dark-mode-v3/"
+
+    def test_section_with_no_link_rows(self):
+        text = "## Successors\n\n(none yet)\n"
+        has, latest = self.func(text)
+        assert has is False
+        assert latest is None
+
+    def test_stops_at_next_h2(self):
+        text = textwrap.dedent(
+            """\
+            ## Successors
+
+            | Date | Successor |
+            |------|-----------|
+            | 2026-05-01 | [`feat/x-v2/`](../x-v2/) |
+
+            ## Other Section
+
+            | a | b |
+            |---|---|
+            | [`feat/y/`](../y/) | x |
+            """
+        )
+        has, latest = self.func(text)
+        assert has is True
+        assert latest == "../x-v2/"
+
+
+class TestHasIterationLog:
+    """Tests for route_check.has_iteration_log."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from route_check import has_iteration_log
+        self.func = has_iteration_log
+
+    def test_english_present(self):
+        assert self.func("# P\n\n## Iteration Log\n\n") is True
+
+    def test_chinese_present(self):
+        assert self.func("# P\n\n## 迭代记录\n\n") is True
+
+    def test_absent(self):
+        assert self.func("# P\n\n## Change Log\n") is False
+
+
+class TestDetectTriggers:
+    """Tests for route_check.detect_triggers."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from route_check import detect_triggers
+        self.func = detect_triggers
+
+    def test_chinese_read_verb(self):
+        triggers = self.func("看一下 feat/dark-mode")
+        assert triggers.has_read is True
+        assert triggers.has_followup is False
+        assert triggers.has_iteration is False
+
+    def test_english_read_verb(self):
+        triggers = self.func("Look at feat/dark-mode for context")
+        assert triggers.has_read is True
+
+    def test_chinese_iteration_verb(self):
+        triggers = self.func("我想改一下逻辑")
+        assert triggers.has_iteration is True
+
+    def test_english_iteration_verb(self):
+        triggers = self.func("this is wrong, fix this")
+        assert triggers.has_iteration is True
+
+    def test_chinese_followup_verb(self):
+        triggers = self.func("在 dark-mode 基础上扩展")
+        assert triggers.has_followup is True
+
+    def test_english_followup_verb(self):
+        triggers = self.func("follow up on dark-mode")
+        assert triggers.has_followup is True
+
+    def test_resume_verb(self):
+        triggers = self.func("继续 dark-mode")
+        assert triggers.has_resume is True
+
+    def test_compound_read_plus_iteration(self):
+        """The user's original failing prompt — both verbs detected."""
+        triggers = self.func("看一下 @feat/dark-mode 我想改一下逻辑")
+        assert triggers.has_read is True
+        assert triggers.has_iteration is True
+
+    def test_no_trigger(self):
+        triggers = self.func("implement a brand new feature")
+        assert triggers.labels == []
+
+
+class TestDecideRoute:
+    """Tests for route_check.decide_route — the core decision tree."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from route_check import decide_route, detect_triggers
+        self.decide = decide_route
+        self.detect = detect_triggers
+
+    def _info(
+        self,
+        *,
+        status: str = "Done",
+        has_successors: bool = False,
+        latest_successor: str | None = None,
+    ):
+        from route_check import WorkDirInfo
+        return WorkDirInfo(
+            name="dark-mode",
+            path=Path("/tmp/x"),
+            work_type="feat",
+            status_raw=status,
+            status_normalized=status,
+            has_successors=has_successors,
+            latest_successor=latest_successor,
+            iteration_log_found=False,
+        )
+
+    def test_no_work_dir_no_verb_is_fresh(self):
+        result = self.decide(None, self.detect("implement a new feature"))
+        assert result.route == "Fresh"
+
+    def test_no_work_dir_with_verb_is_ask(self):
+        result = self.decide(None, self.detect("look at feat/dark-mode"))
+        assert result.route == "AskUser"
+
+    def test_done_plus_iteration_verb(self):
+        """The user's reported failure case — must route to Iteration."""
+        info = self._info(status="Done")
+        result = self.decide(info, self.detect("我想改一下"))
+        assert result.route == "Iteration"
+        assert result.recommended_next_doc == "iteration-mode.md"
+
+    def test_done_plus_compound_read_and_iteration(self):
+        """Read + iteration verbs → Iteration wins, with reading as background."""
+        info = self._info(status="Done")
+        result = self.decide(
+            info, self.detect("看一下 feat/dark-mode 我想改一下逻辑")
+        )
+        assert result.route == "Iteration"
+        assert any("background" in r.lower() for r in result.reasoning)
+
+    def test_done_plus_read_only_is_reference(self):
+        info = self._info(status="Done")
+        result = self.decide(info, self.detect("look at feat/dark-mode"))
+        assert result.route == "Reference"
+
+    def test_done_no_verb_is_ask(self):
+        info = self._info(status="Done")
+        result = self.decide(info, self.detect("dark-mode"))
+        assert result.route == "AskUser"
+
+    def test_closed_plus_followup_verb(self):
+        info = self._info(status="Closed")
+        result = self.decide(info, self.detect("在 dark-mode 基础上扩展"))
+        assert result.route == "Followup"
+
+    def test_closed_plus_read_verb_is_reference(self):
+        info = self._info(status="Closed")
+        result = self.decide(info, self.detect("look at feat/dark-mode for context"))
+        assert result.route == "Reference"
+
+    def test_closed_plus_iteration_verb_is_ask(self):
+        """Closed + iteration is ambiguous (shipped code) — must ask."""
+        info = self._info(status="Closed")
+        result = self.decide(info, self.detect("调一下"))
+        assert result.route == "AskUser"
+
+    def test_closed_no_verb_is_ask(self):
+        info = self._info(status="Closed")
+        result = self.decide(info, self.detect(""))
+        assert result.route == "AskUser"
+
+    def test_in_progress_plus_resume_is_resume(self):
+        info = self._info(status="InProgress")
+        result = self.decide(info, self.detect("继续 dark-mode"))
+        assert result.route == "Resume"
+
+    def test_planning_plus_iteration_verb_is_resume(self):
+        info = self._info(status="Planning")
+        result = self.decide(info, self.detect("再改一下"))
+        assert result.route == "Resume"
+
+    def test_unknown_status_is_ask(self):
+        """Free-form Status that the agent can't map → ask user."""
+        info = self._info(status="Unknown")
+        result = self.decide(info, self.detect("我想改一下"))
+        assert result.route == "AskUser"
+
+    def test_compound_followup_and_iteration_is_ask(self):
+        info = self._info(status="Done")
+        result = self.decide(
+            info, self.detect("在 dark-mode 基础上扩展，但其实只想改一下")
+        )
+        assert result.route == "AskUser"
+
+    def test_successors_are_reported_in_reasoning(self):
+        info = self._info(
+            status="Closed",
+            has_successors=True,
+            latest_successor="../dark-mode-v2/",
+        )
+        result = self.decide(info, self.detect("look at feat/dark-mode"))
+        assert any("Successors" in r for r in result.reasoning)
+        assert any("dark-mode-v2" in r for r in result.reasoning)
+
+
+class TestRouteCheckMain:
+    """End-to-end tests for route_check.main."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from route_check import main
+        self.func = main
+
+    def test_invalid_workspace_returns_2(self, tmp_path: Path, capsys):
+        rc = self.func([
+            "--workspace-root", str(tmp_path),
+            "--work-dir-name", "x",
+            "--prompt", "look at x",
+        ])
+        assert rc == 2
+
+    def test_valid_workspace_no_match_returns_fresh(self, tmp_path: Path, capsys):
+        _make_workspace(tmp_path)
+        rc = self.func([
+            "--workspace-root", str(tmp_path),
+            "--work-dir-name", "nonexistent",
+            "--prompt", "implement a new feature",
+        ])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "ROUTE=Fresh" in out
+
+    def test_valid_workspace_with_match(self, tmp_path: Path, capsys):
+        docs_root = _make_workspace(tmp_path)
+        _make_work_dir(docs_root, name="dark-mode", status="Done")
+        rc = self.func([
+            "--workspace-root", str(tmp_path),
+            "--work-dir-name", "dark-mode",
+            "--prompt", "我想改一下 dark-mode 的逻辑",
+        ])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "ROUTE=Iteration" in out
+        assert "STATUS_NORMALIZED=Done" in out
+        assert "RECOMMENDED_NEXT_DOC=iteration-mode.md" in out
+
+    def test_real_world_freeform_status(self, tmp_path: Path, capsys):
+        """The exact scenario reported by the user — 已实现并测试通过 + 我想改."""
+        docs_root = _make_workspace(tmp_path)
+        _make_work_dir(
+            docs_root,
+            name="low-battery-protection",
+            status="已实现并测试通过",
+        )
+        rc = self.func([
+            "--workspace-root", str(tmp_path),
+            "--work-dir-name", "low-battery-protection",
+            "--prompt", "看一下 low-battery-protection 我想改一下逻辑",
+        ])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "ROUTE=Iteration" in out
+        assert "STATUS_NORMALIZED=Done" in out
+
+    def test_prompt_file_overrides_inline(self, tmp_path: Path, capsys):
+        docs_root = _make_workspace(tmp_path)
+        _make_work_dir(docs_root, name="x", status="Closed")
+        prompt_path = tmp_path / "prompt.txt"
+        prompt_path.write_text("look at feat/x")
+        rc = self.func([
+            "--workspace-root", str(tmp_path),
+            "--work-dir-name", "x",
+            "--prompt", "(this should be ignored)",
+            "--prompt-file", str(prompt_path),
+        ])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "ROUTE=Reference" in out
+
+    def test_invalid_workspace_root_returns_1(self, tmp_path: Path):
+        rc = self.func([
+            "--workspace-root", str(tmp_path / "missing"),
+        ])
+        assert rc == 1

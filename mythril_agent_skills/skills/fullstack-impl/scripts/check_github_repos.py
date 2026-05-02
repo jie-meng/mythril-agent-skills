@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Check whether the fullstack workspace repos are GitHub-hosted.
 
-Reads fullstack.json from the workspace root and outputs a deterministic
-machine-readable result. This removes any LLM guessing — the answer comes
-directly from the config file set during fullstack-init.
+Backward-compatible thin wrapper around `check_workspace.py`. Step 8 of
+SKILL.md historically calls this script with a fixed candidate-path lookup;
+keeping it ensures older agent transcripts and external scripts continue
+to work. New callers should prefer `check_workspace.py`, which returns
+the same `GITHUB_REPOS` plus full workspace status in one call.
 
 Usage:
     python3 check_github_repos.py [workspace-root]
@@ -20,36 +22,23 @@ Exit codes:
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
+from check_workspace import check_workspace
+
 
 def check_github_repos(root: Path) -> dict[str, str]:
-    """Read fullstack.json and return github_repos status."""
-    config_path = root / "fullstack.json"
+    """Read fullstack.json and return github_repos status.
 
-    if not config_path.is_file():
-        return {
-            "GITHUB_REPOS": "false",
-            "CONFIG_PATH": str(config_path),
-            "CONFIG_FOUND": "false",
-        }
-
-    try:
-        config = json.loads(config_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {
-            "GITHUB_REPOS": "false",
-            "CONFIG_PATH": str(config_path),
-            "CONFIG_FOUND": "true",
-        }
-
-    github_repos = config.get("github_repos", False)
+    Returns the legacy three-key shape for backward compatibility, derived
+    from the unified workspace check.
+    """
+    workspace = check_workspace(root)
     return {
-        "GITHUB_REPOS": "true" if github_repos else "false",
-        "CONFIG_PATH": str(config_path),
-        "CONFIG_FOUND": "true",
+        "GITHUB_REPOS": workspace["GITHUB_REPOS"],
+        "CONFIG_PATH": workspace["CONFIG_PATH"],
+        "CONFIG_FOUND": workspace["CONFIG_FOUND"],
     }
 
 

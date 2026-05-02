@@ -6,6 +6,14 @@ wrong mode is expensive: too eager → phantom Predecessor links and
 modified prior dirs; too conservative → lost continuity and re-derived
 decisions. This document is the routing center.
 
+> **Routing is now script-driven.** Step 1d of `SKILL.md` calls
+> `scripts/route_check.py`, which encodes the rules in this document
+> deterministically. The script's recommendation is the source of
+> truth — this document explains the rules behind it and provides the
+> question templates the agent uses when the script returns
+> `ROUTE=AskUser`. **Do not bypass the script and make the routing
+> decision from this prose alone.**
+
 ## The four modes at a glance
 
 | Mode | Lifecycle stage | Reads prior dir | Writes prior dir | Cost of misroute |
@@ -77,14 +85,61 @@ the user's intent unambiguously.
 | English | "follow up on X", "extend X", "build on top of X", "on top of X", "based on X work" (note: "based on X **work**" differs from "based on X **docs**") |
 | Chinese | "在 X 基础上", "基于 X 做后续", "X 的后续", "扩展 X", "follow up X" |
 
-### Iteration Mode verbs (silent — no announcement needed)
+### Iteration Mode verbs (announced via `Mode: Iteration`, then silent loop)
 
 Any feedback / fix / tweak verb pointing at an open work item:
 
 | Language | Phrasing |
 |----------|----------|
-| English | "this is wrong", "fix this", "doesn't work", pasted error/log, reviewer comment, "also add X" |
-| Chinese | "调一下", "再改一下", "这里不对", "log 报错", "顺便加一下", reviewer 反馈 |
+| English | "this is wrong", "fix this", "doesn't work", "tweak this", "change this to", "also add X", "I want to change", pasted error/log, reviewer comment |
+| Chinese | "调一下", "再改一下", "这里不对", "改成", "改下", "我想改", "想改", "调整一下", "log 报错", "报错", "顺便加一下", reviewer 反馈 |
+
+> Note: per the SKILL.md Step 1d-ii contract, Iteration Mode is no
+> longer fully silent — the agent MUST announce `Mode: Iteration` once
+> at the start, then run the iteration loop without further mode
+> announcements per round.
+
+## Compound intent — read verb + modify verb in the same prompt
+
+This is the most common Chinese-language failure mode. Sentences like
+"看一下 @feat/X 我想改一下逻辑" contain BOTH a reading verb (看一下)
+and a modification verb (改一下). The original taxonomy classified
+"看一下" as Reference Mode and stopped — but the user's actual intent
+is iterate-after-reading, not pure-read.
+
+### Disambiguation rule
+
+When BOTH a reading verb and a modification verb (iteration / followup)
+appear in the same prompt:
+
+1. **The modification verb wins.** The reading verb degrades to
+   "background context for the iteration" — read the prior docs first,
+   then run the modification loop.
+2. The chosen Mode is determined by `STATUS_NORMALIZED`:
+   - `Done` → **Iteration**
+   - `Closed` → **AskUser** (user must confirm Iteration vs Follow-up
+     vs fresh fix — see "The clarifying question" below)
+   - `Planning` / `In Progress` → **Resume** (continue the open work)
+3. The agent should mention the reading happened in the
+   `Reason:` line, e.g.
+   `Reason: Done + iteration verb (read verb degraded to background context)`
+
+### Examples
+
+| User prompt | Status | Intended Mode |
+|------------|--------|---------------|
+| "看一下 feat/X" | Closed | Reference |
+| "看一下 feat/X 我想改一下" | Done | **Iteration** (compound) |
+| "look at feat/X and tweak the threshold" | Done | **Iteration** (compound) |
+| "参考 feat/X 然后在它基础上加..." | Closed | **AskUser** (read + followup) |
+| "look at feat/X" alone | Closed | Reference |
+| "我想改一下 feat/X" alone | Done | Iteration |
+
+`route_check.py` implements this rule directly — it surfaces both
+verbs in `TRIGGERS_DETECTED=read,iteration` and routes to Iteration
+when status is Done. If both followup AND iteration verbs appear, the
+script returns AskUser (the two intents are genuinely different and
+must not be auto-resolved).
 
 ## The clarifying question (when verbs are ambiguous)
 

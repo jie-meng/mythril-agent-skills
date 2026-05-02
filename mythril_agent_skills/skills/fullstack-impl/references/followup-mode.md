@@ -31,15 +31,63 @@ Follow-up Mode kicks in when ALL of these are true:
 1. The current request targets the **same scope** as a previously
    closed work item (same feature area, same repos, often the same
    Jira theme).
-2. The matching work directory's `plan.md` `Status` is `Closed` /
-   `已关闭`.
+2. The matching work directory's `plan.md` `Status` normalizes to
+   `Closed` (any of: `Closed`, `已关闭`, `Merged into main`, `Shipped`,
+   `已合并`, `已发布`, `已上线`).
 3. The user uses an explicit follow-up verb (see "Triggers" below) OR
    the user confirms a follow-up proposal when asked.
 
-If any of these are not met → it is NOT Follow-up Mode. Either:
+`route_check.py` checks all three deterministically and returns
+`ROUTE=Followup` only when they hold. If any of these are not met →
+it is NOT Follow-up Mode. Either:
 - A new fresh work item (no predecessor link), OR
 - Reference Mode — see [`reference-mode.md`](reference-mode.md), OR
-- Iteration Mode — see [`iteration-mode.md`](iteration-mode.md).
+- Iteration Mode — see [`iteration-mode.md`](iteration-mode.md), OR
+- AskUser (the script will prompt the 3-option clarifying question).
+
+## Iteration vs Follow-up — the boundary
+
+The two modes look similar (both modify a previously-finalized work
+item) but differ in lifecycle stage, naming, and audit trail. Picking
+the wrong one is expensive — see the cost table below.
+
+| Aspect | Iteration | Follow-up |
+|--------|-----------|-----------|
+| Trigger condition | Status = `Done` (PR not yet merged) | Status = `Closed` (shipped) |
+| Work directory | Same (`<work-name>/`) | New (`<work-name>-vN/`) |
+| Branch suffix | `-iter-N` (per round) | `-vN` (per follow-up work item) |
+| `Predecessor:` field | No | Yes (mandatory) |
+| `## Predecessor Context` section | No | Yes (mandatory) |
+| `## Successors` back-link in old dir | No | Yes (mandatory) |
+| Backward-compat cross-repo check | No | Yes |
+| Cost of misroute (Iteration → Followup) | Phantom `-v2` directory + back-link in a Done dir | Cleanup needs `git mv` + delete back-link |
+| Cost of misroute (Followup → Iteration) | Iteration audit trail spans two effective work items | Cleanup needs reopening the closed dir |
+
+### Boundary case — Status = Done but commits already on default branch
+
+When the work item's status is `Done` (not `Closed`) but the feature
+branch was already merged to default (commits exist there, original
+branch deleted), the route is genuinely ambiguous:
+
+- It could be **Iteration**: the work was finalized, the PR was
+  squash-merged for convenience, but the user / team still considers
+  the work "open" until production deployment.
+- It could be **Follow-up**: the work is effectively shipped (default
+  branch is the truth), the user's request is a real continuation.
+
+`route_check.py` returns `ROUTE=AskUser` here. Ask the user the
+3-option clarifying question (Follow-up / Iteration on hotfix branch /
+Independent fresh fix) — see [`mode-selection.md`](mode-selection.md).
+Do NOT auto-pick.
+
+### Quick decision flow
+
+```
+Status normalizes to ...
+  ├── Done    → Iteration  (with -iter-N branch via the matrix in iteration-mode.md)
+  ├── Closed  → Follow-up  (with -vN dir + branch, predecessor inheritance)
+  └── Unknown → AskUser    (status field is free-form; agent cannot decide)
+```
 
 ## Triggers — explicit verbs only
 

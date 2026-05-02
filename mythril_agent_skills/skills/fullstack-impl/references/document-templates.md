@@ -19,6 +19,34 @@ languages; only the labels differ.
 
 ## `plan.md`
 
+### Status field — must start with an enum keyword
+
+The `Status` field MUST start with one of the recognized enum
+keywords below. A free-form description MAY follow after a dash, but
+the keyword must come first so `route_check.py` can normalize the
+value automatically.
+
+| Enum (English) | Enum (Chinese) | Lifecycle stage |
+|----------------|----------------|-----------------|
+| `Planning` | `规划中` | Just created, no code yet |
+| `In Progress` | `进行中` | Implementation underway |
+| `Done` | `已完成` | Round 0 finalized; PR not yet merged; iteration may continue |
+| `Closed` | `已关闭` | Shipped to production / PR merged; further work is Follow-up |
+
+Examples (recommended "enum + description" format):
+
+- `**Status**: Done — v3 final approach, all tests passing`
+- `**状态**：已完成 — v3 简化方案，9 个新测试全 pass`
+- `**Status**: Closed — merged to main 2026-04-30`
+- `**Status**: In Progress`
+
+Anti-examples (the agent should refuse to write these — they break
+`route_check.py`'s status normalization):
+
+- `**Status**: 已实现并测试通过` — pure free-form, no enum keyword
+  (the script will report `STATUS_NORMALIZED=Unknown`)
+- `**Status**: v3 final approach` — description without keyword
+
 ### English
 
 ```markdown
@@ -28,7 +56,9 @@ languages; only the labels differ.
 **Type**: feat | refactor | fix
 **Branch**: <branch-name>
 **Created**: <date>
-**Status**: Planning
+**Status**: Planning   <!-- one of: Planning | In Progress | Done | Closed -->
+                       <!-- optional: append " — <free description>" -->
+
 
 ## Requirements
 
@@ -73,7 +103,9 @@ android). The implementation phase follows this exact order.
 **类型**：feat | refactor | fix
 **分支**：<branch-name>
 **创建时间**：<date>
-**状态**：规划中
+**状态**：规划中   <!-- 必须以以下之一开头：规划中 | 进行中 | 已完成 | 已关闭 -->
+                  <!-- 可选：在后面追加 " — <自由描述>" -->
+
 
 ## 需求
 

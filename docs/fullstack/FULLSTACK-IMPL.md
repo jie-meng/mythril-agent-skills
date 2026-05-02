@@ -27,14 +27,10 @@ Without a structured approach:
 
 ```mermaid
 flowchart TD
-    A[User invokes fullstack-impl] --> B{Workspace validation}
-    B --> B1{fullstack.json exists?}
-    B --> B2{AGENTS.md exists?}
-    B --> B3{.agents/ directory exists?}
-    B1 -- No --> FAIL[Inform user: not a valid workspace]
-    B2 -- No --> FAIL
-    B3 -- No --> FAIL
-    B1 & B2 & B3 -- All Yes --> C[Read fullstack.json, AGENTS.md]
+    A[User invokes fullstack-impl] --> B[Run check_workspace.py]
+    B --> B1{WORKSPACE_VALID?}
+    B1 -- "false" --> FAIL[Inform user: not a valid workspace, list MISSING markers]
+    B1 -- "true" --> C[Record DOCS_DIR + GITHUB_REPOS for later steps]
 
     C --> D{Links in user prompt?}
     D -- Jira --> D1[Read via jira skill]
@@ -44,14 +40,15 @@ flowchart TD
     D -- None --> E[Use prompt text as requirements]
     D1 & D2 & D3 & D4 --> E
 
-    E --> ESCAN[Scan existing work dirs by Status]
-    ESCAN --> EROUTE{Route by match + Status + user verb}
-    EROUTE -- "no match" --> F
-    EROUTE -- "match: Planning/In Progress + continue verb" --> KRESUME[Resume original Step 1-9]
-    EROUTE -- "match: Done + tweak/fix/log verb" --> KITER[Iteration Mode silent loop]
-    EROUTE -- "match: Closed + follow-up verb" --> KFOLLOW[Follow-up Mode: create -vN dir]
-    EROUTE -- "match: any + reading verb" --> KREF[Reference Mode: read prior dir, fresh new work]
-    EROUTE -- "match: Closed + no verb (overlap only)" --> KASK{Ask 3-option question}
+    E --> ESCAN[Run route_check.py with --work-dir-name and --prompt]
+    ESCAN --> EANN["Announce Mode: ROUTE and Reason: ..."]
+    EANN --> EROUTE{ROUTE value}
+    EROUTE -- "Fresh" --> F
+    EROUTE -- "Resume" --> KRESUME[Resume original Step 1-9]
+    EROUTE -- "Iteration" --> KITER[Iteration Mode loop]
+    EROUTE -- "Followup" --> KFOLLOW[Follow-up Mode: create -vN dir]
+    EROUTE -- "Reference" --> KREF[Reference Mode: read prior dir, fresh new work]
+    EROUTE -- "AskUser" --> KASK{Ask 3-option question}
     KASK -- "Follow-up" --> KFOLLOW
     KASK -- "Reference" --> KREF
     KASK -- "Independent" --> F
@@ -353,6 +350,72 @@ The main `SKILL.md` reads each reference file at the moment it becomes
 relevant (e.g. mode-selection at Step 1, document-templates at Step 5,
 iteration-mode after finalization). This keeps the main file compact
 while preserving full detail in the references.
+
+### R19 — Deterministic routing via bundled scripts
+
+The two highest-cost failure modes of the skill — wrong workspace and
+wrong Mode — are now eliminated by deterministic helper scripts called
+from `SKILL.md`:
+
+- **`check_workspace.py`** runs the Workspace Validation Gate. It
+  verifies the three markers (`fullstack.json`, `AGENTS.md`,
+  `.agents/`) and reports `WORKSPACE_VALID`, `MISSING`, `DOCS_DIR`,
+  and `GITHUB_REPOS` in a single call. The agent reuses these values
+  in Step 1d (docs path) and Step 8 (GitHub PR creation).
+
+- **`route_check.py`** runs the Mode routing decision. It locates the
+  named work directory, parses `plan.md`'s Status field via a
+  normalization map (Planning / In Progress / Done / Closed /
+  Unknown), detects routing verbs in the user's prompt, and combines
+  the two into a `ROUTE` recommendation (Fresh / Reference /
+  Iteration / Followup / Resume / AskUser). It also detects
+  `## Successors` chains and recommends following them forward.
+
+LLM intuition does NOT decide routing. The script's output is the
+source of truth. When the script returns `AskUser`, the agent uses
+the question template in `mode-selection.md` and waits for the user.
+
+The legacy `check_github_repos.py` is retained as a thin
+backward-compatible wrapper that re-exports the `GITHUB_REPOS` value
+from `check_workspace.py`. New callers should prefer
+`check_workspace.py` directly.
+
+### R20 — Mandatory `Mode:` announcement (machine-readable contract)
+
+Once `route_check.py` returns a recommendation, the agent MUST output
+two fixed lines BEFORE any further action:
+
+```
+Mode: <Fresh | Reference | Iteration | Followup | Resume | AskUser>
+Reason: <one-line summary including STATUS_NORMALIZED and TRIGGERS_DETECTED>
+```
+
+These two lines are a contract between the user and the agent. They
+are output in English regardless of conversation language so they can
+be grep'd from transcripts. All subsequent actions (which doc to
+read, which branch convention to use, which checklist to run) MUST be
+consistent with the announced Mode.
+
+This requirement closes the failure mode where the agent reads
+iteration-mode.md but only executes part of it (e.g. the staged
+review loop) while skipping the doc sync and Iteration Log update.
+With `Mode: Iteration` in the transcript, any skipped step is
+visibly inconsistent with the announced Mode.
+
+### R21 — Pre-commit doc sync in Iteration Mode
+
+Per `iteration-mode.md`, the per-iteration doc sync checklist now
+runs BEFORE `git commit`, not after. The order is:
+
+```
+edit code → validate → stage → code-review-staged → doc sync →
+iteration_log_check.py → git commit each repo → docs repo commit
+```
+
+This eliminates the "easy to forget" failure mode of post-commit doc
+updates: if the docs are not synced, there is no commit to forget
+about. `iteration_log_check.py` is the structural gate — round is not
+complete until `STATUS=PASS`.
 
 ## Agent Coordination Model
 
