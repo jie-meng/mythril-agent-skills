@@ -44,25 +44,51 @@ flowchart TD
     D -- None --> E[Use prompt text as requirements]
     D1 & D2 & D3 & D4 --> E
 
-    E --> F[Determine work type: feat / refactor / fix]
+    E --> ESCAN[Scan existing work dirs by Status]
+    ESCAN --> EROUTE{Route by match + Status + user verb}
+    EROUTE -- "no match" --> F
+    EROUTE -- "match: Planning/In Progress + continue verb" --> KRESUME[Resume original Step 1-9]
+    EROUTE -- "match: Done + tweak/fix/log verb" --> KITER[Iteration Mode silent loop]
+    EROUTE -- "match: Closed + follow-up verb" --> KFOLLOW[Follow-up Mode: create -vN dir]
+    EROUTE -- "match: any + reading verb" --> KREF[Reference Mode: read prior dir, fresh new work]
+    EROUTE -- "match: Closed + no verb (overlap only)" --> KASK{Ask 3-option question}
+    KASK -- "Follow-up" --> KFOLLOW
+    KASK -- "Reference" --> KREF
+    KASK -- "Independent" --> F
+
+    F[Determine work type: feat / refactor / fix]
 
     F --> G[Identify affected repos]
     G --> H{Present to user for confirmation}
-    H -- User corrects --> G
-    H -- User confirms --> I[Derive branch name]
+    H -- "User corrects" --> G
+    H -- "User confirms" --> I[Derive branch name]
 
-    I --> J{Existing work directory?}
-    J -- Yes --> K[Resume: read plan.md + progress.md]
-    J -- No --> L[Create work directory in docs repo]
+    I --> L[Create work directory in docs repo]
+
+    KFOLLOW --> KF1[Read predecessor 4 docs in full]
+    KF1 --> KF2["Successor dir name: name-vN"]
+    KF2 --> KF3[Append -vN suffix to branch names]
+    KF3 --> L
+
+    KREF --> KR1[Read prior dir 4 docs as background]
+    KR1 --> KR2[Fresh free name; standard branch names]
+    KR2 --> L
 
     L --> L0{Work type?}
-    L0 -- feat/refactor --> L0a[Planner writes analysis.md]
-    L0 -- fix --> L0b[Debugger writes analysis.md]
-    L0a & L0b --> L1[Write plan.md]
+    L0 -- "feat/refactor" --> L0a[Planner writes analysis.md]
+    L0 -- "fix" --> L0b[Debugger writes analysis.md]
+    L0a & L0b --> L0c{Follow-up Mode?}
+    L0c -- "Yes" --> L0d["Add Predecessor field + Predecessor Context section"]
+    L0c -- "No (Fresh / Reference)" --> L1
+    L0d --> L1[Write plan.md]
     L1 --> L2[Write progress.md]
-    L2 --> L3[Write review.md header]
+    L2 --> L2a{Follow-up Mode?}
+    L2a -- "Yes" --> L2b["Append Successors row to predecessor progress.md"]
+    L2a -- "No (Fresh / Reference)" --> L3
+    L2b --> L3[Write review.md header]
 
-    K --> M[Branch management per repo]
+    KRESUME --> M[Branch management per repo]
+    KITER --> M
     L1 & L2 & L3 --> M
 
     M --> M1{Branch already exists?}
@@ -224,6 +250,110 @@ must favor visual formats (mermaid diagrams, markdown tables) over prose.
 The analysis agent varies by work type: Planner for feat/refactor,
 Debugger for fix. May be skipped for trivial work.
 
+### R16 — Follow-up Mode for closed work items
+
+When a previously closed work item (`plan.md` Status: `Closed`) needs
+further changes (extension, post-shipping bug, post-release refactor)
+AND the user uses an explicit follow-up verb, the skill MUST NOT reopen
+the closed work directory. Instead, it creates a successor work
+directory with `-vN` suffix (e.g. `dark-mode-v2/`) that explicitly
+inherits predecessor context.
+
+**Mandatory artifacts:**
+
+1. Successor's `analysis.md` and `plan.md` MUST contain a `Predecessor:`
+   field in the header.
+2. Successor's `analysis.md` MUST contain a `## Predecessor Context`
+   (or `## 前置工作上下文`) section with four parts: what was shipped,
+   decisions inherited, assumptions that changed, predecessor's caveats.
+3. Predecessor's `progress.md` MUST gain a `## Successors`
+   (or `## 后续工作`) table linking to the new successor, committed in
+   the same docs-repo commit.
+4. Branch names append `-vN` to the descriptive title.
+5. Successor branches start from the repo's current default branch, NOT
+   the predecessor's merged branch.
+6. Cross-repo review (Step 7) MUST add a backward-compatibility check
+   against the predecessor's shipped contracts.
+
+**Detection paths (explicit-trigger-only):**
+
+- Explicit follow-up verb: "follow up on X", "extend X", "build on top
+  of X", "在 X 基础上", "基于 X 做后续", "X 的后续", "扩展 X"
+- Confirmation when the agent asks the 3-option clarifying question for
+  ambiguous overlap (see R17)
+
+The skill MUST NOT auto-route to Follow-up Mode based on scope overlap
+alone. Misrouting Reference as Follow-up modifies a closed dir and
+creates phantom Predecessor links — costly to undo. When unsure, ask.
+
+### R17 — Reference Mode for reading prior work as background
+
+Sometimes the user wants the agent to read an existing work directory
+as background context — to understand prior decisions, data models,
+naming conventions — but the new work is fundamentally independent.
+Reference Mode covers this case without writing into the prior dir.
+
+**Distinguishing characteristics:**
+
+| Aspect | Reference Mode | Follow-up Mode |
+|--------|---------------|----------------|
+| Reads prior work's 4 docs | Yes | Yes |
+| Writes into prior directory | **No** | Yes (appends `## Successors`) |
+| New work directory naming | Free naming | `<predecessor>-vN/` |
+| Branch naming | Standard | `<title>-vN` |
+| `Predecessor:` field | **No** | Yes |
+| `## Predecessor Context` section | **No** (may freely cite in prose) | Yes, mandatory |
+| Backward-compat cross-repo check | Not required | Required |
+| Reversibility cost | Zero | High |
+
+**Triggers (explicit reading verbs):**
+
+- English: "look at feat/X", "read feat/X docs", "based on the X docs",
+  "reference feat/X", "use feat/X for context", "see what we did in X"
+- Chinese: "参考 feat/X", "看一下 feat/X", "看看 feat/X 文档",
+  "基于 feat/X 的文档", "X 当背景", "X 当参考"
+
+**Disambiguation rule:** if a sentence mixes a reading verb and a
+building verb ("look at feat/dark-mode and build on top of it"), the
+**building** verb wins — that is Follow-up Mode. The agent should ASK
+when uncertain.
+
+**Promotion path:** during planning, if the agent realizes the new
+work IS extending the prior work (touching the same endpoints,
+modifying the same data model in incompatible ways), it should pause
+and ask the user about switching to Follow-up Mode. The reverse
+(Follow-up → Reference) is uncommon and harder because it requires
+un-writing the back-link.
+
+### R18 — SKILL.md size and progressive disclosure
+
+Per skill-creator's progressive-disclosure pattern, the main `SKILL.md`
+covers Steps 1-9 inline but delegates large reusable artifacts to
+`references/`:
+
+- `references/document-templates.md` — full English/Chinese templates
+  for plan/progress/analysis/review documents + Mermaid Compatibility
+  Gate details
+- `references/review-formats.md` — per-round and cross-repo review
+  section formats
+- `references/iteration-mode.md` — full Iteration Mode protocol (sticky
+  loop, doc sync checklist, Iteration Log schema, self-check,
+  anti-patterns, closure)
+- `references/followup-mode.md` — full Follow-up Mode protocol
+  (predecessor inheritance, `-vN` naming, back-link, backward-compat
+  gate, anti-patterns)
+- `references/reference-mode.md` — full Reference Mode protocol
+  (read-only relationship, free naming, prose citation rules,
+  promotion to Follow-up)
+- `references/mode-selection.md` — central routing table among
+  Fresh / Reference / Iteration / Follow-up, the 3-option clarifying
+  question, mode promotion / demotion rules
+
+The main `SKILL.md` reads each reference file at the moment it becomes
+relevant (e.g. mode-selection at Step 1, document-templates at Step 5,
+iteration-mode after finalization). This keeps the main file compact
+while preserving full detail in the references.
+
 ## Agent Coordination Model
 
 ### Orchestration strategy: serial per-repo
@@ -354,16 +484,38 @@ Repos without a matching ticket use the no-Jira format.
 
 ```
 mythril_agent_skills/skills/fullstack-impl/
-└── SKILL.md                     # Pure instruction skill (no scripts)
+├── SKILL.md                     # Main file — Steps 1-9, routing, gates
+├── scripts/
+│   ├── check_github_repos.py    # Step 8 — deterministic GitHub-repo detection
+│   ├── iteration_log_check.py   # Iteration Mode self-check
+│   └── mermaid_validate.py      # Mermaid 10.2.3 compatibility gate
+└── references/
+    ├── mode-selection.md        # Routing among Fresh / Reference / Iteration / Follow-up
+    ├── document-templates.md    # EN/ZH templates for plan/progress/analysis/review
+    ├── review-formats.md        # Per-round and cross-repo review section formats
+    ├── iteration-mode.md        # Post-finalization sticky loop protocol
+    ├── followup-mode.md         # Closed-work successor protocol (-vN, Predecessor, Successors)
+    └── reference-mode.md        # Read prior work as background; no writes to prior dir
 
 plugins/fullstack-impl/
 └── skills/
     └── fullstack-impl -> ../../../mythril_agent_skills/skills/fullstack-impl
 ```
 
-This skill is pure instructions — no Python scripts. It orchestrates
-behavior through the SKILL.md instructions, delegating actual code changes
-to the AI agent following the workspace agents' guidelines.
+The main `SKILL.md` (916 lines after v9 split) covers Steps 1-9 inline.
+Cross-cutting concerns and lifecycle modes live in `references/` and
+are loaded by reading the relevant file at the moment it becomes
+relevant — `mode-selection.md` at Step 1 routing, `document-templates.md`
+at Step 5 doc creation, `review-formats.md` at Step 6e and Step 7,
+`iteration-mode.md` after finalization, `followup-mode.md` and
+`reference-mode.md` when those modes are active. This follows
+skill-creator's progressive-disclosure pattern.
+
+The bundled scripts handle deterministic checks: `check_github_repos.py`
+reads the user's saved choice from `fullstack.json` (avoiding LLM
+guessing about hostnames), `iteration_log_check.py` validates the
+audit trail after each iteration round, `mermaid_validate.py` enforces
+diagram compatibility against the 10.2.3 baseline.
 
 ## Relationship to fullstack-init
 
@@ -396,6 +548,9 @@ to the AI agent following the workspace agents' guidelines.
 - [x] R13 — Dependency-ordered implementation
 - [x] R14 — Language-aware documentation (EN/ZH based on user prompt)
 - [x] R15 — Technical analysis document (analysis.md with mermaid/table emphasis)
+- [x] R16 — Follow-up Mode for closed work items (-vN suffix, Predecessor field, Predecessor Context section, Successors back-link, backward-compat check)
+- [x] R17 — Reference Mode for reading prior work as background (read-only, no Predecessor link, free naming)
+- [x] R18 — SKILL.md size and progressive disclosure (references/ split for templates, modes, review formats)
 - [x] Plugin wrapper + marketplace.json entry
 - [x] Description validation under 1024 limit
 
@@ -406,8 +561,108 @@ to the AI agent following the workspace agents' guidelines.
 - [ ] Dependency graph visualization: generate a mermaid diagram of cross-repo
   dependencies for each work item
 - [ ] Template customization: let users define their own plan.md template
+- [ ] Follow-up chain validator script: verify that every successor has a
+  populated `## Predecessor Context` and that every closed work with a
+  successor has a corresponding `## Successors` row
 
 ## Changelog
+
+### 2026-05-02 — v9: Reference Mode + explicit-trigger-only routing + progressive disclosure (R17, R18)
+
+- **Problem 1**: After v8 introduced Follow-up Mode, the implicit
+  scope-overlap detection was too eager — it auto-proposed Follow-up
+  Mode (with `-vN` naming and a back-link to the prior dir) whenever
+  the new request hit the same repos and surface as a closed work
+  item. Users frequently wanted to **just read** a closed work dir
+  for context while doing independent new work, but had no way to
+  signal that without manually rejecting Follow-up after the fact.
+- **Problem 2**: SKILL.md had grown to 2272 lines after v8, well over
+  skill-creator's recommended ~500 line ceiling for the main file.
+  Templates (plan/progress/analysis/review in EN+ZH), Iteration Mode
+  protocol, and Follow-up Mode protocol all sat inline.
+- **R17 added — Reference Mode**: a third "looking at prior work"
+  mode that reads the prior dir's four documents but writes nothing
+  into it. New work uses free naming, no `Predecessor` field, no
+  `## Predecessor Context`, no `## Successors` back-link. Cited only
+  in prose when the new analysis references the prior dir's
+  decisions. Triggered by reading verbs: "look at feat/X", "参考
+  feat/X", "based on X docs". Includes a promotion path
+  (Reference → Follow-up) for when the agent discovers mid-planning
+  that the work is actually a true continuation.
+- **Routing tightened to explicit-verb-only**: Follow-up Mode no
+  longer auto-proposes based on scope overlap. The agent must see an
+  explicit follow-up verb ("follow up on X", "在 X 基础上", "extend X")
+  OR get user confirmation through a 3-option clarifying question
+  (Follow-up / Reference / Independent). When the user describes a
+  request whose scope happens to overlap a closed work item but uses
+  no verb, the default is to ASK rather than guess. Misroute cost is
+  asymmetric — Reference → Follow-up is cheap to upgrade later, but
+  Follow-up → Reference is hard to undo.
+- **R18 added — Progressive disclosure**: SKILL.md split into a main
+  file + `references/` directory:
+  - SKILL.md (916 lines, was 2272) — Steps 1-9 main flow + routing +
+    key gates
+  - `references/mode-selection.md` — routing table among 4 modes,
+    explicit verbs, the 3-option clarifying question, mode
+    promotion / demotion rules
+  - `references/document-templates.md` — full EN/ZH templates for
+    plan/progress/analysis-feat/analysis-fix/review + Mermaid
+    Compatibility Gate
+  - `references/review-formats.md` — per-round and cross-repo review
+    section templates
+  - `references/iteration-mode.md` — full Iteration Mode protocol
+  - `references/followup-mode.md` — full Follow-up Mode protocol
+  - `references/reference-mode.md` — full Reference Mode protocol
+  - SKILL.md reads each reference file at the moment it becomes
+    relevant (mode-selection at Step 1, document-templates at Step 5,
+    iteration-mode after finalization, etc.)
+- **Description trigger**: added Reference Mode reading verbs
+  alongside the existing Follow-up Mode building verbs, while
+  keeping under the 1024-char limit (1015 chars).
+- **No breaking changes**: existing work directories with already-set
+  `Predecessor` fields and `## Successors` tables continue to work
+  unchanged. The tightened triggers only affect NEW routing decisions.
+
+### 2026-05-02 — v8: Follow-up Mode for closed work items (R16)
+
+- **Problem**: When a previously closed work item (PR merged, shipped to
+  production) needed extension/adjustment weeks or months later, the
+  skill had no protocol. The closing rule only said "creates a NEW work
+  item" without naming convention, inheritance rules, or back-link
+  requirements. Users either reopened closed dirs (corrupting the audit
+  trail) or started orphan work items with no link to the predecessor
+  (losing institutional knowledge).
+- **R16 added**: Follow-up Mode is the explicit protocol for opening
+  successor work items (`<name>-v2`, `-v3`, ...) on top of closed
+  predecessors. Mandatory artifacts: `Predecessor:` header field,
+  `## Predecessor Context` analysis section (4 sub-parts), `## Successors`
+  back-link in predecessor's progress.md, `-vN` branch suffix,
+  backward-compat check in cross-repo review.
+- **SKILL.md changes**:
+  - New section "Follow-up Mode — Iterating on Closed Work" inserted
+    between "Iteration Mode" and "Resuming Previous Work"
+  - Step 1 expanded with "Existing work directory scan" — list and
+    classify all existing work dirs by `plan.md` Status, route on match
+  - "Resuming Previous Work" decision tree restructured into a routing
+    table mapping `(Status, request type) → (Resume | Iteration |
+    Follow-up | New work item | Ask)`
+  - "Closing the work item" forward-pointer rewritten to point to
+    Follow-up Mode instead of the one-line throwaway
+  - Description trigger keywords expanded to recognize follow-up phrasing
+    ("on top of X", "extend X", "在 X 基础上", "follow up on X")
+- **Branch convention**: successor branches append `-v2`/`-vN` to the
+  descriptive title (e.g. `feat/MOBILE-580/Dark-Mode-Toggle-v2`). New
+  Jira ticket is preferred but reusing the same key is allowed with a
+  warning. Successor branches start from the repo's CURRENT default
+  branch — never from the predecessor's merged feature branch.
+- **Backward-compat gate**: Step 7's cross-repo review gains an explicit
+  backward-compatibility check against the predecessor's shipped
+  contracts (API, DB schema, shared types). Breaking changes must be an
+  explicit goal documented in `analysis.md` Design Options.
+- **Anti-patterns section**: documented five common failure modes
+  (reopening closed dir, skipping predecessor context, copy-pasting
+  predecessor analysis, branching off the merged branch, missing
+  back-link).
 
 ### 2026-04-20 — v7: Review enforcement — gate, structured output, diff-first
 
