@@ -88,8 +88,8 @@ The script reports:
 
 Decision logic:
 
-- `WORKSPACE_VALID=true` → record `DOCS_DIR` and `GITHUB_REPOS` for later
-  steps, then proceed to Step 1
+- `WORKSPACE_VALID=true` → announce the Workspace contract line (below)
+  then proceed to Step 1
 - `WORKSPACE_VALID=false` → STOP and tell the user:
 
   > **Workspace not detected.** This skill requires a fullstack
@@ -98,6 +98,37 @@ Decision logic:
   >
   > Please `cd` to your project workspace root and restart your AI
   > agent there, or run `fullstack-init` first to set up the workspace.
+
+### Announce the Workspace contract (MANDATORY OUTPUT)
+
+When `WORKSPACE_VALID=true`, output EXACTLY this single line to the user
+before doing anything else:
+
+```
+Workspace: VALID | docs_dir=<DOCS_DIR> | github_repos=<true|false>
+```
+
+Use English for this line regardless of conversation language — it is a
+machine-readable contract marker, not user-facing prose. Same role as the
+`Mode:` line in Step 1d-ii: it commits the agent to specific values that
+later steps MUST honor.
+
+**Why this line is mandatory:**
+
+- `github_repos` decides whether Step 8 runs at all. Without an explicit
+  announce, the value gets "remembered" only in the agent's head, and by
+  the time the implementation finishes (often many tool calls later), the
+  agent reverts to inferring from remote URLs / installed CLIs / hostname
+  — exactly the failure mode the script was designed to eliminate.
+- `docs_dir` is the name of the work-tracking directory used in every
+  later step (Step 1c, 5, 6e, 7c, 8, 9). One explicit announce prevents
+  drift between e.g. `docs/`, `ai-documents/`, `<repo>-documents/`.
+- A reviewer reading the transcript can verify in one glance which
+  contract the agent committed to.
+
+If you ever lose track of these values mid-session (resumed session,
+long transcript, etc.), re-run `check_workspace.py` ONCE and re-announce
+— do NOT guess from filesystem layout or remote URLs.
 
 This gate exists because `fullstack-impl` relies on the workspace
 structure (repo table in AGENTS.md, agent definitions in .agents/,
@@ -770,31 +801,57 @@ If P0/P1 cross-repo issues are found:
 4. Max 2 fix rounds for cross-repo issues — if issues persist, record
    as residual.
 
-## Step 8 — Create Pull Requests (GitHub repos only)
+## Step 8 — Create Pull Requests (only when github_repos=true)
 
-### Use the `GITHUB_REPOS` value from the Workspace Validation Gate
+### Gate (FIRST ACTION OF STEP 8 — read the announced contract)
 
-The Workspace Validation Gate at the top of this skill already ran
-`check_workspace.py` and recorded the `GITHUB_REPOS` flag. Reuse that
-recorded value here — do NOT re-derive from repo URLs or domain names.
+Find the `Workspace:` line you announced at the top of this session
+(from the Workspace Validation Gate). Read its `github_repos=` value.
 
 Decision logic:
 
-- `GITHUB_REPOS=true` → proceed with PR creation below
-- `GITHUB_REPOS=false` → **skip this entire step**, go to Step 9
+| `github_repos=` | Action |
+|-----------------|--------|
+| `true` | Continue to "Pre-conditions" below and create PRs |
+| `false` | **SKIP this entire step.** Output the skip line below, then go directly to Step 9 |
 
-If for any reason the workspace gate value was lost (e.g. resuming a
-session without re-running the gate), re-run `check_workspace.py`
-once. The legacy `check_github_repos.py` script still works as a
-backward-compatible wrapper — both report the same `GITHUB_REPOS`
-value.
+If `github_repos=false`, output EXACTLY this single line, then jump
+straight to Step 9 — do not read any further part of Step 8:
+
+```
+Step 8: skipped (github_repos=false — non-GitHub remote, PR creation is the user's responsibility)
+```
+
+If the `Workspace:` line is not visible in your transcript (resumed
+session, very long transcript), re-run `check_workspace.py` ONCE,
+re-announce the `Workspace:` line, and apply the table above.
+
+### Anti-patterns (forbidden when github_repos=false)
+
+These are the failure modes this gate exists to prevent. If you find
+yourself doing any of these after seeing `github_repos=false`, STOP:
+
+| Anti-pattern | Why it's wrong |
+|--------------|----------------|
+| Inspecting `git remote -v` to "decide" whether the host is GitHub | The user already answered this during `fullstack-init`. The script encodes that answer. Re-deriving from hostname is exactly the misclassification (e.g. `git.company.com` is GitHub Enterprise, `gitee.com` is not) the script eliminates |
+| Running `which gh glab gitee` to look for an alternative platform CLI | Not your job. If the user wants tooling for Gitee / GitLab / Bitbucket / self-hosted, they will install and configure it themselves |
+| Constructing compare URLs (`/compare/main...feat/X`) and presenting them as "PR URLs" | These are not PRs — they are diff views. Presenting them as PRs creates false completion signals |
+| Parsing `git push` output for "Create pull request" hints and acting on them | Same as above — not in scope |
+| Asking the user "should I open a PR via the Gitee web UI?" | Out of scope. PR creation is the user's responsibility for non-GitHub remotes. Just push and report |
+| "But the user clearly wants a PR, the work is done" | Irrelevant. The contract is `github_repos=false`. The user knew their remote is not GitHub when they set this flag, and they accept the responsibility of opening the merge request themselves |
 
 **Why a script instead of reading JSON directly:** the LLM must NEVER
 decide whether a repo is "GitHub" or "not GitHub" based on domain
 names, remote URLs, or any heuristic. The `fullstack-init` skill
 already asked the user during workspace setup and saved the answer.
 This eliminates the failure mode where GitHub Enterprise URLs like
-`git.company.com` get misclassified.
+`git.company.com` get misclassified — and the symmetric failure mode
+where Gitee / GitLab / Bitbucket / self-hosted remotes get treated as
+GitHub-equivalent.
+
+The legacy `check_github_repos.py` script still works as a
+backward-compatible wrapper — both report the same `github_repos`
+value.
 
 ### Pre-conditions
 
@@ -898,7 +955,7 @@ diagrams. See [`document-templates.md`](references/document-templates.md#mermaid
 
 ### Finalization steps
 
-After review passes (and PRs created if applicable):
+After review passes (and PRs created in Step 8 if applicable):
 
 1. **Update `analysis.md`** if the review cycle or implementation
    changed the technical approach (add an "Updated" date and note
@@ -907,9 +964,21 @@ After review passes (and PRs created if applicable):
    add final changelog entry.
 3. **Update `plan.md`**: `Status` → `Done`/`已完成`, check off all
    completed tasks.
-4. **Commit** the docs repo with all tracking doc updates.
-5. **Report to user**: summarize what was implemented across which
-   repos. If PRs were created, list all PR URLs clearly:
+4. **Push feature branches** in each affected code repo so the user
+   has reviewable code on the remote, regardless of whether PRs were
+   created in Step 8:
+
+   ```bash
+   cd <repo-dir>
+   git push -u origin HEAD
+   ```
+
+   (If Step 8 already pushed, this is a no-op.)
+5. **Commit** the docs repo with all tracking doc updates.
+6. **Report to user** — the report format depends on the
+   `github_repos` value announced at the top of the session:
+
+   **If `github_repos=true`** (PRs were created in Step 8):
 
    ```
    Implementation complete. Pull Requests created:
@@ -918,6 +987,26 @@ After review passes (and PRs created if applicable):
      2. api       — https://github.com/owner/api/pull/99
      3. web       — https://github.com/owner/web/pull/77
    ```
+
+   **If `github_repos=false`** (Step 8 was skipped — non-GitHub remote):
+
+   ```
+   Implementation complete. Branches pushed (PR creation is your
+   responsibility — non-GitHub remote):
+
+     1. shared-lib — feat/Dark-Mode-Toggle  (pushed to origin)
+     2. api       — feat/BE-450/Dark-Mode-Toggle  (pushed to origin)
+     3. web       — feat/WEB-301/Dark-Mode-Toggle  (pushed to origin)
+   ```
+
+   For `github_repos=false`, do NOT:
+   - construct or guess merge-request / compare URLs
+   - shell out to `glab` / Gitee CLIs / Bitbucket CLIs
+   - parse `git push` output for "Create pull request" hints
+   - ask the user "should I open a PR via the web UI?"
+
+   Just push the branches, list them, and stop. The user knows their
+   own platform's workflow.
 
 ## After Finalization — Iteration Mode and Closure
 
