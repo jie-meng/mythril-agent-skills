@@ -157,12 +157,16 @@ Structure the review into these sections:
 - 建议是否需要补充测试、文档、类型声明等
 
 #### 5. 推荐提交信息
-- 为此变更生成简洁、准确且符合规范的提交信息，**提交信息使用英文**
-- **必须是单行，最多72个字符**
-- **用一句话高度概括所有变更，不要列举细节**
-- 如果分支名包含斜杠（如 `feat/item-definition`），使用格式：`type[scope]: message`
-- 如果分支名不包含斜杠，使用常规格式：`type: message`
-- 常用类型: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
+- **严格遵循 [`references/commit-format.md`](references/commit-format.md)** 的格式规范 — 这是单一事实来源
+- 提交信息使用英文，单行，最多 72 字符，subject 使用动词原形开头
+- scope 必须从 branch name 自动推导，**禁止使用 repo 名当 scope**
+- 关键规则速查（完整规则见 commit-format.md）：
+  - 分支 `<type>/<JIRA>/<Title>` → scope = JIRA key（如 `feat[XYZ-190]: add export endpoint`）
+  - 分支 `<type>/<Title>` 且 title ≤ 30 字符 → scope = lowercase-hyphenated title
+  - 分支 `<type>/<Title>` 且 title > 30 字符 → 按 commit-format.md 的"Long-title compression"压缩
+  - `-iter-N` 后缀**不**进 scope；`-vN` 后缀**保留**在 scope 中
+  - 默认分支（master/main/dev）或无 `/` 分支 → 不带 scope，用 `type: subject`
+  - scope + 模板字符 + subject 总长超 72 字符时，丢掉 scope 优先保 subject
 
 ### If English review requested:
 
@@ -189,12 +193,16 @@ Structure the review into these sections:
 - Whether additional tests, documentation, or type annotations are needed
 
 #### 5. Recommended Commit Message
-- Generate a concise, accurate, and conventional commit message, **in English**
-- **MUST be a SINGLE LINE, maximum 72 characters**
-- **Provide a high-level summary of all changes in ONE sentence**
-- If branch name contains a slash (e.g., `feat/item-definition`), use format: `type[scope]: message`
-- If branch name doesn't contain a slash, use conventional format: `type: message`
-- Common types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
+- **Strictly follow [`references/commit-format.md`](references/commit-format.md)** — it is the single source of truth
+- English, single line, max 72 characters, subject in imperative mood
+- Scope MUST be auto-derived from the branch name; **NEVER use the repo name as scope**
+- Quick rules (full rules in commit-format.md):
+  - Branch `<type>/<JIRA>/<Title>` → scope = JIRA key (e.g. `feat[XYZ-190]: add export endpoint`)
+  - Branch `<type>/<Title>` with title ≤ 30 chars → scope = lowercase-hyphenated title
+  - Branch `<type>/<Title>` with title > 30 chars → apply "Long-title compression" from commit-format.md
+  - `-iter-N` suffix is **stripped** from scope; `-vN` suffix is **kept** in scope
+  - Bare branches (master/main/dev) or branches without `/` → no scope, use `type: subject`
+  - When `scope + template chars + subject` would exceed 72 chars, drop scope to preserve subject
 
 ## Error Handling
 

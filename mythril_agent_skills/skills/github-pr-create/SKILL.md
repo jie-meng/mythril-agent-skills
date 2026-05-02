@@ -197,9 +197,34 @@ done
 
 ### 4a. Generate PR title
 
-- Derive from the branch name or the primary commit message.
-- If the branch follows a convention like `feat/XYZ-123/Add-Export`, extract a meaningful title: `feat: Add Export` or `[XYZ-123] Add Export`.
-- Keep it concise (under 72 characters).
+The PR title MUST follow the same format as commit messages — see
+[`code-review-staged/references/commit-format.md`](../code-review-staged/references/commit-format.md)
+for the canonical rules. This keeps PR titles and commit messages
+consistent across the codebase.
+
+Quick summary (full rules in `commit-format.md`):
+
+- Format: `<type>[scope]: <subject>` — single line, max 72 characters
+- `<type>` from branch prefix: `feat/` → `feat`, `fix/` → `fix`, etc.
+- `[scope]` auto-derived from branch name:
+  - `<type>/<JIRA>/<Title>` → scope = JIRA key (e.g. `feat[XYZ-123]: add export endpoint`)
+  - `<type>/<Title>` with title ≤ 30 chars → scope = lowercase-hyphenated title
+  - `<type>/<Title>` with title > 30 chars → apply long-title compression (see commit-format.md)
+  - `-iter-N` is stripped from scope; `-vN` is kept
+  - Bare branches (master/main/dev) → no scope, use `type: subject`
+- `<subject>`: imperative mood, lowercase first letter, no period, English
+- **NEVER use the repo name as scope** — repo identity is already in the PR metadata
+
+When the PR has multiple commits, use the same scope (derived from
+the branch name) and write a subject that summarizes the whole PR's
+intent.
+
+Examples:
+
+- Branch `feat/XYZ-123/Add-Export` → PR title `feat[XYZ-123]: add CSV and JSON export endpoints`
+- Branch `feat/Dark-Mode-Toggle` → PR title `feat[dark-mode-toggle]: add theme switcher in settings`
+- Branch `feat/Dark-Mode-Toggle-v2` → PR title `feat[dark-mode-toggle-v2]: add follow-system option`
+- Branch `master` → PR title `chore: bump version to 1.2.0` (no scope)
 
 ### 4b. Fill PR body
 
