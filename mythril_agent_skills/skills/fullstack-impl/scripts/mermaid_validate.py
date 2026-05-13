@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate Mermaid diagrams inside Markdown files for 10.2.3 compatibility.
+r"""Validate Mermaid diagrams inside Markdown files for 10.2.3 compatibility.
 
 Many platforms used to render Markdown (older GitHub Enterprise,
 Confluence, Notion exports, internal wikis, IDE preview plugins) ship
@@ -40,6 +40,14 @@ Rules:
            architecture-beta, treemap,
            radar, kanban                    ← FAIL
 
+    5. Literal `\n` (backslash + n) in `flowchart` / `graph` block
+       bodies renders as the two characters `\` and `n` on Mermaid
+       10.2.3 + GitHub + many other renderers (mermaid-js #376 /
+       gh-aw #18131). Use the HTML break tag `<br/>` instead.
+
+           A[patterns.md\nRefreshManager]   ← FAIL
+           A[patterns.md<br/>RefreshManager] ← OK
+
 Usage:
     python3 mermaid_validate.py FILE [FILE ...]
 
@@ -68,6 +76,7 @@ MERMAID_FENCE_CLOSE = re.compile(r"^\s*```\s*$")
 EDGE_LABEL_RE = re.compile(r"\|([^|\n]*)\|")
 SUBGRAPH_RE = re.compile(r"^\s*subgraph\s+(.*?)\s*$")
 NEW_SHAPE_RE = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*@\{")
+LITERAL_BACKSLASH_N_RE = re.compile(r"\\n")
 
 BETA_DIAGRAM_TYPES = (
     "block-beta",
@@ -190,6 +199,18 @@ def find_new_shape_issue(line: str) -> str | None:
     return match.group(0) if match else None
 
 
+def find_literal_backslash_n_issue(line: str) -> bool:
+    r"""Return True iff line contains a literal `\n` (backslash + n).
+
+    The character sequence is the agent's most common mistake when
+    trying to add a line break inside a flowchart node label. On
+    Mermaid 10.2.3 + GitHub + many other renderers, `\n` does NOT
+    become a newline — it stays as the two literal characters and
+    appears inside the rendered box. The correct syntax is `<br/>`.
+    """
+    return bool(LITERAL_BACKSLASH_N_RE.search(line))
+
+
 def find_beta_diagram_issue(diagram_type: str) -> str | None:
     """Return the diagram type if it is a post-10.2.3 beta type."""
     if diagram_type in BETA_DIAGRAM_TYPES:
@@ -272,6 +293,22 @@ def lint_block(block: MermaidBlock, file: str) -> list[Issue]:
                             f"subgraph title '{sub_title}' contains parens "
                             f"but is not quoted; wrap it: "
                             f'subgraph "{sub_title}"'
+                        ),
+                    )
+                )
+
+            if find_literal_backslash_n_issue(line_for_lint):
+                issues.append(
+                    Issue(
+                        file=file,
+                        line=line_no,
+                        rule="literal-backslash-n",
+                        message=(
+                            r"line contains literal '\n' (backslash + n) "
+                            "which renders as the two characters '\\' and "
+                            "'n' inside the box on Mermaid 10.2.3 + GitHub "
+                            r"+ many other renderers; replace every '\n' "
+                            "with '<br/>' to get a real line break"
                         ),
                     )
                 )

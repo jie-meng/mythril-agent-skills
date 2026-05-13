@@ -619,12 +619,30 @@ shape of the change without reading wall-of-text rationale.
 
 ### Mermaid 10.2.3 compatibility
 
-Every diagram MUST parse on Mermaid 10.2.3. The biggest trap is edge
-labels (`|...|`) containing parentheses, brackets, or curlies — they
-MUST be wrapped in double quotes. Same rule for `subgraph` titles.
+Every diagram MUST parse and render correctly on Mermaid 10.2.3.
 
-- Bad: `A -->|step (x)| B`
-- Good: `A -->|"step (x)"| B`
+Common traps the agent must avoid:
+
+1. **Unquoted parens / brackets / curlies in edge labels.** Wrap
+   the label in double quotes.
+
+   - Bad: `A -->|step (x)| B`
+   - Good: `A -->|"step (x)"| B`
+
+   Same rule for `subgraph` titles.
+
+2. **Literal `\n` inside `flowchart` / `graph` node labels, edge
+   labels, or subgraph titles.** On Mermaid 10.2.3 + GitHub + many
+   other renderers, `\n` renders as the two characters `\` and `n`
+   instead of a line break — the rendered box ends up containing
+   text like `patterns.md\nRefreshManager / Skeleton / Nav / Utils`.
+   Always use the HTML break tag `<br/>` for line breaks.
+
+   - Bad: `A[patterns.md\nRefreshManager / Skeleton / Nav / Utils]`
+   - Good: `A[patterns.md<br/>RefreshManager / Skeleton / Nav / Utils]`
+
+   This rule applies to flowchart-family diagrams only — sequence
+   diagrams have separate rendering and are out of scope.
 
 After writing, run the **Mermaid Compatibility Gate**: invoke
 `mermaid_validate.py` (bundled at `fullstack-impl/scripts/`) on every

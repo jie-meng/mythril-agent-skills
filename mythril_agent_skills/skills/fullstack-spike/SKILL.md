@@ -386,6 +386,44 @@ after all experiments are completed.
 Spike 结论和建议将在所有实验完成后写入此处。
 ```
 
+### Mermaid 10.2.3 Compatibility Gate (MANDATORY when diagrams are written)
+
+Every diagram MUST parse AND render correctly on Mermaid 10.2.3. The
+two most common traps are:
+
+1. Edge labels (`|...|`) or `subgraph` titles containing
+   parens / brackets / curlies — must be wrapped in double quotes.
+
+   - Bad: `A -->|step (x)| B`
+   - Good: `A -->|"step (x)"| B`
+
+2. Literal `\n` inside flowchart node labels, edge labels, or
+   subgraph titles. On Mermaid 10.2.3 + GitHub + many other
+   renderers, `\n` renders as the two characters `\` and `n`
+   inside the box instead of a line break. Use the HTML break
+   tag `<br/>`.
+
+   - Bad: `A[patterns.md\nRefreshManager / Skeleton / Nav / Utils]`
+   - Good: `A[patterns.md<br/>RefreshManager / Skeleton / Nav / Utils]`
+
+After writing or editing any spike doc with ` ```mermaid ` blocks
+(typically `analysis.md`), invoke `mermaid_validate.py` from the
+bundled `fullstack-impl/scripts/` directory. The script accepts
+multiple files in one call.
+
+Locating the script across AI tools: check candidate paths in this
+order, use the first that exists:
+`~/.config/opencode/skills/fullstack-impl/scripts/mermaid_validate.py`,
+`~/.claude/skills/fullstack-impl/scripts/mermaid_validate.py`,
+`~/.copilot/...`, `~/.cursor/...`, `~/.gemini/...`, `~/.codex/...`,
+`~/.qwen/...`, `~/.grok/...`.
+
+If `STATUS=FAIL`, read each `ERROR:` line, apply the suggested fix,
+save, and re-run until `STATUS=PASS`. Do NOT proceed to the next
+step with `STATUS=FAIL` standing — broken diagrams block human
+reviewers. If the script is not found at any candidate path, fall
+back to manual review against the rules above.
+
 ## Step 5 — Execute the Spike
 
 ### Read repo conventions first
@@ -552,8 +590,12 @@ cd <repo-2> && git checkout .
    - `analysis.md` — has the technical analysis
    - `findings.md` — has all experiment records and the temporary changes table
    - `verdict.md` — has the full verdict with recommendation
-2. **Commit** all docs to the docs repo
-3. **Report to user**: Summarize the spike results, including:
+2. **Re-run the Mermaid Compatibility Gate** against EVERY spike
+   doc that contains ` ```mermaid ` blocks. If `STATUS=FAIL` on any
+   file, fix and re-run; do NOT finalize with broken diagrams. See
+   the gate details in Step 4.
+3. **Commit** all docs to the docs repo
+4. **Report to user**: Summarize the spike results, including:
    - The verdict (FEASIBLE / NOT_FEASIBLE / NEEDS_MORE_RESEARCH)
    - Key findings
    - Next steps (proceed to impl, or discard and clean up)

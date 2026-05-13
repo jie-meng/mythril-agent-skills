@@ -792,6 +792,45 @@ class TestFindNewShapeIssue:
         assert self.func("%%{init: {'theme': 'dark'}}%%") is None
 
 
+class TestFindLiteralBackslashN:
+    """Tests for mermaid_validate.find_literal_backslash_n_issue."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from mermaid_validate import find_literal_backslash_n_issue
+        self.func = find_literal_backslash_n_issue
+
+    def test_clean_line(self):
+        assert self.func("    A[hello world] --> B") is False
+
+    def test_clean_with_br_tag(self):
+        assert self.func("    A[hello<br/>world] --> B") is False
+
+    def test_clean_with_chinese(self):
+        assert self.func("    A[你好<br/>世界] --> B") is False
+
+    def test_node_label_with_backslash_n(self):
+        assert self.func("    A[patterns.md\\nRefreshManager] --> B") is True
+
+    def test_quoted_node_label_with_backslash_n(self):
+        assert self.func('    A["patterns.md\\nRefreshManager"] --> B') is True
+
+    def test_edge_label_with_backslash_n(self):
+        assert self.func("    A -->|line1\\nline2| B") is True
+
+    def test_quoted_edge_label_with_backslash_n(self):
+        assert self.func('    A -->|"line1\\nline2"| B') is True
+
+    def test_subgraph_title_with_backslash_n(self):
+        assert self.func('    subgraph "Foo\\nBar"') is True
+
+    def test_round_node_with_backslash_n(self):
+        assert self.func("    A(text\\nmore)") is True
+
+    def test_diamond_node_with_backslash_n(self):
+        assert self.func("    A{decision\\nbranch}") is True
+
+
 class TestFindBetaDiagramIssue:
     """Tests for mermaid_validate.find_beta_diagram_issue."""
 
@@ -940,6 +979,64 @@ class TestLintBlock:
         assert len(issues) == 1
         assert issues[0].rule == "unquoted-edge-label"
         assert "appAccountToken" in issues[0].message
+
+    def test_literal_backslash_n_in_node_label_flagged(self):
+        """The user's reported case — `\\n` inside a node label renders literally."""
+        block = self._block(
+            "flowchart TD\n"
+            "    A[patterns.md\\nRefreshManager / Skeleton / Nav / Utils]"
+        )
+        issues = self.func(block, "f.md")
+        assert len(issues) == 1
+        assert issues[0].rule == "literal-backslash-n"
+        assert "<br/>" in issues[0].message
+
+    def test_literal_backslash_n_in_edge_label_flagged(self):
+        block = self._block(
+            "flowchart TD\n"
+            "    A -->|step 1\\nstep 2| B"
+        )
+        issues = self.func(block, "f.md")
+        rules = [i.rule for i in issues]
+        assert "literal-backslash-n" in rules
+
+    def test_literal_backslash_n_in_subgraph_title_flagged(self):
+        block = self._block(
+            "flowchart TD\n"
+            '    subgraph "Foo\\nBar"\n'
+            "        A\n"
+            "    end"
+        )
+        issues = self.func(block, "f.md")
+        rules = [i.rule for i in issues]
+        assert "literal-backslash-n" in rules
+
+    def test_br_tag_node_label_passes(self):
+        """The recommended replacement — `<br/>` — must not be flagged."""
+        block = self._block(
+            "flowchart TD\n"
+            "    A[patterns.md<br/>RefreshManager / Skeleton / Nav / Utils]"
+        )
+        assert self.func(block, "f.md") == []
+
+    def test_sequence_diagram_backslash_n_not_flagged(self):
+        """Sequence diagrams have different rendering — out of scope."""
+        block = self._block(
+            "sequenceDiagram\n"
+            "    A->>B: hello\\nworld\n"
+            "    Note over A: line1\\nline2"
+        )
+        assert self.func(block, "f.md") == []
+
+    def test_multiple_backslash_n_on_same_line_one_issue(self):
+        """Repeated `\\n` on one line still produces a single issue per line."""
+        block = self._block(
+            "flowchart TD\n"
+            "    A[line1\\nline2\\nline3]"
+        )
+        issues = self.func(block, "f.md")
+        rules = [i.rule for i in issues]
+        assert rules.count("literal-backslash-n") == 1
 
 
 class TestLintFile:
