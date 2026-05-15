@@ -181,6 +181,19 @@ Process and manipulate video and audio files via FFmpeg CLI. Supports transcodin
 </details>
 
 <details>
+<summary><b>Device Automation</b></summary>
+<br>
+
+**[Android Screen Reader](./mythril_agent_skills/skills/android-screen-reader/)**
+
+Read the current screen of a connected Android device via adb. Prefer the UI hierarchy for exact text, then fall back to a temporary screenshot in the unified cache directory and delete it immediately after analysis.
+
+- **Try:** Read what's on my Android phone right now
+- **Deps:** `adb` CLI
+
+</details>
+
+<details>
 <summary><b>Content</b></summary>
 <br>
 
@@ -322,7 +335,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 
 | Plugin | Description |
 |---|---|
-| `all-skills` | All-in-one bundle (all 18 skills) |
+| `all-skills` | All-in-one bundle (all 19 skills) |
 | `skill-creator` | Create and improve skills/prompts for any AI platform |
 | `code-review-staged` | Code review for git staged changes |
 | `branch-diff-review` | Code review for local branch differences |
@@ -338,6 +351,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `md-to-pdf` | Convert Markdown files to PDF |
 | `imagemagick` | Image processing via ImageMagick CLI |
 | `ffmpeg` | Video and audio processing via FFmpeg CLI |
+| `android-screen-reader` | Read the current screen of a connected Android device via adb |
 | `blog-writer` | Write, refine, and adapt tech-first multilingual blog posts |
 | `fullstack-init` | Initialize multi-repo fullstack workspace with AI context |
 | `fullstack-spike` | Run time-boxed spikes without committing |

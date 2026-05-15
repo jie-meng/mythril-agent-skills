@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "mythril-agent-skills",
-  "description": "Reusable skills for AI coding assistants — code review, Git/GitHub, Jira, Confluence, Figma, Glean, Excel, ImageMagick, FFmpeg, and more",
+  "description": "Reusable skills for AI coding assistants — code review, Git/GitHub, Jira, Confluence, Figma, Glean, Excel, ImageMagick, FFmpeg, Android screen reading, and more",
   "owner": {
     "name": "Jie Meng",
     "url": "https://github.com/jie-meng"
@@ -10,7 +10,7 @@
     {
       "name": "all-skills",
       "source": "./mythril_agent_skills",
-      "description": "All-in-one bundle: code review, Git/GitHub, Jira, Confluence, Figma, Glean, Excel, PDF, Markdown-to-PDF, ImageMagick, FFmpeg, blog writer, skill creator, and fullstack workspace tools",
+      "description": "All-in-one bundle: code review, Git/GitHub, Jira, Confluence, Figma, Glean, Excel, PDF, Markdown-to-PDF, ImageMagick, FFmpeg, Android screen reading, blog writer, skill creator, and fullstack workspace tools",
       "version": "0.2.12",
       "author": {
         "name": "Jie Meng"
@@ -31,6 +31,8 @@
         "md-to-pdf",
         "imagemagick",
         "ffmpeg",
+        "android",
+        "adb",
         "skill-creator",
         "blog-writer"
       ],
@@ -315,6 +317,24 @@
         "audio",
         "ffmpeg",
         "media"
+      ],
+      "strict": false
+    },
+    {
+      "name": "android-screen-reader",
+      "source": "./plugins/android-screen-reader",
+      "description": "Read the current screen of a connected Android device via adb",
+      "version": "0.2.12",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "development",
+      "tags": [
+        "android",
+        "adb",
+        "screen",
+        "mobile"
       ],
       "strict": false
     },
