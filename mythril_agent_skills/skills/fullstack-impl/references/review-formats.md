@@ -20,6 +20,12 @@ Appended once per repo per review round. The full
 ### Verdict
 
 <PASS | NEEDS_FIXES> — <one-line summary>
+
+### Commits
+
+| Hash | Message |
+|------|---------|
+| `abc1234` | feat: add dark mode toggle |
 ```
 
 ### Chinese
@@ -34,7 +40,68 @@ Appended once per repo per review round. The full
 ### 结论
 
 <PASS | NEEDS_FIXES> — <一句话总结>
+
+### 提交记录
+
+| Hash | Message |
+|------|---------|
+| `abc1234` | feat: add dark mode toggle |
 ```
+
+### Commits section rules
+
+The `### Commits` / `### 提交记录` section is appended **immediately after
+the Verdict** once the repo's staged changes are committed. This applies
+to **every round that produces a commit** — the initial implementation
+round AND every subsequent iteration round. Record every commit made in
+that round, one row per commit, in chronological order.
+
+- **Hash**: short hash (7 chars from `git log --oneline`); wrap in backticks
+- **Message**: the full first line of the commit message
+- If the round ends with `NEEDS_FIXES` and no commit was made, omit the
+  section entirely; it will be added in the later round where the fix
+  is committed
+- Each iteration round produces its own review section (new
+  `## <repo> — Review Round <N>` heading); append `### Commits` to
+  that new section after the commit is made — never back-fill into a
+  prior round's section
+
+### Keeping commits in sync after hash changes
+
+Whenever a commit's hash changes — due to `git commit --amend`,
+interactive rebase, squash, `git reset` + re-commit, or any other
+operation — update the affected row(s) in `### Commits` immediately.
+This applies regardless of whether the user requested it explicitly:
+if you performed or observed an operation that changes hashes, sync
+the table without waiting to be asked.
+
+How to detect that a hash changed:
+
+```bash
+git log --oneline -5   # compare against what is recorded in review.md
+```
+
+Update rules:
+
+- **Amend (same logical commit, new hash)**: replace the old hash with
+  the new one in the existing row; optionally note `(amended)` in the
+  Message column if the message also changed
+- **Squash / fixup (N commits → 1)**: collapse the affected rows into
+  one row with the resulting hash; keep the messages collapsed as
+  `squash: <summary>` or list them separated by ` / `
+- **Rebase (hashes rewritten, messages unchanged)**: update each hash
+  in place; messages stay the same
+- **Reset + re-commit (logical commit replaced)**: replace old row(s)
+  with the new commit(s)
+- **Commit deleted / reverted**: strike through or remove the row and
+  add a note `(reverted)` in the Message column
+
+This provides a complete, append-only audit trail: every commit that
+touched each repo across the entire lifetime of the work item is
+traceable to the exact review round that approved it, and the recorded
+hashes always match what is actually in the git log.
+
+---
 
 ### Verdict mapping
 

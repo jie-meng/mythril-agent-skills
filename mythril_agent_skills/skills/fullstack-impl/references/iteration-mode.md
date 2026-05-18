@@ -195,6 +195,7 @@ For each iteration that produced a code change:
 
   [ ] review.md   — appended this round's `code-review-staged` output
                     + Verdict (PASS / NEEDS_FIXES → resolved)
+                    + ### Commits table (filled after `git commit`)
   [ ] progress.md — Iteration Log row added (date, trigger, repos,
                     files, review verdict, commit SHA — use a
                     placeholder like `<pending>` if not yet committed,
@@ -325,6 +326,7 @@ above. Skipping the self-check entirely is not an acceptable shortcut.
 | Update `progress.md` but leave `analysis.md` stale after a root-cause discovery | Future readers see plan/progress that no longer matches the analysis | Update `analysis.md` and add an "Updated" date when the underlying technical understanding shifts |
 | Treat the "second turn" as casual chat and skip the loop | Sticky loop is the whole point; "small fixes" are where regressions hide | Run the full loop; the loop is cheap when the change is small |
 | Switch to a different work item silently when the user pastes an unrelated bug | Mixes audit trails | Recognize the scope mismatch, ask the user, and start a separate work item |
+| Amend / rebase / squash commits without updating `review.md` | The recorded hashes no longer match the actual git log — the audit trail is broken | After any operation that rewrites hashes, immediately run `git log --oneline` and sync the `### Commits` table per the rules in `review-formats.md` |
 | Skip Mode announcement because "the user didn't say `fullstack impl`" | The `Mode:` line is contractual — without it, the agent can claim afterwards it was "just chatting" and skip the loop | Always announce `Mode: Iteration` at the start of the round per SKILL.md Step 1d-ii |
 
 ## Closing the work item
