@@ -416,35 +416,65 @@ python3 scripts/sync-shared-assets.py --check
 
 ## Shared assets across skills
 
-Each skill is **installed individually** into per-tool directories (e.g. `~/.claude/skills/<skill>/`, `~/.cursor/skills/<skill>/`). When users select only one skill, that skill must remain self-contained — its `scripts/` and `references/` files must work without reaching outside the skill directory.
+Each skill is **installed individually** into per-tool directories (e.g. `~/.claude/skills/<skill>/`, `~/.cursor/skills/<skill>/`, `~/.claude/plugins/.../<skill>/`). When users select only one skill — via `skills-setup`, `/plugin install <one-skill>`, or by manually dropping a skill directory into their AI tool's `skills/` folder — that skill must remain **fully self-contained**. Its `scripts/` and `references/` files must work without reaching outside the skill directory.
 
-Some assets, however, are **inherently shared** across multiple skills (e.g. mermaid rules + linter are needed by `user-journey`, `fullstack-impl`, and `fullstack-spike`). For those, the repo uses a "canonical source + bundled byte-identical copies" pattern:
+This rules out the "import from a sibling skill" or "import from a top-level package" patterns: at the user's machine there is no sibling, and `mythril_agent_skills/shared/` is **not** part of any install path.
 
-| Layer | Path | Edited by |
-|---|---|---|
-| Canonical source | `mythril_agent_skills/shared/<asset-group>/` | Humans / AI authoring the asset |
-| Bundled copies | `mythril_agent_skills/skills/<consumer-skill>/{scripts,references}/<asset>` | NEVER hand-edited — regenerated from canonical |
+### Design rule: single source, bundled copies
 
-Adding or updating a shared asset:
+Some assets are inherently shared across multiple skills (e.g. mermaid rules + linter are needed by `user-journey`, `fullstack-impl`, and `fullstack-spike`). For those, the repo uses one canonical source plus byte-identical bundled copies inside each consumer skill:
+
+| Layer | Path | Edited by | Travels with install? |
+|---|---|---|---|
+| Canonical source (single source of truth) | `mythril_agent_skills/shared/<asset-group>/` | Humans / AI authoring the asset | **NO** — repo-internal only |
+| Bundled copy (one per consuming skill) | `mythril_agent_skills/skills/<consumer-skill>/{scripts,references}/<asset>` | NEVER hand-edited — regenerated from canonical | **YES** — copied with the skill directory |
+
+`shared/` is the **only** place a shared asset is authored. The bundled copies under each skill are derived artifacts kept in lockstep by `scripts/sync-shared-assets.py`. The shared/ directory exists only inside this repository — it is excluded from every user-facing install path:
+
+- `skills-setup` (and `/plugin install`) copy `mythril_agent_skills/skills/<skill>/` only — `shared/` is not under any skill, so it is never copied.
+- The Claude plugin marketplace (`.claude-plugin/marketplace.json`) maps each plugin source to a path under `mythril_agent_skills/skills/...` or `plugins/...` — never to `shared/`.
+- `pip install mythril-agent-skills` does ship `shared/` (it's part of the Python package), but no runtime code imports from it — it exists only so repo maintainers can run `sync-shared-assets.py` from an editable install if they want.
+
+### Cross-skill import rule
+
+Skill scripts MUST import the bundled copy that sits beside them, never reach across skills or up to `shared/`:
+
+```python
+# In mythril_agent_skills/skills/user-journey/scripts/init_workspace.py
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+from mermaid_lint import escape_label_for_mermaid  # ← bundled copy in same dir
+```
+
+```bash
+# In SKILL.md
+python3 SKILL_PATH/scripts/mermaid_lint.py "<workspace>/JOURNEY.md"
+```
+
+`SKILL_PATH` always resolves to the skill's own installed directory, so this works the same way under `~/.claude/skills/user-journey/`, `~/.cursor/skills/user-journey/`, or `~/.claude/plugins/.../user-journey/`.
+
+### Workflow: adding or updating a shared asset
 
 1. Edit the canonical file under `mythril_agent_skills/shared/`.
-2. Update `specs()` in `scripts/sync-shared-assets.py` if you added a new asset or consumer.
+2. If you added a new asset or a new consumer, update `specs()` in `scripts/sync-shared-assets.py`.
 3. Run `python3 scripts/sync-shared-assets.py` to materialize bundled copies.
-4. Commit BOTH the canonical source and the bundled copies in the same commit (they are inseparable).
+4. Commit BOTH the canonical source and the bundled copies in the same commit (they are inseparable). The drift test will fail CI if they get out of step.
 
-CI guard:
+NEVER hand-edit a bundled copy directly — your changes will be lost on the next sync, and the drift test will fail the build in the meantime.
+
+### CI guard
 
 - `tests/test_shared_assets_sync.py` (always runs in `pytest`) compares every bundled copy to its canonical source byte-by-byte. If anyone hand-edits a bundled copy, the test fails with a "run sync-shared-assets.py" message.
 - `python3 scripts/sync-shared-assets.py --check` is a standalone CI-friendly mode that prints `PASS`/`FAIL` without modifying any files.
 
-Currently shared:
+### Currently shared
 
 | Asset | Canonical | Consumed by |
 |---|---|---|
 | `mermaid_lint.py` | `shared/mermaid/mermaid_lint.py` | `fullstack-impl`, `fullstack-spike`, `user-journey` |
 | `MERMAID-RULES.md` | `shared/mermaid/MERMAID-RULES.md` | `fullstack-impl`, `fullstack-spike`, `user-journey` |
 
-Note this is a different pattern from the `git-repo-reader` shared cache (above): cache is **runtime** shared state, while shared assets are **build-time** duplicated files. Both keep skills self-contained at install time.
+Note this is a different pattern from the `git-repo-reader` shared cache (above): the cache is **runtime** shared state on the user's machine, while shared assets are **build-time** duplicated files inside the repo. Both keep installed skills fully self-contained.
 
 ---
 
