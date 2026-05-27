@@ -210,9 +210,10 @@ For each iteration that produced a code change:
                     note "no analysis change" in the iteration log row
 
   [ ] Mermaid Gate — if any tracked .md file with ```mermaid blocks
-                    was edited, run `mermaid_validate.py`; the round
-                    is NOT complete until STATUS=PASS. See
-                    document-templates.md for the gate details.
+                    was edited, run `mermaid_lint.py`; the round
+                    is NOT complete until STATUS=PASS. Full rules:
+                    MERMAID-RULES.md. Gate details:
+                    document-templates.md.
 
   [ ] Self-check — run `iteration_log_check.py` against the work
                     directory; the round is NOT complete until

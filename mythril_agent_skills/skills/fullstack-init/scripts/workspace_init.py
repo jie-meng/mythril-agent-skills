@@ -398,23 +398,27 @@ plugins) ship Mermaid 10.2.3 or earlier. Newer syntax causes
 
 ### Validate before declaring a doc done
 
-Run the bundled `mermaid_validate.py` script (shipped with the
-`fullstack-impl` skill) on any Markdown file containing Mermaid blocks
-BEFORE declaring the document done. It is a static linter that catches
-the four most common 10.2.3 incompatibilities (unquoted edge labels,
-unquoted subgraph titles, `@{{ shape: ... }}` syntax, beta diagram
-types) without requiring a JS toolchain. The `fullstack-impl` skill
-runs it automatically after writing `analysis.md` / `plan.md`; for any
-other Markdown file you author by hand, invoke it manually:
+Run the bundled `mermaid_lint.py` script (shipped with the
+`fullstack-impl`, `fullstack-spike`, and `user-journey` skills — same
+file in each) on any Markdown file containing Mermaid blocks BEFORE
+declaring the document done. It is a static linter that catches the
+common 10.2.3 incompatibilities (unquoted edge labels, unquoted
+subgraph titles, `@{{ shape: ... }}` syntax, beta diagram types,
+literal `\\n` in labels, bare `<br>`) without requiring a JS
+toolchain. The `fullstack-impl` skill runs it automatically after
+writing `analysis.md` / `plan.md`; for any other Markdown file you
+author by hand, invoke it manually:
 
 ```bash
-python3 ~/.<agent>/skills/fullstack-impl/scripts/mermaid_validate.py \\
+python3 ~/.<agent>/skills/fullstack-impl/scripts/mermaid_lint.py \\
     path/to/file.md
 ```
 
 `STATUS=PASS` means safe to ship. `STATUS=FAIL` means the file will
-render as `Syntax error in text` on Mermaid 10.2.3 — fix every
-`ERROR:` line and re-run before committing.
+render as `Syntax error in text` (or as visible garbage like
+`xxx-api\\n(Domain API)`) on Mermaid 10.2.3 — fix every `ERROR:`
+line and re-run before committing. Full rules live in
+`MERMAID-RULES.md` bundled with each of the three skills above.
 
 ## Directory Structure
 
@@ -740,8 +744,9 @@ version control, separate from the workspace-level git repo.
   as `A -->|"step (x)"| B`. See the workspace root `AGENTS.md` →
   *Documentation Diagrams (Mermaid Compatibility)* section for the
   full allowed/avoid list and safety rules, and run the bundled
-  `mermaid_validate.py` (shipped with `fullstack-impl`) against any
-  Markdown file with Mermaid blocks before committing.
+  `mermaid_lint.py` (shipped with `fullstack-impl`, `fullstack-spike`,
+  and `user-journey`) against any Markdown file with Mermaid blocks
+  before committing.
 
 ## Work Tracking
 

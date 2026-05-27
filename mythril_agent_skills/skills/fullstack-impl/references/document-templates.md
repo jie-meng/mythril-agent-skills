@@ -621,35 +621,36 @@ shape of the change without reading wall-of-text rationale.
 
 Every diagram MUST parse and render correctly on Mermaid 10.2.3.
 
-Common traps the agent must avoid:
+**The full rule set lives in [`MERMAID-RULES.md`](MERMAID-RULES.md)** —
+shared canonical source kept in sync across all skills. Read that file
+end-to-end before authoring any new diagram. The two most common traps:
 
 1. **Unquoted parens / brackets / curlies in edge labels.** Wrap
-   the label in double quotes.
+   the label in double quotes. Same rule for `subgraph` titles.
 
    - Bad: `A -->|step (x)| B`
    - Good: `A -->|"step (x)"| B`
 
-   Same rule for `subgraph` titles.
-
 2. **Literal `\n` inside `flowchart` / `graph` node labels, edge
    labels, or subgraph titles.** On Mermaid 10.2.3 + GitHub + many
    other renderers, `\n` renders as the two characters `\` and `n`
-   instead of a line break — the rendered box ends up containing
-   text like `patterns.md\nRefreshManager / Skeleton / Nav / Utils`.
-   Always use the HTML break tag `<br/>` for line breaks.
+   instead of a line break. Always use `<br/>` for line breaks
+   (and wrap in double quotes because the surrounding text usually
+   contains `(` or `)`).
 
-   - Bad: `A[patterns.md\nRefreshManager / Skeleton / Nav / Utils]`
-   - Good: `A[patterns.md<br/>RefreshManager / Skeleton / Nav / Utils]`
+   - Bad: `A[xxx-api\n(Domain API)]`
+   - Good: `A["xxx-api<br/>(Domain API)"]`
 
    This rule applies to flowchart-family diagrams only — sequence
    diagrams have separate rendering and are out of scope.
 
 After writing, run the **Mermaid Compatibility Gate**: invoke
-`mermaid_validate.py` (bundled at `fullstack-impl/scripts/`) on every
+`mermaid_lint.py` (bundled at `fullstack-impl/scripts/`) on every
 just-written or just-edited file. The script accepts multiple files
 in one call. If `STATUS=FAIL`, read each `ERROR:` line, apply the
-suggested quoted form, save, and re-run until `STATUS=PASS`. Do NOT
-proceed to the next step with `STATUS=FAIL` standing.
+suggested fix from [`MERMAID-RULES.md`](MERMAID-RULES.md), save, and
+re-run until `STATUS=PASS`. Do NOT proceed to the next step with
+`STATUS=FAIL` standing.
 
 The gate runs whenever a mermaid-bearing doc is just written:
 1. After writing `analysis.md` for the first time (Step 5)
@@ -660,10 +661,10 @@ The gate runs whenever a mermaid-bearing doc is just written:
 
 Locating the script across AI tools: check candidate paths in this
 order, use the first that exists:
-`~/.config/opencode/skills/fullstack-impl/scripts/mermaid_validate.py`,
-`~/.claude/skills/fullstack-impl/scripts/mermaid_validate.py`,
+`~/.config/opencode/skills/fullstack-impl/scripts/mermaid_lint.py`,
+`~/.claude/skills/fullstack-impl/scripts/mermaid_lint.py`,
 `~/.copilot/...`, `~/.cursor/...`, `~/.gemini/...`, `~/.codex/...`,
 `~/.qwen/...`, `~/.grok/...`. If none exist, fall back to manual
-review against the workspace AGENTS.md *Documentation Diagrams
-(Mermaid Compatibility)* section. Skipping the gate entirely is NOT
-an acceptable shortcut — broken diagrams block human reviewers.
+review against [`MERMAID-RULES.md`](MERMAID-RULES.md). Skipping the
+gate entirely is NOT an acceptable shortcut — broken diagrams block
+human reviewers.

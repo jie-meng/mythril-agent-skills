@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="{{LANG}}">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>{{TITLE}}</title>
+  <link rel="stylesheet" href="assets/styles.css" />
+  <script type="application/json" id="journey-data">
+{{JOURNEY_JSON}}
+  </script>
+  <script type="application/json" id="design-tokens">
+{{DESIGN_TOKENS_JSON}}
+  </script>
+</head>
+<body>
+  <header class="topbar" role="banner">
+    <div class="topbar-left">
+      <span class="brand-dot" aria-hidden="true"></span>
+      <h1 class="topbar-title" id="topbar-title">{{TITLE}}</h1>
+    </div>
+    <nav class="topbar-views" aria-label="Views">
+      <button data-view="map" class="view-btn is-active" aria-pressed="true">
+        <span class="view-key">M</span><span class="view-label" data-i18n="map">Map</span>
+      </button>
+      <button data-view="stage" class="view-btn" aria-pressed="false">
+        <span class="view-key">S</span><span class="view-label" data-i18n="stage">Stage</span>
+      </button>
+      <button data-view="present" class="view-btn" aria-pressed="false">
+        <span class="view-key">P</span><span class="view-label" data-i18n="present">Present</span>
+      </button>
+    </nav>
+    <div class="topbar-right">
+      <span class="meta-chip" id="meta-stage-count" aria-live="polite"></span>
+      <button id="zoom-reset" class="ghost-btn" title="Reset zoom (0)">100%</button>
+    </div>
+  </header>
+
+  <main id="main">
+    <section id="view-map" class="view view-map" hidden></section>
+    <section id="view-stage" class="view view-stage" hidden></section>
+    <section id="view-present" class="view view-present" hidden></section>
+  </main>
+
+  <footer class="statusbar" role="contentinfo">
+    <span id="status-hint" class="status-hint"></span>
+    <span class="status-spacer"></span>
+    <span class="status-shortcuts">
+      <kbd>M</kbd>/<kbd>S</kbd>/<kbd>P</kbd>
+      &nbsp;<kbd>←</kbd>/<kbd>→</kbd>
+      &nbsp;<kbd>+</kbd>/<kbd>-</kbd>/<kbd>0</kbd>
+      &nbsp;<kbd>Esc</kbd>
+    </span>
+  </footer>
+
+  <template id="tpl-stage-card">
+    <article class="stage-card" tabindex="0" role="button">
+      <header class="stage-card-head">
+        <span class="stage-card-num"></span>
+        <h3 class="stage-card-label"></h3>
+      </header>
+      <p class="stage-card-summary"></p>
+      <div class="stage-card-emotions" aria-label="Step emotions"></div>
+      <footer class="stage-card-foot">
+        <span class="stage-card-steps"></span>
+        <span class="stage-card-cta" data-i18n="open">Open ›</span>
+      </footer>
+    </article>
+  </template>
+
+  <template id="tpl-stage-edge">
+    <svg class="stage-edge" viewBox="0 0 80 24" aria-hidden="true">
+      <path d="M2 12 L70 12" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" />
+      <path d="M65 6 L75 12 L65 18" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linejoin="round" stroke-linecap="round" />
+    </svg>
+  </template>
+
+  <template id="tpl-step-column">
+    <article class="step-col">
+      <header class="step-col-head">
+        <span class="step-col-num"></span>
+        <span class="emotion-chip"></span>
+      </header>
+      <div class="step-block step-actions">
+        <h4 class="step-block-label" data-i18n="actions">Actions</h4>
+        <ul></ul>
+      </div>
+      <div class="step-block step-touchpoints">
+        <h4 class="step-block-label" data-i18n="touchpoints">Touchpoints</h4>
+        <ul></ul>
+      </div>
+      <div class="step-block step-thoughts">
+        <h4 class="step-block-label" data-i18n="thoughts">Thoughts</h4>
+        <ul></ul>
+      </div>
+      <div class="step-block step-pain" hidden>
+        <h4 class="step-block-label" data-i18n="pain">Pain points</h4>
+        <ul></ul>
+      </div>
+      <div class="step-block step-opps" hidden>
+        <h4 class="step-block-label" data-i18n="opps">Opportunities</h4>
+        <ul></ul>
+      </div>
+      <div class="step-block step-metrics" hidden>
+        <h4 class="step-block-label" data-i18n="metrics">Metrics</h4>
+        <ul></ul>
+      </div>
+      <div class="step-wireframe" hidden></div>
+    </article>
+  </template>
+
+  <script src="assets/wireframe.js"></script>
+  <script src="assets/render.js"></script>
+</body>
+</html>

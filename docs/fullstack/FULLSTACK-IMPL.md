@@ -551,7 +551,8 @@ mythril_agent_skills/skills/fullstack-impl/
 ├── scripts/
 │   ├── check_github_repos.py    # Step 8 — deterministic GitHub-repo detection
 │   ├── iteration_log_check.py   # Iteration Mode self-check
-│   └── mermaid_validate.py      # Mermaid 10.2.3 compatibility gate
+│   └── mermaid_lint.py          # Mermaid 10.2.3 compatibility gate
+│                                # (bundled copy of shared/mermaid/mermaid_lint.py)
 └── references/
     ├── mode-selection.md        # Routing among Fresh / Reference / Iteration / Follow-up
     ├── document-templates.md    # EN/ZH templates for plan/progress/analysis/review
@@ -577,8 +578,9 @@ skill-creator's progressive-disclosure pattern.
 The bundled scripts handle deterministic checks: `check_github_repos.py`
 reads the user's saved choice from `fullstack.json` (avoiding LLM
 guessing about hostnames), `iteration_log_check.py` validates the
-audit trail after each iteration round, `mermaid_validate.py` enforces
-diagram compatibility against the 10.2.3 baseline.
+audit trail after each iteration round, `mermaid_lint.py` enforces
+diagram compatibility against the 10.2.3 baseline (shared canonical
+source at `mythril_agent_skills/shared/mermaid/`).
 
 ## Relationship to fullstack-init
 

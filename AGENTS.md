@@ -406,6 +406,46 @@ Validate description length across all skills (must not exceed 1024 characters):
 python3 scripts/validate-skill-descriptions.py
 ```
 
+Verify that bundled shared assets (e.g. `mermaid_lint.py`, `MERMAID-RULES.md`) match the canonical source — see "Shared assets across skills" below:
+
+```bash
+python3 scripts/sync-shared-assets.py --check
+```
+
+---
+
+## Shared assets across skills
+
+Each skill is **installed individually** into per-tool directories (e.g. `~/.claude/skills/<skill>/`, `~/.cursor/skills/<skill>/`). When users select only one skill, that skill must remain self-contained — its `scripts/` and `references/` files must work without reaching outside the skill directory.
+
+Some assets, however, are **inherently shared** across multiple skills (e.g. mermaid rules + linter are needed by `user-journey`, `fullstack-impl`, and `fullstack-spike`). For those, the repo uses a "canonical source + bundled byte-identical copies" pattern:
+
+| Layer | Path | Edited by |
+|---|---|---|
+| Canonical source | `mythril_agent_skills/shared/<asset-group>/` | Humans / AI authoring the asset |
+| Bundled copies | `mythril_agent_skills/skills/<consumer-skill>/{scripts,references}/<asset>` | NEVER hand-edited — regenerated from canonical |
+
+Adding or updating a shared asset:
+
+1. Edit the canonical file under `mythril_agent_skills/shared/`.
+2. Update `specs()` in `scripts/sync-shared-assets.py` if you added a new asset or consumer.
+3. Run `python3 scripts/sync-shared-assets.py` to materialize bundled copies.
+4. Commit BOTH the canonical source and the bundled copies in the same commit (they are inseparable).
+
+CI guard:
+
+- `tests/test_shared_assets_sync.py` (always runs in `pytest`) compares every bundled copy to its canonical source byte-by-byte. If anyone hand-edits a bundled copy, the test fails with a "run sync-shared-assets.py" message.
+- `python3 scripts/sync-shared-assets.py --check` is a standalone CI-friendly mode that prints `PASS`/`FAIL` without modifying any files.
+
+Currently shared:
+
+| Asset | Canonical | Consumed by |
+|---|---|---|
+| `mermaid_lint.py` | `shared/mermaid/mermaid_lint.py` | `fullstack-impl`, `fullstack-spike`, `user-journey` |
+| `MERMAID-RULES.md` | `shared/mermaid/MERMAID-RULES.md` | `fullstack-impl`, `fullstack-spike`, `user-journey` |
+
+Note this is a different pattern from the `git-repo-reader` shared cache (above): cache is **runtime** shared state, while shared assets are **build-time** duplicated files. Both keep skills self-contained at install time.
+
 ---
 
 ## Testing

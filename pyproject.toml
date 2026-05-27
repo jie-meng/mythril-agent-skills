@@ -71,6 +71,7 @@ extraPaths = [
     "mythril_agent_skills/skills/md-to-pdf/scripts",
     "mythril_agent_skills/skills/fullstack-impl/scripts",
     "mythril_agent_skills/skills/fullstack-init/scripts",
+    "mythril_agent_skills/skills/user-journey/scripts",
 ]
 
 [tool.setuptools.packages.find]
@@ -79,4 +80,5 @@ include = ["mythril_agent_skills*"]
 [tool.setuptools.package-data]
 mythril_agent_skills = [
     "skills/**/*",
+    "shared/**/*",
 ]

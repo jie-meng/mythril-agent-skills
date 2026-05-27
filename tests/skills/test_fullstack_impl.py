@@ -6,7 +6,9 @@ Covers pure/deterministic functions from:
 - route_check.py — Mode routing helper (status normalization, verb
   detection, decision tree)
 - iteration_log_check.py — post-finalization iteration log consistency
-- mermaid_validate.py — Mermaid 10.2.3 compatibility lint
+- mermaid_lint.py — Mermaid 10.2.3 compatibility lint (canonical
+  source at mythril_agent_skills/shared/mermaid/mermaid_lint.py;
+  byte-identical bundled copy at fullstack-impl/scripts/mermaid_lint.py)
 """
 
 from __future__ import annotations
@@ -536,16 +538,16 @@ class TestFormatResult:
 
 
 # ---------------------------------------------------------------------------
-# mermaid_validate
+# mermaid_lint (canonical source at mythril_agent_skills/shared/mermaid/)
 # ---------------------------------------------------------------------------
 
 
 class TestExtractMermaidBlocks:
-    """Tests for mermaid_validate.extract_mermaid_blocks."""
+    """Tests for mermaid_lint.extract_mermaid_blocks."""
 
     @pytest.fixture(autouse=True)
     def _import(self):
-        from mermaid_validate import extract_mermaid_blocks
+        from mermaid_lint import extract_mermaid_blocks
         self.func = extract_mermaid_blocks
 
     def test_no_blocks(self):
@@ -627,11 +629,11 @@ class TestExtractMermaidBlocks:
 
 
 class TestIsQuoted:
-    """Tests for mermaid_validate.is_quoted."""
+    """Tests for mermaid_lint.is_quoted."""
 
     @pytest.fixture(autouse=True)
     def _import(self):
-        from mermaid_validate import is_quoted
+        from mermaid_lint import is_quoted
         self.func = is_quoted
 
     def test_double_quoted(self):
@@ -660,11 +662,11 @@ class TestIsQuoted:
 
 
 class TestFindEdgeLabelIssues:
-    """Tests for mermaid_validate.find_edge_label_issues."""
+    """Tests for mermaid_lint.find_edge_label_issues."""
 
     @pytest.fixture(autouse=True)
     def _import(self):
-        from mermaid_validate import find_edge_label_issues
+        from mermaid_lint import find_edge_label_issues
         self.func = find_edge_label_issues
 
     def test_clean_label(self):
@@ -728,11 +730,11 @@ class TestFindEdgeLabelIssues:
 
 
 class TestFindSubgraphIssue:
-    """Tests for mermaid_validate.find_subgraph_issue."""
+    """Tests for mermaid_lint.find_subgraph_issue."""
 
     @pytest.fixture(autouse=True)
     def _import(self):
-        from mermaid_validate import find_subgraph_issue
+        from mermaid_lint import find_subgraph_issue
         self.func = find_subgraph_issue
 
     def test_bare_id(self):
@@ -763,11 +765,11 @@ class TestFindSubgraphIssue:
 
 
 class TestFindNewShapeIssue:
-    """Tests for mermaid_validate.find_new_shape_issue."""
+    """Tests for mermaid_lint.find_new_shape_issue."""
 
     @pytest.fixture(autouse=True)
     def _import(self):
-        from mermaid_validate import find_new_shape_issue
+        from mermaid_lint import find_new_shape_issue
         self.func = find_new_shape_issue
 
     def test_old_syntax_brackets(self):
@@ -793,11 +795,11 @@ class TestFindNewShapeIssue:
 
 
 class TestFindLiteralBackslashN:
-    """Tests for mermaid_validate.find_literal_backslash_n_issue."""
+    """Tests for mermaid_lint.find_literal_backslash_n_issue."""
 
     @pytest.fixture(autouse=True)
     def _import(self):
-        from mermaid_validate import find_literal_backslash_n_issue
+        from mermaid_lint import find_literal_backslash_n_issue
         self.func = find_literal_backslash_n_issue
 
     def test_clean_line(self):
@@ -832,11 +834,11 @@ class TestFindLiteralBackslashN:
 
 
 class TestFindBetaDiagramIssue:
-    """Tests for mermaid_validate.find_beta_diagram_issue."""
+    """Tests for mermaid_lint.find_beta_diagram_issue."""
 
     @pytest.fixture(autouse=True)
     def _import(self):
-        from mermaid_validate import find_beta_diagram_issue
+        from mermaid_lint import find_beta_diagram_issue
         self.func = find_beta_diagram_issue
 
     def test_flowchart_ok(self):
@@ -876,12 +878,129 @@ class TestFindBetaDiagramIssue:
         assert self.func("kanban") == "kanban"
 
 
-class TestLintBlock:
-    """Tests for mermaid_validate.lint_block."""
+class TestFindBareBrIssue:
+    """Tests for mermaid_lint.find_bare_br_issue."""
 
     @pytest.fixture(autouse=True)
     def _import(self):
-        from mermaid_validate import MermaidBlock, lint_block
+        from mermaid_lint import find_bare_br_issue
+        self.func = find_bare_br_issue
+
+    def test_clean_line(self):
+        assert self.func("    A[hello world] --> B") is False
+
+    def test_self_closing_br_ok(self):
+        assert self.func("    A[line1<br/>line2]") is False
+
+    def test_self_closing_br_with_space_ok(self):
+        assert self.func("    A[line1<br />line2]") is False
+
+    def test_bare_br_flagged(self):
+        assert self.func("    A[line1<br>line2]") is True
+
+    def test_bare_br_with_space_flagged(self):
+        assert self.func("    A[line1<br >line2]") is True
+
+    def test_bare_br_uppercase_flagged(self):
+        assert self.func("    A[line1<BR>line2]") is True
+
+    def test_bare_br_in_edge_label_flagged(self):
+        assert self.func('    A -->|"line1<br>line2"| B') is True
+
+    def test_text_containing_br_substring_not_flagged(self):
+        # The word "brake" should not match.
+        assert self.func("    A[brake system]") is False
+
+    def test_br_with_attributes_not_flagged_as_bare(self):
+        # If the author wrote <br class="x"> we treat it as "not bare"
+        # — the regex only flags <br> or <br > with no other content.
+        # A reviewer would flag attributed <br> as suspicious anyway.
+        assert self.func("    A[x<br class='y'>y]") is False
+
+
+class TestEscapeLabelForMermaid:
+    """Tests for mermaid_lint.escape_label_for_mermaid."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from mermaid_lint import escape_label_for_mermaid
+        self.func = escape_label_for_mermaid
+
+    def test_none_returns_empty_quoted(self):
+        assert self.func(None) == '""'
+
+    def test_plain_word_unquoted(self):
+        assert self.func("Discover") == "Discover"
+
+    def test_plain_chinese_unquoted(self):
+        assert self.func("发现") == "发现"
+
+    def test_real_newline_becomes_br(self):
+        assert self.func("xxx-api\n(Domain API)") == '"xxx-api<br/>(Domain API)"'
+
+    def test_crlf_becomes_single_br(self):
+        # CRLF collapses to one \n which becomes <br/>; the presence of
+        # <br/> triggers quoting per the helper's contract.
+        assert self.func("a\r\nb") == '"a<br/>b"'
+
+    def test_cr_only_becomes_br(self):
+        assert self.func("a\rb") == '"a<br/>b"'
+
+    def test_chinese_with_newline(self):
+        # Same quoting rule: any <br/> in the result implies quotes.
+        assert self.func("发现\n试用") == '"发现<br/>试用"'
+
+    def test_literal_backslash_n_becomes_br(self):
+        # Two characters: backslash + n.
+        assert self.func("xxx-api\\n(Domain API)") == '"xxx-api<br/>(Domain API)"'
+
+    def test_parens_force_quoting(self):
+        assert self.func("Domain (API)") == '"Domain (API)"'
+
+    def test_brackets_force_quoting(self):
+        assert self.func("step [1]") == '"step [1]"'
+
+    def test_curlies_force_quoting(self):
+        assert self.func("use {x}") == '"use {x}"'
+
+    def test_pipe_forces_quoting(self):
+        assert self.func("a | b") == '"a | b"'
+
+    def test_angle_bracket_forces_quoting(self):
+        assert self.func("a > b") == '"a > b"'
+
+    def test_embedded_double_quote_escaped(self):
+        assert self.func('He said "hi"') == '"He said &quot;hi&quot;"'
+
+    def test_br_in_input_implies_quotes(self):
+        # Plain "<br/>" alone (no other special chars) still needs quotes
+        # because `<` and `>` are quoting-triggers.
+        assert self.func("a<br/>b") == '"a<br/>b"'
+
+    def test_only_alphanumerics_no_quotes(self):
+        assert self.func("Stage1") == "Stage1"
+
+    def test_hyphen_and_space_no_quotes(self):
+        assert self.func("Sign up") == "Sign up"
+
+    def test_chinese_with_paren_and_newline(self):
+        assert self.func("发现\n（中文括号）") == '"发现<br/>（中文括号）"'
+
+    def test_real_world_xxxapi_case(self):
+        """The exact case from the user's bug report."""
+        result = self.func("xxx-api\n(Domain API)")
+        assert result == '"xxx-api<br/>(Domain API)"'
+        # And it must NOT contain the literal "\n" sequence anywhere.
+        assert "\\n" not in result
+        assert "\n" not in result
+
+
+class TestLintBlock:
+    """Tests for mermaid_lint.lint_block."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from mermaid_lint import MermaidBlock, lint_block
         self.cls = MermaidBlock
         self.func = lint_block
 
@@ -1040,11 +1159,11 @@ class TestLintBlock:
 
 
 class TestLintFile:
-    """Tests for mermaid_validate.lint_file."""
+    """Tests for mermaid_lint.lint_file."""
 
     @pytest.fixture(autouse=True)
     def _import(self):
-        from mermaid_validate import lint_file
+        from mermaid_lint import lint_file
         self.func = lint_file
 
     def test_clean_file(self, tmp_path: Path):
@@ -1114,11 +1233,11 @@ class TestLintFile:
 
 
 class TestMermaidValidateMain:
-    """Tests for mermaid_validate.main (CLI entry point)."""
+    """Tests for mermaid_lint.main (CLI entry point)."""
 
     @pytest.fixture(autouse=True)
     def _import(self):
-        from mermaid_validate import main
+        from mermaid_lint import main
         self.func = main
 
     def test_no_args_returns_2(self, capsys):

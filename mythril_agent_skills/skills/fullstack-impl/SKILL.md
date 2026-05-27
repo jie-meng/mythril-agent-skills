@@ -497,9 +497,12 @@ identical structure, different labels). See
 for the templates and visualization rules.
 
 After writing any `.md` file containing ` ```mermaid ` blocks, run
-the **Mermaid Compatibility Gate** — invoke `mermaid_validate.py` on
+the **Mermaid Compatibility Gate** — invoke `mermaid_lint.py` on
 every just-written file. The gate is detailed in
 [`document-templates.md`](references/document-templates.md#mermaid-1023-compatibility).
+The full rule set lives in
+[`references/MERMAID-RULES.md`](references/MERMAID-RULES.md) — the
+canonical, cross-skill source of truth for mermaid 10.2.3 compatibility.
 Skipping the gate is the single most common cause of broken diagrams
 on GitHub Enterprise, Confluence, Notion exports, and internal wikis.
 

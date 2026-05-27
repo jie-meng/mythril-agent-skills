@@ -207,6 +207,19 @@ Write, refine, and adapt blog posts through an interactive intake process. The s
 </details>
 
 <details>
+<summary><b>Product / UX</b></summary>
+<br>
+
+**[User Journey](./mythril_agent_skills/skills/user-journey/)**
+
+Draft user journey maps and lo-fi wireframes for PMs/BAs via natural language. Generates a self-contained workspace with synchronized `JOURNEY.md` (business + mermaid), `journey.json` (structured data), and a vanilla HTML/CSS/JS preview offering Map / Stage / Presenter views. Ships with 4 Google DESIGN.md visual style presets. No build step — double-click `index.html` to open.
+
+- **Try:** Draft a user journey for our food-delivery first-order flow
+- **Deps:** `git` CLI (optional, for workspace history)
+
+</details>
+
+<details>
 <summary><b>Fullstack Workspace</b></summary>
 <br>
 
@@ -335,7 +348,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 
 | Plugin | Description |
 |---|---|
-| `all-skills` | All-in-one bundle (all 19 skills) |
+| `all-skills` | All-in-one bundle (all 20 skills) |
 | `skill-creator` | Create and improve skills/prompts for any AI platform |
 | `code-review-staged` | Code review for git staged changes |
 | `branch-diff-review` | Code review for local branch differences |
@@ -353,6 +366,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `ffmpeg` | Video and audio processing via FFmpeg CLI |
 | `android-screen-reader` | Read the current screen of a connected Android device via adb |
 | `blog-writer` | Write, refine, and adapt tech-first multilingual blog posts |
+| `user-journey` | Draft user journey maps and lo-fi wireframes via natural language — HTML/CSS workspace with map/stage/presenter views |
 | `fullstack-init` | Initialize multi-repo fullstack workspace with AI context |
 | `fullstack-spike` | Run time-boxed spikes without committing |
 | `fullstack-impl` | Implement features/fixes across a fullstack workspace |
@@ -593,6 +607,7 @@ mythril-agent-skills/
 │       ├── code-review-staged/  # Structured code reviews
 │       ├── git-repo-reader/     # Clone and read any git repo
 │       ├── blog-writer/         # Tech-first multilingual blog writing
+│       ├── user-journey/        # User journey maps & lo-fi wireframes via natural language
 │       ├── fullstack-init/      # Initialize multi-repo workspace
 │       ├── fullstack-spike/       # Run time-boxed spikes without committing
 │       └── fullstack-impl/      # Implement across fullstack workspace

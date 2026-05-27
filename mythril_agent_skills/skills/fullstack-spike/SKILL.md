@@ -388,8 +388,9 @@ Spike 结论和建议将在所有实验完成后写入此处。
 
 ### Mermaid 10.2.3 Compatibility Gate (MANDATORY when diagrams are written)
 
-Every diagram MUST parse AND render correctly on Mermaid 10.2.3. The
-two most common traps are:
+Every diagram MUST parse AND render correctly on Mermaid 10.2.3.
+
+**The full rule set lives in [`references/MERMAID-RULES.md`](references/MERMAID-RULES.md)** — the shared canonical source kept in sync across all skills. Read it before authoring any diagram. The two most common traps:
 
 1. Edge labels (`|...|`) or `subgraph` titles containing
    parens / brackets / curlies — must be wrapped in double quotes.
@@ -400,29 +401,33 @@ two most common traps are:
 2. Literal `\n` inside flowchart node labels, edge labels, or
    subgraph titles. On Mermaid 10.2.3 + GitHub + many other
    renderers, `\n` renders as the two characters `\` and `n`
-   inside the box instead of a line break. Use the HTML break
-   tag `<br/>`.
+   inside the box instead of a line break. Use `<br/>` (and wrap
+   the label in double quotes when the surrounding text contains
+   `(` or `)`).
 
-   - Bad: `A[patterns.md\nRefreshManager / Skeleton / Nav / Utils]`
-   - Good: `A[patterns.md<br/>RefreshManager / Skeleton / Nav / Utils]`
+   - Bad: `A[xxx-api\n(Domain API)]`
+   - Good: `A["xxx-api<br/>(Domain API)"]`
 
 After writing or editing any spike doc with ` ```mermaid ` blocks
-(typically `analysis.md`), invoke `mermaid_validate.py` from the
-bundled `fullstack-impl/scripts/` directory. The script accepts
-multiple files in one call.
+(typically `analysis.md`), invoke `mermaid_lint.py` from this skill's
+own bundled `scripts/` directory. The script accepts multiple files
+in one call.
 
 Locating the script across AI tools: check candidate paths in this
 order, use the first that exists:
-`~/.config/opencode/skills/fullstack-impl/scripts/mermaid_validate.py`,
-`~/.claude/skills/fullstack-impl/scripts/mermaid_validate.py`,
+`~/.config/opencode/skills/fullstack-spike/scripts/mermaid_lint.py`,
+`~/.claude/skills/fullstack-spike/scripts/mermaid_lint.py`,
 `~/.copilot/...`, `~/.cursor/...`, `~/.gemini/...`, `~/.codex/...`,
-`~/.qwen/...`, `~/.grok/...`.
+`~/.qwen/...`, `~/.grok/...`. (If `fullstack-spike` is not installed
+but `fullstack-impl` is, the same script lives under that skill's
+bundled `scripts/` directory.)
 
-If `STATUS=FAIL`, read each `ERROR:` line, apply the suggested fix,
+If `STATUS=FAIL`, read each `ERROR:` line, apply the suggested fix
+from [`references/MERMAID-RULES.md`](references/MERMAID-RULES.md),
 save, and re-run until `STATUS=PASS`. Do NOT proceed to the next
 step with `STATUS=FAIL` standing — broken diagrams block human
 reviewers. If the script is not found at any candidate path, fall
-back to manual review against the rules above.
+back to manual review against [`MERMAID-RULES.md`](references/MERMAID-RULES.md).
 
 ## Step 5 — Execute the Spike
 

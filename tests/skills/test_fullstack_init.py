@@ -406,7 +406,7 @@ class TestGenerateAgentsMd:
 
     def test_mermaid_section_recommends_validator(self):
         result = self.func("proj", "| t |", "central-docs")
-        assert "mermaid_validate.py" in result
+        assert "mermaid_lint.py" in result
 
     def test_mermaid_section_distinguishes_label_positions(self):
         """The refined rules must clarify edge labels vs node labels vs aliases."""
@@ -464,7 +464,7 @@ class TestGenerateDocsAgentsMd:
 
     def test_mermaid_note_recommends_validator(self):
         result = self.func("central-docs")
-        assert "mermaid_validate.py" in result
+        assert "mermaid_lint.py" in result
 
 
 # ---------------------------------------------------------------------------

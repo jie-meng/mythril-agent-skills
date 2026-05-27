@@ -1,61 +1,82 @@
 #!/usr/bin/env python3
-r"""Validate Mermaid diagrams inside Markdown files for 10.2.3 compatibility.
+r"""Mermaid diagram lint + label-escape helpers (shared across skills).
+
+CANONICAL SOURCE: mythril_agent_skills/shared/mermaid/mermaid_lint.py
+Bundled identical copies live under each consuming skill's scripts/
+directory. To update, edit the canonical source and run:
+
+    python3 scripts/sync-shared-assets.py
+
+The drift test (tests/test_shared_assets_sync.py) fails CI if any
+bundled copy diverges from the canonical source.
+
+# ---------------------------------------------------------------------
+# Why this exists
+# ---------------------------------------------------------------------
 
 Many platforms used to render Markdown (older GitHub Enterprise,
 Confluence, Notion exports, internal wikis, IDE preview plugins) ship
 Mermaid 10.2.3 or earlier. Newer syntax causes "Syntax error in text"
 rendering failures that block readers — most commonly when the agent
-writes ```mermaid blocks with unquoted parentheses inside edge labels.
+writes ```mermaid blocks with unquoted parentheses inside edge labels
+or with literal `\n` instead of `<br/>` for line breaks.
 
-This script extracts every fenced ```mermaid block from each input file
-and runs a focused static lint against patterns that are KNOWN to fail
-on Mermaid 10.2.3. Each rule is empirically verified against
-`mermaid@10.2.3` (see tests/skills/test_fullstack_impl.py).
+This script extracts every fenced ```mermaid block from each input
+file and runs a focused static lint against patterns that are KNOWN
+to fail on Mermaid 10.2.3. Each rule is empirically verified against
+`mermaid@10.2.3`.
 
 Rules:
 
-    1. Edge labels (`A -->|...| B`) in `flowchart` / `graph` blocks
-       MUST be wrapped in double quotes when the label contains any of
-       `(`, `)`, `[`, `]`, `{`, `}`. Other characters work unquoted.
+    1. [unquoted-edge-label]  Edge labels (`A -->|...| B`) in
+       `flowchart` / `graph` blocks MUST be wrapped in double quotes
+       when the label contains any of `(`, `)`, `[`, `]`, `{`, `}`.
+       Other characters work unquoted.
 
            A -->|hello (world)| B          ← FAIL
            A -->|"hello (world)"| B        ← OK
 
-    2. `subgraph` titles MUST be wrapped in double quotes when they
-       contain `(` or `)`.
+    2. [unquoted-subgraph-title]  `subgraph` titles MUST be wrapped in
+       double quotes when they contain `(` or `)`.
 
            subgraph My (Group)             ← FAIL
            subgraph "My (Group)"           ← OK
 
-    3. Post-10.2.3 node-shape syntax `<id>@{ ... }` is not supported.
+    3. [new-shape-syntax]  Post-10.2.3 node-shape syntax `<id>@{ ... }`
+       is not supported.
 
            A@{ shape: rect, label: "x" }   ← FAIL
 
-    4. Beta diagram types introduced after 10.2.3 are not supported.
+    4. [beta-diagram-type]  Beta diagram types introduced after 10.2.3
+       are not supported.
 
-           block-beta                       ← FAIL
-           quadrantChart                    ← FAIL
-           xychart-beta                     ← FAIL
-           sankey-beta, packet-beta,
-           architecture-beta, treemap,
-           radar, kanban                    ← FAIL
+           block-beta, quadrantChart, xychart-beta, sankey-beta,
+           packet-beta, architecture-beta, treemap, radar, kanban
+                                            ← FAIL
 
-    5. Literal `\n` (backslash + n) in `flowchart` / `graph` block
-       bodies renders as the two characters `\` and `n` on Mermaid
-       10.2.3 + GitHub + many other renderers (mermaid-js #376 /
-       gh-aw #18131). Use the HTML break tag `<br/>` instead.
+    5. [literal-backslash-n]  Literal `\n` (backslash + n) in
+       `flowchart` / `graph` block bodies renders as the two
+       characters `\` and `n` on Mermaid 10.2.3 + GitHub + many
+       other renderers. Use the HTML break tag `<br/>` instead.
 
-           A[patterns.md\nRefreshManager]   ← FAIL
-           A[patterns.md<br/>RefreshManager] ← OK
+           A[xxx-api\n(Domain API)]        ← FAIL
+           A["xxx-api<br/>(Domain API)"]   ← OK
+
+    6. [bare-br-tag]  `<br>` (no closing slash) renders visually on
+       GitHub but produces invalid SVG and breaks Confluence,
+       Notion exports, and any strict XML/SVG parser. Use `<br/>`.
+
+           A[line1<br>line2]               ← FAIL
+           A[line1<br/>line2]              ← OK
 
 Usage:
-    python3 mermaid_validate.py FILE [FILE ...]
+    python3 mermaid_lint.py FILE [FILE ...]
 
 Output (machine + human readable):
     STATUS=PASS|FAIL
     BLOCKS_CHECKED=<N>
     Followed by one line per finding:
-        ERROR: <file>:<line>: <message>
+        ERROR: <file>:<line>: [<rule>] <message>
 
 Exit codes:
     0 — all blocks pass
@@ -77,6 +98,10 @@ EDGE_LABEL_RE = re.compile(r"\|([^|\n]*)\|")
 SUBGRAPH_RE = re.compile(r"^\s*subgraph\s+(.*?)\s*$")
 NEW_SHAPE_RE = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*@\{")
 LITERAL_BACKSLASH_N_RE = re.compile(r"\\n")
+# Bare <br> with no closing slash, allowing optional whitespace and
+# common attribute-less form. Matches <br>, <br >, <BR>, but NOT <br/>
+# or <br />.
+BARE_BR_RE = re.compile(r"<br(?:\s*)>", re.IGNORECASE)
 
 BETA_DIAGRAM_TYPES = (
     "block-beta",
@@ -93,6 +118,10 @@ BETA_DIAGRAM_TYPES = (
 FLOWCHART_PREFIXES = ("flowchart", "graph")
 
 EDGE_LABEL_BAD_CHARS = "()[]{}"
+
+# Characters that REQUIRE a quoted label in flowchart-family diagrams.
+# These break unquoted labels (parsed as syntax tokens by mermaid).
+LABEL_NEEDS_QUOTING_CHARS = "()[]{}\"<>|"
 
 
 @dataclass
@@ -211,6 +240,17 @@ def find_literal_backslash_n_issue(line: str) -> bool:
     return bool(LITERAL_BACKSLASH_N_RE.search(line))
 
 
+def find_bare_br_issue(line: str) -> bool:
+    """Return True iff line contains a bare `<br>` (no closing slash).
+
+    Bare `<br>` renders visually on GitHub but produces invalid SVG
+    and fails strict XML parsers (Confluence storage format, Notion
+    exports, many wiki engines). Always use `<br/>` (XHTML-style
+    self-closing tag) inside mermaid labels.
+    """
+    return bool(BARE_BR_RE.search(line))
+
+
 def find_beta_diagram_issue(diagram_type: str) -> str | None:
     """Return the diagram type if it is a post-10.2.3 beta type."""
     if diagram_type in BETA_DIAGRAM_TYPES:
@@ -313,6 +353,22 @@ def lint_block(block: MermaidBlock, file: str) -> list[Issue]:
                     )
                 )
 
+            if find_bare_br_issue(line_for_lint):
+                issues.append(
+                    Issue(
+                        file=file,
+                        line=line_no,
+                        rule="bare-br-tag",
+                        message=(
+                            "line contains a bare '<br>' tag (no closing "
+                            "slash); this is invalid XML/SVG and fails on "
+                            "Confluence storage format, Notion exports, and "
+                            "strict wiki engines — replace every '<br>' "
+                            "with '<br/>' (self-closing)"
+                        ),
+                    )
+                )
+
     return issues
 
 
@@ -322,6 +378,54 @@ def _strip_line_comment(line: str) -> str:
     if idx < 0:
         return line
     return line[:idx]
+
+
+def escape_label_for_mermaid(text: str) -> str:
+    r"""Convert free-form text into a safe mermaid node-label expression.
+
+    Use this when programmatically building a mermaid diagram from user
+    or persisted data (e.g. a stage label coming from journey.json).
+    The returned string is suitable to drop inside `[...]`, `(...)`,
+    `{...}`, or as a subgraph title.
+
+    Transformations:
+
+    - Real newlines (`\n`, `\r\n`, `\r`) → `<br/>`
+    - Literal backslash-n (`\\n` written by the model) → `<br/>`
+    - Embedded double quotes → `&quot;` HTML entity (mermaid-supported)
+    - Wraps the whole result in double quotes IFF the ORIGINAL text
+      contained any character from LABEL_NEEDS_QUOTING_CHARS (parens,
+      brackets, braces, double quote, angle bracket, pipe) OR any
+      newline (which becomes `<br/>` and therefore needs quoting).
+
+    Examples:
+
+        escape_label_for_mermaid("xxx-api\n(Domain API)")
+        → '"xxx-api<br/>(Domain API)"'
+
+        escape_label_for_mermaid("Simple")
+        → 'Simple'
+
+        escape_label_for_mermaid('He said "hi"')
+        → '"He said &quot;hi&quot;"'
+    """
+    if text is None:
+        return '""'
+    s = str(text)
+    s = s.replace("\r\n", "\n").replace("\r", "\n")
+    # Decide on quoting from the ORIGINAL text BEFORE we replace `"`
+    # with `&quot;` (which would otherwise hide the trigger).
+    needs_quotes = (
+        "\n" in s
+        or "\\n" in s
+        or any(ch in s for ch in LABEL_NEEDS_QUOTING_CHARS)
+    )
+    s = s.replace("\\n", "<br/>")
+    s = s.replace("\n", "<br/>")
+    s = s.replace('"', "&quot;")
+    if needs_quotes:
+        return f'"{s}"'
+    return s
 
 
 def lint_file(path: Path) -> tuple[int, list[Issue]]:
@@ -338,7 +442,7 @@ def main(argv: list[str] | None = None) -> int:
     args = list(argv if argv is not None else sys.argv[1:])
     if not args:
         print(
-            "usage: mermaid_validate.py FILE [FILE ...]",
+            "usage: mermaid_lint.py FILE [FILE ...]",
             file=sys.stderr,
         )
         return 2
