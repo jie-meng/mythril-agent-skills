@@ -15,7 +15,7 @@ python3 preview.py
 
 This launches a local web server on `http://localhost:8765` and opens the browser automatically. Press `Ctrl+C` to stop. Requires only Python 3.10+ standard library.
 
-## The three views
+## The four views
 
 A toolbar in the top-right of every view switches between them. Each has a keyboard shortcut.
 
@@ -26,6 +26,7 @@ Default. Shows the entire journey as a horizontal flow of stage cards with conne
 - Stage label and summary
 - Emotion strip (a row of colored dots, one per step, colored by the step's emotion)
 - Step count
+- **Screen thumbnail strip** — every screen belonging to this stage rendered as a tiny preview chip. Click a thumbnail to jump straight into Flow view on that screen.
 
 Pan: click-drag empty space. Zoom: mouse-wheel, pinch, or `+` / `-` keys. `0` resets zoom.
 
@@ -42,27 +43,49 @@ Drill-down for one stage. Shows all of its steps side-by-side as columns:
 - Pain points (red)
 - Opportunities (green)
 - Metrics (cards)
-- Inline wireframe (if present)
+- **Screen chips** — clickable references to screens this step displays (`📱 PIN entry`, `🖥 Main menu`). Clicking a chip opens Flow view on that screen.
 
 Navigate stages: `←` / `→` arrow keys, or click the stage chips in the breadcrumb.
 
+### Flow view (`F`) — new
+
+Where wireframes and click flows live. Three-pane layout:
+
+- **Left nav** — every screen, grouped by `stage_id`. Click any screen to load it.
+- **Center stage** — the current screen rendered at full device-frame size. Every interactive element has a blue dashed outline and a numbered hotspot bubble. Hover any hotspot to see its destination (`→ Main menu · trigger: tap`). Click to jump.
+- **Right panel** — current screen's metadata + a list of all outgoing transitions, each clickable. Below that: a **mini flow graph** showing where this screen sits in the screen-to-screen graph (incoming and outgoing edges, current screen highlighted).
+
+Keyboard:
+- `J` / `K` — previous / next screen in left-nav order
+- `Enter` — follow the default transition (the one marked `is_default: true`)
+- `1`–`9` — follow the n-th outgoing transition (by hotspot number)
+- `Backspace` / `Esc` — back to previous screen (browser history)
+- `Space` — start/pause auto-play (advances along `is_default` transitions, respects `delay_ms`)
+
 ### Presenter view (`P`)
 
-Full-screen, one stage per slide. Designed for screen-share demos to stakeholders.
+Full-screen demo. One stage per slide for journey storytelling, with a **"Run screens"** button that switches to in-slide screen playback when you want to walk through the UI.
 
 - Big stage title and summary on top
 - 3-column layout: actions + touchpoints + thoughts
 - Speaker notes (`stage.notes`) docked at the bottom — visible only on the presenter's screen if they're using a second monitor, otherwise on the main slide
 - Progress dots top-right show position in the journey
+- **Screen flip-book** — when a stage has `screen_refs`, a small button "Run screens (Space)" appears. Press it (or `Space`) to switch into screen playback mode: the slide is replaced by the screens of this stage in order. `Space` advances along `is_default` transitions; `←` goes back. `Esc` returns to the stage slide.
 
-Controls: `←` / `→` advance; `Esc` exits to map; `B` blanks the screen (useful when discussion goes off the slide).
+Controls:
+- `←` / `→` — advance stages (in stage mode) or screens (in screen mode)
+- `Space` — start auto-play / advance one screen
+- `Esc` — exit screen mode; or exit presenter
+- `B` — blank screen (useful when discussion goes off-slide)
 
 ## Tips for presenting to stakeholders
 
 1. **Open in presenter mode from the start** — `index.html#present`. Or set the URL hash to `#present/<stage-id>` to start on a specific stage.
-2. **Test screen-share zoom** — presenter mode uses 24 px body text by default; if your screen-share scales down, increase via `Cmd/Ctrl + +` in the browser.
-3. **Have JOURNEY.md open on a second tab** — for stakeholder questions that go deeper than the slide can show.
-4. **Don't open Stage view during a live demo** — it's information-dense; better for design review sessions than for stakeholder demos.
+2. **Use the F view for design review.** Walk reviewers through each screen, hovering hotspots to show interactions. Click to jump along the happy path.
+3. **Use the P view for narrative pitches.** Tell the story one stage at a time, hit `Space` to "run the screens" when a stage's UI matters.
+4. **Test screen-share zoom** — presenter mode uses 24 px body text by default; if your screen-share scales down, increase via `Cmd/Ctrl + +` in the browser.
+5. **Have JOURNEY.md open on a second tab** — for stakeholder questions that go deeper than the slide can show.
+6. **Don't open Stage view during a live demo** — it's information-dense; better for design review sessions than for stakeholder demos.
 
 ## Sharing the journey with others
 
@@ -70,7 +93,7 @@ The workspace is fully portable. Zip the entire workspace directory (`<workspace
 
 For online sharing (e.g. a Confluence page or wiki):
 
-- Take screenshots of the map view and key stages
+- Take screenshots of the map view, the Flow view of key screens, and key stages
 - Or commit the workspace to a git repo with GitHub Pages enabled — `index.html` works as-is on Pages
 
 ## URL hash routes (for deep linking)
@@ -81,7 +104,10 @@ The renderer treats the URL hash as a router so you can link to specific views:
 |---|---|
 | (empty) or `#map` | Map view, all stages |
 | `#stage/<stage-id>` | Stage view focused on that stage |
+| `#flow` | Flow view, first screen |
+| `#flow/<screen-id>` | Flow view focused on that screen |
 | `#present` | Presenter view, first stage |
 | `#present/<stage-id>` | Presenter view starting on that stage |
+| `#present/<stage-id>/screens` | Presenter view in screen-playback mode for that stage |
 
 This makes it easy to drop a deep link into a Slack message or Jira ticket.

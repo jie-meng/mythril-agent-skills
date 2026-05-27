@@ -34,6 +34,17 @@ _One sentence summarizing this stage._
 
 ### _(add more stages as you map them)_
 
+## Screens & Transitions
+
+_Visual screens with controls live in the renderer's **Flow view** (`F` shortcut).
+Each screen is defined once in `journey.json` `screens[]` with `layout` + `transitions[]`,
+and referenced from steps via `screen_refs`. See the renderer for the live tree —
+this section is only a brief textual index._
+
+| Screen | Kind | Stage | Outgoing |
+|---|---|---|---|
+| _(empty — fill as you design screens in Pass C)_ | | | |
+
 ## Open Questions
 
 - _Anything ambiguous, contested, or pending research goes here_
@@ -46,10 +57,12 @@ _One sentence summarizing this stage._
 ---
 
 > **How to view this journey visually:** double-click `index.html` in this directory.
-> Switch views with `M` (map) / `S` (stage) / `P` (presenter). See `README.md` for details.
+> Switch views with `M` (map) / `S` (stage) / `F` (flow / screens) / `P` (presenter). See `README.md` for details.
 >
 > **Authoring note (sync):** this file and `journey.json` must stay in sync. After any
-> change to either, run: `python3 SKILL_PATH/scripts/validate_sync.py .`
+> change to either, run BOTH validators:
+> `python3 SKILL_PATH/scripts/validate_sync.py    .`
+> `python3 SKILL_PATH/scripts/validate_screens.py .`
 >
 > **Authoring note (mermaid line breaks):** inside any ` ```mermaid ` block, use
 > `<br/>` for line breaks — never `\n`. On most renderers (GitHub, Mermaid 10.x,

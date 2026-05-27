@@ -1,65 +1,88 @@
 /* ============================================================
-   user-journey renderer
+   user-journey renderer (v2)
    Vanilla JS, zero dependencies. Reads two inlined JSON blocks
-   (#journey-data and #design-tokens) and renders three views:
-   map / stage / present. Hash routing keeps deep links stable.
+   (#journey-data and #design-tokens) and renders four views:
+   map / stage / flow / present.
+
+   Hash routing supports two stable forms — both work:
+     #map | #/map
+     #stage/<id> | #/stage/<id>
+     #flow/<screen-id> | #/flow/<screen-id>
+     #present[/<stage-id>][/screens]
    ============================================================ */
 (function () {
   "use strict";
 
   const I18N = {
     en: {
-      map: "Map", stage: "Stage", present: "Present",
+      map: "Map", stage: "Stage", flow: "Flow", present: "Present", screens: "Screens",
       open: "Open ›",
       actions: "Actions", touchpoints: "Touchpoints", thoughts: "Thoughts",
       pain: "Pain points", opps: "Opportunities", metrics: "Metrics",
       stages_count: n => `${n} stage${n === 1 ? "" : "s"}`,
       steps_count: n => `${n} step${n === 1 ? "" : "s"}`,
-      hint_map: "Drag to pan · scroll to zoom · click a stage to drill in",
-      hint_stage: "← → switch stage · S to back to map · P to present",
-      hint_present: "← → next/prev · B to blank · Esc to exit",
+      screens_count: n => `${n} screen${n === 1 ? "" : "s"}`,
+      hint_map: "Drag to pan · scroll to zoom · click a stage to drill in · click a screen thumbnail to jump to Flow",
+      hint_stage: "← → switch stage · S to back to map · F to see screens · P to present",
+      hint_flow: "J/K prev/next screen · Enter follow default · 1–9 follow transition · Space auto-play · Backspace go back",
+      hint_present: "← → next/prev · Space to run screens for current stage · B to blank · Esc to exit",
       no_steps: "No steps yet — this stage is a skeleton.",
+      no_screens: "No screens yet — add screens[] entries in journey.json so the Flow view has something to show.",
       blank: "Blank",
       prev: "Prev",
       next: "Next",
       exit: "Exit",
+      run_screens: "Run screens (Space)",
+      back_to_stage: "Back to stage",
+      kind: "Kind",
+      stage_lbl: "Stage",
+      transitions_lbl: "Transitions",
+      incoming_lbl: "Used by",
+      neighbors_lbl: "Mini flow",
+      no_transitions: "No outgoing transitions.",
+      no_referrers: "Not referenced by any step.",
+      hotspot_legend: "Blue outlines = tappable. Hover for destination, click to follow.",
     },
     zh: {
-      map: "地图", stage: "阶段", present: "演示",
+      map: "地图", stage: "阶段", flow: "屏流", present: "演示", screens: "屏",
       open: "查看 ›",
       actions: "行动", touchpoints: "触点", thoughts: "想法",
       pain: "痛点", opps: "机会", metrics: "指标",
       stages_count: n => `${n} 个阶段`,
       steps_count: n => `${n} 个步骤`,
-      hint_map: "拖动画布平移 · 滚轮缩放 · 点击阶段进入详情",
-      hint_stage: "← → 切换阶段 · 按 S 回到地图 · 按 P 演示",
-      hint_present: "← → 翻页 · 按 B 黑屏 · Esc 退出",
+      screens_count: n => `${n} 个屏`,
+      hint_map: "拖动画布平移 · 滚轮缩放 · 点击阶段进入详情 · 点击屏缩略图进入 Flow",
+      hint_stage: "← → 切换阶段 · S 回到地图 · F 看屏 · P 演示",
+      hint_flow: "J/K 上下屏 · Enter 主路径 · 1–9 跳第 N 个跳转 · Space 自动播放 · Backspace 后退",
+      hint_present: "← → 翻页 · Space 进入当前阶段的屏播放 · B 黑屏 · Esc 退出",
       no_steps: "还没填步骤——这是骨架阶段。",
+      no_screens: "还没有屏——在 journey.json 的 screens[] 里加入屏,Flow 视图才会有内容。",
       blank: "黑屏",
       prev: "上一页",
       next: "下一页",
       exit: "退出",
+      run_screens: "演示屏 (Space)",
+      back_to_stage: "回到阶段",
+      kind: "类型",
+      stage_lbl: "阶段",
+      transitions_lbl: "跳转",
+      incoming_lbl: "被引用于",
+      neighbors_lbl: "相邻屏",
+      no_transitions: "没有外向跳转。",
+      no_referrers: "没有任何步骤引用此屏。",
+      hotspot_legend: "蓝色虚线为可点击热区,悬停看跳转,点击跟随。",
     },
   };
 
   const EMOTION_ORDER = ["delighted", "happy", "neutral", "frustrated", "blocked"];
 
-  /* ---------- Token injection ------------------------------ */
+  const SCREEN_KIND_ICONS = {
+    "mobile-screen": "📱", "tablet-screen": "📱", "desktop-window": "🖥",
+    "atm-screen": "🏧", "kiosk-screen": "🖼", "tv-screen": "📺",
+    "email": "📧", "modal": "▢", "notification": "🔔",
+  };
 
-  function flattenTokens(tokens, prefix, out) {
-    out = out || {};
-    if (!tokens || typeof tokens !== "object") return out;
-    for (const key of Object.keys(tokens)) {
-      const value = tokens[key];
-      const path = prefix ? `${prefix}-${key}` : key;
-      if (value && typeof value === "object" && !Array.isArray(value)) {
-        flattenTokens(value, path, out);
-      } else {
-        out[path] = value;
-      }
-    }
-    return out;
-  }
+  /* ---------- Token injection ------------------------------ */
 
   function applyDesignTokens(design) {
     if (!design) return;
@@ -107,12 +130,20 @@
 
   async function loadJSONFile(path) {
     try {
-      const res = await fetch(path);
+      const res = await fetch(path + (path.includes("?") ? "" : "?_=" + Date.now()));
       if (!res.ok) return null;
       return await res.json();
     } catch {
       return null;
     }
+  }
+
+  async function fetchText(path) {
+    try {
+      const res = await fetch(path + (path.includes("?") ? "" : "?_=" + Date.now()));
+      if (!res.ok) return null;
+      return await res.text();
+    } catch { return null; }
   }
 
   /* ---------- App state ------------------------------------ */
@@ -123,14 +154,86 @@
     t: I18N.en,
     view: "map",
     activeStageIdx: 0,
+    activeScreenId: null,
     presentIdx: 0,
+    presentScreenMode: false,
+    presentScreenIdx: 0,
     zoom: 1,
     pan: { x: 0, y: 0 },
+    autoplayTimer: null,
+    flowHistory: [],
+    screenIndex: new Map(),
+    stepRefsByScreen: new Map(),
+    inboundByScreen: new Map(),
+    outboundByScreen: new Map(),
   };
 
   function t(key, ...args) {
     const v = state.t[key];
     return typeof v === "function" ? v(...args) : v || key;
+  }
+
+  /* ---------- Indexing ------------------------------------- */
+
+  function rebuildIndexes() {
+    state.screenIndex = new Map();
+    state.stepRefsByScreen = new Map();
+    state.inboundByScreen = new Map();
+    state.outboundByScreen = new Map();
+    const screens = state.data?.screens || [];
+    screens.forEach(s => {
+      if (!s || !s.id) return;
+      state.screenIndex.set(s.id, s);
+      state.stepRefsByScreen.set(s.id, []);
+      state.inboundByScreen.set(s.id, []);
+      state.outboundByScreen.set(s.id, []);
+    });
+    (state.data?.stages || []).forEach((stage, stageIdx) => {
+      (stage.steps || []).forEach((step, stepIdx) => {
+        (step.screen_refs || []).forEach(ref => {
+          if (state.stepRefsByScreen.has(ref)) {
+            state.stepRefsByScreen.get(ref).push({ stage, stageIdx, step, stepIdx });
+          }
+        });
+      });
+    });
+    screens.forEach(s => {
+      (s.transitions || []).forEach(tx => {
+        if (!tx || !tx.to_screen) return;
+        const tgt = state.inboundByScreen.get(tx.to_screen);
+        if (tgt) tgt.push({ from: s.id, tx });
+        const src = state.outboundByScreen.get(s.id);
+        if (src) src.push(tx);
+      });
+    });
+  }
+
+  function getScreensByStage() {
+    const map = new Map();
+    (state.data?.stages || []).forEach(s => map.set(s.id, []));
+    map.set("__unstaged__", []);
+    (state.data?.screens || []).forEach(screen => {
+      const sid = screen.stage_id && map.has(screen.stage_id) ? screen.stage_id : "__unstaged__";
+      map.get(sid).push(screen);
+    });
+    return map;
+  }
+
+  function getScreensForStage(stage) {
+    if (!stage) return [];
+    // Screens directly tagged with this stage_id, in source order.
+    const byTag = (state.data?.screens || []).filter(s => s.stage_id === stage.id);
+    // Plus screens referenced from any step of this stage that are not already included.
+    const seen = new Set(byTag.map(s => s.id));
+    (stage.steps || []).forEach(step => {
+      (step.screen_refs || []).forEach(ref => {
+        if (!seen.has(ref) && state.screenIndex.has(ref)) {
+          byTag.push(state.screenIndex.get(ref));
+          seen.add(ref);
+        }
+      });
+    });
+    return byTag;
   }
 
   /* ---------- Topbar / shortcuts --------------------------- */
@@ -153,16 +256,55 @@
 
   function setupShortcuts() {
     document.addEventListener("keydown", e => {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
       const k = e.key.toLowerCase();
-      if (k === "m") switchView("map");
-      else if (k === "s") switchView("stage");
-      else if (k === "p") switchView("present");
-      else if (k === "escape") {
-        if (state.view === "present") { document.body.classList.remove("is-blanked"); switchView("map"); }
-      } else if (k === "b" && state.view === "present") {
+      // Global view switching
+      if (k === "m") { switchView("map"); return; }
+      if (k === "s") { switchView("stage"); return; }
+      if (k === "f") { switchView("flow"); return; }
+      if (k === "p") { switchView("present"); return; }
+
+      if (k === "escape") {
+        if (state.view === "present") {
+          if (state.presentScreenMode) {
+            stopPresentScreenMode();
+          } else {
+            document.body.classList.remove("is-blanked");
+            switchView("map");
+          }
+        }
+        return;
+      }
+      if (k === "b" && state.view === "present") {
         document.body.classList.toggle("is-blanked");
-      } else if (k === "arrowleft") navigateBack();
+        return;
+      }
+
+      if (state.view === "flow") {
+        if (k === "j") { flowGotoOffset(1); e.preventDefault(); return; }
+        if (k === "k") { flowGotoOffset(-1); e.preventDefault(); return; }
+        if (k === "enter") { flowFollowDefault(); e.preventDefault(); return; }
+        if (k === "backspace") { flowGoBack(); e.preventDefault(); return; }
+        if (k === " ") { toggleFlowAutoplay(); e.preventDefault(); return; }
+        const idx = parseInt(k, 10);
+        if (Number.isInteger(idx) && idx >= 1 && idx <= 9) {
+          flowFollowNth(idx - 1);
+          e.preventDefault();
+          return;
+        }
+      }
+
+      if (state.view === "present" && k === " ") {
+        if (state.presentScreenMode) {
+          presentScreenAdvance();
+        } else {
+          startPresentScreenMode();
+        }
+        e.preventDefault();
+        return;
+      }
+
+      if (k === "arrowleft") navigateBack();
       else if (k === "arrowright") navigateForward();
       else if (k === "+" || k === "=") { state.zoom = Math.min(2.5, state.zoom + 0.1); applyMapTransform(); }
       else if (k === "-") { state.zoom = Math.max(0.3, state.zoom - 0.1); applyMapTransform(); }
@@ -175,8 +317,12 @@
       state.activeStageIdx = Math.max(0, state.activeStageIdx - 1);
       renderStage();
     } else if (state.view === "present") {
-      state.presentIdx = Math.max(0, state.presentIdx - 1);
-      renderPresent();
+      if (state.presentScreenMode) {
+        presentScreenRewind();
+      } else {
+        state.presentIdx = Math.max(0, state.presentIdx - 1);
+        renderPresent();
+      }
     }
   }
   function navigateForward() {
@@ -185,8 +331,12 @@
       state.activeStageIdx = Math.min(last, state.activeStageIdx + 1);
       renderStage();
     } else if (state.view === "present") {
-      state.presentIdx = Math.min(last, state.presentIdx + 1);
-      renderPresent();
+      if (state.presentScreenMode) {
+        presentScreenAdvance();
+      } else {
+        state.presentIdx = Math.min(last, state.presentIdx + 1);
+        renderPresent();
+      }
     }
   }
 
@@ -196,13 +346,16 @@
     opts = opts || {};
     state.view = view;
     document.querySelectorAll(".view").forEach(v => (v.hidden = true));
-    document.getElementById(`view-${view}`).hidden = false;
+    const target = document.getElementById(`view-${view}`);
+    if (!target) return;
+    target.hidden = false;
     document.querySelectorAll(".view-btn").forEach(b => {
       const on = b.dataset.view === view;
       b.classList.toggle("is-active", on);
       b.setAttribute("aria-pressed", on ? "true" : "false");
     });
     document.body.classList.toggle("is-presenting", view === "present");
+    stopFlowAutoplay();
 
     const hintEl = document.getElementById("status-hint");
     if (view === "map") {
@@ -211,8 +364,12 @@
     } else if (view === "stage") {
       hintEl.textContent = t("hint_stage");
       renderStage();
+    } else if (view === "flow") {
+      hintEl.textContent = t("hint_flow");
+      renderFlow();
     } else if (view === "present") {
       hintEl.textContent = t("hint_present");
+      if (!opts.keepPresentMode) state.presentScreenMode = false;
       renderPresent();
     }
 
@@ -220,17 +377,23 @@
       let hash = `#${view}`;
       if (view === "stage" && state.data?.stages[state.activeStageIdx]) {
         hash = `#stage/${state.data.stages[state.activeStageIdx].id}`;
+      } else if (view === "flow" && state.activeScreenId) {
+        hash = `#flow/${state.activeScreenId}`;
       } else if (view === "present" && state.data?.stages[state.presentIdx]) {
         hash = `#present/${state.data.stages[state.presentIdx].id}`;
+        if (state.presentScreenMode) hash += "/screens";
       }
       if (location.hash !== hash) history.replaceState(null, "", hash);
     }
   }
 
   function applyHashRoute() {
-    const h = (location.hash || "").replace(/^#/, "");
+    // Accept both #foo and #/foo styles.
+    const h = (location.hash || "").replace(/^#\/?/, "");
     if (!h) { switchView("map", { fromHash: true }); return; }
-    const [view, id] = h.split("/");
+    const parts = h.split("/");
+    const view = parts[0];
+    const id = parts[1];
     if (view === "map") { switchView("map", { fromHash: true }); return; }
     if (view === "stage" || view === "present") {
       if (id) {
@@ -240,10 +403,22 @@
           else state.presentIdx = idx;
         }
       }
-      switchView(view, { fromHash: true });
-    } else {
-      switchView("map", { fromHash: true });
+      if (view === "present" && parts[2] === "screens") {
+        state.presentScreenMode = true;
+        switchView("present", { fromHash: true, keepPresentMode: true });
+      } else {
+        switchView(view, { fromHash: true });
+      }
+      return;
     }
+    if (view === "flow") {
+      if (id && state.screenIndex.has(id)) {
+        state.activeScreenId = id;
+      }
+      switchView("flow", { fromHash: true });
+      return;
+    }
+    switchView("map", { fromHash: true });
   }
 
   /* ---------- Map view ------------------------------------- */
@@ -306,6 +481,31 @@
         dot.title = step.id || "";
         emotions.appendChild(dot);
       });
+
+      // Append per-stage screen thumbnails strip
+      const screens = getScreensForStage(stage);
+      if (screens.length && window.UJWireframe) {
+        const strip = document.createElement("div");
+        strip.className = "stage-card-screens";
+        screens.forEach(screen => {
+          const wrap = document.createElement("button");
+          wrap.className = "stage-card-screen";
+          wrap.type = "button";
+          wrap.title = `${screen.title || screen.id} (${screen.kind || "screen"}) — open in Flow`;
+          wrap.appendChild(window.UJWireframe.renderThumbnail(screen));
+          const label = document.createElement("span");
+          label.className = "stage-card-screen-label";
+          label.textContent = screen.title || screen.id;
+          wrap.appendChild(label);
+          wrap.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            state.activeScreenId = screen.id;
+            switchView("flow");
+          });
+          strip.appendChild(wrap);
+        });
+        card.appendChild(strip);
+      }
 
       if (idx === state.activeStageIdx) card.classList.add("is-active");
       card.addEventListener("click", () => {
@@ -432,10 +632,25 @@
           ul.appendChild(li);
         });
       }
-      const wfBlock = col.querySelector(".step-wireframe");
-      if (step.wireframe && window.UJWireframe) {
-        wfBlock.hidden = false;
-        wfBlock.appendChild(window.UJWireframe.render(step.wireframe));
+      const screensBlock = col.querySelector(".step-screens");
+      const refs = step.screen_refs || [];
+      const resolvedRefs = refs.map(r => state.screenIndex.get(r)).filter(Boolean);
+      if (resolvedRefs.length) {
+        screensBlock.hidden = false;
+        const host = screensBlock.querySelector(".step-screens");
+        host.innerHTML = "";
+        resolvedRefs.forEach(screen => {
+          const c = document.createElement("button");
+          c.className = "step-screen-chip";
+          c.type = "button";
+          const icon = SCREEN_KIND_ICONS[screen.kind] || "▢";
+          c.innerHTML = `<span class="step-screen-chip-icon">${icon}</span><span class="step-screen-chip-label">${escapeHTML(screen.title || screen.id)}</span>`;
+          c.addEventListener("click", () => {
+            state.activeScreenId = screen.id;
+            switchView("flow");
+          });
+          host.appendChild(c);
+        });
       }
       col.querySelectorAll("[data-i18n]").forEach(el => {
         const text = t(el.dataset.i18n);
@@ -452,6 +667,300 @@
       li.textContent = s;
       ul.appendChild(li);
     });
+  }
+
+  /* ---------- Flow view (new) ------------------------------ */
+
+  function ensureActiveScreenId() {
+    const screens = state.data?.screens || [];
+    if (state.activeScreenId && state.screenIndex.has(state.activeScreenId)) return;
+    state.activeScreenId = screens[0]?.id || null;
+  }
+
+  function renderFlow() {
+    ensureActiveScreenId();
+    const nav = document.getElementById("flow-nav");
+    const stageHost = document.getElementById("flow-stage");
+    const panel = document.getElementById("flow-panel");
+    nav.innerHTML = ""; stageHost.innerHTML = ""; panel.innerHTML = "";
+
+    const screens = state.data?.screens || [];
+    if (!screens.length) {
+      stageHost.innerHTML = `<p style="padding: var(--space-xl); color: var(--color-secondary); max-width: 60ch;">${escapeHTML(t("no_screens"))}</p>`;
+      return;
+    }
+
+    const grouped = getScreensByStage();
+    (state.data?.stages || []).forEach(stage => {
+      const items = grouped.get(stage.id) || [];
+      if (!items.length) return;
+      const sec = document.createElement("div");
+      sec.className = "flow-nav-section";
+      const lbl = document.createElement("div");
+      lbl.className = "flow-nav-section-label";
+      lbl.textContent = stage.label;
+      sec.appendChild(lbl);
+      items.forEach(screen => sec.appendChild(makeFlowNavItem(screen)));
+      nav.appendChild(sec);
+    });
+    const unstaged = grouped.get("__unstaged__") || [];
+    if (unstaged.length) {
+      const sec = document.createElement("div");
+      sec.className = "flow-nav-section";
+      const lbl = document.createElement("div");
+      lbl.className = "flow-nav-section-label";
+      lbl.textContent = "—";
+      sec.appendChild(lbl);
+      unstaged.forEach(screen => sec.appendChild(makeFlowNavItem(screen)));
+      nav.appendChild(sec);
+    }
+
+    const screen = state.screenIndex.get(state.activeScreenId);
+    if (!screen) {
+      stageHost.innerHTML = `<p style="padding: var(--space-xl); color: var(--color-secondary);">screen '${escapeHTML(state.activeScreenId || "")}' not found</p>`;
+      return;
+    }
+
+    const stageOfScreen = (state.data?.stages || []).find(s => s.id === screen.stage_id);
+    const header = document.createElement("div");
+    header.className = "flow-stage-header";
+    header.innerHTML = `
+      <span class="flow-stage-title">${escapeHTML(screen.title || screen.id)}</span>
+      <span class="flow-stage-sub">${escapeHTML(stageOfScreen ? stageOfScreen.label + " · " : "")}${escapeHTML(screen.kind || "screen")}</span>
+    `;
+    stageHost.appendChild(header);
+
+    const screenHost = document.createElement("div");
+    screenHost.className = "flow-screen-host";
+    const frame = window.UJWireframe.renderScreen(screen, {
+      size: "full",
+      hotspots: true,
+      onJump: (toScreenId) => flowGoto(toScreenId, { push: true }),
+    });
+    if (frame) screenHost.appendChild(frame);
+    stageHost.appendChild(screenHost);
+
+    renderFlowPanel(panel, screen);
+  }
+
+  function makeFlowNavItem(screen) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "flow-nav-item" + (screen.id === state.activeScreenId ? " is-active" : "");
+    btn.innerHTML = `
+      <span class="flow-nav-icon">${SCREEN_KIND_ICONS[screen.kind] || "▢"}</span>
+      <span class="flow-nav-title">${escapeHTML(screen.title || screen.id)}</span>
+    `;
+    btn.addEventListener("click", () => flowGoto(screen.id, { push: true }));
+    return btn;
+  }
+
+  function renderFlowPanel(panel, screen) {
+    panel.innerHTML = "";
+
+    const stageOfScreen = (state.data?.stages || []).find(s => s.id === screen.stage_id);
+    const meta = document.createElement("div");
+    meta.className = "flow-panel-meta";
+    meta.innerHTML = `
+      <div><strong>${escapeHTML(t("kind"))}:</strong> ${escapeHTML(screen.kind || "—")}</div>
+      <div><strong>${escapeHTML(t("stage_lbl"))}:</strong> ${escapeHTML(stageOfScreen ? stageOfScreen.label : "—")}</div>
+    `;
+    panel.appendChild(meta);
+    if (screen.notes) {
+      const notes = document.createElement("div");
+      notes.className = "flow-panel-meta";
+      notes.style.fontStyle = "italic";
+      notes.textContent = screen.notes;
+      panel.appendChild(notes);
+    }
+
+    const legend = document.createElement("div");
+    legend.className = "flow-panel-meta";
+    legend.textContent = t("hotspot_legend");
+    panel.appendChild(legend);
+
+    // Outgoing transitions
+    const outBlk = document.createElement("div");
+    const outH = document.createElement("h4");
+    outH.textContent = t("transitions_lbl");
+    outBlk.appendChild(outH);
+    const outList = document.createElement("div");
+    outList.className = "flow-transitions";
+    const txs = state.outboundByScreen.get(screen.id) || [];
+    if (!txs.length) {
+      const p = document.createElement("p");
+      p.className = "flow-panel-meta";
+      p.textContent = t("no_transitions");
+      outBlk.appendChild(p);
+    } else {
+      txs.forEach((tx, idx) => outList.appendChild(makeTransitionRow(tx, idx + 1)));
+      outBlk.appendChild(outList);
+    }
+    panel.appendChild(outBlk);
+
+    // Incoming references (steps + screens that point here)
+    const inBlk = document.createElement("div");
+    const inH = document.createElement("h4");
+    inH.textContent = t("incoming_lbl");
+    inBlk.appendChild(inH);
+    const refs = state.stepRefsByScreen.get(screen.id) || [];
+    const tgts = state.inboundByScreen.get(screen.id) || [];
+    if (!refs.length && !tgts.length) {
+      const p = document.createElement("p");
+      p.className = "flow-panel-meta";
+      p.textContent = t("no_referrers");
+      inBlk.appendChild(p);
+    } else {
+      const inList = document.createElement("div");
+      inList.className = "flow-incoming";
+      refs.forEach(r => {
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "flow-incoming-item";
+        const label = `${r.stage.label} · step ${r.stepIdx + 1}`;
+        row.textContent = label;
+        row.style.cursor = "pointer";
+        row.style.textAlign = "left";
+        row.style.background = "transparent";
+        row.style.border = "0";
+        row.style.padding = "2px 0";
+        row.title = `Go to Stage view ${r.stageIdx + 1}`;
+        row.addEventListener("click", () => {
+          state.activeStageIdx = r.stageIdx;
+          switchView("stage");
+        });
+        inList.appendChild(row);
+      });
+      tgts.forEach(({ from, tx }) => {
+        const fromScreen = state.screenIndex.get(from);
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "flow-incoming-item";
+        row.style.cursor = "pointer";
+        row.style.textAlign = "left";
+        row.style.background = "transparent";
+        row.style.border = "0";
+        row.style.padding = "2px 0";
+        row.textContent = `${fromScreen ? (fromScreen.title || fromScreen.id) : from}: ${tx.label || tx.trigger || "tap"}`;
+        row.addEventListener("click", () => flowGoto(from, { push: true }));
+        inList.appendChild(row);
+      });
+      inBlk.appendChild(inList);
+    }
+    panel.appendChild(inBlk);
+
+    // Mini flow graph: incoming + current + outgoing
+    const miniH = document.createElement("h4");
+    miniH.textContent = t("neighbors_lbl");
+    panel.appendChild(miniH);
+    const mini = document.createElement("div");
+    mini.className = "flow-mini-graph";
+    const seenIds = new Set();
+    function addLine(id, current) {
+      if (!id || seenIds.has(id)) return;
+      seenIds.add(id);
+      const s = state.screenIndex.get(id);
+      const node = document.createElement("div");
+      node.className = "flow-mini-node" + (current ? " is-current" : "");
+      node.textContent = s ? (s.title || s.id) : id;
+      mini.appendChild(node);
+    }
+    tgts.slice(0, 4).forEach(({ from }) => addLine(from, false));
+    addLine(screen.id, true);
+    txs.slice(0, 4).forEach(tx => addLine(tx.to_screen, false));
+    panel.appendChild(mini);
+  }
+
+  function makeTransitionRow(tx, n) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "flow-transition" + (tx.is_default ? " is-default" : "") + (tx.is_error_path ? " is-error" : "");
+    row.innerHTML = `
+      <span class="flow-transition-num">${n}</span>
+      <span class="flow-transition-body">
+        <div class="flow-transition-label">${escapeHTML(tx.label || tx.to_screen)}</div>
+        <div class="flow-transition-meta">${escapeHTML(tx.from_element)} · ${escapeHTML(tx.trigger || "tap")} → ${escapeHTML(tx.to_screen)}${tx.delay_ms ? ` · ${tx.delay_ms}ms` : ""}${tx.is_default ? " · default" : ""}${tx.is_error_path ? " · error" : ""}</div>
+      </span>
+    `;
+    row.addEventListener("click", () => flowGoto(tx.to_screen, { push: true }));
+    return row;
+  }
+
+  function flowGoto(screenId, opts) {
+    opts = opts || {};
+    if (!state.screenIndex.has(screenId)) return;
+    if (opts.push && state.activeScreenId && state.activeScreenId !== screenId) {
+      state.flowHistory.push(state.activeScreenId);
+      if (state.flowHistory.length > 100) state.flowHistory.shift();
+    }
+    state.activeScreenId = screenId;
+    if (state.view !== "flow") {
+      switchView("flow");
+    } else {
+      renderFlow();
+      let hash = `#flow/${screenId}`;
+      if (location.hash !== hash) history.replaceState(null, "", hash);
+    }
+  }
+
+  function flowGoBack() {
+    if (!state.flowHistory.length) return;
+    const prev = state.flowHistory.pop();
+    state.activeScreenId = prev;
+    renderFlow();
+    let hash = `#flow/${prev}`;
+    if (location.hash !== hash) history.replaceState(null, "", hash);
+  }
+
+  function flowGotoOffset(delta) {
+    const ids = (state.data?.screens || []).map(s => s.id);
+    if (!ids.length) return;
+    const cur = Math.max(0, ids.indexOf(state.activeScreenId));
+    const next = Math.max(0, Math.min(ids.length - 1, cur + delta));
+    flowGoto(ids[next], { push: true });
+  }
+
+  function flowFollowDefault() {
+    const screen = state.screenIndex.get(state.activeScreenId);
+    if (!screen) return;
+    const txs = screen.transitions || [];
+    const def = txs.find(t => t.is_default) || txs[0];
+    if (def) flowGoto(def.to_screen, { push: true });
+  }
+
+  function flowFollowNth(idx) {
+    const screen = state.screenIndex.get(state.activeScreenId);
+    if (!screen) return;
+    const txs = screen.transitions || [];
+    const t = txs[idx];
+    if (t) flowGoto(t.to_screen, { push: true });
+  }
+
+  function toggleFlowAutoplay() {
+    if (state.autoplayTimer) {
+      stopFlowAutoplay();
+    } else {
+      runFlowAutoplay();
+    }
+  }
+  function stopFlowAutoplay() {
+    if (state.autoplayTimer) {
+      clearTimeout(state.autoplayTimer);
+      state.autoplayTimer = null;
+    }
+  }
+  function runFlowAutoplay() {
+    stopFlowAutoplay();
+    const screen = state.screenIndex.get(state.activeScreenId);
+    if (!screen) return;
+    const def = (screen.transitions || []).find(t => t.is_default);
+    if (!def) return;
+    const delay = Math.max(400, def.delay_ms || 1200);
+    state.autoplayTimer = setTimeout(() => {
+      flowGoto(def.to_screen, { push: true });
+      // chain
+      runFlowAutoplay();
+    }, delay);
   }
 
   /* ---------- Present view --------------------------------- */
@@ -473,8 +982,52 @@
     });
     view.appendChild(progress);
 
+    if (state.presentScreenMode) {
+      renderPresentScreens(view, stage);
+    } else {
+      renderPresentStage(view, stage);
+    }
+
+    if (stage.notes) {
+      const notes = document.createElement("div");
+      notes.className = "present-notes";
+      notes.textContent = stage.notes;
+      view.appendChild(notes);
+    }
+
+    const controls = document.createElement("div");
+    controls.className = "present-controls";
+    if (state.presentScreenMode) {
+      controls.innerHTML = `
+        <button data-act="prev">← ${t("prev")}</button>
+        <button data-act="back-stage">${t("back_to_stage")}</button>
+        <button data-act="exit">${t("exit")}</button>
+        <button data-act="next">${t("next")} →</button>
+      `;
+      controls.querySelector("[data-act='back-stage']").addEventListener("click", stopPresentScreenMode);
+    } else {
+      controls.innerHTML = `
+        <button data-act="prev">← ${t("prev")}</button>
+        <button data-act="blank">${t("blank")}</button>
+        <button data-act="exit">${t("exit")}</button>
+        <button data-act="next">${t("next")} →</button>
+      `;
+      controls.querySelector("[data-act='blank']").addEventListener("click", () => document.body.classList.toggle("is-blanked"));
+    }
+    controls.querySelector("[data-act='prev']").addEventListener("click", navigateBack);
+    controls.querySelector("[data-act='next']").addEventListener("click", navigateForward);
+    controls.querySelector("[data-act='exit']").addEventListener("click", () => {
+      document.body.classList.remove("is-blanked");
+      state.presentScreenMode = false;
+      switchView("map");
+    });
+    view.appendChild(controls);
+  }
+
+  function renderPresentStage(view, stage) {
     const sec = document.createElement("section");
     sec.className = "present-stage";
+    const stages = state.data.stages;
     sec.innerHTML = `
       <div class="present-eyebrow">${String(state.presentIdx + 1).padStart(2, "0")} / ${String(stages.length).padStart(2, "0")} · ${escapeHTML(state.data?.title || "")}</div>
       <h2 class="present-title">${escapeHTML(stage.label)}</h2>
@@ -492,28 +1045,98 @@
       grid.appendChild(buildPresentCol(t("thoughts"), allThoughts));
       sec.appendChild(grid);
     }
-    view.appendChild(sec);
 
-    if (stage.notes) {
-      const notes = document.createElement("div");
-      notes.className = "present-notes";
-      notes.textContent = stage.notes;
-      view.appendChild(notes);
+    const screens = getScreensForStage(stage);
+    if (screens.length) {
+      const runBtn = document.createElement("button");
+      runBtn.className = "present-run-btn";
+      runBtn.textContent = `▷ ${t("run_screens")} · ${t("screens_count", screens.length)}`;
+      runBtn.addEventListener("click", startPresentScreenMode);
+      sec.appendChild(runBtn);
     }
 
-    const controls = document.createElement("div");
-    controls.className = "present-controls";
-    controls.innerHTML = `
-      <button data-act="prev">← ${t("prev")}</button>
-      <button data-act="blank">${t("blank")}</button>
-      <button data-act="exit">${t("exit")}</button>
-      <button data-act="next">${t("next")} →</button>
-    `;
-    controls.querySelector("[data-act='prev']").addEventListener("click", navigateBack);
-    controls.querySelector("[data-act='next']").addEventListener("click", navigateForward);
-    controls.querySelector("[data-act='blank']").addEventListener("click", () => document.body.classList.toggle("is-blanked"));
-    controls.querySelector("[data-act='exit']").addEventListener("click", () => { document.body.classList.remove("is-blanked"); switchView("map"); });
-    view.appendChild(controls);
+    view.appendChild(sec);
+  }
+
+  function renderPresentScreens(view, stage) {
+    const screens = getScreensForStage(stage);
+    if (!screens.length) {
+      stopPresentScreenMode();
+      return;
+    }
+    state.presentScreenIdx = Math.max(0, Math.min(state.presentScreenIdx, screens.length - 1));
+    const screen = screens[state.presentScreenIdx];
+    const sec = document.createElement("section");
+    sec.className = "present-screens";
+    const frame = window.UJWireframe.renderScreen(screen, {
+      size: "presenter",
+      hotspots: true,
+      onJump: () => presentScreenAdvance(),
+    });
+    if (frame) sec.appendChild(frame);
+    const label = document.createElement("div");
+    label.className = "present-screen-label";
+    label.textContent = `${state.presentScreenIdx + 1}/${screens.length}  ·  ${screen.title || screen.id}  (${screen.kind || "screen"})`;
+    sec.appendChild(label);
+    view.appendChild(sec);
+  }
+
+  function startPresentScreenMode() {
+    const stage = state.data?.stages?.[state.presentIdx];
+    if (!stage) return;
+    const screens = getScreensForStage(stage);
+    if (!screens.length) return;
+    state.presentScreenMode = true;
+    state.presentScreenIdx = 0;
+    renderPresent();
+    // Update hash
+    let hash = `#present/${stage.id}/screens`;
+    if (location.hash !== hash) history.replaceState(null, "", hash);
+  }
+
+  function stopPresentScreenMode() {
+    state.presentScreenMode = false;
+    renderPresent();
+    const stage = state.data?.stages?.[state.presentIdx];
+    let hash = stage ? `#present/${stage.id}` : "#present";
+    if (location.hash !== hash) history.replaceState(null, "", hash);
+  }
+
+  function presentScreenAdvance() {
+    const stage = state.data?.stages?.[state.presentIdx];
+    if (!stage) return;
+    const screens = getScreensForStage(stage);
+    if (!screens.length) return;
+    const currentScreen = screens[state.presentScreenIdx];
+    const def = (currentScreen?.transitions || []).find(t => t.is_default);
+    if (def) {
+      const idx = screens.findIndex(s => s.id === def.to_screen);
+      if (idx >= 0) {
+        state.presentScreenIdx = idx;
+        renderPresent();
+        return;
+      }
+    }
+    if (state.presentScreenIdx < screens.length - 1) {
+      state.presentScreenIdx += 1;
+      renderPresent();
+    } else {
+      // End of screen flow — advance to next stage's stage view automatically
+      if (state.presentIdx < state.data.stages.length - 1) {
+        state.presentIdx += 1;
+        state.presentScreenMode = false;
+        renderPresent();
+      }
+    }
+  }
+
+  function presentScreenRewind() {
+    if (state.presentScreenIdx > 0) {
+      state.presentScreenIdx -= 1;
+      renderPresent();
+    } else {
+      stopPresentScreenMode();
+    }
   }
 
   function buildPresentCol(label, items) {
@@ -556,9 +1179,10 @@
     const designMd = await fetchText("DESIGN.md");
     if (designMd) design = parseDesignFrontmatter(designMd);
     if (!design) design = loadInlineJSON("design-tokens");
-    state.data = data || { title: "Untitled", language: "en", personas: [], stages: [] };
+    state.data = data || { title: "Untitled", language: "en", personas: [], stages: [], screens: [] };
     state.design = design;
     state.t = I18N[state.data.language] || I18N.en;
+    rebuildIndexes();
 
     applyDesignTokens(design);
     setupTopbar();
@@ -568,18 +1192,7 @@
     window.addEventListener("hashchange", applyHashRoute);
   }
 
-  async function fetchText(path) {
-    try {
-      const res = await fetch(path);
-      if (!res.ok) return null;
-      return await res.text();
-    } catch { return null; }
-  }
-
-  /* ---------- Minimal YAML-frontmatter extractor ----------
-     Only used as a fallback when DESIGN.md isn't inlined. We
-     extract `colors:`, `typography:`, `rounded:`, `spacing:`
-     using a small hand-written parser — no YAML lib. */
+  /* ---------- Minimal YAML-frontmatter extractor ---------- */
 
   function parseDesignFrontmatter(md) {
     const m = md.match(/^---\s*\n([\s\S]*?)\n---/);

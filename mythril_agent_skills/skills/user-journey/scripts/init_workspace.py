@@ -15,8 +15,9 @@ Creates the standard workspace layout:
         ├── render.js
         └── wireframe.js
 
-The workspace is also initialized as an independent git repo so changes are
-tracked. Uses only Python 3.10+ standard library — no third-party deps.
+Uses only Python 3.10+ standard library — no third-party deps. Git is not
+touched: if you want version control, manage it from the parent directory
+that holds your journeys.
 """
 
 from __future__ import annotations
@@ -25,7 +26,6 @@ import argparse
 import json
 import re
 import shutil
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -90,7 +90,13 @@ def build_initial_journey(
     persona_role: str,
     language: str,
 ) -> dict:
-    """Build the initial journey.json structure (1 persona, 3 skeleton stages)."""
+    """Build the initial journey.json structure.
+
+    v2 skeleton: 1 persona, 3 stages (each with one example step), and
+    a starter `screens[]` array with 3 screens wired with `transitions[]`.
+    The example screens use only common primitives so a fresh workspace
+    immediately renders something meaningful in the Flow view.
+    """
     if language not in VALID_LANGUAGES:
         raise ValueError(
             f"language must be one of {sorted(VALID_LANGUAGES)}, got {language!r}"
@@ -103,6 +109,22 @@ def build_initial_journey(
             "用户完成首次核心动作",
             "用户形成稳定使用习惯",
         ]
+        step_labels = ["浏览首页", "完成首个任务", "重复使用"]
+        screen_title_welcome = "欢迎页"
+        screen_title_main = "主功能页"
+        screen_title_done = "完成页"
+        screen_text_welcome = "欢迎使用本产品"
+        screen_text_welcome_sub = "1 分钟即可完成首个任务"
+        screen_text_main_h = "今日任务"
+        screen_text_main_sub = "完成下方步骤即可获取奖励"
+        screen_text_done_h = "完成！"
+        screen_text_done_sub = "做得很棒,继续保持"
+        btn_start = "开始"
+        btn_complete = "完成任务"
+        btn_again = "再来一次"
+        tx_start = "点击 开始 → 主功能"
+        tx_complete = "点击 完成任务 → 完成页"
+        tx_again = "点击 再来一次 → 主功能"
     else:
         labels = ["Discover", "Try", "Habit"]
         summaries = [
@@ -110,10 +132,41 @@ def build_initial_journey(
             "User completes the first core action",
             "User forms a stable usage habit",
         ]
+        step_labels = ["Browse landing", "Finish first task", "Return to use again"]
+        screen_title_welcome = "Welcome"
+        screen_title_main = "Main task"
+        screen_title_done = "Done"
+        screen_text_welcome = "Welcome to the product"
+        screen_text_welcome_sub = "Finish your first task in a minute"
+        screen_text_main_h = "Today's task"
+        screen_text_main_sub = "Complete the steps below to unlock the reward"
+        screen_text_done_h = "Done!"
+        screen_text_done_sub = "Nice work, keep it up"
+        btn_start = "Start"
+        btn_complete = "Finish task"
+        btn_again = "Do it again"
+        tx_start = "Tap Start → Main task"
+        tx_complete = "Tap Finish task → Done"
+        tx_again = "Tap Do it again → Main task"
 
     today = datetime.now().strftime("%Y-%m-%d")
+    # English labels yield real slugs; non-ASCII labels (e.g. Chinese)
+    # fall back to "untitled" via slugify, so we use a per-position fallback
+    # to guarantee uniqueness regardless of language.
+    fallback_stage_ids = ["discover", "try", "habit"]
+    stage_ids = [
+        slugify(labels[idx]) if slugify(labels[idx]) != "untitled" else fallback_stage_ids[idx]
+        for idx in range(3)
+    ]
+    fallback_step_ids = ["browse-landing", "finish-first-task", "return-to-use"]
+    step_ids = [
+        slugify(step_labels[idx]) if slugify(step_labels[idx]) != "untitled" else fallback_step_ids[idx]
+        for idx in range(3)
+    ]
+    screen_ids = ["welcome", "main", "done"]
+
     return {
-        "schema_version": "1",
+        "schema_version": "2",
         "title": title,
         "subtitle": subtitle,
         "language": language,
@@ -129,14 +182,112 @@ def build_initial_journey(
         ],
         "stages": [
             {
-                "id": slugify(labels[idx]) or f"stage-{idx + 1}",
+                "id": stage_ids[idx],
                 "label": labels[idx],
                 "summary": summaries[idx],
                 "persona_id": persona_slug,
-                "steps": [],
+                "steps": [
+                    {
+                        "id": step_ids[idx],
+                        "actions": [step_labels[idx]],
+                        "touchpoints": [],
+                        "thoughts": [],
+                        "emotion": "neutral",
+                        "screen_refs": [screen_ids[idx]],
+                    }
+                ],
                 "notes": "",
             }
             for idx in range(3)
+        ],
+        "screens": [
+            {
+                "id": screen_ids[0],
+                "kind": "mobile-screen",
+                "title": screen_title_welcome,
+                "stage_id": stage_ids[0],
+                "layout": {
+                    "type": "stack",
+                    "gap": "lg",
+                    "elements": [
+                        {"type": "header", "label": title},
+                        {"type": "spacer", "size": "md"},
+                        {"type": "image-placeholder", "ratio": "16:9", "label": "Hero"},
+                        {"type": "text", "label": screen_text_welcome, "size": "xl", "weight": "bold"},
+                        {"type": "text", "label": screen_text_welcome_sub, "size": "sm", "color": "secondary"},
+                        {"type": "spacer", "size": "md"},
+                        {"type": "button", "id": "start", "label": btn_start, "variant": "primary", "interactive": True},
+                    ],
+                },
+                "transitions": [
+                    {
+                        "from_element": "start",
+                        "trigger": "tap",
+                        "to_screen": screen_ids[1],
+                        "label": tx_start,
+                        "is_default": True,
+                    }
+                ],
+            },
+            {
+                "id": screen_ids[1],
+                "kind": "mobile-screen",
+                "title": screen_title_main,
+                "stage_id": stage_ids[1],
+                "layout": {
+                    "type": "stack",
+                    "gap": "md",
+                    "elements": [
+                        {"type": "header", "label": screen_title_main, "back": True},
+                        {"type": "text", "label": screen_text_main_h, "size": "lg", "weight": "bold"},
+                        {"type": "text", "label": screen_text_main_sub, "size": "sm", "color": "secondary"},
+                        {"type": "spacer", "size": "md"},
+                        {
+                            "type": "card",
+                            "title": step_labels[1],
+                            "body": "Step 1 of 1",
+                        },
+                        {"type": "spacer", "size": "md"},
+                        {"type": "button", "id": "complete", "label": btn_complete, "variant": "primary", "interactive": True},
+                    ],
+                },
+                "transitions": [
+                    {
+                        "from_element": "complete",
+                        "trigger": "tap",
+                        "to_screen": screen_ids[2],
+                        "label": tx_complete,
+                        "is_default": True,
+                    }
+                ],
+            },
+            {
+                "id": screen_ids[2],
+                "kind": "mobile-screen",
+                "title": screen_title_done,
+                "stage_id": stage_ids[2],
+                "layout": {
+                    "type": "stack",
+                    "gap": "lg",
+                    "elements": [
+                        {"type": "header", "label": screen_title_done},
+                        {"type": "spacer", "size": "lg"},
+                        {"type": "text", "label": screen_text_done_h, "size": "xl", "weight": "bold"},
+                        {"type": "text", "label": screen_text_done_sub, "size": "md", "color": "secondary"},
+                        {"type": "spacer", "size": "md"},
+                        {"type": "button", "id": "again", "label": btn_again, "variant": "secondary", "interactive": True},
+                    ],
+                },
+                "transitions": [
+                    {
+                        "from_element": "again",
+                        "trigger": "tap",
+                        "to_screen": screen_ids[1],
+                        "label": tx_again,
+                        "is_default": True,
+                    }
+                ],
+            },
         ],
         "metadata": {
             "created": today,
@@ -297,27 +448,6 @@ def write_outputs(
     (workspace / "README.md").write_text(readme_text, encoding="utf-8")
 
 
-def git_init(workspace: Path) -> bool:
-    """Initialize the workspace as an independent git repo. Returns True on success."""
-    if (workspace / ".git").exists():
-        return True
-    try:
-        subprocess.run(
-            ["git", "init", "--quiet", "--initial-branch=main"],
-            cwd=workspace,
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        (workspace / ".gitignore").write_text(
-            "__pycache__/\n.DS_Store\n.idea/\n.vscode/\n",
-            encoding="utf-8",
-        )
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
-
-
 # ---------------------------------------------------------------------------
 # CLI orchestration
 # ---------------------------------------------------------------------------
@@ -403,12 +533,10 @@ def run(args: argparse.Namespace) -> int:
         readme_text=readme_text,
     )
 
-    git_ok = git_init(workspace)
     print(f"OK: workspace created at {workspace}")
     print(f"  design style:  {design_path.stem}")
     print(f"  language:      {language}")
     print(f"  stages:        {len(journey['stages'])} (skeleton)")
-    print(f"  git tracked:   {'yes' if git_ok else 'no (git not available)'}")
     print()
     print(f"  open:  double-click {workspace / 'index.html'}")
     print(f"  or:    cd {workspace} && python3 preview.py")

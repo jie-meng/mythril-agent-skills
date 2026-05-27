@@ -37,16 +37,24 @@ Help product managers and business analysts draft user journey maps and lo-fi wi
    | File | Audience | Role |
    |---|---|---|
    | `JOURNEY.md` | Humans (PM/BA/stakeholders) | Business requirements, persona, goals, mermaid flow, written narrative |
-   | `journey.json` | Machine (the renderer) | Structured stages → steps → touchpoints/emotions/pain points/opportunities |
+   | `journey.json` | Machine (the renderer) | Structured stages → steps + top-level `screens[]` (with `transitions[]` between them) |
    | `DESIGN.md` | Visual style (Google open spec) | Colors, typography, components — the CSS reads its tokens |
 
    `index.html` + `assets/*` are **pure renderers** — never hand-edit them.
 
-2. **Conversational, low-friction** — Infer everything possible from the user's message (language, project, persona type). Ask only what is genuinely missing. The user is a PM/BA, not a developer — never talk about HTML/CSS, JSON schemas, or git unless asked.
+2. **Screens-first authoring (when there is UI)** — For any journey that has a digital UI, do NOT settle for a stage map alone. The user wants to see **actual screens with controls** and the **arrows between them**. Workflow:
 
-3. **Resumable** — Any session can be resumed by passing the workspace path. The skill reads all three files to rebuild full context.
+   - Define each unique UI screen once in `journey.json` `screens[]` with `id`, `kind` (mobile/atm/desktop/...), `layout` (containers + interactive elements), and `transitions[]` (which control jumps to which screen, with `from_element`, `trigger`, `to_screen`, `label`, and `is_default: true` on the happy path).
+   - On each step, set `screen_refs: ["screen-id"]` to declare which screens that step displays.
+   - A screen can be referenced by multiple steps — define once, reuse.
 
-4. **Browser-first preview** — Double-clicking `index.html` works in 99% of cases (journey data is inlined). If the user reports a blank page, fall back to `python3 preview.py` for a local HTTP server.
+   Even a 5-stage journey is worth ~6–10 screens. Treat screens as first-class deliverables, not as an afterthought.
+
+3. **Conversational, low-friction** — Infer everything possible from the user's message (language, project, persona type). Ask only what is genuinely missing. The user is a PM/BA, not a developer — never talk about HTML/CSS, JSON schemas, or git unless asked.
+
+4. **Resumable** — Any session can be resumed by passing the workspace path. The skill reads all three files to rebuild full context.
+
+5. **Browser-first preview** — Double-clicking `index.html` works in 99% of cases (journey data is inlined). If the user reports a blank page, fall back to `python3 preview.py` for a local HTTP server.
 
 ## Phase 1 — Intake & Workspace Bootstrap
 
@@ -87,7 +95,7 @@ python3 SKILL_PATH/scripts/init_workspace.py \
   --design-style corporate-clean
 ```
 
-The script creates the workspace with template `JOURNEY.md`, empty `journey.json` (just the persona scaffold), the chosen `DESIGN.md`, `index.html`, `assets/`, `preview.py`, and `README.md`. It also runs `git init` so changes are tracked.
+The script creates the workspace with template `JOURNEY.md`, empty `journey.json` (just the persona scaffold), the chosen `DESIGN.md`, `index.html`, `assets/`, `preview.py`, and `README.md`. The workspace is **not** turned into a git repo — assume the user keeps multiple journeys under a parent repo they manage themselves.
 
 **Design-style presets** ship with the skill at `SKILL_PATH/templates/design-styles/`:
 
@@ -130,15 +138,34 @@ For each stage, ask or propose:
 
 Encourage the user to think aloud. The skill is the scribe. Update **all three files** after each stage is filled in.
 
-### Pass C — Polish
+### Pass C — Screens & Transitions (when there is UI)
+
+For each stage with digital touchpoints, design the screens **before** declaring done:
+
+1. **List the unique screens** for the whole journey (6–15 is typical). One screen = one rendered UI state, not one moment in time. Reuse "main menu" across stages — define once.
+2. For each screen, decide:
+   - `id` (immutable slug, e.g. `pin-entry`)
+   - `kind` (`mobile-screen` / `atm-screen` / `desktop-window` / ... — see `references/WIREFRAMES.md`)
+   - `title` (display name)
+   - `stage_id` (primary stage)
+   - `layout` — use `stack` / `grid` / `row` containers with real interactive elements (`button`, `keypad-button`, `form-field`, `list-item`, `chip`, ...). Set `interactive: true` and a stable `id` on every element a user must tap.
+3. For each screen, design the **outgoing transitions**:
+   - One `is_default: true` on the happy path
+   - Additional transitions for back / cancel / error / alt paths (`is_error_path: true` if applicable)
+   - Use `from_element: "any"` for "tap anywhere to continue" splash screens
+4. **Wire steps to screens** — set each step's `screen_refs: ["screen-id", ...]` in document order.
+
+The renderer's Flow view (`F`) will then show every screen at full size with hotspot bubbles on interactive elements. Click a hotspot or use `Enter` (default) / `1`–`9` (n-th transition) / `Space` (auto-play) to walk the flow.
+
+### Pass D — Polish
 
 - Read `JOURNEY.md` end-to-end with the user; tighten language; add a TL;DR at top.
-- Ensure mermaid diagram in `JOURNEY.md` matches the stages in `journey.json` (use `validate_sync.py`).
-- Suggest 2–3 hero touchpoint wireframes worth rendering as inline mini-mocks (the renderer supports a `wireframe` block per step — see `references/WIREFRAMES.md`).
+- Ensure the mermaid diagram in `JOURNEY.md` matches the stages in `journey.json` (use `validate_sync.py`).
+- Walk each screen in Flow view; check that every interactive element either has a transition or is intentionally inert.
 
 ## Phase 3 — Sync Discipline (MANDATORY)
 
-Two gates run after every change. Both must pass before declaring an edit done.
+Three gates run after every change. All three must pass before declaring an edit done.
 
 ### Gate 1 — Sync Validator
 
@@ -148,7 +175,15 @@ python3 SKILL_PATH/scripts/validate_sync.py "<workspace-path>"
 
 Compares `JOURNEY.md` + `journey.json` and reports drift (missing stages, mismatched step counts, undefined personas). **Never** declare an edit complete with drift outstanding.
 
-### Gate 2 — Mermaid Compatibility
+### Gate 2 — Screens Validator
+
+```bash
+python3 SKILL_PATH/scripts/validate_screens.py "<workspace-path>"
+```
+
+Validates screens and transitions: unique screen ids, every `transitions.to_screen` and `step.screen_refs` resolves, every `transitions.from_element` exists in the layout, at most one `is_default: true` per screen, plus orphan / dead-end warnings. See [`references/SCREENS-RULES.md`](references/SCREENS-RULES.md).
+
+### Gate 3 — Mermaid Compatibility
 
 ```bash
 python3 SKILL_PATH/scripts/mermaid_lint.py "<workspace-path>/JOURNEY.md"
@@ -171,11 +206,11 @@ label = escape_label_for_mermaid(stage["name"])  # handles \n, quotes, parens
 
 `init_workspace.py` already does this — apply the same when you hand-edit the diagram or add new nodes.
 
-### When the user requests an edit (add a stage, rename a step, change emotion):
+### When the user requests an edit (add a stage, rename a step, add a screen, rewire a transition, change emotion):
 
 1. Update `journey.json` (the structured source).
 2. Regenerate the affected section of `JOURNEY.md` from the JSON (prose + mermaid). Use `<br/>` for any line break inside a mermaid label.
-3. Run `validate_sync.py` AND `mermaid_lint.py`. Both must pass.
+3. Run `validate_sync.py`, `validate_screens.py`, AND `mermaid_lint.py`. All must pass.
 4. Tell the user what changed in plain language.
 
 ## Phase 4 — Resumption (User Returns Later)
@@ -197,8 +232,10 @@ When the user says "I'll present this to stakeholders" / "演示一下" / "give 
 
 1. Tell them to open `index.html` and press `P` for presenter mode (or click the "Present" button top-right).
 2. In presenter mode: arrow keys advance / go back; one stage per slide; large type; speaker notes (from `journey.json`'s `notes` field) appear at the bottom.
-3. Press `Esc` to exit.
-4. If they want to share via screen-share, `python3 preview.py` opens a local server — link only works on their machine but avoids any `file://` quirks during screen capture.
+3. **For UI walkthroughs**, press `Space` inside a stage that has `screen_refs` to enter screen-playback mode — every screen of that stage plays back in order, with hotspots and transitions visible. `Space` again advances along the `is_default` transition; `←` rewinds; `Esc` returns to the stage slide.
+4. For free-form screen exploration outside the presenter, the Flow view (`F`) lets the reviewer click any screen and walk it interactively.
+5. Press `Esc` (in stage mode) to exit presenter.
+6. If they want to share via screen-share, `python3 preview.py` opens a local server — link only works on their machine but avoids any `file://` quirks during screen capture.
 
 ## How to View / Run the Output (Tell the User This)
 
@@ -206,11 +243,12 @@ Standard answer for every workspace:
 
 > **打开方式**：双击工作区里的 `index.html` 即可在浏览器中打开。
 >
-> 三种视图（右上角切换或键盘快捷键）：
+> 四种视图（右上角切换或键盘快捷键）：
 >
 > - **Map** — 全景旅程地图（M）
 > - **Stage** — 单阶段细节（S，左右键切换阶段）
-> - **Presenter** — 全屏演示模式（P，左右键翻页，Esc 退出）
+> - **Flow** — 屏与跳转（F，左侧选屏，热区悬停看跳转，点击跳屏）
+> - **Presenter** — 全屏演示（P，左右键翻页，Space 进入屏播放，Esc 退出）
 >
 > 如果双击打开后页面空白（极少数浏览器禁用 `file://` 读 JSON），在工作区运行 `python3 preview.py`，自动打开 `http://localhost:8765`。
 
@@ -224,20 +262,26 @@ This skill does NOT require API tokens or credentials. It writes only to the use
 |---|---|
 | Bootstrap script | `SKILL_PATH/scripts/init_workspace.py` |
 | Sync validator | `SKILL_PATH/scripts/validate_sync.py` |
+| Screens validator | `SKILL_PATH/scripts/validate_screens.py` |
 | Mermaid lint (compat gate) | `SKILL_PATH/scripts/mermaid_lint.py` |
 | HTML/CSS/JS templates | `SKILL_PATH/templates/workspace/` |
 | Design-style presets | `SKILL_PATH/templates/design-styles/*.md` |
 | Wireframe primitives reference | `SKILL_PATH/references/WIREFRAMES.md` |
 | journey.json schema reference | `SKILL_PATH/references/SCHEMA.md` |
 | Sync rules reference | `SKILL_PATH/references/SYNC-RULES.md` |
+| Screens rules reference | `SKILL_PATH/references/SCREENS-RULES.md` |
 | Mermaid rules reference | `SKILL_PATH/references/MERMAID-RULES.md` |
+| Presenting & views reference | `SKILL_PATH/references/PRESENTING.md` |
 
 ## Anti-Patterns to Avoid
 
 - ❌ Editing `index.html` or `assets/*` by hand — they are generated renderers
 - ❌ Updating `JOURNEY.md` without also updating `journey.json` (or vice versa)
 - ❌ Talking to the PM about HTML/CSS/JSON internals
+- ❌ Treating screens as optional. For any journey with UI, the screens-first principle (Pass C) is mandatory — a stakeholder asks "show me the screen" and that needs to work.
+- ❌ Defining the same screen twice with different ids — define once in `screens[]`, reference by id from multiple steps.
+- ❌ Forgetting to mark a happy-path transition with `is_default: true` — Presenter auto-play and `Enter` to advance both depend on it.
 - ❌ Cramming more than 7 stages into one journey — split it
 - ❌ Asking 10 questions upfront — infer and confirm in ONE block
-- ❌ Declaring done without running BOTH `validate_sync.py` AND `mermaid_lint.py`
+- ❌ Declaring done without running ALL THREE: `validate_sync.py`, `validate_screens.py`, AND `mermaid_lint.py`
 - ❌ Using `\n` for line breaks inside a mermaid label — use `<br/>` instead (see `references/MERMAID-RULES.md`)

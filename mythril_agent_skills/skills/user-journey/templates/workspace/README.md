@@ -25,27 +25,32 @@ python3 preview.py
 
 Opens [http://localhost:8765](http://localhost:8765) automatically. Press `Ctrl+C` to stop. Requires only Python 3.10+.
 
-## Three views
+## Four views
 
 | View | Shortcut | Use for |
 |---|---|---|
-| **Map** | `M` | Overview of all stages — pan/zoom with mouse, `+`/`-`/`0` keys |
-| **Stage** | `S` | Drill into one stage — `←` `→` to switch stages |
-| **Presenter** | `P` | Full-screen demo — `←` `→` to advance, `B` to blank, `Esc` to exit |
+| **Map** | `M` | Overview of all stages — pan/zoom with mouse, `+`/`-`/`0` keys, screen thumbnails per stage |
+| **Stage** | `S` | Drill into one stage — `←` `→` to switch stages, click a screen chip to jump to Flow |
+| **Flow** | `F` | Walk individual screens with controls — `J`/`K` prev/next, `Enter` follow default, `1`–`9` follow n-th transition, `Space` auto-play, `Backspace` go back, click hotspots to jump |
+| **Presenter** | `P` | Full-screen demo — `←` `→` to advance stages; `Space` to enter screen-playback mode for the current stage; `B` to blank; `Esc` to exit |
 
-You can deep-link to a specific view, e.g. `index.html#present/sign-up` jumps straight into presenter mode on the "sign-up" stage.
+You can deep-link to a specific view, e.g.:
+- `index.html#present/sign-up` — presenter starting on the "sign-up" stage
+- `index.html#flow/pin-entry` — flow view on the "pin-entry" screen
+- `index.html#present/sign-up/screens` — presenter starting in screen playback for that stage
 
 ## Editing the journey
 
 Ask your AI assistant — invoke the `user-journey` skill and give it this directory path. It reads all three files and continues with full context.
 
-If you edit `JOURNEY.md` or `journey.json` by hand, run:
+If you edit `JOURNEY.md` or `journey.json` by hand, run BOTH validators:
 
 ```bash
-python3 SKILL_PATH/scripts/validate_sync.py .
+python3 SKILL_PATH/scripts/validate_sync.py    .
+python3 SKILL_PATH/scripts/validate_screens.py .
 ```
 
-to confirm the two files stay in sync.
+to confirm the journey stays consistent (stages ↔ md ↔ screens ↔ transitions).
 
 ## Changing visual style
 

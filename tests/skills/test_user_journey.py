@@ -129,13 +129,17 @@ class TestBuildInitialJourney:
             persona_role="user",
             language="en",
         )
-        assert out["schema_version"] == "1"
+        assert out["schema_version"] == "2"
         assert out["title"] == "Demo"
         assert out["language"] == "en"
         assert len(out["personas"]) == 1
         assert out["personas"][0]["id"] == "alice"
         assert [s["label"] for s in out["stages"]] == ["Discover", "Try", "Habit"]
-        assert all(s["steps"] == [] for s in out["stages"])
+        # v2 skeleton seeds one example step + one screen ref per stage so
+        # the Flow view has something to render in a brand-new workspace.
+        for stage in out["stages"]:
+            assert len(stage["steps"]) == 1
+            assert stage["steps"][0]["screen_refs"], "every example step has a screen ref"
 
     def test_chinese_skeleton(self):
         out = self.func(
@@ -173,6 +177,31 @@ class TestBuildInitialJourney:
         )
         ids = [s["id"] for s in out["stages"]]
         assert len(ids) == len(set(ids))
+
+    def test_v2_screens_are_present_and_wired(self):
+        out = self.func(
+            title="x", subtitle="", persona_name="a",
+            persona_role="b", language="en",
+        )
+        assert out["schema_version"] == "2"
+        screens = out.get("screens", [])
+        assert len(screens) == 3
+        ids = {s["id"] for s in screens}
+        assert ids == {"welcome", "main", "done"}
+        # every screen has a layout, kind, title, and at least one transition
+        for s in screens:
+            assert s["kind"]
+            assert s["title"]
+            assert s["layout"]["type"] == "stack"
+            assert s["transitions"], "each example screen has an outgoing transition"
+            # exactly one default per screen
+            assert sum(1 for t in s["transitions"] if t.get("is_default")) == 1
+        # every step references its corresponding screen by id
+        step_refs = [
+            stage["steps"][0]["screen_refs"][0]
+            for stage in out["stages"]
+        ]
+        assert step_refs == ["welcome", "main", "done"]
 
 
 # ---------------------------------------------------------------------------
@@ -611,3 +640,234 @@ class TestValidateWorkspace:
         r = self.func(tmp_path)
         assert r["structure_ok"] is True
         assert r["errors"] == []
+
+    def test_schema_v2_is_accepted(self, tmp_path: Path):
+        journey = _good_journey()
+        journey["schema_version"] = "2"
+        journey["screens"] = []
+        (tmp_path / "journey.json").write_text(json.dumps(journey))
+        (tmp_path / "JOURNEY.md").write_text(
+            "# ok\n## Stages\n"
+            "```mermaid\nflowchart LR\n  discover[\"Discover\"]\n```\n"
+            "### 1. Discover\n"
+        )
+        r = self.func(tmp_path)
+        assert r["structure_ok"] is True
+        assert r["errors"] == []
+
+    def test_unsupported_schema_version_errors(self, tmp_path: Path):
+        journey = _good_journey()
+        journey["schema_version"] = "3"
+        (tmp_path / "journey.json").write_text(json.dumps(journey))
+        (tmp_path / "JOURNEY.md").write_text(
+            "# ok\n## Stages\n"
+            "```mermaid\nflowchart LR\n  discover[\"Discover\"]\n```\n"
+            "### 1. Discover\n"
+        )
+        r = self.func(tmp_path)
+        assert any("schema_version" in e for e in r["errors"])
+
+
+# ---------------------------------------------------------------------------
+# validate_screens.collect_element_ids + find_interactive_without_id
+# ---------------------------------------------------------------------------
+
+
+class TestCollectElementIds:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from validate_screens import collect_element_ids
+        self.func = collect_element_ids
+
+    def test_flat_layout(self):
+        layout = {
+            "type": "stack",
+            "elements": [
+                {"type": "button", "id": "go"},
+                {"type": "text", "label": "hi"},
+            ],
+        }
+        assert self.func(layout) == {"go"}
+
+    def test_nested_grid(self):
+        layout = {
+            "type": "stack",
+            "elements": [
+                {
+                    "type": "grid",
+                    "cols": 3,
+                    "elements": [
+                        {"type": "keypad-button", "id": "k1"},
+                        {"type": "keypad-button", "id": "k2"},
+                    ],
+                },
+                {"type": "button", "id": "confirm"},
+            ],
+        }
+        assert self.func(layout) == {"k1", "k2", "confirm"}
+
+    def test_handles_missing_or_string(self):
+        assert self.func(None) == set()
+        assert self.func({}) == set()
+
+
+class TestFindInteractiveWithoutId:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from validate_screens import find_interactive_without_id
+        self.func = find_interactive_without_id
+
+    def test_flags_interactive_without_id(self):
+        layout = {
+            "type": "stack",
+            "elements": [
+                {"type": "button", "label": "go", "interactive": True},
+                {"type": "button", "id": "ok", "label": "ok", "interactive": True},
+            ],
+        }
+        assert self.func(layout) == ["button"]
+
+    def test_ignores_non_interactive(self):
+        layout = {
+            "type": "stack",
+            "elements": [
+                {"type": "text", "label": "hello"},
+                {"type": "button", "label": "go", "interactive": False},
+            ],
+        }
+        assert self.func(layout) == []
+
+
+# ---------------------------------------------------------------------------
+# validate_screens.validate_screens (8 rules)
+# ---------------------------------------------------------------------------
+
+
+def _screen(id_: str, transitions=None, layout=None) -> dict:
+    return {
+        "id": id_,
+        "kind": "mobile-screen",
+        "title": id_,
+        "stage_id": "s1",
+        "layout": layout or {
+            "type": "stack",
+            "elements": [
+                {"type": "button", "id": "go", "label": "Go", "interactive": True},
+            ],
+        },
+        "transitions": transitions or [],
+    }
+
+
+class TestValidateScreens:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from validate_screens import validate_screens
+        self.func = validate_screens
+
+    def test_empty_passes(self):
+        out = self.func([], [])
+        assert out["errors"] == []
+        assert out["warnings"] == []
+
+    def test_unique_screen_ids(self):
+        out = self.func([_screen("a"), _screen("a")], [])
+        assert any("duplicate screen id" in e for e in out["errors"])
+
+    def test_transition_to_missing_screen(self):
+        screens = [
+            _screen("a", transitions=[
+                {"from_element": "go", "trigger": "tap", "to_screen": "ghost",
+                 "label": "go to ghost"},
+            ]),
+        ]
+        out = self.func(screens, [])
+        assert any("'ghost' does not exist" in e for e in out["errors"])
+
+    def test_from_element_missing(self):
+        screens = [
+            _screen("a", transitions=[
+                {"from_element": "nope", "trigger": "tap", "to_screen": "a",
+                 "label": "loop"},
+            ]),
+        ]
+        out = self.func(screens, [])
+        assert any("from_element='nope'" in e for e in out["errors"])
+
+    def test_from_element_any_is_allowed(self):
+        screens = [
+            _screen("a", transitions=[
+                {"from_element": "any", "trigger": "tap", "to_screen": "a",
+                 "label": "tap anywhere"},
+            ]),
+        ]
+        out = self.func(screens, [])
+        assert out["errors"] == []
+
+    def test_step_screen_refs_resolved(self):
+        screens = [_screen("a")]
+        stages = [{
+            "id": "s1", "label": "S1", "steps": [
+                {"id": "t1", "screen_refs": ["a"]},
+                {"id": "t2", "screen_refs": ["ghost"]},
+            ],
+        }]
+        out = self.func(screens, stages)
+        assert any("screen_refs[0]='ghost'" in e for e in out["errors"])
+
+    def test_orphan_screen_warns(self):
+        screens = [_screen("a"), _screen("b")]
+        stages = [{"id": "s1", "label": "S1", "steps": [{"id": "t1", "screen_refs": ["a"]}]}]
+        out = self.func(screens, stages)
+        assert any("'b'" in w and "no incoming" in w for w in out["warnings"])
+
+    def test_multiple_defaults_error(self):
+        screens = [_screen("a", transitions=[
+            {"from_element": "go", "trigger": "tap", "to_screen": "a",
+             "label": "loop1", "is_default": True},
+            {"from_element": "go", "trigger": "tap", "to_screen": "a",
+             "label": "loop2", "is_default": True},
+        ])]
+        out = self.func(screens, [])
+        assert any("is_default=true" in e for e in out["errors"])
+
+    def test_interactive_without_id_warns(self):
+        screens = [{
+            "id": "a", "kind": "mobile-screen", "title": "a",
+            "stage_id": "s1",
+            "layout": {
+                "type": "stack",
+                "elements": [
+                    {"type": "button", "label": "no id", "interactive": True},
+                ],
+            },
+            "transitions": [],
+        }]
+        stages = [{"id": "s1", "label": "S1", "steps": [{"id": "t1", "screen_refs": ["a"]}]}]
+        out = self.func(screens, stages)
+        assert any("without id" in w for w in out["warnings"])
+
+    def test_dead_end_middle_screen_infos(self):
+        screens = [_screen("a"), _screen("b", transitions=[])]
+        stages = [{
+            "id": "s1", "label": "S1", "steps": [
+                {"id": "t1", "screen_refs": ["a"]},
+                {"id": "t2", "screen_refs": ["b"]},
+            ],
+        }, {
+            "id": "s2", "label": "S2", "steps": [
+                {"id": "t3", "screen_refs": ["a"]},
+            ],
+        }]
+        # Link a -> b so b has inbound
+        screens[0]["transitions"] = [
+            {"from_element": "go", "trigger": "tap", "to_screen": "b",
+             "label": "go to b"},
+        ]
+        out = self.func(screens, stages)
+        # b is referenced in step 2 of 2 in stage s1 (last step of that stage)
+        # but stage s1 is NOT the last stage, so it should NOT be flagged as
+        # a "natural terminal screen" — info should mention dead-end.
+        assert any("no outgoing transitions" in i for i in out["info"])
+
+

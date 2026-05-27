@@ -101,12 +101,19 @@ def _slugify(text: str) -> str:
     return text
 
 
+VALID_SCHEMA_VERSIONS = {"1", "2"}
+
+
 def validate_journey_structure(journey: dict) -> list[str]:
-    """Run JSON-only structural validation. Returns a list of error strings."""
+    """Run JSON-only structural validation. Returns a list of error strings.
+
+    Accepts both schema_version "1" (legacy, read-only) and "2" (current).
+    """
     errors: list[str] = []
-    if journey.get("schema_version") != "1":
+    if str(journey.get("schema_version") or "") not in VALID_SCHEMA_VERSIONS:
         errors.append(
-            f"schema_version must be '1', got {journey.get('schema_version')!r}"
+            f"schema_version must be one of {sorted(VALID_SCHEMA_VERSIONS)}, "
+            f"got {journey.get('schema_version')!r}"
         )
     if not journey.get("title"):
         errors.append("title is required")

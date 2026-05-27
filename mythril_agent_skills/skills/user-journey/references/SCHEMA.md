@@ -1,19 +1,36 @@
-# `journey.json` Schema
+# `journey.json` Schema (v2)
 
 The structured source of truth for the journey. `JOURNEY.md` is the human-readable view; `journey.json` is what the renderer (`assets/render.js`) consumes.
 
-Both files MUST stay in sync. Run `scripts/validate_sync.py <workspace>` after every change.
+Three files must stay in sync. Run BOTH validators after every change:
+
+```bash
+python3 SKILL_PATH/scripts/validate_sync.py    <workspace>
+python3 SKILL_PATH/scripts/validate_screens.py <workspace>
+```
+
+## What's new in v2
+
+- Top-level `screens[]` — screens are **first-class entities**, not appendages of a step.
+- `stages[].steps[].screen_refs: string[]` — a step references screens by id, instead of embedding them.
+- `screens[].transitions[]` — screen-to-screen jumps with trigger, source element, target screen, and an optional `is_default` flag for the main path.
+- `screens[].layout` — nested layout containers (`stack` / `grid` / `row`) replace flat element arrays.
+- New interactive element fields: `id`, `interactive`, `state`, `validation`, `icon`, `badge`, `hotspot_number`.
+- New element types: `button`, `keypad-button`, `icon-button`, `divider`, `badge`, `chip`, `progress`.
+
+v1 workspaces (no `screens[]`, `wireframe` embedded in step) are still read by `validate_sync.py` (schema_version `"1"` is accepted), but the renderer's Flow view, the screens validator, and Presenter screen-playback all require v2. To upgrade an old workspace, hand-edit `journey.json` to add a top-level `screens[]` array and `screen_refs` on the affected steps — there is no automated migration.
 
 ## Top-level object
 
 ```json
 {
-  "schema_version": "1",
-  "title": "Food-delivery first-order journey",
-  "subtitle": "From app download to repeat order",
+  "schema_version": "2",
+  "title": "ATM withdrawal journey",
+  "subtitle": "From approach to leaving with cash",
   "language": "en",
   "personas": [ { ... } ],
-  "stages": [ { ... } ],
+  "stages":   [ { ... } ],
+  "screens":  [ { ... } ],
   "metadata": {
     "author": "PM Jane",
     "created": "2026-05-27",
@@ -25,107 +42,185 @@ Both files MUST stay in sync. Run `scripts/validate_sync.py <workspace>` after e
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `schema_version` | string | yes | Always `"1"` for now. |
-| `title` | string | yes | Short title — shows in browser tab and map header. |
+| `schema_version` | string | yes | `"2"` for new workspaces. `"1"` is still accepted by `validate_sync.py` for legacy read-only access — upgrade by hand-editing the file. |
+| `title` | string | yes | Browser tab + map header. |
 | `subtitle` | string | no | One-line scope statement. |
-| `language` | `"en"` \| `"zh"` | yes | Drives the UI labels in `render.js`. |
-| `personas` | Persona[] | yes | At least one. The first is the primary. |
+| `language` | `"en"` \| `"zh"` | yes | Drives UI labels. |
+| `personas` | Persona[] | yes | At least one. First is primary. |
 | `stages` | Stage[] | yes | 3–7 entries. |
-| `metadata` | object | no | Free-form provenance fields. |
+| `screens` | Screen[] | no | Empty array allowed (e.g. a pure-research journey with no UI). |
+| `metadata` | object | no | Free-form provenance. |
 
-## Persona
+## Persona — unchanged from v1
 
 ```json
 {
-  "id": "new-user",
-  "name": "Lily, new user",
-  "role": "First-time food-delivery customer",
-  "goals": ["Order dinner in under 5 minutes", "Find restaurants nearby"],
-  "frustrations": ["Too many forms during signup", "Hidden fees at checkout"],
+  "id": "zhang-ming",
+  "name": "张明",
+  "role": "上班族",
+  "goals": ["快速完成取款"],
+  "frustrations": ["排队等待"],
   "tech_savvy": 3,
-  "context": "On the subway, 5G spotty, holding the phone with one hand"
+  "context": "工作日午休"
 }
 ```
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `id` | slug | yes | `[a-z0-9-]+`, unique within `personas`. |
-| `name` | string | yes | Display name. |
-| `role` | string | yes | One-line role description. |
-| `goals` | string[] | yes | 1–5 goals. |
-| `frustrations` | string[] | no | 0–5 known frustrations. |
-| `tech_savvy` | int 1–5 | no | 1 = novice, 5 = power user. |
-| `context` | string | no | Situational context (location, device, time pressure). |
+| Field | Type | Required |
+|---|---|---|
+| `id` | slug | yes |
+| `name` | string | yes |
+| `role` | string | yes |
+| `goals` | string[] | yes |
+| `frustrations` | string[] | no |
+| `tech_savvy` | int 1–5 | no |
+| `context` | string | no |
 
 ## Stage
 
 ```json
 {
-  "id": "discover",
-  "label": "Discover",
-  "summary": "User learns the app exists and decides to download",
-  "persona_id": "new-user",
+  "id": "approach-insert",
+  "label": "到达 & 插卡",
+  "summary": "用户找到 ATM,插入银行卡,输入密码",
+  "persona_id": "zhang-ming",
   "steps": [ { ... } ],
-  "notes": "Speaker notes for presenter mode (1–3 sentences)."
+  "notes": "Speaker notes (1–3 sentences)."
 }
 ```
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `id` | slug | yes | `[a-z0-9-]+`, unique within `stages`. |
-| `label` | string | yes | Short label shown on the map (≤ 20 chars). |
-| `summary` | string | yes | One-sentence stage summary. |
-| `persona_id` | string | no | Defaults to the first persona. |
-| `steps` | Step[] | yes | 1–8 entries. More than 8 → split into two stages. |
-| `notes` | string | no | Speaker notes shown in presenter mode. |
+| Field | Type | Required |
+|---|---|---|
+| `id` | slug | yes — unique within `stages` |
+| `label` | string | yes — ≤ 20 chars |
+| `summary` | string | yes — one sentence |
+| `persona_id` | string | no — defaults to first persona |
+| `steps` | Step[] | yes — 1–8 entries |
+| `notes` | string | no — speaker notes |
 
 ## Step
 
 ```json
 {
-  "id": "browse-restaurants",
-  "actions": ["Search by cuisine", "Filter by delivery time"],
-  "touchpoints": ["Home screen", "Search results"],
-  "thoughts": ["Will this arrive on time?", "Is the rating real?"],
+  "id": "insert-card",
+  "actions": ["从钱包取出银行卡", "按方向插入卡槽"],
+  "touchpoints": ["银行卡", "ATM 卡槽"],
+  "thoughts": ["哪面朝上?"],
   "emotion": "neutral",
-  "pain_points": ["Filters reset on back navigation"],
-  "opportunities": ["Show ETA badge on each restaurant card"],
-  "metrics": [
-    {"name": "Add-to-cart rate", "target": "> 30%"},
-    {"name": "Search-to-detail clickthrough"}
-  ],
-  "wireframe": {
-    "kind": "mobile-screen",
-    "title": "Search results",
-    "elements": [
-      {"type": "search-bar", "label": "Filters: ramen, < 30 min"},
-      {"type": "list", "items": ["Ippudo · ⭐ 4.5 · 25 min", "Ichiran · ⭐ 4.6 · 35 min"]},
-      {"type": "cta", "label": "Order"}
-    ]
-  }
+  "pain_points": ["插卡方向不明确"],
+  "opportunities": ["卡槽 LED 引导"],
+  "metrics": [{"name": "插卡成功率", "target": "> 98%"}],
+  "screen_refs": ["welcome", "card-insert-anim"]
+}
+```
+
+| Field | Type | Required |
+|---|---|---|
+| `id` | slug | yes — unique within stage |
+| `actions` | string[] | yes |
+| `touchpoints` | string[] | yes |
+| `thoughts` | string[] | yes |
+| `emotion` | enum | yes — `delighted` \| `happy` \| `neutral` \| `frustrated` \| `blocked` |
+| `pain_points` | string[] | no |
+| `opportunities` | string[] | no |
+| `metrics` | Metric[] | no |
+| `screen_refs` | string[] | no — screen ids this step displays; may be empty for non-UI steps (thoughts, offline actions) |
+
+**Note**: v2 step does NOT support an inline `wireframe` field. Define the screen once in `screens[]` and reference it by id. A screen can be referenced by multiple steps (e.g. the "main menu" screen appears in both `browse-menu` and `select-withdrawal`).
+
+## Screen — new in v2
+
+```json
+{
+  "id": "pin-entry",
+  "kind": "atm-screen",
+  "title": "密码输入",
+  "stage_id": "approach-insert",
+  "notes": "防窥设计在此屏最关键",
+  "layout": { ... },
+  "transitions": [ { ... } ]
 }
 ```
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `id` | slug | yes | `[a-z0-9-]+`, unique within the stage. |
-| `actions` | string[] | yes | What the user does — verb-led. |
-| `touchpoints` | string[] | yes | What they interact with (screen / channel). |
-| `thoughts` | string[] | yes | What they're thinking. |
-| `emotion` | enum | yes | `delighted` \| `happy` \| `neutral` \| `frustrated` \| `blocked` |
-| `pain_points` | string[] | no | Known issues at this step. |
-| `opportunities` | string[] | no | Design / product opportunities. |
-| `metrics` | Metric[] | no | Quantitative KPIs tracked at this step. |
-| `wireframe` | Wireframe \| null | no | Optional inline lo-fi mock — see `WIREFRAMES.md`. |
+| `id` | slug | yes | Unique within `screens`. Used in `step.screen_refs` and `transitions.to_screen`. **Immutable** once created. |
+| `kind` | enum | yes | Device frame — see below |
+| `title` | string | yes | Human-readable screen name (shown in Flow nav, hover labels) |
+| `stage_id` | string | no | Which stage this screen primarily belongs to. Used to group screens in the Flow nav and Map view. If absent, the renderer groups by first referencing stage. |
+| `notes` | string | no | Author notes shown in Flow view |
+| `layout` | Layout | yes | Root layout container — see WIREFRAMES.md |
+| `transitions` | Transition[] | no | Outgoing jumps — see below. Empty means "dead end" (final/error screen). |
 
-## Validation rules (enforced by `validate_sync.py`)
+### `screen.kind` values
 
-1. Every `stage.id` and `step.id` is unique within its scope.
+| Kind | Aspect | Use for |
+|---|---|---|
+| `mobile-screen` | 9:19.5 | Phone app |
+| `tablet-screen` | 3:4 | Tablet app |
+| `desktop-window` | 16:10 | Web app, dashboard |
+| `atm-screen` | 4:3 | ATM, kiosk (landscape with side function keys) |
+| `kiosk-screen` | 9:16 | Vertical kiosk |
+| `tv-screen` | 16:9 | TV / smart display |
+| `email` | 3:4 | Transactional email |
+| `modal` | 4:3 | Modal dialog over another screen |
+| `notification` | 8:1 | Push notification, banner |
+
+## Transition — new in v2
+
+```json
+{
+  "from_element": "confirm",
+  "trigger": "tap",
+  "to_screen": "main-menu",
+  "label": "点击确认 → 主菜单",
+  "is_default": true,
+  "is_error_path": false,
+  "delay_ms": 0
+}
+```
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `from_element` | string | yes | Element `id` within this screen's layout that triggers the jump. Special value `"any"` means "any tap anywhere on the screen". |
+| `trigger` | enum | yes | `tap` \| `long-press` \| `swipe` \| `input` \| `insert-card` \| `timeout` \| `auto` |
+| `to_screen` | string | yes | Target `screen.id`. Must exist in `screens[]`. |
+| `label` | string | yes | Human-readable description (shown in Flow view's right panel and hover tooltip). |
+| `is_default` | boolean | no | Default `false`. Marks the main happy-path edge. Used by Presenter auto-play (`Space`). At most ONE default per screen. |
+| `is_error_path` | boolean | no | Default `false`. Renders the edge red and excludes it from auto-play. |
+| `delay_ms` | integer | no | Default `0`. For `trigger: "timeout"` or `trigger: "auto"`, how long auto-play waits before advancing. Useful for processing/loading screens. |
+
+**Triggers**:
+
+- `tap` — user taps/clicks the element
+- `long-press` — user long-presses
+- `swipe` — user swipes
+- `input` — user enters data and submits (forms)
+- `insert-card` — domain-specific: card inserted into reader (ATM/kiosk)
+- `timeout` — automatic after `delay_ms`
+- `auto` — automatic immediately on screen entry (rare; for splash → next)
+
+## Validation rules
+
+Enforced by `validate_sync.py` (structural) and `validate_screens.py` (screens + transitions):
+
+### `validate_sync.py`
+
+1. Every `stage.id`, `step.id`, `persona.id`, `screen.id` is unique within its scope.
 2. Every `step.persona_id` (if present) references a defined persona.
 3. `emotion` is one of the five allowed values.
-4. `stages` array length is in `[1, 7]` — more than 7 raises a warning.
+4. `stages` array length is in `[1, 7]` — more than 7 is an error.
 5. Each stage has at least one step.
-6. The mermaid `flowchart` in `JOURNEY.md` has the same node IDs as `stages[].id`.
-7. The stage count and stage IDs in `JOURNEY.md`'s "Stages" section match `journey.json`.
+6. The mermaid `flowchart` in `JOURNEY.md` has the same node ids as `stages[].id`.
+7. The stage count and stage ids in `JOURNEY.md`'s `## Stages` section match `journey.json`.
 
-Any violation prints a structured error; the AI must fix before continuing.
+### `validate_screens.py` — see SCREENS-RULES.md
+
+1. Screen `id` unique
+2. `transitions.to_screen` resolves
+3. `transitions.from_element` resolves within the screen's layout
+4. `step.screen_refs[]` all resolve
+5. Orphan screens (no incoming reference) → warning
+6. Dead-end non-terminal screens → info
+7. At most one `is_default: true` transition per screen → error
+
+Any violation prints a structured `STATUS=FAIL` report; AI must fix before continuing.

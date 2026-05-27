@@ -25,6 +25,9 @@
       <button data-view="stage" class="view-btn" aria-pressed="false">
         <span class="view-key">S</span><span class="view-label" data-i18n="stage">Stage</span>
       </button>
+      <button data-view="flow" class="view-btn" aria-pressed="false">
+        <span class="view-key">F</span><span class="view-label" data-i18n="flow">Flow</span>
+      </button>
       <button data-view="present" class="view-btn" aria-pressed="false">
         <span class="view-key">P</span><span class="view-label" data-i18n="present">Present</span>
       </button>
@@ -38,6 +41,11 @@
   <main id="main">
     <section id="view-map" class="view view-map" hidden></section>
     <section id="view-stage" class="view view-stage" hidden></section>
+    <section id="view-flow" class="view view-flow" hidden>
+      <aside id="flow-nav" class="flow-nav" aria-label="Screens"></aside>
+      <section id="flow-stage" class="flow-stage" aria-live="polite"></section>
+      <aside id="flow-panel" class="flow-panel" aria-label="Transitions"></aside>
+    </section>
     <section id="view-present" class="view view-present" hidden></section>
   </main>
 
@@ -45,9 +53,10 @@
     <span id="status-hint" class="status-hint"></span>
     <span class="status-spacer"></span>
     <span class="status-shortcuts">
-      <kbd>M</kbd>/<kbd>S</kbd>/<kbd>P</kbd>
+      <kbd>M</kbd>/<kbd>S</kbd>/<kbd>F</kbd>/<kbd>P</kbd>
       &nbsp;<kbd>←</kbd>/<kbd>→</kbd>
       &nbsp;<kbd>+</kbd>/<kbd>-</kbd>/<kbd>0</kbd>
+      &nbsp;<kbd>Space</kbd>
       &nbsp;<kbd>Esc</kbd>
     </span>
   </footer>
@@ -104,7 +113,10 @@
         <h4 class="step-block-label" data-i18n="metrics">Metrics</h4>
         <ul></ul>
       </div>
-      <div class="step-wireframe" hidden></div>
+      <div class="step-block step-screens" hidden>
+        <h4 class="step-block-label" data-i18n="screens">Screens</h4>
+        <div class="step-screens"></div>
+      </div>
     </article>
   </template>
 
