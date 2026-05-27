@@ -280,6 +280,85 @@ Small inline label. `variant`: `accent` | `neutral` | `success` | `warning` | `e
 
 Vertical whitespace inside a `stack`. `size`: `xs` | `sm` | `md` | `lg` | `xl`.
 
+### `side-key-rail` — ATM/kiosk physical function keys
+
+```json
+{
+  "type": "side-key-rail",
+  "side": "right",
+  "keys": [
+    {"id": "k-r1", "label": "取款", "interactive": true},
+    {"id": "k-r2", "label": "存款", "interactive": true},
+    {"id": "k-r3", "label": "查询", "interactive": true},
+    {"id": "k-r4", "label": "退卡", "interactive": true, "variant": "destructive"}
+  ]
+}
+```
+
+Vertical column of physical function keys docked to the **left or right edge** of the screen, with text labels pointing inward — exactly how real ATM and kiosk menus are structured. The label belongs to the on-screen menu item; the physical button is drawn as a colored notch on the bezel.
+
+| Field | Notes |
+|---|---|
+| `side` | `left` \| `right` — which side of the screen the rail docks to |
+| `keys` | Array of 1–6 keys (typical ATM is 4 per side) |
+| Each key | `id`, `label`, optional `interactive`, `variant` (`primary` \| `secondary` \| `destructive`), `disabled` |
+
+Use this on `atm-screen`, `kiosk-screen` (when the kiosk has physical buttons), or any device with hardware function keys. **Do NOT** use a `grid` of `button`s to fake this — the visual is genuinely different, and reviewers can immediately tell ATM vs. mobile.
+
+### `hardware-slot` — physical port indicator on the device bezel
+
+```json
+{
+  "type": "hardware-slot",
+  "id": "slot-cash-out",
+  "slot": "cash-out",
+  "position": "bottom",
+  "label": "请取钞",
+  "interactive": true
+}
+```
+
+Marks a physical port on the device chassis (cash dispenser, card reader, receipt printer, deposit slot, biometric scanner, etc.). Only meaningful when the screen has `chrome: "panel"` enabled — otherwise it renders as a small annotated rectangle inside the screen body as a fallback.
+
+| Field | Notes |
+|---|---|
+| `slot` | `card-reader` \| `cash-out` \| `cash-in` \| `deposit` \| `receipt` \| `biometric` \| `scanner` \| `nfc` \| `pin-pad` \| `custom` |
+| `position` | `top` \| `bottom` \| `left` \| `right` — which edge of the device chassis it sits on. Ignored when `chrome` is off. |
+| `label` | Short caption shown next to the slot (e.g. "请取钞", "Insert card here") |
+| `interactive` | Optional. If true, gets a hotspot bubble — useful for triggering the next screen when the user "inserts a card" or "takes the cash". |
+
+The slot kind drives a small glyph: `▭` for card-reader, `‖‖‖` for cash, `▤` for receipt, `◉` for biometric, etc.
+
+## Device chrome (machine bezel)
+
+For devices where **the physical chassis around the screen matters** — ATMs, kiosks, payment terminals — set the top-level `screen.chrome` field:
+
+```json
+{
+  "id": "main-menu",
+  "kind": "atm-screen",
+  "chrome": "panel",
+  "hardware": [
+    {"slot": "card-reader", "position": "top",    "label": "插卡口"},
+    {"slot": "cash-out",    "position": "bottom", "label": "出钞口"},
+    {"slot": "receipt",     "position": "bottom", "label": "凭条口"}
+  ],
+  "layout": { "...": "normal layout, plus any side-key-rail inside" }
+}
+```
+
+| Field | Notes |
+|---|---|
+| `chrome` | `"none"` (default) \| `"panel"` — wraps the screen frame inside a beige/dark device panel with thick bezels |
+| `hardware` | Array of `hardware-slot`-shaped entries rendered on the bezel (not inside the screen body). Each entry is interpreted the same as inline `hardware-slot` elements. |
+
+When `chrome: "panel"` is set:
+- The screen frame gets a thick outer bezel (4:3 ratio preserved inside).
+- `hardware[]` entries are positioned on the matching bezel edge.
+- `side-key-rail` elements found inside `layout` are pulled out and stuck to the bezel edge, matching their `side` field — this is exactly how real ATM menus work.
+
+Use `chrome: "panel"` on key decision-point screens (main menu, transaction selection) and screens where hardware interaction is the point (insert card, take cash, scan QR). Skip it on transient processing/loading screens — the bezel just adds noise there.
+
 ## Icon glyphs
 
 Wherever `icon` is supported, you can pass:
@@ -303,21 +382,38 @@ A `transitions` entry with `from_element: "any"` makes the **entire screen** a s
 ## Authoring tips
 
 - **Define each screen once.** If "main menu" appears in two stages, define it once and reference it twice (`step.screen_refs`).
-- **Pick the right device kind.** ATM screens are not mobile screens — use `atm-screen` for landscape kiosks.
+- **Pick the right device kind, and stay true to its form.** An ATM is not a phone in landscape; a TV remote is not a mouse pointer. See "Device-aware modeling" below.
 - **Make interactive elements obvious.** A screen where every other element is `interactive: true` is a screen where nothing stands out. Reserve `interactive` for the actual tap targets a user must hit to advance.
 - **Always set `is_default: true` on the happy-path transition** for each screen. The Presenter Space-to-advance and the auto-numbered flow rely on it.
 - **Use real strings.** A wireframe is most useful when the copy is real (`"取款 ¥500"`, not `"Button label"`). Lo-fi is a layout-and-language exercise, not lorem-ipsum filler.
 - **Use `grid` for keypads, button bars, dashboard cards.** A `stack` of `card`s that look like keys does not communicate "this is a keypad".
 - **Reserve modals for actual modals.** Don't use `modal` kind for a normal screen — Flow view's nav groups by kind and overlays modals on the preceding screen.
 
-## End-to-end example: an ATM PIN screen
+## Device-aware modeling
+
+The same `button` and `stack` primitives can model a phone or a 1980s ATM — but the result only looks **right** if you reach for the device-specific vocabulary when the device demands it. A screen that should feel like an ATM but is built with `grid` + `button` will look like a phone in landscape mode.
+
+| Device `kind`        | Looks-right checklist |
+|---|---|
+| `mobile-screen`      | Touch buttons in `stack`/`grid`; optional `tab-bar` at the bottom; never side-key-rail. |
+| `tablet-screen`      | Same as mobile but wider; multi-column lists OK. |
+| `desktop-window`     | `header` + content; multi-column dashboards; hover states matter. |
+| `atm-screen`         | **Almost always uses `side-key-rail` for menus**, not a center grid of buttons. Key transactional screens (main menu, cash-out, deposit) should set `chrome: "panel"` with `hardware[]` for card-reader / cash-out / receipt slots. Numeric input uses a `grid cols=3` keypad. |
+| `kiosk-screen`       | Often touch-only (no side-key-rail). Big chunky buttons, large fonts; hardware like `barcode-scanner` or `nfc` go in `hardware[]` with `chrome: "panel"` if a chassis is visible. |
+| `tv-screen`          | Limited input (remote): focused-state element + numeric-grid navigation. Avoid scrolling lists; use horizontal carousels. Big text. |
+| `email`              | Subject + body + CTA; ignore touch affordances. |
+| `notification`       | One-line title + body + 1–2 action buttons; aspect is wide & short. |
+
+If your screen is `kind: atm-screen` and your `layout` contains zero `side-key-rail` and zero `hardware-slot` elements, you almost certainly modeled it as a phone. Add either a side-key-rail or set `chrome: "panel"` with appropriate `hardware[]` slots. The `validate_screens.py` validator flags this.
+
+## End-to-end example A: an ATM PIN screen (no chrome, numeric keypad)
 
 ```json
 {
   "id": "pin-entry",
   "kind": "atm-screen",
   "title": "密码输入",
-  "stage_id": "approach-insert",
+  "stage_id": "authenticate",
   "layout": {
     "type": "stack",
     "gap": "md",
@@ -349,20 +445,74 @@ A `transitions` entry with `from_element: "any"` makes the **entire screen** a s
     ]
   },
   "transitions": [
-    {
-      "from_element": "confirm",
-      "trigger": "tap",
-      "to_screen": "main-menu",
-      "label": "点击确认 → 主菜单",
-      "is_default": true
-    },
-    {
-      "from_element": "cancel",
-      "trigger": "tap",
-      "to_screen": "welcome",
-      "label": "取消 → 返回欢迎",
-      "is_error_path": false
-    }
+    {"from_element": "confirm", "trigger": "tap", "to_screen": "main-menu",  "label": "确认 → 主菜单",  "is_default": true},
+    {"from_element": "cancel",  "trigger": "tap", "to_screen": "welcome",    "label": "取消 → 返回欢迎"}
+  ]
+}
+```
+
+## End-to-end example B: an ATM main menu (chrome + side-key-rail + hardware)
+
+This is what an ATM main menu actually looks like — and the example you should model your own ATM main-menu / cash-out / deposit screens after:
+
+```json
+{
+  "id": "main-menu",
+  "kind": "atm-screen",
+  "title": "主菜单",
+  "stage_id": "select-transaction",
+  "chrome": "panel",
+  "hardware": [
+    {"slot": "card-reader", "position": "top",    "label": "插卡口"},
+    {"slot": "receipt",     "position": "bottom", "label": "凭条口"},
+    {"slot": "cash-out",    "position": "bottom", "label": "出钞口"}
+  ],
+  "layout": {
+    "type": "stack",
+    "gap": "lg",
+    "elements": [
+      {"type": "header", "label": "XX 银行 — 请选择服务"},
+      {"type": "text", "label": "欢迎, 张明", "size": "sm", "color": "secondary"},
+      {
+        "type": "row",
+        "justify": "between",
+        "gap": "lg",
+        "elements": [
+          {
+            "type": "side-key-rail",
+            "side": "left",
+            "keys": [
+              {"id": "k-withdrawal", "label": "取款", "interactive": true, "variant": "primary"},
+              {"id": "k-deposit",    "label": "存款", "interactive": true, "variant": "primary"},
+              {"id": "k-balance",    "label": "余额查询", "interactive": true},
+              {"id": "k-other",      "label": "其他业务", "interactive": true}
+            ]
+          },
+          {
+            "type": "stack",
+            "gap": "sm",
+            "elements": [
+              {"type": "text", "label": "请按左右两侧物理键选择业务", "size": "md", "color": "secondary"}
+            ]
+          },
+          {
+            "type": "side-key-rail",
+            "side": "right",
+            "keys": [
+              {"id": "k-transfer", "label": "转账汇款", "interactive": true},
+              {"id": "k-payment",  "label": "缴费充值", "interactive": true},
+              {"id": "k-language", "label": "Language", "interactive": true},
+              {"id": "k-exit",     "label": "退卡", "interactive": true, "variant": "destructive"}
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "transitions": [
+    {"from_element": "k-withdrawal", "trigger": "tap", "to_screen": "withdrawal-amount", "label": "取款 → 选金额", "is_default": true},
+    {"from_element": "k-deposit",    "trigger": "tap", "to_screen": "deposit-select",    "label": "存款 → 选类型"},
+    {"from_element": "k-exit",       "trigger": "tap", "to_screen": "welcome",           "label": "退卡 → 返回欢迎"}
   ]
 }
 ```

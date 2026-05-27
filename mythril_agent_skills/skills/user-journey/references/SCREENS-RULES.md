@@ -3,12 +3,17 @@
 `validate_screens.py` enforces structural integrity of `screens[]` and `transitions[]` in `journey.json`. Run after every edit:
 
 ```bash
+# Iteration mode — warnings stay as warnings:
 python3 SKILL_PATH/scripts/validate_screens.py <workspace>
+
+# Before declaring the journey "done" — strict mode promotes the screen-count
+# floor warning to an error:
+python3 SKILL_PATH/scripts/validate_screens.py <workspace> --strict
 ```
 
 Exit codes:
 - `0` — all rules pass
-- `1` — at least one error
+- `1` — at least one error (or warning promoted under `--strict`)
 - `2` — workspace structure invalid (missing `journey.json`)
 
 Output format:
@@ -22,7 +27,7 @@ WARNING: <message>
 INFO:    <message>
 ```
 
-## The 7 rules
+## The 10 rules
 
 ### Rule 1 — Screen `id` must be unique
 
@@ -46,9 +51,15 @@ A transition pointing at a non-existent screen is dead — Flow view's click-to-
 ERROR: screen 'pin-entry' transition #1 from_element='confirm' has no element with that id in this screen's layout
 ```
 
+The validator resolves `from_element` against three address spaces:
+
+1. **Layout-tree element ids** (anything with an `id` under `screen.layout`)
+2. **Side-key-rail key ids** — every `keys[].id` inside a `side-key-rail` element
+3. **Top-level `screen.hardware[]` slot ids** — `id` on any chrome-bezel hardware slot
+
 Special value `from_element: "any"` is always allowed (treats the entire screen as the tap target).
 
-The element does NOT need to have `interactive: true` for the rule to pass — the validator only checks element existence. But the renderer will silently skip transitions whose source element is not interactive, so the AI should set `interactive: true` on referenced elements (rule 7 below catches the most common case).
+The element does NOT need to have `interactive: true` for the rule to pass — the validator only checks element existence. But the renderer will silently skip transitions whose source element is not interactive, so the AI should set `interactive: true` on referenced elements (rule 8 below catches the most common case).
 
 ### Rule 4 — `step.screen_refs[]` must resolve
 
@@ -92,6 +103,36 @@ WARNING: screen 'main-menu' has interactive element of type 'button' without id 
 ```
 
 Caught at validation time so you don't end up with a "tappable" button that has no edge connected.
+
+This also applies to `side-key-rail` keys: a key with `interactive: true` but no `id` cannot be referenced by any transition.
+
+### Rule 9 — Device-aware modeling (warning)
+
+```
+WARNING: 3 screen(s) of kind='atm-screen' ('welcome', 'menu', 'cash-out')
+         but NONE use side-key-rail / hardware-slot / chrome='panel' — these
+         are most likely modeled as mobile screens.
+```
+
+Triggers when a journey contains any `atm-screen` or `kiosk-screen` screens but **none** of them use `side-key-rail`, `hardware-slot`, or `chrome: "panel"`. This is the harness-level guard against the "ATM looks like a phone" failure mode — when AI defaults to mobile thinking and models an ATM main menu as a vertical stack of phone-style buttons.
+
+The check is **journey-wide per kind**, not per-screen, so a legitimate touch-only kiosk screen (e.g. a product picker between two hardware-interaction screens) does not falsely trigger as long as at least one screen of the same kind uses the right vocabulary.
+
+Fix: re-model at least the transactional screens (main menu, hardware-interaction) per the `references/WIREFRAMES.md` "Device-aware modeling" table and "End-to-end example B".
+
+### Rule 10 — Screen-count floor (warning / strict error)
+
+```
+WARNING: only 3 screens defined for 4 stages — Flow view will be sparse.
+         Recommended floor is max(stages*2, 8) = 8.
+```
+
+Recommends at least `max(stages * 2, 8)` screens per journey. A journey with too few screens has an empty/sparse Flow view, which defeats the purpose of opening into Flow by default.
+
+| Mode | Behavior |
+|---|---|
+| Default (no `--strict`) | Warning only — useful for iteration |
+| `--strict` | Promoted to error — use before declaring a journey "done" |
 
 ## Common workflows
 

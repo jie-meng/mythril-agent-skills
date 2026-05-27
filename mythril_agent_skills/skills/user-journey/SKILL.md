@@ -5,8 +5,9 @@ description: |
   and business analysts via natural language. Outputs a self-contained
   workspace with synchronized JOURNEY.md (business + mermaid), journey.json
   (structured data), DESIGN.md (visual style, Google open spec), and a vanilla
-  HTML/CSS/JS preview with map / stage / presenter views — no build step,
-  open by double-clicking index.html.
+  HTML/CSS/JS preview that opens directly into Flow view (real wireframes
+  with controls and click-through transitions) — no build step, double-click
+  index.html.
   Trigger: "user journey", "journey map", "用户旅程", "用户旅程地图",
   "wireframe", "线框图", "low-fidelity", "低保真", "product flow",
   "客户旅程", "user flow map", "draft a journey", "画用户旅程",
@@ -67,6 +68,7 @@ Help product managers and business analysts draft user journey maps and lo-fi wi
 | **Primary persona** | Extract if mentioned, else ask in Phase 1b. |
 | **Workspace path** | If the user gave a path → use it. Else default to `./journeys/<slug>/` in CWD. |
 | **Design style** | If the user mentions a style ("playful", "corporate", "dark"), pick the closest preset. Else ask in Phase 1b. |
+| **Device kind** | Infer from the message: "ATM" → `atm`; "app / 小程序 / 手机" → `mobile`; "kiosk / 自助机" → `kiosk`; "web / SaaS / 后台" → `desktop`; "TV / 电视 / 大屏" → `tv`. **If you can't tell, ask in 1b** — getting this wrong (e.g. modeling an ATM as a phone) is the #1 cause of "this doesn't look right" complaints. |
 | **Existing workspace** | If the path already contains `JOURNEY.md` → this is a **resumption**, skip to Phase 4. |
 
 ### 1b. Confirm in ONE Block
@@ -79,6 +81,7 @@ Present a single confirmation message with all inferred values + gaps marked `_(
 > - **主角色**: _（请补充：新用户？复购用户？商家？）_
 > - **覆盖范围**: 从下载 App 到完成首单
 > - **语言**: 中文
+> - **主要设备形态**: mobile（手机 App）_（可选：mobile / atm / kiosk / desktop / tv）_
 > - **视觉风格**: corporate-clean （可选：corporate-clean / playful-pastel / dark-engineering / editorial-mono）
 > - **工作区**: `./journeys/food-delivery-first-order/`
 >
@@ -92,10 +95,11 @@ python3 SKILL_PATH/scripts/init_workspace.py \
   --title "<product / scenario>" \
   --persona "<primary persona>" \
   --language en|zh \
-  --design-style corporate-clean
+  --design-style corporate-clean \
+  --device-kind mobile|atm|kiosk|desktop|tv
 ```
 
-The script creates the workspace with template `JOURNEY.md`, empty `journey.json` (just the persona scaffold), the chosen `DESIGN.md`, `index.html`, `assets/`, `preview.py`, and `README.md`. The workspace is **not** turned into a git repo — assume the user keeps multiple journeys under a parent repo they manage themselves.
+The script creates the workspace with template `JOURNEY.md`, empty `journey.json` (just the persona scaffold), the chosen `DESIGN.md`, `index.html`, `assets/`, `preview.py`, and `README.md`. The seed screens in `journey.json` are generated for the chosen device kind, so the user opens straight into a representative example (an ATM workspace boots up with side-key-rail + hardware slots wired in; a mobile workspace boots up with a tab bar and a list — see `references/WIREFRAMES.md`). The workspace is **not** turned into a git repo — assume the user keeps multiple journeys under a parent repo they manage themselves.
 
 **Design-style presets** ship with the skill at `SKILL_PATH/templates/design-styles/`:
 
@@ -120,7 +124,7 @@ Co-author with the user:
 2. **Stage list** — 3–7 stages at most for one journey (e.g., `Discover → Sign up → First task → Habit → Advocacy`). More than 7 stages indicates two journeys; split them.
 3. **Scope statement** — "From X to Y" — one sentence.
 
-Write Pass A into `JOURNEY.md` (prose + a mermaid `flowchart LR` of the stages) AND `journey.json` (stages with empty steps). Save and tell the user: "Skeleton is ready. Open `index.html` to see the map view. Next we'll fill in each stage's steps."
+Write Pass A into `JOURNEY.md` (prose + a mermaid `flowchart LR` of the stages) AND `journey.json` (stages with empty steps). Save and tell the user: "Skeleton is ready. Open `index.html` — it opens directly into Flow view; until we add real screens you'll see only the seed examples, so let's design the screens next."
 
 ### Pass B — Per-Stage Detail
 
@@ -142,20 +146,38 @@ Encourage the user to think aloud. The skill is the scribe. Update **all three f
 
 For each stage with digital touchpoints, design the screens **before** declaring done:
 
-1. **List the unique screens** for the whole journey (6–15 is typical). One screen = one rendered UI state, not one moment in time. Reuse "main menu" across stages — define once.
+1. **List the unique screens** for the whole journey. Aim for at least `max(stages × 2, 8)` screens — fewer than that and the Flow view is too sparse to demo. One screen = one rendered UI state, not one moment in time. Reuse "main menu" across stages — define once.
 2. For each screen, decide:
    - `id` (immutable slug, e.g. `pin-entry`)
    - `kind` (`mobile-screen` / `atm-screen` / `desktop-window` / ... — see `references/WIREFRAMES.md`)
    - `title` (display name)
    - `stage_id` (primary stage)
    - `layout` — use `stack` / `grid` / `row` containers with real interactive elements (`button`, `keypad-button`, `form-field`, `list-item`, `chip`, ...). Set `interactive: true` and a stable `id` on every element a user must tap.
-3. For each screen, design the **outgoing transitions**:
+3. **Stay true to the device form** (see "Device-aware modeling" below). Modeling an ATM as a vertical stack of phone-style buttons is the #1 quality bug — use `side-key-rail`, `hardware-slot`, and `chrome: "panel"` for ATM/kiosk screens.
+4. For each screen, design the **outgoing transitions**:
    - One `is_default: true` on the happy path
    - Additional transitions for back / cancel / error / alt paths (`is_error_path: true` if applicable)
    - Use `from_element: "any"` for "tap anywhere to continue" splash screens
-4. **Wire steps to screens** — set each step's `screen_refs: ["screen-id", ...]` in document order.
+5. **Wire steps to screens** — set each step's `screen_refs: ["screen-id", ...]` in document order.
 
 The renderer's Flow view (`F`) will then show every screen at full size with hotspot bubbles on interactive elements. Click a hotspot or use `Enter` (default) / `1`–`9` (n-th transition) / `Space` (auto-play) to walk the flow.
+
+#### Device-aware modeling (MANDATORY when the journey has UI)
+
+The same `button` and `stack` primitives can model a phone or a 1980s ATM — but the result only looks right if you reach for the device-specific vocabulary when the device demands it. **Check each screen against this table before declaring Pass C done**:
+
+| Device `kind`     | What it MUST use | What it MUST NOT do |
+|---|---|---|
+| `mobile-screen`   | Touch buttons in `stack`/`grid`; optional `tab-bar` | Never use `side-key-rail` |
+| `tablet-screen`   | Same as mobile, wider | Same |
+| `desktop-window`  | `header` + content; multi-column dashboards | Never use `keypad-button` for primary CTAs |
+| `atm-screen`      | **`side-key-rail`** for menus (left/right); `keypad-button` `grid cols=3` for numeric input; **`chrome: "panel"` with `hardware[]`** (card-reader / cash-out / receipt) on transactional screens | Never model the main menu as a vertical stack of fat buttons — that's a phone, not an ATM |
+| `kiosk-screen`    | Big chunky touch buttons; `chrome: "panel"` if a chassis is visible; `hardware-slot` for `barcode-scanner` / `nfc` | Don't add a `tab-bar` (kiosks aren't apps) |
+| `tv-screen`       | Horizontal carousels, large fonts, focused-state via `state: "hover"` | No scroll-only lists, no `form-field` typing flows |
+
+**Self-check before moving on**: for every `atm-screen` or `kiosk-screen` in `screens[]`, verify the layout contains at least one of: `side-key-rail`, `hardware-slot`, or top-level `chrome: "panel"`. If not, you almost certainly modeled it as a phone — `validate_screens.py` will warn you.
+
+See `references/WIREFRAMES.md` "Device-aware modeling" + "End-to-end example B" for a worked ATM main-menu screen using all three primitives.
 
 ### Pass D — Polish
 
@@ -178,10 +200,21 @@ Compares `JOURNEY.md` + `journey.json` and reports drift (missing stages, mismat
 ### Gate 2 — Screens Validator
 
 ```bash
+# During iteration — warnings are informational:
 python3 SKILL_PATH/scripts/validate_screens.py "<workspace-path>"
+
+# Before declaring the journey "done" or before handing it to the user — strict mode:
+python3 SKILL_PATH/scripts/validate_screens.py "<workspace-path>" --strict
 ```
 
-Validates screens and transitions: unique screen ids, every `transitions.to_screen` and `step.screen_refs` resolves, every `transitions.from_element` exists in the layout, at most one `is_default: true` per screen, plus orphan / dead-end warnings. See [`references/SCREENS-RULES.md`](references/SCREENS-RULES.md).
+Validates screens and transitions: unique screen ids, every `transitions.to_screen` and `step.screen_refs` resolves, every `transitions.from_element` exists in the layout / side-key-rail keys / `hardware[]`, at most one `is_default: true` per screen, plus orphan / dead-end warnings.
+
+It also enforces two **harness-level** rules:
+
+- **Device-aware modeling**: any `atm-screen` / `kiosk-screen` with no `side-key-rail`, no `hardware-slot`, and no `chrome: "panel"` raises a warning ("most likely modeled as a mobile screen"). Fix by re-modeling per the Pass C "Device-aware modeling" table.
+- **Screen-count floor**: a journey with N stages should have at least `max(N×2, 8)` screens. Warning by default; promoted to **error** under `--strict`. Always run `--strict` before declaring the journey final.
+
+See [`references/SCREENS-RULES.md`](references/SCREENS-RULES.md) for the full rule list.
 
 ### Gate 3 — Mermaid Compatibility
 
@@ -241,13 +274,14 @@ When the user says "I'll present this to stakeholders" / "演示一下" / "give 
 
 Standard answer for every workspace:
 
-> **打开方式**：双击工作区里的 `index.html` 即可在浏览器中打开。
+> **打开方式**：双击工作区里的 `index.html`，浏览器会**直接进入 Flow 视图**——
+> 即真线框图（带控件、热区、屏间跳转），不是缩略图也不是流程图。
 >
 > 四种视图（右上角切换或键盘快捷键）：
 >
-> - **Map** — 全景旅程地图（M）
+> - **Flow** — 屏与跳转（F，**默认**，左侧选屏，热区悬停看跳转，点击跳屏）
 > - **Stage** — 单阶段细节（S，左右键切换阶段）
-> - **Flow** — 屏与跳转（F，左侧选屏，热区悬停看跳转，点击跳屏）
+> - **Map** — 全景旅程地图（M，鸟瞰全部阶段 + 缩略图）
 > - **Presenter** — 全屏演示（P，左右键翻页，Space 进入屏播放，Esc 退出）
 >
 > 如果双击打开后页面空白（极少数浏览器禁用 `file://` 读 JSON），在工作区运行 `python3 preview.py`，自动打开 `http://localhost:8765`。

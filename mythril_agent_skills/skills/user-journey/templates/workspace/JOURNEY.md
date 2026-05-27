@@ -57,7 +57,9 @@ this section is only a brief textual index._
 ---
 
 > **How to view this journey visually:** double-click `index.html` in this directory.
-> Switch views with `M` (map) / `S` (stage) / `F` (flow / screens) / `P` (presenter). See `README.md` for details.
+> Opens straight into **Flow** view — the real wireframes with controls and
+> click-through transitions. Switch views with `F` (flow / screens) / `S` (stage) /
+> `M` (map overview) / `P` (presenter). See `README.md` for details.
 >
 > **Authoring note (sync):** this file and `journey.json` must stay in sync. After any
 > change to either, run BOTH validators:

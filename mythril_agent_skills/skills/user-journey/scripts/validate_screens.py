@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 """Validate the screens[] and transitions[] in a user-journey workspace.
 
-Enforces the 8 rules documented in references/SCREENS-RULES.md:
+Enforces the rules documented in references/SCREENS-RULES.md:
 
-  1. screen.id is unique
-  2. transitions.to_screen resolves
-  3. transitions.from_element exists in the screen's layout (or is "any")
-  4. step.screen_refs[] all resolve
-  5. orphan screens (warning)
-  6. dead-end non-terminal screens (info)
-  7. at most one is_default: true per screen
-  8. interactive elements should have an id (warning)
+  1.  screen.id is unique
+  2.  transitions.to_screen resolves
+  3.  transitions.from_element exists in the screen's layout, in
+      side-key-rail keys, in screen.hardware[], or is "any"
+  4.  step.screen_refs[] all resolve
+  5.  orphan screens (warning)
+  6.  dead-end non-terminal screens (info)
+  7.  at most one is_default: true per screen
+  8.  interactive elements should have an id (warning)
+  9.  device-specific elements present when kind suggests them
+      (e.g. atm-screen without side-key-rail / hardware / chrome → warning)
+  10. screen count gate — in --strict mode, a journey with N stages must
+      have at least max(N*2, 8) screens; otherwise it's a "stage map only"
+      and the Flow view will be empty/thin
 
 Exit codes:
   0 — all rules pass (warnings/infos still printed)
@@ -28,7 +34,10 @@ Output format (stable, parsed by AI):
     INFO:    <message>
 
 Usage:
-  python3 validate_screens.py <workspace-path>
+  python3 validate_screens.py <workspace-path>            # warnings + errors
+  python3 validate_screens.py <workspace-path> --strict   # promote certain
+                                                           # warnings to errors
+                                                           # (screen-count gate)
 """
 
 from __future__ import annotations
@@ -46,9 +55,16 @@ from typing import Any, Iterable
 
 CONTAINER_TYPES = {"stack", "grid", "row"}
 
+# Device kinds where we expect at least one device-specific element
+# (side-key-rail or hardware-slot) or chrome="panel". Modeling these
+# as a plain stack/grid of buttons usually means the AI defaulted to
+# mobile thinking — flag it.
+DEVICE_KINDS_REQUIRING_HARDWARE_HINT = {"atm-screen", "kiosk-screen"}
+
 
 def collect_element_ids(layout: dict | None) -> set[str]:
-    """Walk a layout tree and collect all element ids (containers + leaves)."""
+    """Walk a layout tree and collect all element ids (containers + leaves +
+    side-key-rail keys)."""
     ids: set[str] = set()
     if not isinstance(layout, dict):
         return ids
@@ -66,10 +82,31 @@ def _walk_collect_ids(node: dict, out: set[str]) -> None:
     if el_type in CONTAINER_TYPES:
         for child in node.get("elements", []) or []:
             _walk_collect_ids(child, out)
+    elif el_type == "side-key-rail":
+        for key in node.get("keys", []) or []:
+            if isinstance(key, dict):
+                kid = key.get("id")
+                if isinstance(kid, str) and kid:
+                    out.add(kid)
+
+
+def collect_hardware_ids(screen: dict | None) -> set[str]:
+    """Collect ids from screen.hardware[] (chrome bezel slots)."""
+    ids: set[str] = set()
+    if not isinstance(screen, dict):
+        return ids
+    for slot in screen.get("hardware", []) or []:
+        if not isinstance(slot, dict):
+            continue
+        sid = slot.get("id")
+        if isinstance(sid, str) and sid:
+            ids.add(sid)
+    return ids
 
 
 def collect_elements(layout: dict | None) -> list[dict]:
-    """Walk a layout tree and collect every leaf-or-container element node."""
+    """Walk a layout tree and collect every leaf-or-container element node,
+    plus each side-key-rail key as a synthetic element with type='side-key'."""
     elements: list[dict] = []
     if not isinstance(layout, dict):
         return elements
@@ -81,9 +118,16 @@ def _walk_collect(node: dict, out: list[dict]) -> None:
     if not isinstance(node, dict):
         return
     out.append(node)
-    if node.get("type") in CONTAINER_TYPES:
+    el_type = node.get("type")
+    if el_type in CONTAINER_TYPES:
         for child in node.get("elements", []) or []:
             _walk_collect(child, out)
+    elif el_type == "side-key-rail":
+        for key in node.get("keys", []) or []:
+            if isinstance(key, dict):
+                # Treat the key as a synthetic element node so the
+                # "interactive-without-id" check still applies.
+                out.append({**key, "type": "side-key"})
 
 
 def find_interactive_without_id(layout: dict | None) -> list[str]:
@@ -95,14 +139,45 @@ def find_interactive_without_id(layout: dict | None) -> list[str]:
     return bad
 
 
+def screen_has_device_specific_elements(screen: dict) -> bool:
+    """True if the screen uses chrome=panel, has hardware[], or contains at
+    least one side-key-rail or hardware-slot element in its layout."""
+    if not isinstance(screen, dict):
+        return False
+    if screen.get("chrome") == "panel":
+        return True
+    if screen.get("hardware"):
+        return True
+    for node in collect_elements(screen.get("layout")):
+        if node.get("type") in {"side-key-rail", "hardware-slot"}:
+            return True
+    return False
+
+
+def compute_min_screen_count(stages: list[dict]) -> int:
+    """Suggested floor for screens[] given a stage count.
+
+    Rule of thumb: every stage needs at least 2 UI moments to show
+    real interaction, and the whole journey needs at least 8 to be
+    worth opening in Flow view at all. Both bounds are intentional
+    minimums — most journeys deserve more.
+    """
+    n_stages = len([s for s in stages if isinstance(s, dict)])
+    return max(n_stages * 2, 8)
+
+
 def validate_screens(
     screens: list[dict] | None,
     stages: list[dict] | None,
+    strict: bool = False,
 ) -> dict:
-    """Run all 8 screen-rules.
+    """Run all screen-rules.
 
     Returns a dict with keys errors/warnings/info, each a list[str].
     Pure: takes parsed JSON, returns lists.
+
+    When `strict` is True, certain warnings escalate to errors:
+      - screen count below `compute_min_screen_count(stages)`
     """
     errors: list[str] = []
     warnings: list[str] = []
@@ -111,7 +186,8 @@ def validate_screens(
     screens = screens or []
     stages = stages or []
 
-    # Build screen index + element-id sets
+    # Build screen index + element-id sets (layout elements + side-key-rail
+    # keys + hardware[] slots are all valid from_element references).
     screen_ids: dict[str, dict] = {}
     element_ids_per_screen: dict[str, set[str]] = {}
     duplicates: set[str] = set()
@@ -129,7 +205,9 @@ def validate_screens(
             errors.append(f"duplicate screen id '{sid}'")
             continue
         screen_ids[sid] = screen
-        element_ids_per_screen[sid] = collect_element_ids(screen.get("layout"))
+        addressable = collect_element_ids(screen.get("layout"))
+        addressable.update(collect_hardware_ids(screen))
+        element_ids_per_screen[sid] = addressable
 
     # Build a count of inbound references: from step.screen_refs and from
     # any transitions.to_screen (we only flag a screen with ZERO inbound and
@@ -275,6 +353,49 @@ def validate_screens(
                         f"'{stage_id_for_last}' — likely needs at least one transition out"
                     )
 
+    # Device-aware modeling check: if a journey has any atm-screen / kiosk-screen
+    # screens but NONE of them use any device-specific element (no chrome, no
+    # hardware-slot, no side-key-rail anywhere), it's almost certainly modeled
+    # as mobile screens with the wrong kind tag. We check per kind, journey-wide,
+    # to avoid false positives on legitimate touch-only kiosk screens (e.g. a
+    # product picker between a scan and a payment screen).
+    for kind in DEVICE_KINDS_REQUIRING_HARDWARE_HINT:
+        same_kind = [
+            (sid, screen) for sid, screen in screen_ids.items()
+            if screen.get("kind") == kind
+        ]
+        if not same_kind:
+            continue
+        if not any(screen_has_device_specific_elements(screen) for _, screen in same_kind):
+            ids = ", ".join(f"'{sid}'" for sid, _ in same_kind)
+            warnings.append(
+                f"{len(same_kind)} screen(s) of kind='{kind}' ({ids}) but NONE "
+                f"use side-key-rail / hardware-slot / chrome='panel' — these "
+                f"are most likely modeled as mobile screens. At least one "
+                f"transactional screen (main menu, hardware-interaction) "
+                f"should use chrome='panel' + hardware[]. See "
+                f"references/WIREFRAMES.md 'Device-aware modeling'."
+            )
+
+    # Screen-count gate: in strict mode, enforce a floor so authors don't
+    # ship "stage map only" workspaces where Flow view is empty / thin.
+    # Skip entirely when both stages and screens are empty (brand-new
+    # workspace, nothing to evaluate yet).
+    real_screen_count = len([s for s in screens if isinstance(s, dict)])
+    real_stage_count  = len([s for s in stages  if isinstance(s, dict)])
+    if real_screen_count > 0 or real_stage_count > 0:
+        min_screens = compute_min_screen_count(stages)
+        if real_screen_count < min_screens:
+            msg = (
+                f"only {real_screen_count} screens defined for {real_stage_count} stages "
+                f"— Flow view will be sparse. Recommended floor is max(stages*2, 8) "
+                f"= {min_screens}."
+            )
+            if strict:
+                errors.append(msg)
+            else:
+                warnings.append(msg)
+
     return {
         "errors": errors,
         "warnings": warnings,
@@ -287,7 +408,7 @@ def validate_screens(
 # Filesystem entry point
 # ---------------------------------------------------------------------------
 
-def validate_workspace(workspace: Path) -> dict:
+def validate_workspace(workspace: Path, strict: bool = False) -> dict:
     journey_path = workspace / "journey.json"
     if not journey_path.exists():
         return {
@@ -315,7 +436,7 @@ def validate_workspace(workspace: Path) -> dict:
     schema_version = str(data.get("schema_version") or "")
     screens = data.get("screens") or []
     stages = data.get("stages") or []
-    report = validate_screens(screens, stages)
+    report = validate_screens(screens, stages, strict=strict)
     return {
         "structure_ok": True,
         "errors": report["errors"],
@@ -349,12 +470,20 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
         description="Validate screens[] and transitions[] in a user-journey workspace.",
     )
     parser.add_argument("path", help="path to the workspace directory")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="promote the screen-count gate from warning to error",
+    )
     return parser.parse_args(argv if argv is None else list(argv))
 
 
 def main() -> None:
     args = parse_args()
-    report = validate_workspace(Path(args.path).expanduser().resolve())
+    report = validate_workspace(
+        Path(args.path).expanduser().resolve(),
+        strict=args.strict,
+    )
     sys.exit(print_report(report))
 
 

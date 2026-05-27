@@ -95,6 +95,8 @@
       case "divider":         n = renderDivider(node);         break;
       case "badge":           n = renderBadge(node);           break;
       case "spacer":          n = renderSpacer(node);          break;
+      case "side-key-rail":   n = renderSideKeyRail(node, ctx); break;
+      case "hardware-slot":   n = renderHardwareSlot(node);    break;
       default: return null;
     }
     if (!n) return null;
@@ -345,6 +347,68 @@
     return el("div", `wf-spacer-${node.size || "md"}`);
   }
 
+  // ---------- Device-specific elements -------------------------------------
+
+  const SLOT_GLYPHS = {
+    "card-reader": "▭",
+    "cash-out":    "‖‖‖",
+    "cash-in":     "‖‖‖",
+    "deposit":     "▦",
+    "receipt":     "▤",
+    "biometric":   "◉",
+    "scanner":     "▥",
+    "nfc":         "))) ",
+    "pin-pad":     "⌗",
+    "custom":      "▢",
+  };
+
+  function renderSideKeyRail(node, ctx) {
+    const side = node.side === "left" ? "left" : "right";
+    const wrap = el("div", `wf-side-key-rail wf-side-key-rail-${side}`);
+    wrap.dataset.side = side;
+    const keys = Array.isArray(node.keys) ? node.keys : [];
+    keys.forEach((key) => {
+      const variant = ["primary", "secondary", "ghost", "destructive"].includes(key.variant)
+        ? key.variant : "secondary";
+      const row = el("div", `wf-side-key wf-side-key-${variant}`);
+      if (key.id) row.dataset.id = key.id;
+      if (key.disabled) row.classList.add("wf-disabled");
+      const notch = el("span", "wf-side-key-notch");
+      const label = el("span", "wf-side-key-label", key.label || "");
+      // Notch on the OUTER edge of the rail, label on the inner edge.
+      if (side === "left") {
+        row.appendChild(notch);
+        row.appendChild(label);
+      } else {
+        row.appendChild(label);
+        row.appendChild(notch);
+      }
+      if (key.interactive && ctx && ctx.hotspots !== false) {
+        decorateHotspot(row, key, ctx);
+      }
+      wrap.appendChild(row);
+    });
+    return wrap;
+  }
+
+  function renderHardwareSlot(node) {
+    const slot = SLOT_GLYPHS[node.slot] ? node.slot : "custom";
+    const wrap = el("div", `wf-hardware-slot wf-hardware-slot-${slot}`);
+    if (node.id) wrap.dataset.id = node.id;
+    if (node.position) wrap.dataset.position = node.position;
+    wrap.appendChild(el("span", "wf-hardware-slot-glyph", SLOT_GLYPHS[slot]));
+    if (node.label) wrap.appendChild(el("span", "wf-hardware-slot-label", node.label));
+    return wrap;
+  }
+
+  function renderHardwareSlotForChrome(slotData, ctx) {
+    const node = renderHardwareSlot(slotData);
+    if (slotData.interactive && ctx && ctx.hotspots !== false) {
+      decorateHotspot(node, slotData, ctx);
+    }
+    return node;
+  }
+
   // ---------- Hotspot decoration -------------------------------------------
 
   function decorateHotspot(node, srcModel, ctx) {
@@ -430,7 +494,53 @@
       overlay.addEventListener("click", () => opts.onJump(ctx.anyTx.to_screen, ctx.anyTx));
       frame.appendChild(overlay);
     }
+
+    if (screen.chrome === "panel") {
+      return wrapWithDevicePanel(screen, frame, ctx, size);
+    }
     return frame;
+  }
+
+  function wrapWithDevicePanel(screen, frame, ctx, size) {
+    const panel = el("div", `wf-device-panel wf-device-panel-${size} wf-device-panel-${screen.kind || "atm-screen"}`);
+    if (screen.kind) panel.dataset.kind = screen.kind;
+
+    const slots = Array.isArray(screen.hardware) ? screen.hardware : [];
+
+    // Top bezel: slots with position "top"
+    const topRow = makeBezelRow("top", slots, ctx);
+    if (topRow) panel.appendChild(topRow);
+
+    // Middle row: left bezel | screen | right bezel
+    const mid = el("div", "wf-device-panel-mid");
+    const leftBezel = makeBezelColumn("left", slots, ctx);
+    if (leftBezel) mid.appendChild(leftBezel);
+    mid.appendChild(frame);
+    const rightBezel = makeBezelColumn("right", slots, ctx);
+    if (rightBezel) mid.appendChild(rightBezel);
+    panel.appendChild(mid);
+
+    // Bottom bezel: slots with position "bottom"
+    const botRow = makeBezelRow("bottom", slots, ctx);
+    if (botRow) panel.appendChild(botRow);
+
+    return panel;
+  }
+
+  function makeBezelRow(position, slots, ctx) {
+    const matching = slots.filter(s => s && s.position === position);
+    if (!matching.length) return null;
+    const row = el("div", `wf-bezel wf-bezel-${position}`);
+    matching.forEach(s => row.appendChild(renderHardwareSlotForChrome(s, ctx)));
+    return row;
+  }
+
+  function makeBezelColumn(side, slots, ctx) {
+    const matching = slots.filter(s => s && s.position === side);
+    // Always create the column for visual balance, even if empty.
+    const col = el("div", `wf-bezel wf-bezel-${side}`);
+    matching.forEach(s => col.appendChild(renderHardwareSlotForChrome(s, ctx)));
+    return col;
   }
 
   function renderThumbnail(screen) {

@@ -136,6 +136,11 @@ v1 workspaces (no `screens[]`, `wireframe` embedded in step) are still read by `
   "title": "密码输入",
   "stage_id": "approach-insert",
   "notes": "防窥设计在此屏最关键",
+  "chrome": "panel",
+  "hardware": [
+    {"slot": "card-reader", "position": "top",    "label": "插卡口"},
+    {"slot": "cash-out",    "position": "bottom", "label": "出钞口"}
+  ],
   "layout": { ... },
   "transitions": [ { ... } ]
 }
@@ -148,6 +153,8 @@ v1 workspaces (no `screens[]`, `wireframe` embedded in step) are still read by `
 | `title` | string | yes | Human-readable screen name (shown in Flow nav, hover labels) |
 | `stage_id` | string | no | Which stage this screen primarily belongs to. Used to group screens in the Flow nav and Map view. If absent, the renderer groups by first referencing stage. |
 | `notes` | string | no | Author notes shown in Flow view |
+| `chrome` | `"none"` \| `"panel"` | no | Default `"none"`. When `"panel"`, the screen is wrapped in a device-chassis bezel — useful for ATM/kiosk main-menu and hardware-interaction screens (insert card, take cash). Pulls `hardware[]` slots out to the bezel edges and docks any `side-key-rail` elements to the matching side. |
+| `hardware` | HardwareSlot[] | no | Physical chassis ports rendered on the bezel when `chrome: "panel"`. Each entry: `{slot, position, label, id?, interactive?}`. See WIREFRAMES.md. Ignored when `chrome` is `"none"`. |
 | `layout` | Layout | yes | Root layout container — see WIREFRAMES.md |
 | `transitions` | Transition[] | no | Outgoing jumps — see below. Empty means "dead end" (final/error screen). |
 

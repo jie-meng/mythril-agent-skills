@@ -160,6 +160,27 @@ kbd {
   border-bottom: 1px solid var(--color-border);
   position: sticky; top: 0; z-index: 2;
 }
+
+/* Permanent banner in Map view: tells the user the real wireframes live in
+   Flow view, since Map deliberately shows only zoomed-out thumbnails. */
+.map-hint-banner {
+  display: flex; align-items: center; justify-content: center; gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-xl);
+  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
+  border-bottom: 1px solid color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+  color: var(--color-on-surface);
+  font: var(--font-label-md);
+  position: sticky; top: 0; z-index: 3;
+}
+.map-hint-banner kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 4px;
+  background: var(--color-surface);
+  font-size: 0.85em;
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
 .persona-card {
   min-width: 220px; max-width: 320px;
   padding: var(--space-sm) var(--space-md);
@@ -195,13 +216,25 @@ kbd {
   box-shadow: var(--shadow-card-active);
 }
 
-.stage-card-head { display: flex; align-items: baseline; gap: var(--space-sm); }
+.stage-card-head { display: flex; align-items: baseline; gap: var(--space-sm); flex-wrap: wrap; }
 .stage-card-num {
   font: var(--font-mono-sm);
   color: var(--color-secondary);
   min-width: 24px;
 }
-.stage-card-label { font: var(--font-headline-md); }
+.stage-card-label { font: var(--font-headline-md); margin-right: auto; }
+.stage-card-devices {
+  display: inline-flex; gap: 4px;
+  font-size: 16px;
+  line-height: 1;
+}
+.stage-card-devices .device-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-accent) 14%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-accent) 25%, var(--color-border));
+}
 .stage-card-summary { font-size: 13px; color: var(--color-secondary); margin: 0; }
 .stage-card-emotions { display: flex; gap: 3px; flex-wrap: wrap; }
 .emotion-dot { width: 10px; height: 10px; border-radius: var(--radius-full); }
@@ -360,26 +393,33 @@ kbd {
 .wf-size-presenter.wf-tv-screen      { width: min(960px, 70vh); }
 
 .wf-size-thumbnail.wf-frame { transform: scale(1); pointer-events: none; }
-.wf-size-thumbnail.wf-mobile-screen  { width: 88px; border-radius: 8px; }
-.wf-size-thumbnail.wf-tablet-screen  { width: 110px; border-radius: 8px; }
-.wf-size-thumbnail.wf-desktop-window { width: 160px; border-radius: 6px; }
-.wf-size-thumbnail.wf-atm-screen     { width: 140px; border-radius: 6px; }
-.wf-size-thumbnail.wf-kiosk-screen   { width: 80px; border-radius: 6px; }
-.wf-size-thumbnail.wf-tv-screen      { width: 160px; border-radius: 6px; }
-.wf-size-thumbnail .wf-body { padding: 4px; gap: 2px; font-size: 6px; }
-.wf-size-thumbnail .wf-text { font-size: 6px; line-height: 1.2; }
-.wf-size-thumbnail .wf-text-xl { font-size: 8px; }
-.wf-size-thumbnail .wf-text-lg { font-size: 7px; }
+/* Map view thumbnails — large enough to recognize controls (keypads, button
+   rows, list items) at a glance, not just colored bars. */
+.wf-size-thumbnail.wf-mobile-screen  { width: 140px; border-radius: 10px; }
+.wf-size-thumbnail.wf-tablet-screen  { width: 180px; border-radius: 10px; }
+.wf-size-thumbnail.wf-desktop-window { width: 260px; border-radius: 6px; }
+.wf-size-thumbnail.wf-atm-screen     { width: 280px; border-radius: 6px; }
+.wf-size-thumbnail.wf-kiosk-screen   { width: 130px; border-radius: 8px; }
+.wf-size-thumbnail.wf-tv-screen      { width: 260px; border-radius: 6px; }
+.wf-size-thumbnail.wf-email          { width: 160px; border-radius: 4px; }
+.wf-size-thumbnail.wf-modal          { width: 180px; border-radius: 8px; }
+.wf-size-thumbnail.wf-notification   { width: 220px; border-radius: 6px; }
+.wf-size-thumbnail .wf-body { padding: 8px; gap: 5px; font-size: 9px; }
+.wf-size-thumbnail .wf-text { font-size: 9px; line-height: 1.25; }
+.wf-size-thumbnail .wf-text-xl { font-size: 12px; }
+.wf-size-thumbnail .wf-text-lg { font-size: 11px; }
+.wf-size-thumbnail .wf-text-sm { font-size: 8px; }
 .wf-size-thumbnail .wf-button,
 .wf-size-thumbnail .wf-keypad-button,
-.wf-size-thumbnail .wf-icon-button { padding: 2px 4px; font-size: 6px; min-height: 0; border-width: 1px; }
-.wf-size-thumbnail .wf-header { padding: 2px 4px; font-size: 6px; }
+.wf-size-thumbnail .wf-icon-button { padding: 4px 6px; font-size: 9px; min-height: 18px; border-width: 1px; }
+.wf-size-thumbnail .wf-header { padding: 4px 6px; font-size: 9px; }
 .wf-size-thumbnail .wf-form-input,
-.wf-size-thumbnail .wf-search-bar { padding: 2px 4px; font-size: 6px; }
-.wf-size-thumbnail .wf-image { font-size: 6px; }
-.wf-size-thumbnail .wf-list-item { padding: 2px 4px; font-size: 6px; gap: 2px; }
-.wf-size-thumbnail .wf-card { padding: 2px 4px; }
-.wf-size-thumbnail .wf-tab-bar { padding: 2px; font-size: 6px; }
+.wf-size-thumbnail .wf-search-bar { padding: 4px 6px; font-size: 9px; min-height: 18px; }
+.wf-size-thumbnail .wf-image { font-size: 9px; min-height: 24px; }
+.wf-size-thumbnail .wf-list-item { padding: 4px 6px; font-size: 9px; gap: 4px; }
+.wf-size-thumbnail .wf-card { padding: 4px 6px; }
+.wf-size-thumbnail .wf-tab-bar { padding: 3px; font-size: 8px; }
+.wf-size-thumbnail .wf-chip { padding: 2px 6px; font-size: 8px; }
 .wf-size-thumbnail .wf-hotspot-bubble,
 .wf-size-thumbnail .wf-hotspot-tip,
 .wf-size-thumbnail .wf-any-overlay { display: none; }
@@ -397,7 +437,10 @@ kbd {
 
 /* Containers */
 .wf-stack { display: flex; flex-direction: column; }
-.wf-row   { display: flex; align-items: center; }
+.wf-row   { display: flex; align-items: center; min-width: 0; }
+.wf-row > * { min-width: 0; }
+.wf-size-thumbnail .wf-stack, .wf-size-thumbnail .wf-row { min-width: 0; }
+.wf-size-thumbnail .wf-stack > *, .wf-size-thumbnail .wf-row > * { min-width: 0; }
 .wf-grid  { display: grid; }
 .wf-stack[data-gap="none"], .wf-row[data-gap="none"], .wf-grid[data-gap="none"] { gap: 0; }
 .wf-stack[data-gap="xs"], .wf-row[data-gap="xs"], .wf-grid[data-gap="xs"] { gap: 4px; }
@@ -733,25 +776,178 @@ kbd {
 
 .wf-disabled { opacity: 0.5; }
 
+/* ---------- Side-key rail (ATM / kiosk physical function keys) ---------- */
+
+.wf-side-key-rail {
+  display: flex; flex-direction: column;
+  gap: var(--space-sm);
+  align-self: stretch;
+  min-width: 110px;
+  flex-shrink: 1;
+}
+.wf-size-thumbnail .wf-side-key-rail {
+  min-width: 0;
+  gap: 3px;
+  width: 18px;
+  flex-shrink: 0;
+}
+.wf-size-thumbnail .wf-side-key {
+  min-height: 12px;
+  padding: 2px 0;
+  font-size: 0;
+  justify-content: center;
+}
+.wf-size-thumbnail .wf-side-key-label {
+  display: none;
+}
+.wf-size-thumbnail .wf-side-key-notch {
+  width: 10px; height: 8px;
+  border-radius: 2px;
+}
+.wf-side-key {
+  display: flex; align-items: center; gap: var(--space-sm);
+  padding: var(--space-sm) 8px;
+  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-accent) 35%, var(--color-border));
+  border-radius: 6px;
+  font: var(--font-label-md);
+  min-height: 38px;
+  flex: 1;
+  cursor: default;
+  position: relative;
+}
+.wf-side-key-rail-left  .wf-side-key { padding-left: 2px; }
+.wf-side-key-rail-right .wf-side-key { padding-right: 2px; }
+.wf-side-key-label {
+  flex: 1;
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+.wf-side-key-rail-left  .wf-side-key-label { text-align: left;  padding-left: 6px; }
+.wf-side-key-rail-right .wf-side-key-label { text-align: right; padding-right: 6px; }
+.wf-side-key-notch {
+  width: 14px; height: 22px;
+  background: var(--color-on-surface);
+  border-radius: 3px;
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--color-on-surface) 60%, transparent);
+  flex-shrink: 0;
+}
+.wf-side-key-primary {
+  background: color-mix(in srgb, var(--color-accent) 22%, var(--color-surface));
+  border-color: var(--color-accent);
+}
+.wf-side-key-destructive {
+  background: color-mix(in srgb, var(--color-error, #d62828) 15%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-error, #d62828) 50%, var(--color-border));
+  color: var(--color-error, #d62828);
+}
+.wf-side-key-destructive .wf-side-key-label { color: var(--color-error, #d62828); }
+
+/* On dark ATM/kiosk screens the rail blends into the chassis. */
+.wf-frame[data-kind="atm-screen"] .wf-side-key,
+.wf-frame[data-kind="kiosk-screen"] .wf-side-key {
+  background: color-mix(in srgb, #ffffff 8%, #1e293b);
+  border-color: color-mix(in srgb, #ffffff 18%, #1e293b);
+}
+.wf-frame[data-kind="atm-screen"] .wf-side-key-label,
+.wf-frame[data-kind="kiosk-screen"] .wf-side-key-label {
+  color: #e2e8f0;
+}
+.wf-frame[data-kind="atm-screen"] .wf-side-key-notch,
+.wf-frame[data-kind="kiosk-screen"] .wf-side-key-notch {
+  background: #cbd5e1;
+}
+
+/* ---------- Hardware slot (port indicators) ---------- */
+
+.wf-hardware-slot {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  border: 1.5px dashed color-mix(in srgb, var(--color-secondary) 60%, transparent);
+  border-radius: 6px;
+  font: var(--font-label-sm);
+  color: var(--color-secondary);
+  letter-spacing: var(--label-letterspacing);
+  background: color-mix(in srgb, var(--color-secondary) 6%, var(--color-surface));
+}
+.wf-hardware-slot-glyph {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--color-on-surface);
+}
+.wf-hardware-slot-cash-out .wf-hardware-slot-glyph,
+.wf-hardware-slot-cash-in  .wf-hardware-slot-glyph,
+.wf-hardware-slot-deposit  .wf-hardware-slot-glyph { letter-spacing: 2px; }
+
+/* ---------- Device chrome / chassis panel ---------- */
+
+.wf-device-panel {
+  display: inline-flex; flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: linear-gradient(160deg, #cbd5e1 0%, #94a3b8 60%, #64748b 100%);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15), inset 0 1px 0 rgba(255,255,255,0.55);
+  align-items: center;
+}
+.wf-device-panel-thumbnail {
+  padding: 6px;
+  border-radius: 8px;
+  gap: 4px;
+}
+.wf-device-panel-mid {
+  display: flex; align-items: stretch;
+  gap: var(--space-sm);
+}
+.wf-bezel {
+  display: flex;
+  gap: var(--space-sm);
+  background: color-mix(in srgb, #ffffff 25%, transparent);
+  border-radius: 8px;
+  padding: 6px 8px;
+  align-items: center; justify-content: center;
+}
+.wf-bezel-top, .wf-bezel-bottom { flex-direction: row; align-self: stretch; min-height: 32px; }
+.wf-bezel-left, .wf-bezel-right { flex-direction: column; min-width: 40px; }
+.wf-bezel:empty { display: none; }
+.wf-device-panel .wf-hardware-slot {
+  background: rgba(255,255,255,0.6);
+  border-color: rgba(30, 41, 59, 0.4);
+  border-style: solid;
+  color: #1e293b;
+}
+.wf-device-panel .wf-hardware-slot-glyph { color: #0f172a; }
+
 /* ---------- Map view: per-stage screen thumbnails strip ---------- */
 
 .stage-card-screens {
-  display: flex; flex-wrap: wrap; gap: 6px;
+  display: flex; flex-wrap: wrap; gap: var(--space-sm);
   margin-top: 4px;
   padding-top: var(--space-sm);
   border-top: 1px dashed var(--color-border);
 }
 .stage-card-screen {
   cursor: pointer;
-  display: flex; flex-direction: column; align-items: stretch; gap: 2px;
+  display: flex; flex-direction: column; align-items: stretch; gap: 4px;
   text-align: left;
   padding: 0;
+  transition: transform 0.12s ease;
 }
+.stage-card-screen:hover { transform: translateY(-2px); }
 .stage-card-screen-label {
   font: var(--font-label-sm); color: var(--color-secondary);
   letter-spacing: var(--label-letterspacing);
-  max-width: 100px;
+  max-width: 280px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.stage-card-screens-hint {
+  width: 100%;
+  margin-top: var(--space-xs);
+  padding-top: var(--space-xs);
+  font: var(--font-label-sm); color: var(--color-secondary);
+  letter-spacing: var(--label-letterspacing);
+  opacity: 0.85;
 }
 
 /* ---------- Stage view: screen refs as chips ---------- */

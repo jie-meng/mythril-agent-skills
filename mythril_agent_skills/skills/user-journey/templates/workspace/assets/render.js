@@ -4,6 +4,10 @@
    (#journey-data and #design-tokens) and renders four views:
    map / stage / flow / present.
 
+   Default landing view (empty hash):
+     - "flow/<first-screen-id>" when journey.screens is non-empty
+     - "map" otherwise (legacy / screens-not-authored-yet projects)
+
    Hash routing supports two stable forms — both work:
      #map | #/map
      #stage/<id> | #/stage/<id>
@@ -42,6 +46,9 @@
       no_transitions: "No outgoing transitions.",
       no_referrers: "Not referenced by any step.",
       hotspot_legend: "Blue outlines = tappable. Hover for destination, click to follow.",
+      map_hint_prefix: "This is the bird's-eye Map. Press ",
+      map_hint_suffix: " (or click any thumbnail) to walk real wireframes in Flow view.",
+      stage_card_screens_hint: "Click any screen → opens it in Flow with full controls",
     },
     zh: {
       map: "地图", stage: "阶段", flow: "屏流", present: "演示", screens: "屏",
@@ -71,6 +78,9 @@
       no_transitions: "没有外向跳转。",
       no_referrers: "没有任何步骤引用此屏。",
       hotspot_legend: "蓝色虚线为可点击热区,悬停看跳转,点击跟随。",
+      map_hint_prefix: "这里是鸟瞰地图。按 ",
+      map_hint_suffix: " 键（或点击任意缩略图）进入 Flow 视图，查看真实可交互的线框图。",
+      stage_card_screens_hint: "点击任意屏 → 进入 Flow 查看完整 UI 与跳转",
     },
   };
 
@@ -236,6 +246,19 @@
     return byTag;
   }
 
+  function uniqueDeviceKinds(screens) {
+    const out = [];
+    const seen = new Set();
+    (screens || []).forEach(s => {
+      const k = s.kind || "mobile-screen";
+      if (!seen.has(k)) {
+        seen.add(k);
+        out.push(k);
+      }
+    });
+    return out;
+  }
+
   /* ---------- Topbar / shortcuts --------------------------- */
 
   function setupTopbar() {
@@ -390,7 +413,19 @@
   function applyHashRoute() {
     // Accept both #foo and #/foo styles.
     const h = (location.hash || "").replace(/^#\/?/, "");
-    if (!h) { switchView("map", { fromHash: true }); return; }
+    if (!h) {
+      // Default landing view: Flow (real wireframes) when screens exist,
+      // otherwise fall back to Map. Users with non-trivial journeys should
+      // see actual UI on first open, not a thumbnail strip.
+      const firstScreen = (state.data?.screens && state.data.screens[0]) || null;
+      if (firstScreen) {
+        state.activeScreenId = firstScreen.id;
+        switchView("flow", { fromHash: true });
+      } else {
+        switchView("map", { fromHash: true });
+      }
+      return;
+    }
     const parts = h.split("/");
     const view = parts[0];
     const id = parts[1];
@@ -439,6 +474,20 @@
     const view = document.getElementById("view-map");
     view.innerHTML = "";
 
+    // Permanent hint: this view is the overview; real wireframes live in Flow.
+    if ((state.data?.screens || []).length) {
+      const banner = document.createElement("div");
+      banner.className = "map-hint-banner";
+      const kbd = document.createElement("kbd");
+      kbd.textContent = "F";
+      banner.append(
+        document.createTextNode(t("map_hint_prefix")),
+        kbd,
+        document.createTextNode(t("map_hint_suffix")),
+      );
+      view.appendChild(banner);
+    }
+
     if (state.data?.personas?.length) {
       const personaStrip = document.createElement("div");
       personaStrip.className = "persona-strip";
@@ -473,6 +522,22 @@
       stepsEl.textContent = t("steps_count", (stage.steps || []).length);
       card.querySelector(".stage-card-cta").textContent = t("open");
 
+      const screens = getScreensForStage(stage);
+
+      // Device-kind badges in the head: instant signal whether the stage was
+      // modeled with the right device (e.g. ATM screens get 🏧, not 📱).
+      const devicesEl = card.querySelector(".stage-card-devices");
+      if (devicesEl) {
+        const kinds = uniqueDeviceKinds(screens);
+        kinds.forEach(kind => {
+          const badge = document.createElement("span");
+          badge.className = "device-badge";
+          badge.textContent = SCREEN_KIND_ICONS[kind] || "▢";
+          badge.title = kind;
+          devicesEl.appendChild(badge);
+        });
+      }
+
       const emotions = card.querySelector(".stage-card-emotions");
       (stage.steps || []).forEach(step => {
         const dot = document.createElement("span");
@@ -483,7 +548,6 @@
       });
 
       // Append per-stage screen thumbnails strip
-      const screens = getScreensForStage(stage);
       if (screens.length && window.UJWireframe) {
         const strip = document.createElement("div");
         strip.className = "stage-card-screens";
@@ -504,6 +568,10 @@
           });
           strip.appendChild(wrap);
         });
+        const hint = document.createElement("div");
+        hint.className = "stage-card-screens-hint";
+        hint.textContent = t("stage_card_screens_hint");
+        strip.appendChild(hint);
         card.appendChild(strip);
       }
 

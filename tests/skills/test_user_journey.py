@@ -871,3 +871,362 @@ class TestValidateScreens:
         assert any("no outgoing transitions" in i for i in out["info"])
 
 
+# ---------------------------------------------------------------------------
+# Device-aware seed screens (build_initial_journey + device_kind)
+# ---------------------------------------------------------------------------
+
+
+def _walk_types(layout: dict | None) -> list[str]:
+    """Helper: flatten all type names in a layout tree (containers + keys)."""
+    out: list[str] = []
+    if not isinstance(layout, dict):
+        return out
+
+    def visit(node):
+        if not isinstance(node, dict):
+            return
+        t = node.get("type")
+        if t:
+            out.append(t)
+        if t in {"stack", "grid", "row"}:
+            for child in node.get("elements", []) or []:
+                visit(child)
+        elif t == "side-key-rail":
+            for k in node.get("keys", []) or []:
+                if isinstance(k, dict):
+                    out.append("side-key")
+
+    visit(layout)
+    return out
+
+
+class TestSeedScreensByDeviceKind:
+    """Each --device-kind value must produce a seed journey that opens into
+    a representative Flow view for that device, NOT a generic mobile shell."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from init_workspace import build_initial_journey
+        self.build = build_initial_journey
+
+    def _journey(self, kind: str) -> dict:
+        return self.build(
+            title="X", subtitle="", persona_name="U", persona_role="r",
+            language="en", device_kind=kind,
+        )
+
+    def test_default_device_kind_is_mobile(self):
+        # No explicit kind → mobile shape, matching the previous seed
+        out = self.build(
+            title="X", subtitle="", persona_name="U", persona_role="r",
+            language="en",
+        )
+        kinds = {s["kind"] for s in out["screens"]}
+        assert kinds == {"mobile-screen"}
+
+    def test_rejects_bad_device_kind(self):
+        with pytest.raises(ValueError):
+            self._journey("watch")
+
+    @pytest.mark.parametrize("kind,expected_screen_kind", [
+        ("mobile",  "mobile-screen"),
+        ("atm",     "atm-screen"),
+        ("kiosk",   "kiosk-screen"),
+        ("desktop", "desktop-window"),
+        ("tv",      "tv-screen"),
+    ])
+    def test_each_kind_produces_correct_screen_kind(self, kind, expected_screen_kind):
+        out = self._journey(kind)
+        assert all(s["kind"] == expected_screen_kind for s in out["screens"])
+
+    def test_atm_seed_uses_device_vocabulary(self):
+        """The ATM seed must use chrome + side-key-rail + hardware-slot.
+        This is the regression test for the 'ATM looks like a phone' bug."""
+        out = self._journey("atm")
+        # at least one screen must have chrome="panel"
+        chromed = [s for s in out["screens"] if s.get("chrome") == "panel"]
+        assert chromed, "ATM seed must have at least one chrome='panel' screen"
+        # at least one screen must declare hardware[] slots
+        with_hw = [s for s in out["screens"] if s.get("hardware")]
+        assert with_hw, "ATM seed must have at least one screen with hardware[]"
+        # at least one screen must use side-key-rail in its layout
+        rail_screens = [
+            s for s in out["screens"]
+            if "side-key-rail" in _walk_types(s.get("layout"))
+        ]
+        assert rail_screens, "ATM seed must use side-key-rail for the main menu"
+
+    def test_kiosk_seed_uses_hardware(self):
+        out = self._journey("kiosk")
+        with_hw = [s for s in out["screens"] if s.get("hardware")]
+        assert with_hw, "kiosk seed must have at least one screen with hardware[]"
+
+    def test_desktop_seed_does_not_use_atm_vocab(self):
+        """Desktop seeds must NOT reach for side-key-rail / hardware-slot —
+        those would render visually wrong on a desktop window."""
+        out = self._journey("desktop")
+        for s in out["screens"]:
+            assert not s.get("chrome"), "desktop screens must not use chrome=panel"
+            assert not s.get("hardware"), "desktop screens must not declare hardware[]"
+            assert "side-key-rail" not in _walk_types(s.get("layout"))
+
+    def test_tv_seed_uses_carousel_grid(self):
+        out = self._journey("tv")
+        home = out["screens"][0]
+        types = _walk_types(home.get("layout"))
+        assert "grid" in types, "TV home seed should use a horizontal grid"
+
+    def test_seed_persists_device_kind_in_metadata(self):
+        out = self._journey("atm")
+        assert out.get("metadata", {}).get("seed_device_kind") == "atm"
+
+    def test_seed_screens_pass_screens_validator(self):
+        """End-to-end: each device-kind seed should pass `validate_screens`
+        (no errors and no device-modeling warnings)."""
+        from validate_screens import validate_screens
+        for kind in ["mobile", "atm", "kiosk", "desktop", "tv"]:
+            out = self._journey(kind)
+            report = validate_screens(out["screens"], out["stages"])
+            assert report["errors"] == [], f"{kind} seed has errors: {report['errors']}"
+            # Device-modeling warning should NOT fire on any seed
+            device_warnings = [
+                w for w in report["warnings"]
+                if "modeled as mobile" in w or "modeled as a mobile" in w
+            ]
+            assert device_warnings == [], (
+                f"{kind} seed wrongly triggered device-modeling warning: "
+                f"{device_warnings}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# validate_screens: device-specific element resolution
+# ---------------------------------------------------------------------------
+
+
+class TestCollectElementIdsIncludesDeviceElements:
+    """`from_element` references must resolve to side-key-rail keys and to
+    top-level screen.hardware[] slot ids — not just to layout-tree element ids."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from validate_screens import collect_element_ids, collect_hardware_ids
+        self.collect_layout = collect_element_ids
+        self.collect_hardware = collect_hardware_ids
+
+    def test_side_key_rail_keys_collected(self):
+        layout = {
+            "type": "row",
+            "elements": [
+                {"type": "side-key-rail", "side": "left", "keys": [
+                    {"id": "k-withdraw", "label": "W", "interactive": True},
+                    {"id": "k-deposit",  "label": "D", "interactive": True},
+                ]},
+                {"type": "stack", "elements": [{"type": "text", "label": "hi"}]},
+            ],
+        }
+        assert self.collect_layout(layout) == {"k-withdraw", "k-deposit"}
+
+    def test_hardware_slot_inline_in_layout(self):
+        layout = {"type": "stack", "elements": [
+            {"type": "hardware-slot", "id": "h-card", "slot": "card-reader"},
+        ]}
+        assert self.collect_layout(layout) == {"h-card"}
+
+    def test_hardware_at_screen_top_level(self):
+        screen = {
+            "hardware": [
+                {"id": "h-cash", "slot": "cash-out", "position": "bottom"},
+                {"slot": "receipt", "position": "bottom"},
+            ],
+        }
+        assert self.collect_hardware(screen) == {"h-cash"}
+
+    def test_hardware_none_returns_empty_set(self):
+        assert self.collect_hardware({}) == set()
+        assert self.collect_hardware(None) == set()
+
+
+class TestFromElementResolvesDeviceVocab:
+    """A transition with `from_element='k-withdraw'` (a side-key id) or
+    `from_element='h-card'` (a hardware-slot id) must NOT report
+    'has no element with that id'."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from validate_screens import validate_screens
+        self.func = validate_screens
+
+    def test_side_key_id_resolves(self):
+        screen = {
+            "id": "menu", "kind": "atm-screen", "title": "Menu",
+            "chrome": "panel",
+            "layout": {"type": "row", "elements": [
+                {"type": "side-key-rail", "side": "left", "keys": [
+                    {"id": "k-w", "label": "W", "interactive": True},
+                ]},
+            ]},
+            "transitions": [
+                {"from_element": "k-w", "trigger": "tap", "to_screen": "menu",
+                 "label": "loop", "is_default": True},
+            ],
+        }
+        out = self.func([screen], [])
+        assert out["errors"] == []
+
+    def test_hardware_id_resolves(self):
+        screen = {
+            "id": "wel", "kind": "atm-screen", "title": "Welcome",
+            "chrome": "panel",
+            "hardware": [
+                {"id": "h-card", "slot": "card-reader", "position": "top"},
+            ],
+            "layout": {"type": "stack", "elements": [
+                {"type": "text", "label": "Insert card"},
+            ]},
+            "transitions": [
+                {"from_element": "h-card", "trigger": "insert-card",
+                 "to_screen": "wel", "label": "loop", "is_default": True},
+            ],
+        }
+        out = self.func([screen], [])
+        assert out["errors"] == []
+
+
+class TestDeviceAwareModelingCheck:
+    """An atm-screen / kiosk-screen journey with NO chrome / side-key-rail /
+    hardware-slot anywhere in any screen of that kind must warn."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from validate_screens import validate_screens, screen_has_device_specific_elements
+        self.func = validate_screens
+        self.has_dev = screen_has_device_specific_elements
+
+    def test_has_device_specific_with_chrome(self):
+        assert self.has_dev({"chrome": "panel"})
+
+    def test_has_device_specific_with_hardware(self):
+        assert self.has_dev({"hardware": [{"slot": "cash-out"}]})
+
+    def test_has_device_specific_with_rail_in_layout(self):
+        assert self.has_dev({"layout": {"type": "row", "elements": [
+            {"type": "side-key-rail", "side": "left", "keys": []},
+        ]}})
+
+    def test_plain_atm_is_not_device_specific(self):
+        assert not self.has_dev({
+            "kind": "atm-screen",
+            "layout": {"type": "stack", "elements": [{"type": "button"}]},
+        })
+
+    def test_warns_when_all_atm_screens_are_phone_shaped(self):
+        screens = [
+            {"id": "a", "kind": "atm-screen", "title": "A", "stage_id": "s1",
+             "layout": {"type": "stack", "elements": [
+                {"type": "button", "id": "x", "label": "X", "interactive": True},
+             ]},
+             "transitions": []},
+            {"id": "b", "kind": "atm-screen", "title": "B", "stage_id": "s1",
+             "layout": {"type": "stack", "elements": [{"type": "text", "label": "y"}]},
+             "transitions": []},
+        ]
+        stages = [{"id": "s1", "label": "S1", "steps": [
+            {"id": "t1", "screen_refs": ["a", "b"]},
+        ]}]
+        out = self.func(screens, stages)
+        assert any("kind='atm-screen'" in w and "NONE" in w for w in out["warnings"])
+
+    def test_does_not_warn_when_at_least_one_atm_has_chrome(self):
+        screens = [
+            {"id": "a", "kind": "atm-screen", "title": "A", "stage_id": "s1",
+             "chrome": "panel",
+             "hardware": [{"slot": "card-reader", "position": "top"}],
+             "layout": {"type": "stack", "elements": [{"type": "text", "label": "x"}]},
+             "transitions": []},
+            {"id": "b", "kind": "atm-screen", "title": "B", "stage_id": "s1",
+             "layout": {"type": "stack", "elements": [
+                {"type": "button", "id": "x", "label": "X", "interactive": True},
+             ]},
+             "transitions": []},
+        ]
+        stages = [{"id": "s1", "label": "S1", "steps": [
+            {"id": "t1", "screen_refs": ["a", "b"]},
+        ]}]
+        out = self.func(screens, stages)
+        # One screen has chrome → journey-wide check passes; no warning emitted
+        assert not any("NONE use side-key-rail" in w for w in out["warnings"])
+
+    def test_does_not_warn_when_no_atm_screens(self):
+        screens = [
+            {"id": "a", "kind": "mobile-screen", "title": "A", "stage_id": "s1",
+             "layout": {"type": "stack", "elements": [{"type": "text", "label": "x"}]},
+             "transitions": []},
+        ]
+        stages = [{"id": "s1", "label": "S1", "steps": [{"id": "t1", "screen_refs": ["a"]}]}]
+        out = self.func(screens, stages)
+        assert not any("NONE use side-key-rail" in w for w in out["warnings"])
+
+
+class TestComputeMinScreenCount:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from validate_screens import compute_min_screen_count
+        self.func = compute_min_screen_count
+
+    def test_floor_is_eight(self):
+        assert self.func([{"id": "s1"}]) == 8
+        assert self.func([{"id": "s1"}, {"id": "s2"}]) == 8
+        assert self.func([{"id": "s1"}, {"id": "s2"}, {"id": "s3"}]) == 8
+
+    def test_scales_with_stage_count(self):
+        # 5 stages * 2 = 10, > 8 floor
+        assert self.func([{"id": f"s{i}"} for i in range(5)]) == 10
+        # 7 stages * 2 = 14
+        assert self.func([{"id": f"s{i}"} for i in range(7)]) == 14
+
+    def test_empty(self):
+        # Even no stages still floors at 8 — a journey without screens is
+        # trivially below floor, but compute_min_screen_count returns the
+        # recommendation so the calling validator can report against it.
+        assert self.func([]) == 8
+
+
+class TestScreenCountGate:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from validate_screens import validate_screens
+        self.func = validate_screens
+
+    def _screens_n(self, n: int, kind: str = "mobile-screen") -> list[dict]:
+        return [{
+            "id": f"s{i}", "kind": kind, "title": f"S{i}", "stage_id": "stg",
+            "layout": {"type": "stack", "elements": [{"type": "text", "label": f"s{i}"}]},
+            "transitions": [],
+        } for i in range(n)]
+
+    def _stages_n(self, n: int) -> list[dict]:
+        return [{
+            "id": f"stage{i}", "label": f"Stage {i}", "steps": [
+                {"id": "t", "screen_refs": []},
+            ],
+        } for i in range(n)]
+
+    def test_warns_when_below_floor(self):
+        out = self.func(self._screens_n(3), self._stages_n(3), strict=False)
+        assert any("Recommended floor" in w and "= 8" in w for w in out["warnings"])
+        # NOT an error in non-strict mode
+        assert not any("Recommended floor" in e for e in out["errors"])
+
+    def test_strict_promotes_to_error(self):
+        out = self.func(self._screens_n(3), self._stages_n(3), strict=True)
+        assert any("Recommended floor" in e and "= 8" in e for e in out["errors"])
+        # NOT also in warnings in strict mode
+        assert not any("Recommended floor" in w for w in out["warnings"])
+
+    def test_passes_when_above_floor(self):
+        out = self.func(self._screens_n(10), self._stages_n(3), strict=True)
+        assert not any("Recommended floor" in e for e in out["errors"])
+        assert not any("Recommended floor" in w for w in out["warnings"])
+
+

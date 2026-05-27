@@ -82,6 +82,18 @@ def resolve_design_style(name: str, styles_dir: Path = DESIGN_STYLES_DIR) -> Pat
     return candidate
 
 
+VALID_DEVICE_KINDS = {"mobile", "atm", "kiosk", "desktop", "tv"}
+
+# Map the short --device-kind value to the actual screen.kind value.
+DEVICE_KIND_TO_SCREEN_KIND = {
+    "mobile":  "mobile-screen",
+    "atm":     "atm-screen",
+    "kiosk":   "kiosk-screen",
+    "desktop": "desktop-window",
+    "tv":      "tv-screen",
+}
+
+
 def build_initial_journey(
     *,
     title: str,
@@ -89,66 +101,29 @@ def build_initial_journey(
     persona_name: str,
     persona_role: str,
     language: str,
+    device_kind: str = "mobile",
 ) -> dict:
     """Build the initial journey.json structure.
 
     v2 skeleton: 1 persona, 3 stages (each with one example step), and
     a starter `screens[]` array with 3 screens wired with `transitions[]`.
-    The example screens use only common primitives so a fresh workspace
-    immediately renders something meaningful in the Flow view.
+
+    The seed screens are tailored to `device_kind` so the renderer
+    immediately demonstrates the right vocabulary — an ATM workspace
+    boots up with `chrome: "panel"` + `side-key-rail`, a mobile
+    workspace boots up with `card` + buttons, etc. The AI is expected
+    to add more screens of the same kind in Pass C.
     """
     if language not in VALID_LANGUAGES:
         raise ValueError(
             f"language must be one of {sorted(VALID_LANGUAGES)}, got {language!r}"
         )
+    if device_kind not in VALID_DEVICE_KINDS:
+        raise ValueError(
+            f"device_kind must be one of {sorted(VALID_DEVICE_KINDS)}, got {device_kind!r}"
+        )
     persona_slug = slugify(persona_name) or "primary-user"
-    if language == "zh":
-        labels = ["发现", "尝试", "习惯"]
-        summaries = [
-            "用户了解到产品并决定试用",
-            "用户完成首次核心动作",
-            "用户形成稳定使用习惯",
-        ]
-        step_labels = ["浏览首页", "完成首个任务", "重复使用"]
-        screen_title_welcome = "欢迎页"
-        screen_title_main = "主功能页"
-        screen_title_done = "完成页"
-        screen_text_welcome = "欢迎使用本产品"
-        screen_text_welcome_sub = "1 分钟即可完成首个任务"
-        screen_text_main_h = "今日任务"
-        screen_text_main_sub = "完成下方步骤即可获取奖励"
-        screen_text_done_h = "完成！"
-        screen_text_done_sub = "做得很棒,继续保持"
-        btn_start = "开始"
-        btn_complete = "完成任务"
-        btn_again = "再来一次"
-        tx_start = "点击 开始 → 主功能"
-        tx_complete = "点击 完成任务 → 完成页"
-        tx_again = "点击 再来一次 → 主功能"
-    else:
-        labels = ["Discover", "Try", "Habit"]
-        summaries = [
-            "User learns about the product and decides to try it",
-            "User completes the first core action",
-            "User forms a stable usage habit",
-        ]
-        step_labels = ["Browse landing", "Finish first task", "Return to use again"]
-        screen_title_welcome = "Welcome"
-        screen_title_main = "Main task"
-        screen_title_done = "Done"
-        screen_text_welcome = "Welcome to the product"
-        screen_text_welcome_sub = "Finish your first task in a minute"
-        screen_text_main_h = "Today's task"
-        screen_text_main_sub = "Complete the steps below to unlock the reward"
-        screen_text_done_h = "Done!"
-        screen_text_done_sub = "Nice work, keep it up"
-        btn_start = "Start"
-        btn_complete = "Finish task"
-        btn_again = "Do it again"
-        tx_start = "Tap Start → Main task"
-        tx_complete = "Tap Finish task → Done"
-        tx_again = "Tap Do it again → Main task"
-
+    labels, summaries, step_labels = _seed_stage_strings(language)
     today = datetime.now().strftime("%Y-%m-%d")
     # English labels yield real slugs; non-ASCII labels (e.g. Chinese)
     # fall back to "untitled" via slugify, so we use a per-position fallback
@@ -164,6 +139,14 @@ def build_initial_journey(
         for idx in range(3)
     ]
     screen_ids = ["welcome", "main", "done"]
+    screens = _build_seed_screens(
+        device_kind=device_kind,
+        language=language,
+        title=title,
+        screen_ids=screen_ids,
+        stage_ids=stage_ids,
+        step_labels=step_labels,
+    )
 
     return {
         "schema_version": "2",
@@ -200,101 +183,396 @@ def build_initial_journey(
             }
             for idx in range(3)
         ],
-        "screens": [
-            {
-                "id": screen_ids[0],
-                "kind": "mobile-screen",
-                "title": screen_title_welcome,
-                "stage_id": stage_ids[0],
-                "layout": {
-                    "type": "stack",
-                    "gap": "lg",
-                    "elements": [
-                        {"type": "header", "label": title},
-                        {"type": "spacer", "size": "md"},
-                        {"type": "image-placeholder", "ratio": "16:9", "label": "Hero"},
-                        {"type": "text", "label": screen_text_welcome, "size": "xl", "weight": "bold"},
-                        {"type": "text", "label": screen_text_welcome_sub, "size": "sm", "color": "secondary"},
-                        {"type": "spacer", "size": "md"},
-                        {"type": "button", "id": "start", "label": btn_start, "variant": "primary", "interactive": True},
-                    ],
-                },
-                "transitions": [
-                    {
-                        "from_element": "start",
-                        "trigger": "tap",
-                        "to_screen": screen_ids[1],
-                        "label": tx_start,
-                        "is_default": True,
-                    }
-                ],
-            },
-            {
-                "id": screen_ids[1],
-                "kind": "mobile-screen",
-                "title": screen_title_main,
-                "stage_id": stage_ids[1],
-                "layout": {
-                    "type": "stack",
-                    "gap": "md",
-                    "elements": [
-                        {"type": "header", "label": screen_title_main, "back": True},
-                        {"type": "text", "label": screen_text_main_h, "size": "lg", "weight": "bold"},
-                        {"type": "text", "label": screen_text_main_sub, "size": "sm", "color": "secondary"},
-                        {"type": "spacer", "size": "md"},
-                        {
-                            "type": "card",
-                            "title": step_labels[1],
-                            "body": "Step 1 of 1",
-                        },
-                        {"type": "spacer", "size": "md"},
-                        {"type": "button", "id": "complete", "label": btn_complete, "variant": "primary", "interactive": True},
-                    ],
-                },
-                "transitions": [
-                    {
-                        "from_element": "complete",
-                        "trigger": "tap",
-                        "to_screen": screen_ids[2],
-                        "label": tx_complete,
-                        "is_default": True,
-                    }
-                ],
-            },
-            {
-                "id": screen_ids[2],
-                "kind": "mobile-screen",
-                "title": screen_title_done,
-                "stage_id": stage_ids[2],
-                "layout": {
-                    "type": "stack",
-                    "gap": "lg",
-                    "elements": [
-                        {"type": "header", "label": screen_title_done},
-                        {"type": "spacer", "size": "lg"},
-                        {"type": "text", "label": screen_text_done_h, "size": "xl", "weight": "bold"},
-                        {"type": "text", "label": screen_text_done_sub, "size": "md", "color": "secondary"},
-                        {"type": "spacer", "size": "md"},
-                        {"type": "button", "id": "again", "label": btn_again, "variant": "secondary", "interactive": True},
-                    ],
-                },
-                "transitions": [
-                    {
-                        "from_element": "again",
-                        "trigger": "tap",
-                        "to_screen": screen_ids[1],
-                        "label": tx_again,
-                        "is_default": True,
-                    }
-                ],
-            },
-        ],
+        "screens": screens,
         "metadata": {
             "created": today,
             "last_updated": today,
             "version": "0.1.0",
+            "seed_device_kind": device_kind,
         },
     }
+
+
+def _seed_stage_strings(language: str) -> tuple[list[str], list[str], list[str]]:
+    if language == "zh":
+        labels = ["发现", "尝试", "习惯"]
+        summaries = [
+            "用户了解到产品并决定试用",
+            "用户完成首次核心动作",
+            "用户形成稳定使用习惯",
+        ]
+        step_labels = ["浏览首页", "完成首个任务", "重复使用"]
+    else:
+        labels = ["Discover", "Try", "Habit"]
+        summaries = [
+            "User learns about the product and decides to try it",
+            "User completes the first core action",
+            "User forms a stable usage habit",
+        ]
+        step_labels = ["Browse landing", "Finish first task", "Return to use again"]
+    return labels, summaries, step_labels
+
+
+# ---------------------------------------------------------------------------
+# Per-device seed screen builders
+# ---------------------------------------------------------------------------
+
+def _build_seed_screens(
+    *,
+    device_kind: str,
+    language: str,
+    title: str,
+    screen_ids: list[str],
+    stage_ids: list[str],
+    step_labels: list[str],
+) -> list[dict]:
+    """Dispatch to a per-device-kind seed-screen factory."""
+    factory = {
+        "mobile":  _seed_screens_mobile,
+        "atm":     _seed_screens_atm,
+        "kiosk":   _seed_screens_kiosk,
+        "desktop": _seed_screens_desktop,
+        "tv":      _seed_screens_tv,
+    }[device_kind]
+    return factory(
+        language=language,
+        title=title,
+        screen_ids=screen_ids,
+        stage_ids=stage_ids,
+        step_labels=step_labels,
+    )
+
+
+def _seed_screens_mobile(*, language, title, screen_ids, stage_ids, step_labels) -> list[dict]:
+    s = {
+        "zh": {
+            "t1": "欢迎页", "t2": "主功能页", "t3": "完成页",
+            "h1": "欢迎使用本产品", "h1s": "1 分钟即可完成首个任务",
+            "h2": "今日任务", "h2s": "完成下方步骤即可获取奖励",
+            "h3": "完成！", "h3s": "做得很棒,继续保持",
+            "b_start": "开始", "b_done": "完成任务", "b_again": "再来一次",
+            "tx_s": "点击 开始 → 主功能", "tx_c": "点击 完成任务 → 完成页", "tx_a": "点击 再来一次 → 主功能",
+        },
+        "en": {
+            "t1": "Welcome", "t2": "Main task", "t3": "Done",
+            "h1": "Welcome to the product", "h1s": "Finish your first task in a minute",
+            "h2": "Today's task", "h2s": "Complete the steps below to unlock the reward",
+            "h3": "Done!", "h3s": "Nice work, keep it up",
+            "b_start": "Start", "b_done": "Finish task", "b_again": "Do it again",
+            "tx_s": "Tap Start → Main task", "tx_c": "Tap Finish task → Done", "tx_a": "Tap Do it again → Main task",
+        },
+    }[language]
+    return [
+        {
+            "id": screen_ids[0], "kind": "mobile-screen", "title": s["t1"], "stage_id": stage_ids[0],
+            "layout": {"type": "stack", "gap": "lg", "elements": [
+                {"type": "header", "label": title},
+                {"type": "spacer", "size": "md"},
+                {"type": "image-placeholder", "ratio": "16:9", "label": "Hero"},
+                {"type": "text", "label": s["h1"], "size": "xl", "weight": "bold"},
+                {"type": "text", "label": s["h1s"], "size": "sm", "color": "secondary"},
+                {"type": "spacer", "size": "md"},
+                {"type": "button", "id": "start", "label": s["b_start"], "variant": "primary", "interactive": True},
+            ]},
+            "transitions": [{"from_element": "start", "trigger": "tap", "to_screen": screen_ids[1], "label": s["tx_s"], "is_default": True}],
+        },
+        {
+            "id": screen_ids[1], "kind": "mobile-screen", "title": s["t2"], "stage_id": stage_ids[1],
+            "layout": {"type": "stack", "gap": "md", "elements": [
+                {"type": "header", "label": s["t2"], "back": True},
+                {"type": "text", "label": s["h2"], "size": "lg", "weight": "bold"},
+                {"type": "text", "label": s["h2s"], "size": "sm", "color": "secondary"},
+                {"type": "spacer", "size": "md"},
+                {"type": "card", "title": step_labels[1], "body": "Step 1 of 1"},
+                {"type": "spacer", "size": "md"},
+                {"type": "button", "id": "complete", "label": s["b_done"], "variant": "primary", "interactive": True},
+            ]},
+            "transitions": [{"from_element": "complete", "trigger": "tap", "to_screen": screen_ids[2], "label": s["tx_c"], "is_default": True}],
+        },
+        {
+            "id": screen_ids[2], "kind": "mobile-screen", "title": s["t3"], "stage_id": stage_ids[2],
+            "layout": {"type": "stack", "gap": "lg", "elements": [
+                {"type": "header", "label": s["t3"]},
+                {"type": "spacer", "size": "lg"},
+                {"type": "text", "label": s["h3"], "size": "xl", "weight": "bold"},
+                {"type": "text", "label": s["h3s"], "size": "md", "color": "secondary"},
+                {"type": "spacer", "size": "md"},
+                {"type": "button", "id": "again", "label": s["b_again"], "variant": "secondary", "interactive": True},
+            ]},
+            "transitions": [{"from_element": "again", "trigger": "tap", "to_screen": screen_ids[1], "label": s["tx_a"], "is_default": True}],
+        },
+    ]
+
+
+def _seed_screens_atm(*, language, title, screen_ids, stage_ids, step_labels) -> list[dict]:
+    """ATM seed: chrome + side-key-rail + hardware slots demoed."""
+    s = {
+        "zh": {
+            "t1": "欢迎 / 插卡", "t2": "主菜单", "t3": "请取钞",
+            "h1": "欢迎使用 ATM", "h1s": "请插入您的银行卡",
+            "h2": "请选择业务", "h2s": "使用屏幕两侧的物理键",
+            "h3": "¥200 已就绪", "h3s": "请从下方取款口取走现金",
+            "k_w": "取款", "k_d": "存款", "k_b": "余额", "k_o": "其他",
+            "k_t": "转账", "k_p": "缴费", "k_l": "Language", "k_e": "退卡",
+            "slot_card": "插卡口", "slot_cash": "出钞口", "slot_recv": "凭条口", "slot_take": "请取钞",
+            "tx_insert": "插卡 → 主菜单", "tx_w": "取款 → 出钞", "tx_e": "退卡 → 返回欢迎", "tx_take": "取走现金 → 欢迎",
+        },
+        "en": {
+            "t1": "Welcome / insert card", "t2": "Main menu", "t3": "Take cash",
+            "h1": "Welcome", "h1s": "Please insert your card to begin",
+            "h2": "Please select a service", "h2s": "Use the physical keys on either side",
+            "h3": "$200 ready", "h3s": "Please take your cash from the slot below",
+            "k_w": "Withdraw", "k_d": "Deposit", "k_b": "Balance", "k_o": "Other",
+            "k_t": "Transfer", "k_p": "Pay bills", "k_l": "Language", "k_e": "Exit",
+            "slot_card": "Insert card", "slot_cash": "Cash", "slot_recv": "Receipt", "slot_take": "Take cash",
+            "tx_insert": "Insert card → main menu", "tx_w": "Withdraw → take cash", "tx_e": "Exit → welcome", "tx_take": "Take cash → welcome",
+        },
+    }[language]
+    return [
+        {
+            "id": screen_ids[0], "kind": "atm-screen", "title": s["t1"], "stage_id": stage_ids[0],
+            "chrome": "panel",
+            "hardware": [
+                {"slot": "card-reader", "position": "top", "label": s["slot_card"], "id": "h-card", "interactive": True},
+                {"slot": "cash-out",    "position": "bottom", "label": s["slot_cash"]},
+                {"slot": "receipt",     "position": "bottom", "label": s["slot_recv"]},
+            ],
+            "layout": {"type": "stack", "gap": "lg", "elements": [
+                {"type": "header", "label": title},
+                {"type": "text", "label": s["h1"], "size": "xl", "weight": "bold"},
+                {"type": "text", "label": s["h1s"], "size": "md", "color": "secondary"},
+            ]},
+            "transitions": [{"from_element": "h-card", "trigger": "insert-card", "to_screen": screen_ids[1], "label": s["tx_insert"], "is_default": True}],
+        },
+        {
+            "id": screen_ids[1], "kind": "atm-screen", "title": s["t2"], "stage_id": stage_ids[1],
+            "chrome": "panel",
+            "hardware": [
+                {"slot": "card-reader", "position": "top", "label": s["slot_card"]},
+                {"slot": "cash-out",    "position": "bottom", "label": s["slot_cash"]},
+                {"slot": "receipt",     "position": "bottom", "label": s["slot_recv"]},
+            ],
+            "layout": {"type": "row", "justify": "between", "gap": "lg", "elements": [
+                {"type": "side-key-rail", "side": "left", "keys": [
+                    {"id": "k-withdraw", "label": s["k_w"], "interactive": True, "variant": "primary"},
+                    {"id": "k-deposit",  "label": s["k_d"], "interactive": True},
+                    {"id": "k-balance",  "label": s["k_b"], "interactive": True},
+                    {"id": "k-other",    "label": s["k_o"], "interactive": True},
+                ]},
+                {"type": "stack", "gap": "sm", "elements": [
+                    {"type": "text", "label": s["h2"], "size": "lg", "weight": "bold"},
+                    {"type": "text", "label": s["h2s"], "size": "sm", "color": "secondary"},
+                ]},
+                {"type": "side-key-rail", "side": "right", "keys": [
+                    {"id": "k-transfer", "label": s["k_t"], "interactive": True},
+                    {"id": "k-pay",      "label": s["k_p"], "interactive": True},
+                    {"id": "k-language", "label": s["k_l"], "interactive": True},
+                    {"id": "k-exit",     "label": s["k_e"], "interactive": True, "variant": "destructive"},
+                ]},
+            ]},
+            "transitions": [
+                {"from_element": "k-withdraw", "trigger": "tap", "to_screen": screen_ids[2], "label": s["tx_w"], "is_default": True},
+                {"from_element": "k-exit",     "trigger": "tap", "to_screen": screen_ids[0], "label": s["tx_e"]},
+            ],
+        },
+        {
+            "id": screen_ids[2], "kind": "atm-screen", "title": s["t3"], "stage_id": stage_ids[2],
+            "chrome": "panel",
+            "hardware": [
+                {"slot": "cash-out", "position": "bottom", "label": s["slot_take"], "id": "h-take-cash", "interactive": True},
+            ],
+            "layout": {"type": "stack", "gap": "lg", "elements": [
+                {"type": "header", "label": s["t3"]},
+                {"type": "text", "label": s["h3"], "size": "xl", "weight": "bold"},
+                {"type": "text", "label": s["h3s"], "size": "md", "color": "secondary"},
+            ]},
+            "transitions": [{"from_element": "h-take-cash", "trigger": "tap", "to_screen": screen_ids[0], "label": s["tx_take"], "is_default": True}],
+        },
+    ]
+
+
+def _seed_screens_kiosk(*, language, title, screen_ids, stage_ids, step_labels) -> list[dict]:
+    """Kiosk seed: chrome + scanner + nfc hardware demoed."""
+    s = {
+        "zh": {
+            "t1": "欢迎 / 扫码", "t2": "选择商品", "t3": "确认支付",
+            "h1": "请扫描商品条码", "h1s": "开始自助结账",
+            "h2": "请选择购买的商品", "btn_done": "结算",
+            "h3": "请使用 NFC 支付", "btn_pay": "完成支付",
+            "slot_scan": "条码扫描区", "slot_nfc": "NFC 感应区",
+            "tx_scan": "扫码 → 选择商品", "tx_done": "结算 → 支付", "tx_pay": "支付完成 → 欢迎",
+            "card_apple": "苹果 ¥5", "card_milk": "牛奶 ¥10", "card_bread": "面包 ¥8",
+        },
+        "en": {
+            "t1": "Welcome / scan", "t2": "Select items", "t3": "Confirm payment",
+            "h1": "Please scan item barcode", "h1s": "Start self-checkout",
+            "h2": "Select items to buy", "btn_done": "Checkout",
+            "h3": "Tap your phone on the NFC reader", "btn_pay": "Complete payment",
+            "slot_scan": "Barcode scanner", "slot_nfc": "NFC reader",
+            "tx_scan": "Scan → select items", "tx_done": "Checkout → pay", "tx_pay": "Paid → welcome",
+            "card_apple": "Apple $1", "card_milk": "Milk $3", "card_bread": "Bread $2",
+        },
+    }[language]
+    return [
+        {
+            "id": screen_ids[0], "kind": "kiosk-screen", "title": s["t1"], "stage_id": stage_ids[0],
+            "chrome": "panel",
+            "hardware": [
+                {"slot": "scanner", "position": "bottom", "label": s["slot_scan"], "id": "h-scan", "interactive": True},
+            ],
+            "layout": {"type": "stack", "gap": "lg", "elements": [
+                {"type": "header", "label": title},
+                {"type": "text", "label": s["h1"], "size": "xl", "weight": "bold"},
+                {"type": "text", "label": s["h1s"], "size": "md", "color": "secondary"},
+            ]},
+            "transitions": [{"from_element": "h-scan", "trigger": "tap", "to_screen": screen_ids[1], "label": s["tx_scan"], "is_default": True}],
+        },
+        {
+            "id": screen_ids[1], "kind": "kiosk-screen", "title": s["t2"], "stage_id": stage_ids[1],
+            "layout": {"type": "stack", "gap": "md", "elements": [
+                {"type": "header", "label": s["t2"]},
+                {"type": "text", "label": s["h2"], "size": "lg", "weight": "bold"},
+                {"type": "spacer", "size": "sm"},
+                {"type": "grid", "cols": 3, "gap": "md", "elements": [
+                    {"type": "card", "title": s["card_apple"]},
+                    {"type": "card", "title": s["card_milk"]},
+                    {"type": "card", "title": s["card_bread"]},
+                ]},
+                {"type": "spacer", "size": "md"},
+                {"type": "button", "id": "checkout", "label": s["btn_done"], "variant": "primary", "interactive": True},
+            ]},
+            "transitions": [{"from_element": "checkout", "trigger": "tap", "to_screen": screen_ids[2], "label": s["tx_done"], "is_default": True}],
+        },
+        {
+            "id": screen_ids[2], "kind": "kiosk-screen", "title": s["t3"], "stage_id": stage_ids[2],
+            "chrome": "panel",
+            "hardware": [
+                {"slot": "nfc", "position": "bottom", "label": s["slot_nfc"], "id": "h-nfc", "interactive": True},
+            ],
+            "layout": {"type": "stack", "gap": "lg", "elements": [
+                {"type": "header", "label": s["t3"]},
+                {"type": "text", "label": s["h3"], "size": "xl", "weight": "bold"},
+            ]},
+            "transitions": [{"from_element": "h-nfc", "trigger": "tap", "to_screen": screen_ids[0], "label": s["tx_pay"], "is_default": True}],
+        },
+    ]
+
+
+def _seed_screens_desktop(*, language, title, screen_ids, stage_ids, step_labels) -> list[dict]:
+    """Desktop seed: dashboard + detail + form (no chrome / side-keys)."""
+    s = {
+        "zh": {
+            "t1": "概览", "t2": "详情", "t3": "新建",
+            "h1": "欢迎回来", "h1s": "您有 3 项待办",
+            "h2": "项目 A", "h2s": "状态:进行中", "btn_edit": "编辑",
+            "h3": "新建项目", "btn_save": "保存",
+            "form_name": "名称", "form_owner": "负责人",
+            "tx_open": "查看项目 → 详情", "tx_edit": "编辑 → 新建表单", "tx_save": "保存 → 返回概览",
+            "card_a": "项目 A", "card_b": "项目 B", "card_c": "项目 C",
+        },
+        "en": {
+            "t1": "Overview", "t2": "Detail", "t3": "Create",
+            "h1": "Welcome back", "h1s": "You have 3 items pending",
+            "h2": "Project A", "h2s": "Status: in progress", "btn_edit": "Edit",
+            "h3": "New project", "btn_save": "Save",
+            "form_name": "Name", "form_owner": "Owner",
+            "tx_open": "Open project → detail", "tx_edit": "Edit → new form", "tx_save": "Save → overview",
+            "card_a": "Project A", "card_b": "Project B", "card_c": "Project C",
+        },
+    }[language]
+    return [
+        {
+            "id": screen_ids[0], "kind": "desktop-window", "title": s["t1"], "stage_id": stage_ids[0],
+            "layout": {"type": "stack", "gap": "lg", "elements": [
+                {"type": "header", "label": title},
+                {"type": "text", "label": s["h1"], "size": "xl", "weight": "bold"},
+                {"type": "text", "label": s["h1s"], "size": "sm", "color": "secondary"},
+                {"type": "spacer", "size": "md"},
+                {"type": "grid", "cols": 3, "gap": "md", "elements": [
+                    {"type": "card", "id": "card-a", "title": s["card_a"], "body": s["h2s"], "interactive": True},
+                    {"type": "card", "title": s["card_b"], "body": s["h2s"]},
+                    {"type": "card", "title": s["card_c"], "body": s["h2s"]},
+                ]},
+            ]},
+            "transitions": [{"from_element": "card-a", "trigger": "tap", "to_screen": screen_ids[1], "label": s["tx_open"], "is_default": True}],
+        },
+        {
+            "id": screen_ids[1], "kind": "desktop-window", "title": s["t2"], "stage_id": stage_ids[1],
+            "layout": {"type": "stack", "gap": "md", "elements": [
+                {"type": "header", "label": s["t2"], "back": True},
+                {"type": "text", "label": s["h2"], "size": "xl", "weight": "bold"},
+                {"type": "text", "label": s["h2s"], "size": "md", "color": "secondary"},
+                {"type": "spacer", "size": "md"},
+                {"type": "button", "id": "edit", "label": s["btn_edit"], "variant": "primary", "interactive": True},
+            ]},
+            "transitions": [{"from_element": "edit", "trigger": "tap", "to_screen": screen_ids[2], "label": s["tx_edit"], "is_default": True}],
+        },
+        {
+            "id": screen_ids[2], "kind": "desktop-window", "title": s["t3"], "stage_id": stage_ids[2],
+            "layout": {"type": "stack", "gap": "md", "elements": [
+                {"type": "header", "label": s["t3"]},
+                {"type": "form-field", "id": "name", "label": s["form_name"], "placeholder": "..."},
+                {"type": "form-field", "id": "owner", "label": s["form_owner"], "placeholder": "..."},
+                {"type": "spacer", "size": "md"},
+                {"type": "button", "id": "save", "label": s["btn_save"], "variant": "primary", "interactive": True},
+            ]},
+            "transitions": [{"from_element": "save", "trigger": "tap", "to_screen": screen_ids[0], "label": s["tx_save"], "is_default": True}],
+        },
+    ]
+
+
+def _seed_screens_tv(*, language, title, screen_ids, stage_ids, step_labels) -> list[dict]:
+    """TV seed: horizontal carousel + detail + play."""
+    s = {
+        "zh": {
+            "t1": "首页", "t2": "节目详情", "t3": "正在播放",
+            "h1": "猜你喜欢", "card_a": "节目 A", "card_b": "节目 B", "card_c": "节目 C", "card_d": "节目 D",
+            "h2": "节目 A · 第 1 集", "btn_play": "播放",
+            "h3": "00:23 / 45:00",
+            "tx_open": "选中节目 → 详情", "tx_play": "播放 → 正在播放", "tx_done": "播放完毕 → 首页",
+        },
+        "en": {
+            "t1": "Home", "t2": "Show detail", "t3": "Now playing",
+            "h1": "Recommended for you", "card_a": "Show A", "card_b": "Show B", "card_c": "Show C", "card_d": "Show D",
+            "h2": "Show A · S1E1", "btn_play": "Play",
+            "h3": "00:23 / 45:00",
+            "tx_open": "Select → detail", "tx_play": "Play → now playing", "tx_done": "End → home",
+        },
+    }[language]
+    return [
+        {
+            "id": screen_ids[0], "kind": "tv-screen", "title": s["t1"], "stage_id": stage_ids[0],
+            "layout": {"type": "stack", "gap": "lg", "elements": [
+                {"type": "header", "label": title},
+                {"type": "text", "label": s["h1"], "size": "xl", "weight": "bold"},
+                {"type": "grid", "cols": 4, "gap": "md", "elements": [
+                    {"type": "card", "id": "card-a", "title": s["card_a"], "interactive": True, "state": "hover"},
+                    {"type": "card", "title": s["card_b"]},
+                    {"type": "card", "title": s["card_c"]},
+                    {"type": "card", "title": s["card_d"]},
+                ]},
+            ]},
+            "transitions": [{"from_element": "card-a", "trigger": "tap", "to_screen": screen_ids[1], "label": s["tx_open"], "is_default": True}],
+        },
+        {
+            "id": screen_ids[1], "kind": "tv-screen", "title": s["t2"], "stage_id": stage_ids[1],
+            "layout": {"type": "stack", "gap": "lg", "elements": [
+                {"type": "image-placeholder", "ratio": "16:9", "label": "Cover art"},
+                {"type": "text", "label": s["h2"], "size": "xl", "weight": "bold"},
+                {"type": "button", "id": "play", "label": s["btn_play"], "variant": "primary", "interactive": True},
+            ]},
+            "transitions": [{"from_element": "play", "trigger": "tap", "to_screen": screen_ids[2], "label": s["tx_play"], "is_default": True}],
+        },
+        {
+            "id": screen_ids[2], "kind": "tv-screen", "title": s["t3"], "stage_id": stage_ids[2],
+            "layout": {"type": "stack", "gap": "lg", "elements": [
+                {"type": "image-placeholder", "ratio": "16:9", "label": "Playing..."},
+                {"type": "text", "label": s["h3"], "size": "md", "color": "secondary"},
+                {"type": "progress", "kind": "linear", "value": 5},
+            ]},
+            "transitions": [{"from_element": "any", "trigger": "auto", "to_screen": screen_ids[0], "label": s["tx_done"], "is_default": True, "delay_ms": 0}],
+        },
+    ]
 
 
 def build_mermaid(journey: dict) -> str:
@@ -471,12 +749,21 @@ def run(args: argparse.Namespace) -> int:
         "Primary user of the product" if language == "en" else "产品主要使用者"
     )
 
+    device_kind = args.device_kind or "mobile"
+    if device_kind not in VALID_DEVICE_KINDS:
+        print(
+            f"error: --device-kind must be one of {sorted(VALID_DEVICE_KINDS)}",
+            file=sys.stderr,
+        )
+        return 2
+
     journey = build_initial_journey(
         title=title,
         subtitle=subtitle,
         persona_name=persona_name,
         persona_role=persona_role,
         language=language,
+        device_kind=device_kind,
     )
 
     design_md_text = design_path.read_text(encoding="utf-8")
@@ -535,6 +822,7 @@ def run(args: argparse.Namespace) -> int:
 
     print(f"OK: workspace created at {workspace}")
     print(f"  design style:  {design_path.stem}")
+    print(f"  device kind:   {device_kind}")
     print(f"  language:      {language}")
     print(f"  stages:        {len(journey['stages'])} (skeleton)")
     print()
@@ -578,6 +866,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--design-style",
         default="corporate-clean",
         help="design-style preset slug (see SKILL_PATH/templates/design-styles/)",
+    )
+    parser.add_argument(
+        "--device-kind",
+        choices=sorted(VALID_DEVICE_KINDS),
+        default="mobile",
+        help=(
+            "primary device form of the journey. Drives the seed screens in "
+            "journey.json so the workspace opens straight into a representative "
+            "Flow view (ATM gets chrome + side-key-rail, kiosk gets scanner + nfc, "
+            "TV gets carousel, etc.). The AI is expected to continue with the "
+            "same vocabulary in Pass C."
+        ),
     )
     parser.add_argument(
         "--force",
