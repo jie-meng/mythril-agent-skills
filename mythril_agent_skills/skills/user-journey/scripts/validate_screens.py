@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
-"""Validate the screens[] and transitions[] in a user-journey workspace.
+"""Validate the screens[] and top-level arrows[] in a user-journey workspace.
 
-Enforces the rules documented in references/SCREENS-RULES.md:
+Enforces the rules documented in references/SCREENS-RULES.md (v3 canvas
+schema):
 
   1.  screen.id is unique
-  2.  transitions.to_screen resolves
-  3.  transitions.from_element exists in the screen's layout, in
-      side-key-rail keys, in screen.hardware[], or is "any"
+  2.  every arrow.to resolves to a screen
+  3.  every arrow.from resolves — `<screen-id>` (whole-screen anchor) or
+      `<screen-id>#<element-id>` (anchored at a specific element / side-key
+      rail key / hardware slot)
   4.  step.screen_refs[] all resolve
-  5.  orphan screens (warning)
-  6.  dead-end non-terminal screens (info)
-  7.  at most one is_default: true per screen
+  5.  orphan screens (warning) — no step refs them AND no arrow points at them
+  6.  dead-end non-terminal screens (info) — no outgoing arrows, but the
+      screen sits in the middle of a flow
+  7.  at most one is_default = true arrow per SOURCE screen
   8.  interactive elements should have an id (warning)
-  9.  device-specific elements present when kind suggests them
-      (e.g. atm-screen without side-key-rail / hardware / chrome → warning)
-  10. screen count gate — in --strict mode, a journey with N stages must
-      have at least max(N*2, 8) screens; otherwise it's a "stage map only"
-      and the Flow view will be empty/thin
+  9.  device-aware modeling — any atm-screen / kiosk-screen journey that
+      lacks chrome / side-key-rail / hardware anywhere of that kind warns
+  10. screen-count floor — in --strict mode, a journey with N stages must
+      have at least max(N*2, 8) screens
 
 Exit codes:
   0 — all rules pass (warnings/infos still printed)
@@ -28,7 +30,7 @@ Output format (stable, parsed by AI):
     STATUS=PASS|FAIL
     SCHEMA_VERSION=<n>
     SCREENS_CHECKED=<n>
-    TRANSITIONS_CHECKED=<n>
+    ARROWS_CHECKED=<n>
     ERROR:   <message>
     WARNING: <message>
     INFO:    <message>
@@ -37,7 +39,6 @@ Usage:
   python3 validate_screens.py <workspace-path>            # warnings + errors
   python3 validate_screens.py <workspace-path> --strict   # promote certain
                                                            # warnings to errors
-                                                           # (screen-count gate)
 """
 
 from __future__ import annotations
@@ -46,20 +47,45 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Iterable
 
 
 # ---------------------------------------------------------------------------
 # Pure helpers (testable; no I/O)
 # ---------------------------------------------------------------------------
 
-CONTAINER_TYPES = {"stack", "grid", "row"}
+CONTAINER_TYPES = {"stack", "grid", "row", "section", "list"}
+
+# A "structural" element groups other elements visually. A screen with
+# many children but ZERO structural elements is the design-pattern
+# anti-pattern we want to catch ("flat element soup").
+STRUCTURAL_TYPES = {
+    "app-bar", "header", "section", "section-header",
+    "footer-bar", "tab-bar",
+    "step-indicator", "alert", "empty-state",
+    "card", "key-value-list",
+}
+
+# Atomic (non-grouping) primitives — multiple of these in a row
+# without any structural break is a smell.
+ATOMIC_TYPES = {
+    "text", "button", "keypad-button", "icon-button",
+    "form-field", "search-bar", "list-item", "chip",
+    "toast", "progress", "divider", "badge", "spacer",
+    "image-placeholder", "key-value", "stat-tile", "avatar",
+}
 
 # Device kinds where we expect at least one device-specific element
 # (side-key-rail or hardware-slot) or chrome="panel". Modeling these
 # as a plain stack/grid of buttons usually means the AI defaulted to
 # mobile thinking — flag it.
 DEVICE_KINDS_REQUIRING_HARDWARE_HINT = {"atm-screen", "kiosk-screen"}
+
+# Density thresholds — tuned to match what looks bad visually.
+MAX_FLAT_CHILDREN     = 8   # children in root stack with no structural elements
+MAX_SECTION_CHILDREN  = 6   # immediate children in a single section
+MIN_PRIMITIVE_VARIETY = 2   # at least 2 different atomic primitive types when body > 4
+MONOTONY_THRESHOLD    = 0.8 # >= 80% of atomic elements being the same type = monotonous
 
 
 def collect_element_ids(layout: dict | None) -> set[str]:
@@ -88,6 +114,30 @@ def _walk_collect_ids(node: dict, out: set[str]) -> None:
                 kid = key.get("id")
                 if isinstance(kid, str) and kid:
                     out.add(kid)
+    elif el_type == "tab-bar":
+        for item in node.get("items", []) or []:
+            if isinstance(item, dict):
+                iid = item.get("id")
+                if isinstance(iid, str) and iid:
+                    out.add(iid)
+    elif el_type == "key-value-list":
+        for item in node.get("items", []) or []:
+            if isinstance(item, dict):
+                iid = item.get("id")
+                if isinstance(iid, str) and iid:
+                    out.add(iid)
+    elif el_type in {"footer-bar", "app-bar"}:
+        for action in node.get("actions", []) or []:
+            if isinstance(action, dict):
+                aid = action.get("id")
+                if isinstance(aid, str) and aid:
+                    out.add(aid)
+    if el_type in {"empty-state", "alert", "section"}:
+        action = node.get("action")
+        if isinstance(action, dict):
+            aid = action.get("id")
+            if isinstance(aid, str) and aid:
+                out.add(aid)
 
 
 def collect_hardware_ids(screen: dict | None) -> set[str]:
@@ -125,9 +175,23 @@ def _walk_collect(node: dict, out: list[dict]) -> None:
     elif el_type == "side-key-rail":
         for key in node.get("keys", []) or []:
             if isinstance(key, dict):
-                # Treat the key as a synthetic element node so the
-                # "interactive-without-id" check still applies.
                 out.append({**key, "type": "side-key"})
+    elif el_type == "tab-bar":
+        for item in node.get("items", []) or []:
+            if isinstance(item, dict):
+                out.append({**item, "type": "tab-item"})
+    elif el_type == "key-value-list":
+        for item in node.get("items", []) or []:
+            if isinstance(item, dict):
+                out.append({**item, "type": "key-value"})
+    elif el_type in {"footer-bar", "app-bar"}:
+        for action in node.get("actions", []) or []:
+            if isinstance(action, dict):
+                out.append({**action, "type": "action"})
+    elif el_type in {"empty-state", "alert"}:
+        action = node.get("action")
+        if isinstance(action, dict):
+            out.append({**action, "type": "action"})
 
 
 def find_interactive_without_id(layout: dict | None) -> list[str]:
@@ -137,6 +201,101 @@ def find_interactive_without_id(layout: dict | None) -> list[str]:
         if node.get("interactive") and not (isinstance(node.get("id"), str) and node.get("id")):
             bad.append(str(node.get("type", "<unknown>")))
     return bad
+
+
+def assess_design_pattern_sense(screen: dict) -> list[str]:
+    """Inspect a screen's layout for flat-element-soup smells.
+
+    Returns a list of warning messages (one per smell), each starting
+    with a `[smell-name]` tag. Pure: takes a screen dict, returns a
+    list. The smells we look for:
+
+      [flat-stack]     root is a stack/grid with > MAX_FLAT_CHILDREN
+                       direct children AND no structural element
+                       (app-bar, section, header, tab-bar, ...)
+                       — almost always means "I dumped atoms into one
+                       stack" rather than composing patterns.
+      [no-hierarchy]   screen body has > 4 atomic elements and no
+                       structural element anywhere — no app-bar, no
+                       header, no section, no tab-bar. Reviewer has
+                       no anchor to read the screen.
+      [monotonous]     ≥ MONOTONY_THRESHOLD of the atomic elements
+                       are the same primitive type (e.g. 9 buttons
+                       in a row, 8 text lines in a stack).
+      [overstuffed]    some section has > MAX_SECTION_CHILDREN
+                       immediate children — should be split.
+
+    These warnings are advisory — they fire on lo-fi screens that
+    work but lack design-pattern sense. They do NOT fail the build.
+    """
+    msgs: list[str] = []
+    if not isinstance(screen, dict):
+        return msgs
+    sid = screen.get("id", "?")
+    layout = screen.get("layout")
+    if not isinstance(layout, dict):
+        return msgs
+
+    all_elements = collect_elements(layout)
+    structural = [e for e in all_elements if e.get("type") in STRUCTURAL_TYPES]
+    atomic = [e for e in all_elements if e.get("type") in ATOMIC_TYPES]
+
+    # [flat-stack] — root is a stack/grid with many children and no
+    # structural element among them.
+    root_type = layout.get("type")
+    if root_type in {"stack", "grid"}:
+        direct_children = layout.get("elements", []) or []
+        n_direct = len([c for c in direct_children if isinstance(c, dict)])
+        direct_structural = sum(
+            1 for c in direct_children
+            if isinstance(c, dict) and c.get("type") in STRUCTURAL_TYPES
+        )
+        if n_direct > MAX_FLAT_CHILDREN and direct_structural == 0:
+            msgs.append(
+                f"[flat-stack] screen '{sid}' root {root_type} has {n_direct} "
+                f"direct children and no app-bar/section/header — group into "
+                f"2-4 sections instead of one big stack. See WIREFRAMES.md "
+                f"'Composition recipes'."
+            )
+
+    # [no-hierarchy] — many atomic elements but no structural anchor.
+    if len(atomic) > 4 and not structural:
+        msgs.append(
+            f"[no-hierarchy] screen '{sid}' has {len(atomic)} atomic "
+            f"elements but no app-bar, header, section, or tab-bar — add "
+            f"at least one structural primitive so the screen reads as "
+            f"a screen, not a pile of widgets."
+        )
+
+    # [monotonous] — most of the body is the same primitive.
+    if len(atomic) >= 5:
+        counts: dict[str, int] = {}
+        for e in atomic:
+            t = str(e.get("type", "?"))
+            counts[t] = counts.get(t, 0) + 1
+        dominant_type, dominant_count = max(counts.items(), key=lambda kv: kv[1])
+        ratio = dominant_count / len(atomic)
+        if ratio >= MONOTONY_THRESHOLD and dominant_type not in {"keypad-button", "key-value", "list-item"}:
+            msgs.append(
+                f"[monotonous] screen '{sid}' is {int(ratio*100)}% '{dominant_type}' "
+                f"elements ({dominant_count}/{len(atomic)}) — mix at least one "
+                f"other primitive (section, alert, stat-tile, divider, ...) "
+                f"to break the rhythm."
+            )
+
+    # [overstuffed] — any section with too many immediate children.
+    for elem in all_elements:
+        if elem.get("type") == "section":
+            n = len([c for c in elem.get("elements", []) or [] if isinstance(c, dict)])
+            if n > MAX_SECTION_CHILDREN:
+                section_label = elem.get("title") or elem.get("id") or "?"
+                msgs.append(
+                    f"[overstuffed] screen '{sid}' section '{section_label}' "
+                    f"has {n} immediate children — split into 2 sections "
+                    f"(max {MAX_SECTION_CHILDREN})."
+                )
+
+    return msgs
 
 
 def screen_has_device_specific_elements(screen: dict) -> bool:
@@ -159,19 +318,42 @@ def compute_min_screen_count(stages: list[dict]) -> int:
 
     Rule of thumb: every stage needs at least 2 UI moments to show
     real interaction, and the whole journey needs at least 8 to be
-    worth opening in Flow view at all. Both bounds are intentional
-    minimums — most journeys deserve more.
+    worth opening on the canvas at all.
     """
     n_stages = len([s for s in stages if isinstance(s, dict)])
     return max(n_stages * 2, 8)
 
 
+def parse_arrow_from(value: str) -> tuple[str, str | None]:
+    """Parse an arrow `from` field into (screen_id, element_id_or_None).
+
+    Accepts both `<screen-id>` and `<screen-id>#<element-id>` forms.
+    Empty or non-string input returns ("", None).
+    """
+    if not isinstance(value, str) or not value:
+        return "", None
+    if "#" not in value:
+        return value, None
+    screen_id, _, element_id = value.partition("#")
+    element_id = element_id.strip() or None
+    return screen_id, element_id
+
+
+VALID_ARROW_KINDS = {"default", "success", "error", "cancel"}
+VALID_ARROW_TRIGGERS = {
+    "tap", "long-press", "swipe", "input",
+    "insert-card", "timeout", "auto",
+}
+VALID_SCREEN_STATES = {"default", "loading", "success", "error", "warning"}
+
+
 def validate_screens(
     screens: list[dict] | None,
     stages: list[dict] | None,
+    arrows: list[dict] | None = None,
     strict: bool = False,
 ) -> dict:
-    """Run all screen-rules.
+    """Run all screen + arrow rules.
 
     Returns a dict with keys errors/warnings/info, each a list[str].
     Pure: takes parsed JSON, returns lists.
@@ -185,12 +367,12 @@ def validate_screens(
 
     screens = screens or []
     stages = stages or []
+    arrows = arrows or []
 
     # Build screen index + element-id sets (layout elements + side-key-rail
-    # keys + hardware[] slots are all valid from_element references).
+    # keys + hardware[] slots are all valid <screen>#<element> references).
     screen_ids: dict[str, dict] = {}
     element_ids_per_screen: dict[str, set[str]] = {}
-    duplicates: set[str] = set()
 
     for screen in screens:
         if not isinstance(screen, dict):
@@ -201,7 +383,6 @@ def validate_screens(
             errors.append(f"screen missing 'id': {screen!r}")
             continue
         if sid in screen_ids:
-            duplicates.add(sid)
             errors.append(f"duplicate screen id '{sid}'")
             continue
         screen_ids[sid] = screen
@@ -209,12 +390,44 @@ def validate_screens(
         addressable.update(collect_hardware_ids(screen))
         element_ids_per_screen[sid] = addressable
 
-    # Build a count of inbound references: from step.screen_refs and from
-    # any transitions.to_screen (we only flag a screen with ZERO inbound and
-    # not used by any step as truly orphan).
-    inbound_by_step: dict[str, int] = {sid: 0 for sid in screen_ids}
-    inbound_by_transition: dict[str, int] = {sid: 0 for sid in screen_ids}
+        # state sanity
+        state = screen.get("state")
+        if state is not None and state not in VALID_SCREEN_STATES:
+            errors.append(
+                f"screen '{sid}' has invalid state='{state}' — must be one of "
+                f"{sorted(VALID_SCREEN_STATES)}"
+            )
 
+        # position sanity
+        pos = screen.get("position")
+        if pos is not None:
+            if not isinstance(pos, dict) or "x" not in pos or "y" not in pos:
+                errors.append(
+                    f"screen '{sid}' position must be {{x, y}} object, got {pos!r}"
+                )
+
+        # interactive-without-id warnings come from layout walking
+        layout = screen.get("layout")
+        if isinstance(layout, dict):
+            for bad_type in find_interactive_without_id(layout):
+                warnings.append(
+                    f"screen '{sid}' has interactive element of type "
+                    f"'{bad_type}' without id — no arrow can reference it"
+                )
+            # Design-pattern smells (flat stack, no hierarchy,
+            # monotonous, overstuffed sections).
+            for msg in assess_design_pattern_sense(screen):
+                warnings.append(msg)
+        else:
+            errors.append(f"screen '{sid}' has no layout object")
+
+    # Build inbound counts (from step refs + arrows) and outbound counts
+    inbound_by_step: dict[str, int] = {sid: 0 for sid in screen_ids}
+    inbound_by_arrow: dict[str, int] = {sid: 0 for sid in screen_ids}
+    outbound_by_screen: dict[str, int] = {sid: 0 for sid in screen_ids}
+    default_count_by_screen: dict[str, int] = {sid: 0 for sid in screen_ids}
+
+    # Step -> screen refs
     for stage in stages:
         if not isinstance(stage, dict):
             continue
@@ -243,87 +456,89 @@ def validate_screens(
                 else:
                     inbound_by_step[ref] += 1
 
-    # Per-screen checks: transitions resolve, is_default uniqueness, interactive ids,
-    # outbound counts.
-    transitions_checked = 0
-    outbound_count: dict[str, int] = {sid: 0 for sid in screen_ids}
-
-    for sid, screen in screen_ids.items():
-        layout = screen.get("layout")
-        if not isinstance(layout, dict):
-            errors.append(f"screen '{sid}' has no layout object")
-        else:
-            for bad_type in find_interactive_without_id(layout):
-                warnings.append(
-                    f"screen '{sid}' has interactive element of type "
-                    f"'{bad_type}' without id — no transition can reference it"
-                )
-
-        transitions = screen.get("transitions", []) or []
-        if not isinstance(transitions, list):
-            errors.append(f"screen '{sid}' transitions is not a list")
+    # Arrows
+    arrows_checked = 0
+    seen_arrow_ids: set[str] = set()
+    for idx, arrow in enumerate(arrows, start=1):
+        arrows_checked += 1
+        if not isinstance(arrow, dict):
+            errors.append(f"arrow #{idx} is not an object")
             continue
+        aid = arrow.get("id")
+        if isinstance(aid, str) and aid:
+            if aid in seen_arrow_ids:
+                errors.append(f"arrow #{idx} duplicate id '{aid}'")
+            seen_arrow_ids.add(aid)
 
-        default_count = 0
-        for idx, tx in enumerate(transitions):
-            transitions_checked += 1
-            if not isinstance(tx, dict):
-                errors.append(f"screen '{sid}' transition #{idx + 1} is not an object")
-                continue
-
-            to_screen = tx.get("to_screen")
-            if not isinstance(to_screen, str) or not to_screen:
+        # `from` parsing
+        from_screen, from_element = parse_arrow_from(arrow.get("from", ""))
+        if not from_screen:
+            errors.append(f"arrow #{idx} missing/blank 'from'")
+        elif from_screen not in screen_ids:
+            errors.append(
+                f"arrow #{idx} from='{arrow.get('from')}' — screen "
+                f"'{from_screen}' does not exist in screens[]"
+            )
+        elif from_element is not None:
+            if from_element not in element_ids_per_screen.get(from_screen, set()):
                 errors.append(
-                    f"screen '{sid}' transition #{idx + 1} missing/blank to_screen"
+                    f"arrow #{idx} from='{arrow.get('from')}' — element "
+                    f"'{from_element}' not found in screen '{from_screen}'"
                 )
-            elif to_screen not in screen_ids:
+
+        # `to` parsing
+        to_value = arrow.get("to")
+        if not isinstance(to_value, str) or not to_value:
+            errors.append(f"arrow #{idx} missing/blank 'to'")
+        else:
+            # `to` may or may not include `#<el>`; renderer treats both
+            # as "land on the whole screen". We tolerate the `#` form but
+            # only validate the screen part.
+            to_screen, _ = parse_arrow_from(to_value)
+            if to_screen not in screen_ids:
                 errors.append(
-                    f"screen '{sid}' transition #{idx + 1} to_screen='{to_screen}' "
-                    f"does not exist in screens[]"
+                    f"arrow #{idx} to='{to_value}' does not exist in screens[]"
                 )
             else:
-                inbound_by_transition[to_screen] += 1
+                inbound_by_arrow[to_screen] += 1
 
-            from_element = tx.get("from_element")
-            if not isinstance(from_element, str) or not from_element:
-                errors.append(
-                    f"screen '{sid}' transition #{idx + 1} missing/blank from_element"
-                )
-            elif from_element != "any":
-                if from_element not in element_ids_per_screen.get(sid, set()):
-                    errors.append(
-                        f"screen '{sid}' transition #{idx + 1} from_element="
-                        f"'{from_element}' has no element with that id in this "
-                        f"screen's layout"
-                    )
-
-            trigger = tx.get("trigger")
-            if not isinstance(trigger, str) or not trigger:
-                errors.append(
-                    f"screen '{sid}' transition #{idx + 1} missing trigger"
-                )
-
-            if tx.get("is_default") is True:
-                default_count += 1
-
-            outbound_count[sid] += 1
-
-        if default_count > 1:
+        # kind / trigger sanity
+        kind = arrow.get("kind")
+        if kind is not None and kind not in VALID_ARROW_KINDS:
             errors.append(
-                f"screen '{sid}' has {default_count} transitions with "
-                f"is_default=true — only one main path is allowed per screen"
+                f"arrow #{idx} has invalid kind='{kind}' — must be one of "
+                f"{sorted(VALID_ARROW_KINDS)}"
+            )
+        trigger = arrow.get("trigger")
+        if trigger is not None and trigger not in VALID_ARROW_TRIGGERS:
+            errors.append(
+                f"arrow #{idx} has invalid trigger='{trigger}' — must be one of "
+                f"{sorted(VALID_ARROW_TRIGGERS)}"
             )
 
-    # Orphans + dead-ends
-    for sid in screen_ids:
-        total_inbound = inbound_by_step.get(sid, 0) + inbound_by_transition.get(sid, 0)
-        if total_inbound == 0 and not screen_ids[sid].get("orphan_ok"):
+        # outbound counts + default uniqueness
+        if from_screen and from_screen in screen_ids:
+            outbound_by_screen[from_screen] += 1
+            if arrow.get("is_default") is True:
+                default_count_by_screen[from_screen] += 1
+
+    # Rule 7 — at most one is_default per source screen
+    for sid, n in default_count_by_screen.items():
+        if n > 1:
+            errors.append(
+                f"{n} arrows out of screen '{sid}' have is_default=true — "
+                f"only one main path is allowed per source screen"
+            )
+
+    # Rule 5 — orphans + Rule 6 — dead-end mid-flow screens
+    for sid, screen in screen_ids.items():
+        total_inbound = inbound_by_step.get(sid, 0) + inbound_by_arrow.get(sid, 0)
+        if total_inbound == 0 and not screen.get("orphan_ok"):
             warnings.append(
                 f"screen '{sid}' has no incoming references — no step references "
-                f"it AND no transition points at it"
+                f"it AND no arrow points at it"
             )
-        if outbound_count.get(sid, 0) == 0:
-            # Only worth flagging if it's referenced from a non-final step.
+        if outbound_by_screen.get(sid, 0) == 0:
             referenced_in: list[tuple[str, str, int]] = []
             for stage in stages:
                 if not isinstance(stage, dict):
@@ -332,8 +547,6 @@ def validate_screens(
                     if isinstance(step, dict) and sid in (step.get("screen_refs") or []):
                         referenced_in.append((stage.get("id", "?"), step.get("id", "?"), step_idx))
             if referenced_in:
-                # Find the rightmost (stage, step) reference and decide if it
-                # looks like a "middle" or "last" position.
                 last = referenced_in[-1]
                 stage_id_for_last = last[0]
                 last_stage = next(
@@ -348,17 +561,12 @@ def validate_screens(
                 ) and last[2] == step_count_in_stage
                 if not is_last_step_of_last_stage:
                     info.append(
-                        f"screen '{sid}' has no outgoing transitions but appears "
+                        f"screen '{sid}' has no outgoing arrows but appears "
                         f"in step {last[2]} of {step_count_in_stage} in stage "
-                        f"'{stage_id_for_last}' — likely needs at least one transition out"
+                        f"'{stage_id_for_last}' — likely needs at least one arrow out"
                     )
 
-    # Device-aware modeling check: if a journey has any atm-screen / kiosk-screen
-    # screens but NONE of them use any device-specific element (no chrome, no
-    # hardware-slot, no side-key-rail anywhere), it's almost certainly modeled
-    # as mobile screens with the wrong kind tag. We check per kind, journey-wide,
-    # to avoid false positives on legitimate touch-only kiosk screens (e.g. a
-    # product picker between a scan and a payment screen).
+    # Rule 9 — device-aware modeling check (journey-wide per kind)
     for kind in DEVICE_KINDS_REQUIRING_HARDWARE_HINT:
         same_kind = [
             (sid, screen) for sid, screen in screen_ids.items()
@@ -377,10 +585,7 @@ def validate_screens(
                 f"references/WIREFRAMES.md 'Device-aware modeling'."
             )
 
-    # Screen-count gate: in strict mode, enforce a floor so authors don't
-    # ship "stage map only" workspaces where Flow view is empty / thin.
-    # Skip entirely when both stages and screens are empty (brand-new
-    # workspace, nothing to evaluate yet).
+    # Rule 10 — screen-count gate (warn / strict-error)
     real_screen_count = len([s for s in screens if isinstance(s, dict)])
     real_stage_count  = len([s for s in stages  if isinstance(s, dict)])
     if real_screen_count > 0 or real_stage_count > 0:
@@ -388,7 +593,7 @@ def validate_screens(
         if real_screen_count < min_screens:
             msg = (
                 f"only {real_screen_count} screens defined for {real_stage_count} stages "
-                f"— Flow view will be sparse. Recommended floor is max(stages*2, 8) "
+                f"— canvas will be sparse. Recommended floor is max(stages*2, 8) "
                 f"= {min_screens}."
             )
             if strict:
@@ -400,7 +605,7 @@ def validate_screens(
         "errors": errors,
         "warnings": warnings,
         "info": info,
-        "transitions_checked": transitions_checked,
+        "arrows_checked": arrows_checked,
     }
 
 
@@ -418,7 +623,7 @@ def validate_workspace(workspace: Path, strict: bool = False) -> dict:
             "info": [],
             "schema_version": "",
             "screens_checked": 0,
-            "transitions_checked": 0,
+            "arrows_checked": 0,
         }
     try:
         data = json.loads(journey_path.read_text(encoding="utf-8"))
@@ -430,13 +635,14 @@ def validate_workspace(workspace: Path, strict: bool = False) -> dict:
             "info": [],
             "schema_version": "",
             "screens_checked": 0,
-            "transitions_checked": 0,
+            "arrows_checked": 0,
         }
 
     schema_version = str(data.get("schema_version") or "")
     screens = data.get("screens") or []
     stages = data.get("stages") or []
-    report = validate_screens(screens, stages, strict=strict)
+    arrows = data.get("arrows") or []
+    report = validate_screens(screens, stages, arrows, strict=strict)
     return {
         "structure_ok": True,
         "errors": report["errors"],
@@ -444,7 +650,7 @@ def validate_workspace(workspace: Path, strict: bool = False) -> dict:
         "info": report["info"],
         "schema_version": schema_version,
         "screens_checked": len(screens),
-        "transitions_checked": report["transitions_checked"],
+        "arrows_checked": report["arrows_checked"],
     }
 
 
@@ -453,7 +659,7 @@ def print_report(report: dict) -> int:
     print(f"STATUS={status}")
     print(f"SCHEMA_VERSION={report.get('schema_version', '')}")
     print(f"SCREENS_CHECKED={report.get('screens_checked', 0)}")
-    print(f"TRANSITIONS_CHECKED={report.get('transitions_checked', 0)}")
+    print(f"ARROWS_CHECKED={report.get('arrows_checked', 0)}")
     for msg in report.get("errors", []):
         print(f"ERROR:   {msg}")
     for msg in report.get("warnings", []):
@@ -467,7 +673,7 @@ def print_report(report: dict) -> int:
 
 def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Validate screens[] and transitions[] in a user-journey workspace.",
+        description="Validate screens[] and arrows[] in a user-journey workspace.",
     )
     parser.add_argument("path", help="path to the workspace directory")
     parser.add_argument(

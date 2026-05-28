@@ -12,7 +12,7 @@ python3 SKILL_PATH/scripts/validate_screens.py <workspace>
 ```
 
 `validate_sync.py` — structural integrity of `JOURNEY.md` ↔ `journey.json` (stages/personas/IDs).
-`validate_screens.py` — integrity of `screens[]` and `transitions[]` (orphans, dangling refs, default-path uniqueness). See [SCREENS-RULES.md](./SCREENS-RULES.md).
+`validate_screens.py` — integrity of `screens[]` and the top-level `arrows[]` (orphans, dangling refs, default-path uniqueness). See [SCREENS-RULES.md](./SCREENS-RULES.md).
 
 Both must exit `0` before you declare done.
 
@@ -90,14 +90,23 @@ To rename a stage in display, change `label` only. Changing `id` is a delete+cre
 - Prose quality in JOURNEY.md (the AI is responsible for this)
 - DESIGN.md token validity (use `npx @google/design.md lint DESIGN.md` for that)
 - Whether the journey is "good" — only whether the two files agree
-- Whether `screens[]` and `transitions[]` are consistent — that's `validate_screens.py`'s job
+- Whether `screens[]` and `arrows[]` are consistent — that's `validate_screens.py`'s job
 
 A sync-clean journey can still be a bad journey. Sync is a precondition, not the goal.
 
-## What's new for v2: screens and refs
+## What's new for v3: canvas + arrows
 
-The v2 schema adds `screens[]` at the top level and `screen_refs[]` on steps. Sync rules are unchanged for stages/personas, but:
+The v3 schema adds:
 
-- The JOURNEY.md `## Screens` section (optional) — if present, must list the same `screen.id`s as `journey.json` `screens[].id`.
-- `step.screen_refs[]` is a JSON-only convenience; it does NOT need a counterpart in JOURNEY.md (too noisy). It IS however validated by `validate_screens.py` for resolution.
-- Mermaid in `JOURNEY.md` continues to show STAGES only (not screens). For screen-to-screen flow, see the Flow view in `index.html` or the auto-generated mini graph below the screen list.
+- Top-level `arrows[]` (replaces v2's nested `screens[].transitions[]`)
+- `screen.state` for the colored outer card
+- `screen.position: {x, y}` (optional) to override the auto stage-column layout
+- Top-level `stickies[]` for canvas notes
+- `screen.annotations[]` for numbered markers on a screen card
+
+Sync rules are unchanged for stages / personas, but:
+
+- The JOURNEY.md `## Screens & Arrows` section (optional) — if present, must list the same `screen.id`s as `journey.json` `screens[].id`.
+- `step.screen_refs[]` is a JSON-only convenience; it does NOT need a counterpart in JOURNEY.md. It IS validated by `validate_screens.py` for resolution.
+- Mermaid in `JOURNEY.md` continues to show STAGES only (not screens). For screen-to-screen flow, the canvas in `index.html` is the source of truth.
+- v1 / v2 workspaces are NOT readable by the v3 renderer. `validate_sync.py` still accepts `schema_version: "1"`, `"2"`, or `"3"` for tooling-only inspection.

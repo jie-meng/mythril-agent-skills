@@ -34,16 +34,14 @@ _One sentence summarizing this stage._
 
 ### _(add more stages as you map them)_
 
-## Screens & Transitions
+## Screens & Arrows
 
-_Visual screens with controls live in the renderer's **Flow view** (`F` shortcut).
-Each screen is defined once in `journey.json` `screens[]` with `layout` + `transitions[]`,
-and referenced from steps via `screen_refs`. See the renderer for the live tree —
-this section is only a brief textual index._
+_Visual screens and the arrows connecting them live on the canvas in `index.html`.
+Open it to see the full picture — Canvas view for the overview, Prototype view for click-through._
 
-| Screen | Kind | Stage | Outgoing |
-|---|---|---|---|
-| _(empty — fill as you design screens in Pass C)_ | | | |
+| Screen | Kind | Stage | State | Outgoing |
+|---|---|---|---|---|
+| _(empty — fill as you design screens)_ | | | | |
 
 ## Open Questions
 
@@ -57,9 +55,14 @@ this section is only a brief textual index._
 ---
 
 > **How to view this journey visually:** double-click `index.html` in this directory.
-> Opens straight into **Flow** view — the real wireframes with controls and
-> click-through transitions. Switch views with `F` (flow / screens) / `S` (stage) /
-> `M` (map overview) / `P` (presenter). See `README.md` for details.
+> Opens a dual-view workspace:
+> - **Canvas** (default, press `V`): Miro-style overview of every screen + arrows.
+>   Pan (drag empty space or `Space`+drag) · zoom (`Cmd/Ctrl` + scroll, or pinch) ·
+>   `F` fit · `0` reset · double-click a screen to focus · minimap (bottom-right).
+> - **Prototype** (press `P`): one screen at a time + clickable hotspots.
+>   `Enter` follow default arrow · `Backspace` back · `J`/`K` next/prev screen.
+> - Both views share the **left sidebar** screen list + search.
+> - `H` shows the full keyboard reference.
 >
 > **Authoring note (sync):** this file and `journey.json` must stay in sync. After any
 > change to either, run BOTH validators:

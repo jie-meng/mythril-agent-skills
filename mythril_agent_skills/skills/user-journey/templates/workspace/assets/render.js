@@ -1,96 +1,70 @@
 /* ============================================================
-   user-journey renderer (v2)
-   Vanilla JS, zero dependencies. Reads two inlined JSON blocks
-   (#journey-data and #design-tokens) and renders four views:
-   map / stage / flow / present.
+   user-journey renderer (v3 — canvas)
 
-   Default landing view (empty hash):
-     - "flow/<first-screen-id>" when journey.screens is non-empty
-     - "map" otherwise (legacy / screens-not-authored-yet projects)
+   One canvas, no view switching, no inspector. Reads
+   journey.json + DESIGN.md tokens and lays out:
 
-   Hash routing supports two stable forms — both work:
-     #map | #/map
-     #stage/<id> | #/stage/<id>
-     #flow/<screen-id> | #/flow/<screen-id>
-     #present[/<stage-id>][/screens]
+     - screen cards (via wireframe.js)
+     - arrows between cards (via arrows.js)
+     - stickies (free-floating canvas notes)
+
+   on a single infinite, pannable, zoomable surface (via canvas.js).
+
+   Auto-layout: if a screen has explicit `position: {x, y}`, that's
+   honored. Otherwise it gets placed in its stage's column. Each
+   stage's `stages[]` index drives the column; screens within a
+   stage stack vertically in `screens[]` source order.
    ============================================================ */
 (function () {
   "use strict";
 
+  /* ---------- Constants ------------------------------------ */
+
+  const COLUMN_WIDTH  = 880;   // world-px reserved per stage column
+  const COLUMN_GAP    = 160;   // gap between stage columns (room for arrows)
+  const ROW_GAP       = 120;   // gap between screens within a column
+  const COLUMN_TOP    = 80;    // top padding inside a column
+  const STAGE_HEADER_HEIGHT = 64;
+
   const I18N = {
     en: {
-      map: "Map", stage: "Stage", flow: "Flow", present: "Present", screens: "Screens",
-      open: "Open ›",
-      actions: "Actions", touchpoints: "Touchpoints", thoughts: "Thoughts",
-      pain: "Pain points", opps: "Opportunities", metrics: "Metrics",
-      stages_count: n => `${n} stage${n === 1 ? "" : "s"}`,
-      steps_count: n => `${n} step${n === 1 ? "" : "s"}`,
-      screens_count: n => `${n} screen${n === 1 ? "" : "s"}`,
-      hint_map: "Drag to pan · scroll to zoom · click a stage to drill in · click a screen thumbnail to jump to Flow",
-      hint_stage: "← → switch stage · S to back to map · F to see screens · P to present",
-      hint_flow: "J/K prev/next screen · Enter follow default · 1–9 follow transition · Space auto-play · Backspace go back",
-      hint_present: "← → next/prev · Space to run screens for current stage · B to blank · Esc to exit",
-      no_steps: "No steps yet — this stage is a skeleton.",
-      no_screens: "No screens yet — add screens[] entries in journey.json so the Flow view has something to show.",
-      blank: "Blank",
-      prev: "Prev",
-      next: "Next",
-      exit: "Exit",
-      run_screens: "Run screens (Space)",
-      back_to_stage: "Back to stage",
-      kind: "Kind",
-      stage_lbl: "Stage",
-      transitions_lbl: "Transitions",
-      incoming_lbl: "Used by",
-      neighbors_lbl: "Mini flow",
-      no_transitions: "No outgoing transitions.",
-      no_referrers: "Not referenced by any step.",
-      hotspot_legend: "Blue outlines = tappable. Hover for destination, click to follow.",
-      map_hint_prefix: "This is the bird's-eye Map. Press ",
-      map_hint_suffix: " (or click any thumbnail) to walk real wireframes in Flow view.",
-      stage_card_screens_hint: "Click any screen → opens it in Flow with full controls",
+      help_title: "Canvas shortcuts",
+      help_pan:   "Drag empty canvas, or hold Space + drag",
+      help_zoom_wheel: "Cmd/Ctrl + wheel · pinch trackpad",
+      help_zoom_keys:  "+ / − · 0 reset · 1 to 100%",
+      help_fit:   "F — fit all screens to screen",
+      help_help:  "H — toggle this panel",
+      help_double: "Double-click a screen — zoom to it",
+      help_arrows: "Arrows keys — nudge view",
+      stage_lbl:  "Stage",
+      no_screens: "No screens yet. Add some to `screens[]` in journey.json.",
     },
     zh: {
-      map: "地图", stage: "阶段", flow: "屏流", present: "演示", screens: "屏",
-      open: "查看 ›",
-      actions: "行动", touchpoints: "触点", thoughts: "想法",
-      pain: "痛点", opps: "机会", metrics: "指标",
-      stages_count: n => `${n} 个阶段`,
-      steps_count: n => `${n} 个步骤`,
-      screens_count: n => `${n} 个屏`,
-      hint_map: "拖动画布平移 · 滚轮缩放 · 点击阶段进入详情 · 点击屏缩略图进入 Flow",
-      hint_stage: "← → 切换阶段 · S 回到地图 · F 看屏 · P 演示",
-      hint_flow: "J/K 上下屏 · Enter 主路径 · 1–9 跳第 N 个跳转 · Space 自动播放 · Backspace 后退",
-      hint_present: "← → 翻页 · Space 进入当前阶段的屏播放 · B 黑屏 · Esc 退出",
-      no_steps: "还没填步骤——这是骨架阶段。",
-      no_screens: "还没有屏——在 journey.json 的 screens[] 里加入屏,Flow 视图才会有内容。",
-      blank: "黑屏",
-      prev: "上一页",
-      next: "下一页",
-      exit: "退出",
-      run_screens: "演示屏 (Space)",
-      back_to_stage: "回到阶段",
-      kind: "类型",
-      stage_lbl: "阶段",
-      transitions_lbl: "跳转",
-      incoming_lbl: "被引用于",
-      neighbors_lbl: "相邻屏",
-      no_transitions: "没有外向跳转。",
-      no_referrers: "没有任何步骤引用此屏。",
-      hotspot_legend: "蓝色虚线为可点击热区,悬停看跳转,点击跟随。",
-      map_hint_prefix: "这里是鸟瞰地图。按 ",
-      map_hint_suffix: " 键（或点击任意缩略图）进入 Flow 视图，查看真实可交互的线框图。",
-      stage_card_screens_hint: "点击任意屏 → 进入 Flow 查看完整 UI 与跳转",
+      help_title: "画布快捷键",
+      help_pan:   "拖动空白处,或按住 Space + 拖动",
+      help_zoom_wheel: "Cmd/Ctrl + 滚轮 · 触控板捏合",
+      help_zoom_keys:  "+ / − · 0 复位 · 1 回到 100%",
+      help_fit:   "F — 整张画布自适应",
+      help_help:  "H — 显示/隐藏本面板",
+      help_double: "双击某个屏 — 缩放并居中",
+      help_arrows: "方向键 — 微调视图",
+      stage_lbl:  "阶段",
+      no_screens: "还没有屏。请在 journey.json 的 `screens[]` 里添加。",
     },
   };
 
-  const EMOTION_ORDER = ["delighted", "happy", "neutral", "frustrated", "blocked"];
-
-  const SCREEN_KIND_ICONS = {
-    "mobile-screen": "📱", "tablet-screen": "📱", "desktop-window": "🖥",
-    "atm-screen": "🏧", "kiosk-screen": "🖼", "tv-screen": "📺",
-    "email": "📧", "modal": "▢", "notification": "🔔",
+  const state = {
+    data: null,
+    design: null,
+    t: I18N.en,
+    canvas: null,
+    cardsById: new Map(),
+    arrowsSvg: null,
+    arrowsLayer: null,
+    contentBounds: { x: 0, y: 0, width: 0, height: 0 },
   };
+
+  function t(key) { return state.t[key] || key; }
 
   /* ---------- Token injection ------------------------------ */
 
@@ -156,1111 +130,7 @@
     } catch { return null; }
   }
 
-  /* ---------- App state ------------------------------------ */
-
-  const state = {
-    data: null,
-    design: null,
-    t: I18N.en,
-    view: "map",
-    activeStageIdx: 0,
-    activeScreenId: null,
-    presentIdx: 0,
-    presentScreenMode: false,
-    presentScreenIdx: 0,
-    zoom: 1,
-    pan: { x: 0, y: 0 },
-    autoplayTimer: null,
-    flowHistory: [],
-    screenIndex: new Map(),
-    stepRefsByScreen: new Map(),
-    inboundByScreen: new Map(),
-    outboundByScreen: new Map(),
-  };
-
-  function t(key, ...args) {
-    const v = state.t[key];
-    return typeof v === "function" ? v(...args) : v || key;
-  }
-
-  /* ---------- Indexing ------------------------------------- */
-
-  function rebuildIndexes() {
-    state.screenIndex = new Map();
-    state.stepRefsByScreen = new Map();
-    state.inboundByScreen = new Map();
-    state.outboundByScreen = new Map();
-    const screens = state.data?.screens || [];
-    screens.forEach(s => {
-      if (!s || !s.id) return;
-      state.screenIndex.set(s.id, s);
-      state.stepRefsByScreen.set(s.id, []);
-      state.inboundByScreen.set(s.id, []);
-      state.outboundByScreen.set(s.id, []);
-    });
-    (state.data?.stages || []).forEach((stage, stageIdx) => {
-      (stage.steps || []).forEach((step, stepIdx) => {
-        (step.screen_refs || []).forEach(ref => {
-          if (state.stepRefsByScreen.has(ref)) {
-            state.stepRefsByScreen.get(ref).push({ stage, stageIdx, step, stepIdx });
-          }
-        });
-      });
-    });
-    screens.forEach(s => {
-      (s.transitions || []).forEach(tx => {
-        if (!tx || !tx.to_screen) return;
-        const tgt = state.inboundByScreen.get(tx.to_screen);
-        if (tgt) tgt.push({ from: s.id, tx });
-        const src = state.outboundByScreen.get(s.id);
-        if (src) src.push(tx);
-      });
-    });
-  }
-
-  function getScreensByStage() {
-    const map = new Map();
-    (state.data?.stages || []).forEach(s => map.set(s.id, []));
-    map.set("__unstaged__", []);
-    (state.data?.screens || []).forEach(screen => {
-      const sid = screen.stage_id && map.has(screen.stage_id) ? screen.stage_id : "__unstaged__";
-      map.get(sid).push(screen);
-    });
-    return map;
-  }
-
-  function getScreensForStage(stage) {
-    if (!stage) return [];
-    // Screens directly tagged with this stage_id, in source order.
-    const byTag = (state.data?.screens || []).filter(s => s.stage_id === stage.id);
-    // Plus screens referenced from any step of this stage that are not already included.
-    const seen = new Set(byTag.map(s => s.id));
-    (stage.steps || []).forEach(step => {
-      (step.screen_refs || []).forEach(ref => {
-        if (!seen.has(ref) && state.screenIndex.has(ref)) {
-          byTag.push(state.screenIndex.get(ref));
-          seen.add(ref);
-        }
-      });
-    });
-    return byTag;
-  }
-
-  function uniqueDeviceKinds(screens) {
-    const out = [];
-    const seen = new Set();
-    (screens || []).forEach(s => {
-      const k = s.kind || "mobile-screen";
-      if (!seen.has(k)) {
-        seen.add(k);
-        out.push(k);
-      }
-    });
-    return out;
-  }
-
-  /* ---------- Topbar / shortcuts --------------------------- */
-
-  function setupTopbar() {
-    document.querySelectorAll("[data-i18n]").forEach(el => {
-      const k = el.dataset.i18n;
-      const text = t(k);
-      if (text) el.textContent = text;
-    });
-    document.querySelectorAll(".view-btn").forEach(btn => {
-      btn.addEventListener("click", () => switchView(btn.dataset.view));
-    });
-    document.getElementById("zoom-reset").addEventListener("click", () => {
-      state.zoom = 1;
-      state.pan = { x: 0, y: 0 };
-      applyMapTransform();
-    });
-  }
-
-  function setupShortcuts() {
-    document.addEventListener("keydown", e => {
-      if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
-      const k = e.key.toLowerCase();
-      // Global view switching
-      if (k === "m") { switchView("map"); return; }
-      if (k === "s") { switchView("stage"); return; }
-      if (k === "f") { switchView("flow"); return; }
-      if (k === "p") { switchView("present"); return; }
-
-      if (k === "escape") {
-        if (state.view === "present") {
-          if (state.presentScreenMode) {
-            stopPresentScreenMode();
-          } else {
-            document.body.classList.remove("is-blanked");
-            switchView("map");
-          }
-        }
-        return;
-      }
-      if (k === "b" && state.view === "present") {
-        document.body.classList.toggle("is-blanked");
-        return;
-      }
-
-      if (state.view === "flow") {
-        if (k === "j") { flowGotoOffset(1); e.preventDefault(); return; }
-        if (k === "k") { flowGotoOffset(-1); e.preventDefault(); return; }
-        if (k === "enter") { flowFollowDefault(); e.preventDefault(); return; }
-        if (k === "backspace") { flowGoBack(); e.preventDefault(); return; }
-        if (k === " ") { toggleFlowAutoplay(); e.preventDefault(); return; }
-        const idx = parseInt(k, 10);
-        if (Number.isInteger(idx) && idx >= 1 && idx <= 9) {
-          flowFollowNth(idx - 1);
-          e.preventDefault();
-          return;
-        }
-      }
-
-      if (state.view === "present" && k === " ") {
-        if (state.presentScreenMode) {
-          presentScreenAdvance();
-        } else {
-          startPresentScreenMode();
-        }
-        e.preventDefault();
-        return;
-      }
-
-      if (k === "arrowleft") navigateBack();
-      else if (k === "arrowright") navigateForward();
-      else if (k === "+" || k === "=") { state.zoom = Math.min(2.5, state.zoom + 0.1); applyMapTransform(); }
-      else if (k === "-") { state.zoom = Math.max(0.3, state.zoom - 0.1); applyMapTransform(); }
-      else if (k === "0") { state.zoom = 1; state.pan = { x: 0, y: 0 }; applyMapTransform(); }
-    });
-  }
-
-  function navigateBack() {
-    if (state.view === "stage") {
-      state.activeStageIdx = Math.max(0, state.activeStageIdx - 1);
-      renderStage();
-    } else if (state.view === "present") {
-      if (state.presentScreenMode) {
-        presentScreenRewind();
-      } else {
-        state.presentIdx = Math.max(0, state.presentIdx - 1);
-        renderPresent();
-      }
-    }
-  }
-  function navigateForward() {
-    const last = (state.data?.stages?.length || 1) - 1;
-    if (state.view === "stage") {
-      state.activeStageIdx = Math.min(last, state.activeStageIdx + 1);
-      renderStage();
-    } else if (state.view === "present") {
-      if (state.presentScreenMode) {
-        presentScreenAdvance();
-      } else {
-        state.presentIdx = Math.min(last, state.presentIdx + 1);
-        renderPresent();
-      }
-    }
-  }
-
-  /* ---------- View switching + hash routing ---------------- */
-
-  function switchView(view, opts) {
-    opts = opts || {};
-    state.view = view;
-    document.querySelectorAll(".view").forEach(v => (v.hidden = true));
-    const target = document.getElementById(`view-${view}`);
-    if (!target) return;
-    target.hidden = false;
-    document.querySelectorAll(".view-btn").forEach(b => {
-      const on = b.dataset.view === view;
-      b.classList.toggle("is-active", on);
-      b.setAttribute("aria-pressed", on ? "true" : "false");
-    });
-    document.body.classList.toggle("is-presenting", view === "present");
-    stopFlowAutoplay();
-
-    const hintEl = document.getElementById("status-hint");
-    if (view === "map") {
-      hintEl.textContent = t("hint_map");
-      renderMap();
-    } else if (view === "stage") {
-      hintEl.textContent = t("hint_stage");
-      renderStage();
-    } else if (view === "flow") {
-      hintEl.textContent = t("hint_flow");
-      renderFlow();
-    } else if (view === "present") {
-      hintEl.textContent = t("hint_present");
-      if (!opts.keepPresentMode) state.presentScreenMode = false;
-      renderPresent();
-    }
-
-    if (!opts.fromHash) {
-      let hash = `#${view}`;
-      if (view === "stage" && state.data?.stages[state.activeStageIdx]) {
-        hash = `#stage/${state.data.stages[state.activeStageIdx].id}`;
-      } else if (view === "flow" && state.activeScreenId) {
-        hash = `#flow/${state.activeScreenId}`;
-      } else if (view === "present" && state.data?.stages[state.presentIdx]) {
-        hash = `#present/${state.data.stages[state.presentIdx].id}`;
-        if (state.presentScreenMode) hash += "/screens";
-      }
-      if (location.hash !== hash) history.replaceState(null, "", hash);
-    }
-  }
-
-  function applyHashRoute() {
-    // Accept both #foo and #/foo styles.
-    const h = (location.hash || "").replace(/^#\/?/, "");
-    if (!h) {
-      // Default landing view: Flow (real wireframes) when screens exist,
-      // otherwise fall back to Map. Users with non-trivial journeys should
-      // see actual UI on first open, not a thumbnail strip.
-      const firstScreen = (state.data?.screens && state.data.screens[0]) || null;
-      if (firstScreen) {
-        state.activeScreenId = firstScreen.id;
-        switchView("flow", { fromHash: true });
-      } else {
-        switchView("map", { fromHash: true });
-      }
-      return;
-    }
-    const parts = h.split("/");
-    const view = parts[0];
-    const id = parts[1];
-    if (view === "map") { switchView("map", { fromHash: true }); return; }
-    if (view === "stage" || view === "present") {
-      if (id) {
-        const idx = (state.data?.stages || []).findIndex(s => s.id === id);
-        if (idx >= 0) {
-          if (view === "stage") state.activeStageIdx = idx;
-          else state.presentIdx = idx;
-        }
-      }
-      if (view === "present" && parts[2] === "screens") {
-        state.presentScreenMode = true;
-        switchView("present", { fromHash: true, keepPresentMode: true });
-      } else {
-        switchView(view, { fromHash: true });
-      }
-      return;
-    }
-    if (view === "flow") {
-      if (id && state.screenIndex.has(id)) {
-        state.activeScreenId = id;
-      }
-      switchView("flow", { fromHash: true });
-      return;
-    }
-    switchView("map", { fromHash: true });
-  }
-
-  /* ---------- Map view ------------------------------------- */
-
-  function emotionToClass(e) {
-    return EMOTION_ORDER.includes(e) ? `e-${e}` : "e-neutral";
-  }
-
-  function applyMapTransform() {
-    const canvas = document.querySelector("#view-map .map-canvas");
-    if (!canvas) return;
-    canvas.style.transform = `translate(${state.pan.x}px, ${state.pan.y}px) scale(${state.zoom})`;
-    const z = document.getElementById("zoom-reset");
-    if (z) z.textContent = `${Math.round(state.zoom * 100)}%`;
-  }
-
-  function renderMap() {
-    const view = document.getElementById("view-map");
-    view.innerHTML = "";
-
-    // Permanent hint: this view is the overview; real wireframes live in Flow.
-    if ((state.data?.screens || []).length) {
-      const banner = document.createElement("div");
-      banner.className = "map-hint-banner";
-      const kbd = document.createElement("kbd");
-      kbd.textContent = "F";
-      banner.append(
-        document.createTextNode(t("map_hint_prefix")),
-        kbd,
-        document.createTextNode(t("map_hint_suffix")),
-      );
-      view.appendChild(banner);
-    }
-
-    if (state.data?.personas?.length) {
-      const personaStrip = document.createElement("div");
-      personaStrip.className = "persona-strip";
-      state.data.personas.forEach(p => {
-        const card = document.createElement("div");
-        card.className = "persona-card";
-        const goals = (p.goals || []).slice(0, 3).join(" · ");
-        card.innerHTML = `
-          <div class="persona-card-name">${escapeHTML(p.name || p.id)}</div>
-          <div class="persona-card-role">${escapeHTML(p.role || "")}</div>
-          ${goals ? `<div class="persona-card-goals">${escapeHTML(goals)}</div>` : ""}
-        `;
-        personaStrip.appendChild(card);
-      });
-      view.appendChild(personaStrip);
-    }
-
-    const scroller = document.createElement("div");
-    scroller.className = "map-scroller";
-    const canvas = document.createElement("div");
-    canvas.className = "map-canvas";
-
-    const tpl = document.getElementById("tpl-stage-card");
-    const edgeTpl = document.getElementById("tpl-stage-edge");
-
-    (state.data?.stages || []).forEach((stage, idx) => {
-      const card = tpl.content.firstElementChild.cloneNode(true);
-      card.querySelector(".stage-card-num").textContent = String(idx + 1).padStart(2, "0");
-      card.querySelector(".stage-card-label").textContent = stage.label;
-      card.querySelector(".stage-card-summary").textContent = stage.summary || "";
-      const stepsEl = card.querySelector(".stage-card-steps");
-      stepsEl.textContent = t("steps_count", (stage.steps || []).length);
-      card.querySelector(".stage-card-cta").textContent = t("open");
-
-      const screens = getScreensForStage(stage);
-
-      // Device-kind badges in the head: instant signal whether the stage was
-      // modeled with the right device (e.g. ATM screens get 🏧, not 📱).
-      const devicesEl = card.querySelector(".stage-card-devices");
-      if (devicesEl) {
-        const kinds = uniqueDeviceKinds(screens);
-        kinds.forEach(kind => {
-          const badge = document.createElement("span");
-          badge.className = "device-badge";
-          badge.textContent = SCREEN_KIND_ICONS[kind] || "▢";
-          badge.title = kind;
-          devicesEl.appendChild(badge);
-        });
-      }
-
-      const emotions = card.querySelector(".stage-card-emotions");
-      (stage.steps || []).forEach(step => {
-        const dot = document.createElement("span");
-        dot.className = `emotion-dot ${emotionToClass(step.emotion)}`;
-        dot.style.background = `var(--color-emotion-${EMOTION_ORDER.includes(step.emotion) ? step.emotion : "neutral"})`;
-        dot.title = step.id || "";
-        emotions.appendChild(dot);
-      });
-
-      // Append per-stage screen thumbnails strip
-      if (screens.length && window.UJWireframe) {
-        const strip = document.createElement("div");
-        strip.className = "stage-card-screens";
-        screens.forEach(screen => {
-          const wrap = document.createElement("button");
-          wrap.className = "stage-card-screen";
-          wrap.type = "button";
-          wrap.title = `${screen.title || screen.id} (${screen.kind || "screen"}) — open in Flow`;
-          wrap.appendChild(window.UJWireframe.renderThumbnail(screen));
-          const label = document.createElement("span");
-          label.className = "stage-card-screen-label";
-          label.textContent = screen.title || screen.id;
-          wrap.appendChild(label);
-          wrap.addEventListener("click", (ev) => {
-            ev.stopPropagation();
-            state.activeScreenId = screen.id;
-            switchView("flow");
-          });
-          strip.appendChild(wrap);
-        });
-        const hint = document.createElement("div");
-        hint.className = "stage-card-screens-hint";
-        hint.textContent = t("stage_card_screens_hint");
-        strip.appendChild(hint);
-        card.appendChild(strip);
-      }
-
-      if (idx === state.activeStageIdx) card.classList.add("is-active");
-      card.addEventListener("click", () => {
-        state.activeStageIdx = idx;
-        switchView("stage");
-      });
-      card.addEventListener("keydown", e => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          state.activeStageIdx = idx;
-          switchView("stage");
-        }
-      });
-      canvas.appendChild(card);
-
-      if (idx < (state.data?.stages?.length || 0) - 1) {
-        canvas.appendChild(edgeTpl.content.firstElementChild.cloneNode(true));
-      }
-    });
-
-    scroller.appendChild(canvas);
-    view.appendChild(scroller);
-    applyMapTransform();
-    setupMapPanZoom(view, canvas);
-  }
-
-  function setupMapPanZoom(view, canvas) {
-    let dragging = false, startX = 0, startY = 0, originX = 0, originY = 0;
-    view.addEventListener("mousedown", e => {
-      if (e.target.closest(".stage-card") || e.target.closest(".persona-card")) return;
-      dragging = true; view.classList.add("is-panning");
-      startX = e.clientX; startY = e.clientY;
-      originX = state.pan.x; originY = state.pan.y;
-    });
-    window.addEventListener("mousemove", e => {
-      if (!dragging) return;
-      state.pan.x = originX + (e.clientX - startX);
-      state.pan.y = originY + (e.clientY - startY);
-      applyMapTransform();
-    });
-    window.addEventListener("mouseup", () => { dragging = false; view.classList.remove("is-panning"); });
-    view.addEventListener("wheel", e => {
-      if (!e.ctrlKey && !e.metaKey && Math.abs(e.deltaY) < 10) return;
-      e.preventDefault();
-      const delta = -e.deltaY * 0.001;
-      state.zoom = Math.max(0.3, Math.min(2.5, state.zoom + delta));
-      applyMapTransform();
-    }, { passive: false });
-  }
-
-  /* ---------- Stage view ----------------------------------- */
-
-  function renderStage() {
-    const view = document.getElementById("view-stage");
-    view.innerHTML = "";
-    const stages = state.data?.stages || [];
-    if (!stages.length) { view.textContent = t("no_steps"); return; }
-    state.activeStageIdx = Math.max(0, Math.min(state.activeStageIdx, stages.length - 1));
-    const stage = stages[state.activeStageIdx];
-
-    const header = document.createElement("header");
-    header.className = "stage-header";
-    header.innerHTML = `
-      <div class="stage-header-left">
-        <span class="stage-header-eyebrow">${String(state.activeStageIdx + 1).padStart(2, "0")} / ${String(stages.length).padStart(2, "0")}</span>
-        <h2 class="stage-header-title">${escapeHTML(stage.label)}</h2>
-        <p class="stage-header-summary">${escapeHTML(stage.summary || "")}</p>
-      </div>
-    `;
-    view.appendChild(header);
-
-    const crumbs = document.createElement("nav");
-    crumbs.className = "stage-breadcrumb";
-    stages.forEach((s, idx) => {
-      const c = document.createElement("button");
-      c.className = "crumb" + (idx === state.activeStageIdx ? " is-active" : "");
-      c.textContent = `${idx + 1}. ${s.label}`;
-      c.addEventListener("click", () => { state.activeStageIdx = idx; renderStage(); switchView("stage"); });
-      crumbs.appendChild(c);
-    });
-    view.appendChild(crumbs);
-
-    const stepsWrap = document.createElement("div");
-    stepsWrap.className = "stage-steps";
-    const tpl = document.getElementById("tpl-step-column");
-    if (!(stage.steps || []).length) {
-      const empty = document.createElement("p");
-      empty.style.padding = "var(--space-xl)";
-      empty.style.color = "var(--color-secondary)";
-      empty.textContent = t("no_steps");
-      view.appendChild(empty);
-      return;
-    }
-    stage.steps.forEach((step, idx) => {
-      const col = tpl.content.firstElementChild.cloneNode(true);
-      col.querySelector(".step-col-num").textContent = `${state.activeStageIdx + 1}.${idx + 1}`;
-
-      const chip = col.querySelector(".emotion-chip");
-      const emotion = EMOTION_ORDER.includes(step.emotion) ? step.emotion : "neutral";
-      chip.textContent = emotion;
-      chip.classList.add(`e-${emotion}`);
-
-      fillList(col.querySelector(".step-actions ul"), step.actions);
-      fillList(col.querySelector(".step-touchpoints ul"), step.touchpoints);
-      fillList(col.querySelector(".step-thoughts ul"), step.thoughts);
-
-      const painBlock = col.querySelector(".step-pain");
-      if (step.pain_points && step.pain_points.length) {
-        painBlock.hidden = false;
-        fillList(painBlock.querySelector("ul"), step.pain_points);
-      }
-      const oppsBlock = col.querySelector(".step-opps");
-      if (step.opportunities && step.opportunities.length) {
-        oppsBlock.hidden = false;
-        fillList(oppsBlock.querySelector("ul"), step.opportunities);
-      }
-      const metricsBlock = col.querySelector(".step-metrics");
-      if (step.metrics && step.metrics.length) {
-        metricsBlock.hidden = false;
-        const ul = metricsBlock.querySelector("ul");
-        step.metrics.forEach(m => {
-          const li = document.createElement("li");
-          li.innerHTML = `<span class="metric-name">${escapeHTML(m.name || "")}</span>${m.target ? ` <span class="metric-target">${escapeHTML(m.target)}</span>` : ""}`;
-          ul.appendChild(li);
-        });
-      }
-      const screensBlock = col.querySelector(".step-screens");
-      const refs = step.screen_refs || [];
-      const resolvedRefs = refs.map(r => state.screenIndex.get(r)).filter(Boolean);
-      if (resolvedRefs.length) {
-        screensBlock.hidden = false;
-        const host = screensBlock.querySelector(".step-screens");
-        host.innerHTML = "";
-        resolvedRefs.forEach(screen => {
-          const c = document.createElement("button");
-          c.className = "step-screen-chip";
-          c.type = "button";
-          const icon = SCREEN_KIND_ICONS[screen.kind] || "▢";
-          c.innerHTML = `<span class="step-screen-chip-icon">${icon}</span><span class="step-screen-chip-label">${escapeHTML(screen.title || screen.id)}</span>`;
-          c.addEventListener("click", () => {
-            state.activeScreenId = screen.id;
-            switchView("flow");
-          });
-          host.appendChild(c);
-        });
-      }
-      col.querySelectorAll("[data-i18n]").forEach(el => {
-        const text = t(el.dataset.i18n);
-        if (text) el.textContent = text;
-      });
-      stepsWrap.appendChild(col);
-    });
-    view.appendChild(stepsWrap);
-  }
-
-  function fillList(ul, items) {
-    (items || []).forEach(s => {
-      const li = document.createElement("li");
-      li.textContent = s;
-      ul.appendChild(li);
-    });
-  }
-
-  /* ---------- Flow view (new) ------------------------------ */
-
-  function ensureActiveScreenId() {
-    const screens = state.data?.screens || [];
-    if (state.activeScreenId && state.screenIndex.has(state.activeScreenId)) return;
-    state.activeScreenId = screens[0]?.id || null;
-  }
-
-  function renderFlow() {
-    ensureActiveScreenId();
-    const nav = document.getElementById("flow-nav");
-    const stageHost = document.getElementById("flow-stage");
-    const panel = document.getElementById("flow-panel");
-    nav.innerHTML = ""; stageHost.innerHTML = ""; panel.innerHTML = "";
-
-    const screens = state.data?.screens || [];
-    if (!screens.length) {
-      stageHost.innerHTML = `<p style="padding: var(--space-xl); color: var(--color-secondary); max-width: 60ch;">${escapeHTML(t("no_screens"))}</p>`;
-      return;
-    }
-
-    const grouped = getScreensByStage();
-    (state.data?.stages || []).forEach(stage => {
-      const items = grouped.get(stage.id) || [];
-      if (!items.length) return;
-      const sec = document.createElement("div");
-      sec.className = "flow-nav-section";
-      const lbl = document.createElement("div");
-      lbl.className = "flow-nav-section-label";
-      lbl.textContent = stage.label;
-      sec.appendChild(lbl);
-      items.forEach(screen => sec.appendChild(makeFlowNavItem(screen)));
-      nav.appendChild(sec);
-    });
-    const unstaged = grouped.get("__unstaged__") || [];
-    if (unstaged.length) {
-      const sec = document.createElement("div");
-      sec.className = "flow-nav-section";
-      const lbl = document.createElement("div");
-      lbl.className = "flow-nav-section-label";
-      lbl.textContent = "—";
-      sec.appendChild(lbl);
-      unstaged.forEach(screen => sec.appendChild(makeFlowNavItem(screen)));
-      nav.appendChild(sec);
-    }
-
-    const screen = state.screenIndex.get(state.activeScreenId);
-    if (!screen) {
-      stageHost.innerHTML = `<p style="padding: var(--space-xl); color: var(--color-secondary);">screen '${escapeHTML(state.activeScreenId || "")}' not found</p>`;
-      return;
-    }
-
-    const stageOfScreen = (state.data?.stages || []).find(s => s.id === screen.stage_id);
-    const header = document.createElement("div");
-    header.className = "flow-stage-header";
-    header.innerHTML = `
-      <span class="flow-stage-title">${escapeHTML(screen.title || screen.id)}</span>
-      <span class="flow-stage-sub">${escapeHTML(stageOfScreen ? stageOfScreen.label + " · " : "")}${escapeHTML(screen.kind || "screen")}</span>
-    `;
-    stageHost.appendChild(header);
-
-    const screenHost = document.createElement("div");
-    screenHost.className = "flow-screen-host";
-    const frame = window.UJWireframe.renderScreen(screen, {
-      size: "full",
-      hotspots: true,
-      onJump: (toScreenId) => flowGoto(toScreenId, { push: true }),
-    });
-    if (frame) screenHost.appendChild(frame);
-    stageHost.appendChild(screenHost);
-
-    renderFlowPanel(panel, screen);
-  }
-
-  function makeFlowNavItem(screen) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "flow-nav-item" + (screen.id === state.activeScreenId ? " is-active" : "");
-    btn.innerHTML = `
-      <span class="flow-nav-icon">${SCREEN_KIND_ICONS[screen.kind] || "▢"}</span>
-      <span class="flow-nav-title">${escapeHTML(screen.title || screen.id)}</span>
-    `;
-    btn.addEventListener("click", () => flowGoto(screen.id, { push: true }));
-    return btn;
-  }
-
-  function renderFlowPanel(panel, screen) {
-    panel.innerHTML = "";
-
-    const stageOfScreen = (state.data?.stages || []).find(s => s.id === screen.stage_id);
-    const meta = document.createElement("div");
-    meta.className = "flow-panel-meta";
-    meta.innerHTML = `
-      <div><strong>${escapeHTML(t("kind"))}:</strong> ${escapeHTML(screen.kind || "—")}</div>
-      <div><strong>${escapeHTML(t("stage_lbl"))}:</strong> ${escapeHTML(stageOfScreen ? stageOfScreen.label : "—")}</div>
-    `;
-    panel.appendChild(meta);
-    if (screen.notes) {
-      const notes = document.createElement("div");
-      notes.className = "flow-panel-meta";
-      notes.style.fontStyle = "italic";
-      notes.textContent = screen.notes;
-      panel.appendChild(notes);
-    }
-
-    const legend = document.createElement("div");
-    legend.className = "flow-panel-meta";
-    legend.textContent = t("hotspot_legend");
-    panel.appendChild(legend);
-
-    // Outgoing transitions
-    const outBlk = document.createElement("div");
-    const outH = document.createElement("h4");
-    outH.textContent = t("transitions_lbl");
-    outBlk.appendChild(outH);
-    const outList = document.createElement("div");
-    outList.className = "flow-transitions";
-    const txs = state.outboundByScreen.get(screen.id) || [];
-    if (!txs.length) {
-      const p = document.createElement("p");
-      p.className = "flow-panel-meta";
-      p.textContent = t("no_transitions");
-      outBlk.appendChild(p);
-    } else {
-      txs.forEach((tx, idx) => outList.appendChild(makeTransitionRow(tx, idx + 1)));
-      outBlk.appendChild(outList);
-    }
-    panel.appendChild(outBlk);
-
-    // Incoming references (steps + screens that point here)
-    const inBlk = document.createElement("div");
-    const inH = document.createElement("h4");
-    inH.textContent = t("incoming_lbl");
-    inBlk.appendChild(inH);
-    const refs = state.stepRefsByScreen.get(screen.id) || [];
-    const tgts = state.inboundByScreen.get(screen.id) || [];
-    if (!refs.length && !tgts.length) {
-      const p = document.createElement("p");
-      p.className = "flow-panel-meta";
-      p.textContent = t("no_referrers");
-      inBlk.appendChild(p);
-    } else {
-      const inList = document.createElement("div");
-      inList.className = "flow-incoming";
-      refs.forEach(r => {
-        const row = document.createElement("button");
-        row.type = "button";
-        row.className = "flow-incoming-item";
-        const label = `${r.stage.label} · step ${r.stepIdx + 1}`;
-        row.textContent = label;
-        row.style.cursor = "pointer";
-        row.style.textAlign = "left";
-        row.style.background = "transparent";
-        row.style.border = "0";
-        row.style.padding = "2px 0";
-        row.title = `Go to Stage view ${r.stageIdx + 1}`;
-        row.addEventListener("click", () => {
-          state.activeStageIdx = r.stageIdx;
-          switchView("stage");
-        });
-        inList.appendChild(row);
-      });
-      tgts.forEach(({ from, tx }) => {
-        const fromScreen = state.screenIndex.get(from);
-        const row = document.createElement("button");
-        row.type = "button";
-        row.className = "flow-incoming-item";
-        row.style.cursor = "pointer";
-        row.style.textAlign = "left";
-        row.style.background = "transparent";
-        row.style.border = "0";
-        row.style.padding = "2px 0";
-        row.textContent = `${fromScreen ? (fromScreen.title || fromScreen.id) : from}: ${tx.label || tx.trigger || "tap"}`;
-        row.addEventListener("click", () => flowGoto(from, { push: true }));
-        inList.appendChild(row);
-      });
-      inBlk.appendChild(inList);
-    }
-    panel.appendChild(inBlk);
-
-    // Mini flow graph: incoming + current + outgoing
-    const miniH = document.createElement("h4");
-    miniH.textContent = t("neighbors_lbl");
-    panel.appendChild(miniH);
-    const mini = document.createElement("div");
-    mini.className = "flow-mini-graph";
-    const seenIds = new Set();
-    function addLine(id, current) {
-      if (!id || seenIds.has(id)) return;
-      seenIds.add(id);
-      const s = state.screenIndex.get(id);
-      const node = document.createElement("div");
-      node.className = "flow-mini-node" + (current ? " is-current" : "");
-      node.textContent = s ? (s.title || s.id) : id;
-      mini.appendChild(node);
-    }
-    tgts.slice(0, 4).forEach(({ from }) => addLine(from, false));
-    addLine(screen.id, true);
-    txs.slice(0, 4).forEach(tx => addLine(tx.to_screen, false));
-    panel.appendChild(mini);
-  }
-
-  function makeTransitionRow(tx, n) {
-    const row = document.createElement("button");
-    row.type = "button";
-    row.className = "flow-transition" + (tx.is_default ? " is-default" : "") + (tx.is_error_path ? " is-error" : "");
-    row.innerHTML = `
-      <span class="flow-transition-num">${n}</span>
-      <span class="flow-transition-body">
-        <div class="flow-transition-label">${escapeHTML(tx.label || tx.to_screen)}</div>
-        <div class="flow-transition-meta">${escapeHTML(tx.from_element)} · ${escapeHTML(tx.trigger || "tap")} → ${escapeHTML(tx.to_screen)}${tx.delay_ms ? ` · ${tx.delay_ms}ms` : ""}${tx.is_default ? " · default" : ""}${tx.is_error_path ? " · error" : ""}</div>
-      </span>
-    `;
-    row.addEventListener("click", () => flowGoto(tx.to_screen, { push: true }));
-    return row;
-  }
-
-  function flowGoto(screenId, opts) {
-    opts = opts || {};
-    if (!state.screenIndex.has(screenId)) return;
-    if (opts.push && state.activeScreenId && state.activeScreenId !== screenId) {
-      state.flowHistory.push(state.activeScreenId);
-      if (state.flowHistory.length > 100) state.flowHistory.shift();
-    }
-    state.activeScreenId = screenId;
-    if (state.view !== "flow") {
-      switchView("flow");
-    } else {
-      renderFlow();
-      let hash = `#flow/${screenId}`;
-      if (location.hash !== hash) history.replaceState(null, "", hash);
-    }
-  }
-
-  function flowGoBack() {
-    if (!state.flowHistory.length) return;
-    const prev = state.flowHistory.pop();
-    state.activeScreenId = prev;
-    renderFlow();
-    let hash = `#flow/${prev}`;
-    if (location.hash !== hash) history.replaceState(null, "", hash);
-  }
-
-  function flowGotoOffset(delta) {
-    const ids = (state.data?.screens || []).map(s => s.id);
-    if (!ids.length) return;
-    const cur = Math.max(0, ids.indexOf(state.activeScreenId));
-    const next = Math.max(0, Math.min(ids.length - 1, cur + delta));
-    flowGoto(ids[next], { push: true });
-  }
-
-  function flowFollowDefault() {
-    const screen = state.screenIndex.get(state.activeScreenId);
-    if (!screen) return;
-    const txs = screen.transitions || [];
-    const def = txs.find(t => t.is_default) || txs[0];
-    if (def) flowGoto(def.to_screen, { push: true });
-  }
-
-  function flowFollowNth(idx) {
-    const screen = state.screenIndex.get(state.activeScreenId);
-    if (!screen) return;
-    const txs = screen.transitions || [];
-    const t = txs[idx];
-    if (t) flowGoto(t.to_screen, { push: true });
-  }
-
-  function toggleFlowAutoplay() {
-    if (state.autoplayTimer) {
-      stopFlowAutoplay();
-    } else {
-      runFlowAutoplay();
-    }
-  }
-  function stopFlowAutoplay() {
-    if (state.autoplayTimer) {
-      clearTimeout(state.autoplayTimer);
-      state.autoplayTimer = null;
-    }
-  }
-  function runFlowAutoplay() {
-    stopFlowAutoplay();
-    const screen = state.screenIndex.get(state.activeScreenId);
-    if (!screen) return;
-    const def = (screen.transitions || []).find(t => t.is_default);
-    if (!def) return;
-    const delay = Math.max(400, def.delay_ms || 1200);
-    state.autoplayTimer = setTimeout(() => {
-      flowGoto(def.to_screen, { push: true });
-      // chain
-      runFlowAutoplay();
-    }, delay);
-  }
-
-  /* ---------- Present view --------------------------------- */
-
-  function renderPresent() {
-    const view = document.getElementById("view-present");
-    view.innerHTML = "";
-    const stages = state.data?.stages || [];
-    if (!stages.length) { view.textContent = t("no_steps"); return; }
-    state.presentIdx = Math.max(0, Math.min(state.presentIdx, stages.length - 1));
-    const stage = stages[state.presentIdx];
-
-    const progress = document.createElement("div");
-    progress.className = "present-progress";
-    stages.forEach((_, idx) => {
-      const dot = document.createElement("span");
-      dot.className = "present-dot" + (idx === state.presentIdx ? " is-active" : "");
-      progress.appendChild(dot);
-    });
-    view.appendChild(progress);
-
-    if (state.presentScreenMode) {
-      renderPresentScreens(view, stage);
-    } else {
-      renderPresentStage(view, stage);
-    }
-
-    if (stage.notes) {
-      const notes = document.createElement("div");
-      notes.className = "present-notes";
-      notes.textContent = stage.notes;
-      view.appendChild(notes);
-    }
-
-    const controls = document.createElement("div");
-    controls.className = "present-controls";
-    if (state.presentScreenMode) {
-      controls.innerHTML = `
-        <button data-act="prev">← ${t("prev")}</button>
-        <button data-act="back-stage">${t("back_to_stage")}</button>
-        <button data-act="exit">${t("exit")}</button>
-        <button data-act="next">${t("next")} →</button>
-      `;
-      controls.querySelector("[data-act='back-stage']").addEventListener("click", stopPresentScreenMode);
-    } else {
-      controls.innerHTML = `
-        <button data-act="prev">← ${t("prev")}</button>
-        <button data-act="blank">${t("blank")}</button>
-        <button data-act="exit">${t("exit")}</button>
-        <button data-act="next">${t("next")} →</button>
-      `;
-      controls.querySelector("[data-act='blank']").addEventListener("click", () => document.body.classList.toggle("is-blanked"));
-    }
-    controls.querySelector("[data-act='prev']").addEventListener("click", navigateBack);
-    controls.querySelector("[data-act='next']").addEventListener("click", navigateForward);
-    controls.querySelector("[data-act='exit']").addEventListener("click", () => {
-      document.body.classList.remove("is-blanked");
-      state.presentScreenMode = false;
-      switchView("map");
-    });
-    view.appendChild(controls);
-  }
-
-  function renderPresentStage(view, stage) {
-    const sec = document.createElement("section");
-    sec.className = "present-stage";
-    const stages = state.data.stages;
-    sec.innerHTML = `
-      <div class="present-eyebrow">${String(state.presentIdx + 1).padStart(2, "0")} / ${String(stages.length).padStart(2, "0")} · ${escapeHTML(state.data?.title || "")}</div>
-      <h2 class="present-title">${escapeHTML(stage.label)}</h2>
-      <p class="present-summary">${escapeHTML(stage.summary || "")}</p>
-    `;
-
-    if (stage.steps && stage.steps.length) {
-      const allActions = stage.steps.flatMap(s => s.actions || []);
-      const allTouchpoints = stage.steps.flatMap(s => s.touchpoints || []);
-      const allThoughts = stage.steps.flatMap(s => s.thoughts || []);
-      const grid = document.createElement("div");
-      grid.className = "present-grid";
-      grid.appendChild(buildPresentCol(t("actions"), allActions));
-      grid.appendChild(buildPresentCol(t("touchpoints"), allTouchpoints));
-      grid.appendChild(buildPresentCol(t("thoughts"), allThoughts));
-      sec.appendChild(grid);
-    }
-
-    const screens = getScreensForStage(stage);
-    if (screens.length) {
-      const runBtn = document.createElement("button");
-      runBtn.className = "present-run-btn";
-      runBtn.textContent = `▷ ${t("run_screens")} · ${t("screens_count", screens.length)}`;
-      runBtn.addEventListener("click", startPresentScreenMode);
-      sec.appendChild(runBtn);
-    }
-
-    view.appendChild(sec);
-  }
-
-  function renderPresentScreens(view, stage) {
-    const screens = getScreensForStage(stage);
-    if (!screens.length) {
-      stopPresentScreenMode();
-      return;
-    }
-    state.presentScreenIdx = Math.max(0, Math.min(state.presentScreenIdx, screens.length - 1));
-    const screen = screens[state.presentScreenIdx];
-    const sec = document.createElement("section");
-    sec.className = "present-screens";
-    const frame = window.UJWireframe.renderScreen(screen, {
-      size: "presenter",
-      hotspots: true,
-      onJump: () => presentScreenAdvance(),
-    });
-    if (frame) sec.appendChild(frame);
-    const label = document.createElement("div");
-    label.className = "present-screen-label";
-    label.textContent = `${state.presentScreenIdx + 1}/${screens.length}  ·  ${screen.title || screen.id}  (${screen.kind || "screen"})`;
-    sec.appendChild(label);
-    view.appendChild(sec);
-  }
-
-  function startPresentScreenMode() {
-    const stage = state.data?.stages?.[state.presentIdx];
-    if (!stage) return;
-    const screens = getScreensForStage(stage);
-    if (!screens.length) return;
-    state.presentScreenMode = true;
-    state.presentScreenIdx = 0;
-    renderPresent();
-    // Update hash
-    let hash = `#present/${stage.id}/screens`;
-    if (location.hash !== hash) history.replaceState(null, "", hash);
-  }
-
-  function stopPresentScreenMode() {
-    state.presentScreenMode = false;
-    renderPresent();
-    const stage = state.data?.stages?.[state.presentIdx];
-    let hash = stage ? `#present/${stage.id}` : "#present";
-    if (location.hash !== hash) history.replaceState(null, "", hash);
-  }
-
-  function presentScreenAdvance() {
-    const stage = state.data?.stages?.[state.presentIdx];
-    if (!stage) return;
-    const screens = getScreensForStage(stage);
-    if (!screens.length) return;
-    const currentScreen = screens[state.presentScreenIdx];
-    const def = (currentScreen?.transitions || []).find(t => t.is_default);
-    if (def) {
-      const idx = screens.findIndex(s => s.id === def.to_screen);
-      if (idx >= 0) {
-        state.presentScreenIdx = idx;
-        renderPresent();
-        return;
-      }
-    }
-    if (state.presentScreenIdx < screens.length - 1) {
-      state.presentScreenIdx += 1;
-      renderPresent();
-    } else {
-      // End of screen flow — advance to next stage's stage view automatically
-      if (state.presentIdx < state.data.stages.length - 1) {
-        state.presentIdx += 1;
-        state.presentScreenMode = false;
-        renderPresent();
-      }
-    }
-  }
-
-  function presentScreenRewind() {
-    if (state.presentScreenIdx > 0) {
-      state.presentScreenIdx -= 1;
-      renderPresent();
-    } else {
-      stopPresentScreenMode();
-    }
-  }
-
-  function buildPresentCol(label, items) {
-    const col = document.createElement("div");
-    col.className = "present-col";
-    const h = document.createElement("h4"); h.textContent = label;
-    const ul = document.createElement("ul");
-    items.slice(0, 6).forEach(text => {
-      const li = document.createElement("li"); li.textContent = text; ul.appendChild(li);
-    });
-    col.appendChild(h);
-    col.appendChild(ul);
-    return col;
-  }
-
-  /* ---------- Meta + bootstrap ----------------------------- */
-
-  function escapeHTML(s) {
-    return String(s || "").replace(/[&<>"']/g, c => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;",
-    }[c]));
-  }
-
-  function setMeta() {
-    const stages = state.data?.stages || [];
-    document.getElementById("meta-stage-count").textContent = t("stages_count", stages.length);
-    if (state.data?.title) {
-      document.getElementById("topbar-title").textContent = state.data.title;
-      document.title = state.data.title;
-    }
-  }
-
-  async function init() {
-    /* Prefer freshly-fetched files so the page reflects edits made after
-       the initial scaffold. Fall back to the inlined JSON when fetch is
-       blocked (e.g. some browsers' file:// CORS policy). */
-    let data = await loadJSONFile("journey.json");
-    if (!data) data = loadInlineJSON("journey-data");
-    let design = null;
-    const designMd = await fetchText("DESIGN.md");
-    if (designMd) design = parseDesignFrontmatter(designMd);
-    if (!design) design = loadInlineJSON("design-tokens");
-    state.data = data || { title: "Untitled", language: "en", personas: [], stages: [], screens: [] };
-    state.design = design;
-    state.t = I18N[state.data.language] || I18N.en;
-    rebuildIndexes();
-
-    applyDesignTokens(design);
-    setupTopbar();
-    setupShortcuts();
-    setMeta();
-    applyHashRoute();
-    window.addEventListener("hashchange", applyHashRoute);
-  }
-
-  /* ---------- Minimal YAML-frontmatter extractor ---------- */
+  /* ---------- Frontmatter parser --------------------------- */
 
   function parseDesignFrontmatter(md) {
     const m = md.match(/^---\s*\n([\s\S]*?)\n---/);
@@ -1276,8 +146,12 @@
       const line = raw.trim();
       if (indent === 0) {
         const [k] = line.split(":");
-        if (["colors", "typography", "rounded", "spacing"].includes(k)) { section = k; currentTypo = null; }
-        else section = null;
+        if (["colors", "typography", "rounded", "spacing"].includes(k)) {
+          section = k;
+          currentTypo = null;
+        } else {
+          section = null;
+        }
         continue;
       }
       if (!section) continue;
@@ -1303,7 +177,588 @@
   }
   function stripQuotes(s) { return String(s || "").replace(/^["']|["']$/g, ""); }
 
+  /* ---------- Auto-layout ---------------------------------- */
+
+  function computeAutoLayout(data) {
+    const stages  = (data && data.stages)  || [];
+    const screens = (data && data.screens) || [];
+
+    // Map stage_id → column index. Unknown stage_id → last column.
+    const stageIndex = new Map();
+    stages.forEach((stage, idx) => {
+      if (stage && stage.id) stageIndex.set(stage.id, idx);
+    });
+
+    // Group screens by stage column.
+    const byColumn = new Map();
+    const orphanCol = stages.length; // dedicated trailing column for unstaged screens
+    screens.forEach((screen) => {
+      const colIdx = stageIndex.has(screen.stage_id)
+        ? stageIndex.get(screen.stage_id)
+        : orphanCol;
+      if (!byColumn.has(colIdx)) byColumn.set(colIdx, []);
+      byColumn.get(colIdx).push(screen);
+    });
+
+    // Compute auto position for each screen that has no explicit position.
+    // Vertical stacking inside the column is determined by source order.
+    const positions = new Map();
+    byColumn.forEach((screens, colIdx) => {
+      let y = COLUMN_TOP + STAGE_HEADER_HEIGHT;
+      screens.forEach((screen) => {
+        if (screen.position && typeof screen.position.x === "number"
+            && typeof screen.position.y === "number") {
+          positions.set(screen.id, { x: screen.position.x, y: screen.position.y });
+          return;
+        }
+        const x = colIdx * (COLUMN_WIDTH + COLUMN_GAP);
+        positions.set(screen.id, { x, y });
+        y += estimateScreenHeight(screen) + ROW_GAP;
+      });
+    });
+
+    return { positions, stageIndex };
+  }
+
+  function estimateScreenHeight(screen) {
+    // Conservative defaults so vertically-stacked screens don't overlap.
+    // We trust the actual rendered height after layout; this is only used
+    // for the initial y bump and gets reconciled in `reflowColumn`.
+    const kind = screen.kind || "mobile-screen";
+    switch (kind) {
+      case "mobile-screen":  return 680;
+      case "tablet-screen":  return 720;
+      case "desktop-window": return 520;
+      case "atm-screen":     return 720;
+      case "kiosk-screen":   return 820;
+      case "tv-screen":      return 520;
+      case "email":          return 540;
+      case "modal":          return 420;
+      case "notification":   return 200;
+      default:               return 600;
+    }
+  }
+
+  /* ---------- Render --------------------------------------- */
+
+  function renderEverything() {
+    const viewport = document.getElementById("canvas-viewport");
+    const world    = document.getElementById("canvas-world");
+    const headersLayer  = document.getElementById("canvas-headers");
+    const screensLayer  = document.getElementById("canvas-screens");
+    const arrowsSvg     = document.getElementById("canvas-arrows");
+    const stickiesLayer = document.getElementById("canvas-stickies");
+
+    if (!viewport || !world) return;
+
+    // Clear all layers (we re-render from scratch each time).
+    headersLayer.innerHTML  = "";
+    screensLayer.innerHTML  = "";
+    while (arrowsSvg.firstChild) arrowsSvg.removeChild(arrowsSvg.firstChild);
+    stickiesLayer.innerHTML = "";
+    state.cardsById.clear();
+
+    const data    = state.data || {};
+    const screens = data.screens || [];
+    const stages  = data.stages  || [];
+
+    // Stage column headers (visual cue, no interaction).
+    stages.forEach((stage, idx) => {
+      if (!stage) return;
+      const header = document.createElement("div");
+      header.className = "canvas-stage-header";
+      header.style.left = (idx * (COLUMN_WIDTH + COLUMN_GAP)) + "px";
+      header.style.width = COLUMN_WIDTH + "px";
+      header.style.top  = "0px";
+      header.innerHTML = `
+        <span class="canvas-stage-num">${String(idx + 1).padStart(2, "0")}</span>
+        <span class="canvas-stage-label"></span>
+        <span class="canvas-stage-summary"></span>
+      `;
+      header.querySelector(".canvas-stage-label").textContent = stage.label || "";
+      header.querySelector(".canvas-stage-summary").textContent = stage.summary || "";
+      headersLayer.appendChild(header);
+    });
+
+    if (!screens.length) {
+      const empty = document.createElement("div");
+      empty.className = "canvas-empty";
+      empty.textContent = t("no_screens");
+      empty.style.left = "0px";
+      empty.style.top  = "0px";
+      screensLayer.appendChild(empty);
+      // Still mark canvas as bootstrapped so user sees the message.
+      state.contentBounds = { x: -200, y: -200, width: 600, height: 200 };
+      bootstrapCanvasIfNeeded();
+      state.canvas.fit(state.contentBounds);
+      return;
+    }
+
+    // Auto-layout.
+    const { positions } = computeAutoLayout(data);
+
+    screens.forEach((screen) => {
+      const card = window.UJWireframe.renderScreenCard(screen);
+      if (!card) return;
+      const pos = positions.get(screen.id) || { x: 0, y: 0 };
+      card.style.left = pos.x + "px";
+      card.style.top  = pos.y + "px";
+      screensLayer.appendChild(card);
+      state.cardsById.set(screen.id, card);
+    });
+
+    // After cards are mounted, reflow within each column so siblings don't
+    // overlap if a screen ended up taller than `estimateScreenHeight`.
+    reflowColumns(data);
+
+    // Stickies.
+    (data.stickies || []).forEach((sticky) => {
+      if (!sticky || typeof sticky !== "object") return;
+      const n = document.createElement("div");
+      const color = ["yellow", "orange", "pink", "blue", "green"].includes(sticky.color)
+        ? sticky.color : "yellow";
+      n.className = `canvas-sticky canvas-sticky-${color}`;
+      n.setAttribute("data-canvas-item", "sticky");
+      n.style.left = (Number(sticky.x) || 0) + "px";
+      n.style.top  = (Number(sticky.y) || 0) + "px";
+      n.textContent = sticky.text || "";
+      stickiesLayer.appendChild(n);
+    });
+
+    // Arrows.
+    drawArrows();
+
+    // Compute content bounds for fit-to-screen.
+    state.contentBounds = computeContentBounds();
+
+    // Bootstrap canvas controller once.
+    bootstrapCanvasIfNeeded();
+
+    // First-time fit so the user opens onto the full graph.
+    state.canvas.fit(state.contentBounds);
+  }
+
+  function reflowColumns(data) {
+    const stages = data.stages || [];
+    const screens = data.screens || [];
+    const stageIndex = new Map();
+    stages.forEach((s, idx) => { if (s && s.id) stageIndex.set(s.id, idx); });
+    const orphanCol = stages.length;
+
+    const byColumn = new Map();
+    screens.forEach((screen) => {
+      const card = state.cardsById.get(screen.id);
+      if (!card) return;
+      // Screens with explicit position keep their position and are
+      // excluded from reflow.
+      if (screen.position && typeof screen.position.x === "number"
+          && typeof screen.position.y === "number") {
+        return;
+      }
+      const colIdx = stageIndex.has(screen.stage_id)
+        ? stageIndex.get(screen.stage_id)
+        : orphanCol;
+      if (!byColumn.has(colIdx)) byColumn.set(colIdx, []);
+      byColumn.get(colIdx).push({ screen, card });
+    });
+
+    byColumn.forEach((items, colIdx) => {
+      let y = COLUMN_TOP + STAGE_HEADER_HEIGHT;
+      const x = colIdx * (COLUMN_WIDTH + COLUMN_GAP);
+      items.forEach(({ card }) => {
+        card.style.left = x + "px";
+        card.style.top  = y + "px";
+        y += (card.offsetHeight || 600) + ROW_GAP;
+      });
+    });
+  }
+
+  function drawArrows() {
+    const arrowsSvg = document.getElementById("canvas-arrows");
+    const arrows = (state.data && state.data.arrows) || [];
+    window.UJArrows.render(arrowsSvg, arrows, {
+      getEndpoint(addr, otherAddr) {
+        return resolveEndpoint(addr, otherAddr);
+      },
+    });
+  }
+
+  /* Resolve `addr` ("<screen-id>" or "<screen-id>#<element-id>") into
+     a world-space anchor point.
+
+     For whole-screen anchors we pick the card edge facing `otherAddr`.
+
+     For element-anchored endpoints we use a two-step strategy:
+       1. The element has a natural exit side (data-anchor-side, e.g.
+          "left" for a left-rail key, "bottom" for a bottom slot).
+       2. If that side ALREADY faces the target, we anchor exactly on
+          that side of the element (pinpoint precision).
+       3. If the natural side points AWAY from the target, we project
+          the anchor to the screen edge that DOES face the target,
+          at the element's row (Y for left/right escape) or column
+          (X for top/bottom escape). The arrow still visually
+          originates from the element's row, but exits the screen
+          cleanly instead of looping back through it.
+       4. We tag the result with `viaElement` so fan-out treats this
+          as still being an "element-bound" point (no further fanning).
+  */
+  function resolveEndpoint(addr, otherAddr) {
+    if (!addr) return null;
+    const parts = String(addr).split("#");
+    const screenId = parts[0];
+    const elementId = parts[1] || null;
+    const card = state.cardsById.get(screenId);
+    if (!card) return null;
+
+    const otherCard = otherAddr
+      ? state.cardsById.get(String(otherAddr).split("#")[0])
+      : null;
+
+    // Whole-screen anchor — pick the side facing the other endpoint.
+    if (!elementId) {
+      const side = pickFacingSide(card, otherCard);
+      const anchor = window.UJWireframe.getElementAnchor(card, null, side);
+      if (!anchor) return null;
+      anchor.screenId = screenId;
+      anchor.isElement = false;
+      return anchor;
+    }
+
+    // Element anchor — get the element's exact rect first.
+    const elRect = window.UJWireframe.getElementRect(card, elementId);
+    if (!elRect) {
+      // Element id not found — fall back to whole-screen anchor.
+      const side = pickFacingSide(card, otherCard);
+      const anchor = window.UJWireframe.getElementAnchor(card, null, side);
+      if (!anchor) return null;
+      anchor.screenId = screenId;
+      anchor.isElement = false;
+      return anchor;
+    }
+
+    const naturalSide = elRect.anchorSide || pickFacingSide(card, otherCard);
+    const facingSide = pickFacingSide(card, otherCard);
+
+    // Best case — natural side ALSO faces the target. Anchor pinpoint
+    // on the element's edge.
+    if (naturalSide === facingSide || isSameAxis(naturalSide, facingSide) && otherCard == null) {
+      const pt = pointOnRectSide(elRect, naturalSide);
+      return {
+        x: pt.x, y: pt.y, side: naturalSide,
+        screenId, isElement: true,
+      };
+    }
+
+    // Mismatch — escape through the screen edge that faces the
+    // target, at the element's row/column. This keeps the arrow
+    // visually originating from the element while routing OUT of
+    // the source screen cleanly (no U-turn through the body).
+    const cardRect = {
+      left: card.offsetLeft,
+      top:  card.offsetTop,
+      right: card.offsetLeft + card.offsetWidth,
+      bottom: card.offsetTop + card.offsetHeight,
+    };
+    const elCenterY = elRect.top + elRect.height / 2;
+    const elCenterX = elRect.left + elRect.width / 2;
+    let x, y;
+    if (facingSide === "right") {
+      x = cardRect.right; y = elCenterY;
+    } else if (facingSide === "left") {
+      x = cardRect.left;  y = elCenterY;
+    } else if (facingSide === "bottom") {
+      x = elCenterX; y = cardRect.bottom;
+    } else {
+      x = elCenterX; y = cardRect.top;
+    }
+    return {
+      x, y, side: facingSide,
+      screenId, isElement: true,
+    };
+  }
+
+  /* Returns true when two sides share the same axis (left/right or
+     top/bottom). Used to decide whether an anchor side mismatch is
+     a perpendicular "still ok" hit or a real flip. */
+  function isSameAxis(a, b) {
+    if (a === "left" || a === "right") return b === "left" || b === "right";
+    return b === "top" || b === "bottom";
+  }
+
+  function pointOnRectSide(r, side) {
+    switch (side) {
+      case "right":  return { x: r.left + r.width, y: r.top + r.height / 2 };
+      case "left":   return { x: r.left,           y: r.top + r.height / 2 };
+      case "top":    return { x: r.left + r.width / 2, y: r.top };
+      case "bottom": return { x: r.left + r.width / 2, y: r.top + r.height };
+      default:       return { x: r.left + r.width, y: r.top + r.height / 2 };
+    }
+  }
+
+  /* Pick whichever edge of `card` most directly faces `otherCard`.
+     Falls back to "right" when there's no other card. */
+  function pickFacingSide(card, otherCard) {
+    if (!otherCard) return "right";
+    const cx = card.offsetLeft + card.offsetWidth / 2;
+    const cy = card.offsetTop  + card.offsetHeight / 2;
+    const ox = otherCard.offsetLeft + otherCard.offsetWidth / 2;
+    const oy = otherCard.offsetTop  + otherCard.offsetHeight / 2;
+    const dx = ox - cx;
+    const dy = oy - cy;
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      return dx >= 0 ? "right" : "left";
+    }
+    return dy >= 0 ? "bottom" : "top";
+  }
+
+  function computeContentBounds() {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    function include(x, y, w, h) {
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x + w > maxX) maxX = x + w;
+      if (y + h > maxY) maxY = y + h;
+    }
+    state.cardsById.forEach((card) => {
+      include(card.offsetLeft, card.offsetTop, card.offsetWidth, card.offsetHeight);
+    });
+    document.querySelectorAll(".canvas-stage-header").forEach((h) => {
+      include(h.offsetLeft, h.offsetTop, h.offsetWidth, h.offsetHeight);
+    });
+    document.querySelectorAll(".canvas-sticky").forEach((n) => {
+      include(n.offsetLeft, n.offsetTop, n.offsetWidth, n.offsetHeight);
+    });
+    if (!isFinite(minX)) {
+      return { x: 0, y: 0, width: 800, height: 600 };
+    }
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  }
+
+  function bootstrapCanvasIfNeeded() {
+    if (state.canvas) return;
+    const viewport = document.getElementById("canvas-viewport");
+    const world    = document.getElementById("canvas-world");
+    state.canvas = window.UJCanvas.create({
+      viewport,
+      world,
+      onChange({ zoom }) {
+        const z = document.getElementById("zoom-readout");
+        if (z) z.textContent = Math.round(zoom * 100) + "%";
+      },
+      onFitRequest() {
+        return state.contentBounds;
+      },
+      onHelpToggle() {
+        toggleHelpOverlay();
+      },
+      onScreenDoubleClick(screenId, card) {
+        if (!card) return;
+        // Two things at once: zoom into the card AND mark this as
+        // the current screen so prototype view + sidebar light up.
+        if (screenId && window.UJView) {
+          window.UJView.setCurrentScreen(screenId, { source: "canvas-dblclick" });
+        }
+        const rect = {
+          x: card.offsetLeft,
+          y: card.offsetTop,
+          width:  card.offsetWidth,
+          height: card.offsetHeight,
+        };
+        state.canvas.fit(rect, { padding: 80 });
+      },
+    });
+  }
+
+  /* ---------- Help overlay --------------------------------- */
+
+  function toggleHelpOverlay() {
+    const overlay = document.getElementById("help-overlay");
+    if (!overlay) return;
+    overlay.hidden = !overlay.hidden;
+  }
+
+  function populateHelpOverlay() {
+    const overlay = document.getElementById("help-overlay");
+    if (!overlay) return;
+    overlay.innerHTML = `
+      <div class="help-card" data-no-pan>
+        <header class="help-card-header">
+          <strong>${t("help_title")}</strong>
+          <button type="button" class="help-close" aria-label="Close" data-no-pan>✕</button>
+        </header>
+        <ul class="help-list">
+          <li><kbd>drag</kbd> ${t("help_pan")}</li>
+          <li><kbd>scroll</kbd> ${t("help_zoom_wheel")}</li>
+          <li><kbd>+</kbd><kbd>−</kbd><kbd>0</kbd> ${t("help_zoom_keys")}</li>
+          <li><kbd>F</kbd> ${t("help_fit")}</li>
+          <li><kbd>H</kbd> ${t("help_help")}</li>
+          <li><kbd>dblclick</kbd> ${t("help_double")}</li>
+          <li><kbd>↑↓←→</kbd> ${t("help_arrows")}</li>
+        </ul>
+      </div>
+    `;
+    overlay.querySelector(".help-close").addEventListener("click", () => {
+      overlay.hidden = true;
+    });
+  }
+
+  /* ---------- Topbar --------------------------------------- */
+
+  function setupTopbar() {
+    const fitBtn = document.getElementById("fit-btn");
+    if (fitBtn) {
+      fitBtn.addEventListener("click", () => {
+        if (state.canvas) state.canvas.fit(state.contentBounds);
+      });
+    }
+    const resetBtn = document.getElementById("reset-btn");
+    if (resetBtn) {
+      resetBtn.addEventListener("click", () => {
+        if (state.canvas) state.canvas.fit(state.contentBounds);
+      });
+    }
+    const zoomInBtn = document.getElementById("zoom-in-btn");
+    if (zoomInBtn) {
+      zoomInBtn.addEventListener("click", () => {
+        if (state.canvas) state.canvas.zoomCenter(1.2);
+      });
+    }
+    const zoomOutBtn = document.getElementById("zoom-out-btn");
+    if (zoomOutBtn) {
+      zoomOutBtn.addEventListener("click", () => {
+        if (state.canvas) state.canvas.zoomCenter(1 / 1.2);
+      });
+    }
+    const helpBtn = document.getElementById("help-btn");
+    if (helpBtn) {
+      helpBtn.addEventListener("click", () => toggleHelpOverlay());
+    }
+  }
+
+  /* ---------- Meta + bootstrap ----------------------------- */
+
+  function setMeta() {
+    if (state.data && state.data.title) {
+      document.getElementById("topbar-title").textContent = state.data.title;
+      document.title = state.data.title;
+    }
+  }
+
+  function setupViewSwitcher() {
+    const canvasBtn    = document.getElementById("view-canvas-btn");
+    const prototypeBtn = document.getElementById("view-prototype-btn");
+    if (!canvasBtn || !prototypeBtn) return;
+
+    function activateButton(mode) {
+      [canvasBtn, prototypeBtn].forEach((b) => {
+        const isActive = b.dataset.view === mode;
+        b.classList.toggle("is-active", isActive);
+        b.setAttribute("aria-selected", String(isActive));
+      });
+    }
+    function activatePane(mode) {
+      document.querySelectorAll(".view-pane").forEach((p) => {
+        const isActive = p.dataset.view === mode;
+        p.classList.toggle("is-active", isActive);
+        p.hidden = !isActive;
+      });
+      const zoomGroup = document.getElementById("zoom-controls");
+      const fitBtn    = document.getElementById("fit-btn");
+      if (zoomGroup) zoomGroup.hidden = (mode !== "canvas");
+      if (fitBtn)    fitBtn.hidden    = (mode !== "canvas");
+    }
+    canvasBtn.addEventListener("click",    () => window.UJView.setMode("canvas"));
+    prototypeBtn.addEventListener("click", () => window.UJView.setMode("prototype"));
+    window.UJView.on("modechange", ({ mode }) => {
+      activateButton(mode);
+      activatePane(mode);
+      // When switching to canvas, ensure layout is up to date and
+      // pan/highlight the current screen if any.
+      if (mode === "canvas") {
+        if (state.canvas && state.contentBounds) {
+          // Don't auto-fit; preserve the user's view. Only highlight.
+          highlightCurrentScreenInCanvas();
+        }
+      }
+    });
+    // Initial pane visibility.
+    activateButton(window.UJView.getMode());
+    activatePane(window.UJView.getMode());
+  }
+
+  function highlightCurrentScreenInCanvas() {
+    const current = window.UJView.getCurrentScreenId();
+    document.querySelectorAll(".screen-card.is-focused")
+      .forEach((c) => c.classList.remove("is-focused"));
+    if (!current) return;
+    const card = state.cardsById.get(current);
+    if (card) card.classList.add("is-focused");
+  }
+
+  async function init() {
+    let data = await loadJSONFile("journey.json");
+    if (!data) data = loadInlineJSON("journey-data");
+    let design = null;
+    const designMd = await fetchText("DESIGN.md");
+    if (designMd) design = parseDesignFrontmatter(designMd);
+    if (!design) design = loadInlineJSON("design-tokens");
+
+    state.data = data || {
+      title: "Untitled",
+      language: "en",
+      personas: [],
+      stages: [],
+      screens: [],
+      arrows: [],
+      stickies: [],
+    };
+    state.design = design;
+    state.t = I18N[state.data.language] || I18N.en;
+
+    applyDesignTokens(design);
+    setMeta();
+    setupTopbar();
+    populateHelpOverlay();
+
+    // Bring up the view layer + sidebar + prototype BEFORE canvas
+    // render so they can listen for events.
+    window.UJView.init(state.data);
+    window.UJView.installKeyboard();
+    if (window.UJSidebar) {
+      const sidebar = document.getElementById("sidebar");
+      window.UJSidebar.mount(sidebar, state.data);
+    }
+    if (window.UJPrototype) {
+      window.UJPrototype.mount({
+        frameEl:      document.getElementById("prototype-frame"),
+        breadcrumbEl: document.getElementById("prototype-breadcrumb"),
+        arrowsHintEl: document.getElementById("prototype-arrows-hint"),
+      });
+      window.UJPrototype.installKeyboard();
+    }
+    if (window.UJMinimap) {
+      window.UJMinimap.mount({ state });
+    }
+    setupViewSwitcher();
+
+    // Bridge canvas <-> view layer: a canvas double-click sets current screen.
+    window.UJView.on("screenchange", () => highlightCurrentScreenInCanvas());
+
+    renderEverything();
+
+    // Re-fit on window resize so the canvas stays sensible.
+    window.addEventListener("resize", () => {
+      if (state.canvas && window.UJView.getMode() === "canvas") {
+        // Only re-fit when canvas is the active view, so we don't
+        // disturb the user's prototype focus.
+        state.canvas.fit(state.contentBounds);
+      }
+    });
+  }
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
-  } else { init(); }
+  } else {
+    init();
+  }
 })();

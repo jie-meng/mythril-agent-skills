@@ -129,17 +129,19 @@ class TestBuildInitialJourney:
             persona_role="user",
             language="en",
         )
-        assert out["schema_version"] == "2"
+        assert out["schema_version"] == "3"
         assert out["title"] == "Demo"
         assert out["language"] == "en"
         assert len(out["personas"]) == 1
         assert out["personas"][0]["id"] == "alice"
         assert [s["label"] for s in out["stages"]] == ["Discover", "Try", "Habit"]
-        # v2 skeleton seeds one example step + one screen ref per stage so
-        # the Flow view has something to render in a brand-new workspace.
         for stage in out["stages"]:
             assert len(stage["steps"]) == 1
             assert stage["steps"][0]["screen_refs"], "every example step has a screen ref"
+        # v3 introduces top-level arrows[] (replaces nested transitions[]).
+        assert "arrows" in out
+        assert len(out["arrows"]) >= 1
+        assert "stickies" in out
 
     def test_chinese_skeleton(self):
         out = self.func(
@@ -178,24 +180,37 @@ class TestBuildInitialJourney:
         ids = [s["id"] for s in out["stages"]]
         assert len(ids) == len(set(ids))
 
-    def test_v2_screens_are_present_and_wired(self):
+    def test_v3_screens_are_present_and_wired(self):
         out = self.func(
             title="x", subtitle="", persona_name="a",
             persona_role="b", language="en",
         )
-        assert out["schema_version"] == "2"
+        assert out["schema_version"] == "3"
         screens = out.get("screens", [])
         assert len(screens) == 3
         ids = {s["id"] for s in screens}
         assert ids == {"welcome", "main", "done"}
-        # every screen has a layout, kind, title, and at least one transition
         for s in screens:
             assert s["kind"]
             assert s["title"]
-            assert s["layout"]["type"] == "stack"
-            assert s["transitions"], "each example screen has an outgoing transition"
-            # exactly one default per screen
-            assert sum(1 for t in s["transitions"] if t.get("is_default")) == 1
+            assert s["layout"]["type"] in {"stack", "row", "grid"}
+            # state is on every screen (color of the outer canvas card)
+            assert s.get("state") in {"default", "loading", "success", "error", "warning"}
+            # In v3 transitions[] is GONE from screens — they live at top level as arrows[].
+            assert "transitions" not in s
+
+        # top-level arrows wire screens together
+        arrows = out.get("arrows", [])
+        assert arrows, "v3 seed must include arrows[] at top level"
+        # at least one is_default arrow
+        assert any(a.get("is_default") for a in arrows)
+        # arrows reference real screens
+        for a in arrows:
+            from_screen = a["from"].split("#", 1)[0]
+            to_screen = a["to"]
+            assert from_screen in ids, f"arrow.from references unknown screen: {a['from']}"
+            assert to_screen in ids, f"arrow.to references unknown screen: {a['to']}"
+
         # every step references its corresponding screen by id
         step_refs = [
             stage["steps"][0]["screen_refs"][0]
@@ -657,7 +672,7 @@ class TestValidateWorkspace:
 
     def test_unsupported_schema_version_errors(self, tmp_path: Path):
         journey = _good_journey()
-        journey["schema_version"] = "3"
+        journey["schema_version"] = "99"
         (tmp_path / "journey.json").write_text(json.dumps(journey))
         (tmp_path / "JOURNEY.md").write_text(
             "# ok\n## Stages\n"
@@ -666,6 +681,21 @@ class TestValidateWorkspace:
         )
         r = self.func(tmp_path)
         assert any("schema_version" in e for e in r["errors"])
+
+    def test_schema_v3_is_accepted(self, tmp_path: Path):
+        journey = _good_journey()
+        journey["schema_version"] = "3"
+        journey["screens"] = []
+        journey["arrows"] = []
+        (tmp_path / "journey.json").write_text(json.dumps(journey))
+        (tmp_path / "JOURNEY.md").write_text(
+            "# ok\n## Stages\n"
+            "```mermaid\nflowchart LR\n  discover[\"Discover\"]\n```\n"
+            "### 1. Discover\n"
+        )
+        r = self.func(tmp_path)
+        assert r["structure_ok"] is True
+        assert r["errors"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -743,19 +773,19 @@ class TestFindInteractiveWithoutId:
 # ---------------------------------------------------------------------------
 
 
-def _screen(id_: str, transitions=None, layout=None) -> dict:
+def _screen(id_: str, layout=None) -> dict:
     return {
         "id": id_,
         "kind": "mobile-screen",
         "title": id_,
         "stage_id": "s1",
+        "state": "default",
         "layout": layout or {
             "type": "stack",
             "elements": [
                 {"type": "button", "id": "go", "label": "Go", "interactive": True},
             ],
         },
-        "transitions": transitions or [],
     }
 
 
@@ -766,43 +796,37 @@ class TestValidateScreens:
         self.func = validate_screens
 
     def test_empty_passes(self):
-        out = self.func([], [])
+        out = self.func([], [], [])
         assert out["errors"] == []
         assert out["warnings"] == []
 
     def test_unique_screen_ids(self):
-        out = self.func([_screen("a"), _screen("a")], [])
+        out = self.func([_screen("a"), _screen("a")], [], [])
         assert any("duplicate screen id" in e for e in out["errors"])
 
-    def test_transition_to_missing_screen(self):
-        screens = [
-            _screen("a", transitions=[
-                {"from_element": "go", "trigger": "tap", "to_screen": "ghost",
-                 "label": "go to ghost"},
-            ]),
-        ]
-        out = self.func(screens, [])
-        assert any("'ghost' does not exist" in e for e in out["errors"])
+    def test_arrow_to_missing_screen(self):
+        screens = [_screen("a")]
+        arrows = [{"from": "a#go", "to": "ghost", "label": "go to ghost", "trigger": "tap"}]
+        out = self.func(screens, [], arrows)
+        assert any("'ghost'" in e for e in out["errors"])
 
-    def test_from_element_missing(self):
-        screens = [
-            _screen("a", transitions=[
-                {"from_element": "nope", "trigger": "tap", "to_screen": "a",
-                 "label": "loop"},
-            ]),
-        ]
-        out = self.func(screens, [])
-        assert any("from_element='nope'" in e for e in out["errors"])
+    def test_arrow_from_element_missing(self):
+        screens = [_screen("a")]
+        arrows = [{"from": "a#nope", "to": "a", "label": "loop", "trigger": "tap"}]
+        out = self.func(screens, [], arrows)
+        assert any("'nope' not found" in e for e in out["errors"])
 
-    def test_from_element_any_is_allowed(self):
-        screens = [
-            _screen("a", transitions=[
-                {"from_element": "any", "trigger": "tap", "to_screen": "a",
-                 "label": "tap anywhere"},
-            ]),
-        ]
-        out = self.func(screens, [])
+    def test_arrow_whole_screen_is_allowed(self):
+        screens = [_screen("a")]
+        arrows = [{"from": "a", "to": "a", "label": "self-loop (no element anchor)", "trigger": "auto"}]
+        out = self.func(screens, [], arrows)
         assert out["errors"] == []
+
+    def test_arrow_from_screen_missing(self):
+        screens = [_screen("a")]
+        arrows = [{"from": "ghost#go", "to": "a", "label": "bad source", "trigger": "tap"}]
+        out = self.func(screens, [], arrows)
+        assert any("'ghost' does not exist" in e for e in out["errors"])
 
     def test_step_screen_refs_resolved(self):
         screens = [_screen("a")]
@@ -812,43 +836,43 @@ class TestValidateScreens:
                 {"id": "t2", "screen_refs": ["ghost"]},
             ],
         }]
-        out = self.func(screens, stages)
+        out = self.func(screens, stages, [])
         assert any("screen_refs[0]='ghost'" in e for e in out["errors"])
 
     def test_orphan_screen_warns(self):
         screens = [_screen("a"), _screen("b")]
         stages = [{"id": "s1", "label": "S1", "steps": [{"id": "t1", "screen_refs": ["a"]}]}]
-        out = self.func(screens, stages)
+        out = self.func(screens, stages, [])
         assert any("'b'" in w and "no incoming" in w for w in out["warnings"])
 
-    def test_multiple_defaults_error(self):
-        screens = [_screen("a", transitions=[
-            {"from_element": "go", "trigger": "tap", "to_screen": "a",
-             "label": "loop1", "is_default": True},
-            {"from_element": "go", "trigger": "tap", "to_screen": "a",
-             "label": "loop2", "is_default": True},
-        ])]
-        out = self.func(screens, [])
+    def test_multiple_defaults_per_source_error(self):
+        screens = [_screen("a")]
+        arrows = [
+            {"from": "a#go", "to": "a", "label": "loop1", "trigger": "tap", "is_default": True},
+            {"from": "a#go", "to": "a", "label": "loop2", "trigger": "tap", "is_default": True},
+        ]
+        out = self.func(screens, [], arrows)
         assert any("is_default=true" in e for e in out["errors"])
 
     def test_interactive_without_id_warns(self):
         screens = [{
             "id": "a", "kind": "mobile-screen", "title": "a",
-            "stage_id": "s1",
+            "stage_id": "s1", "state": "default",
             "layout": {
                 "type": "stack",
                 "elements": [
                     {"type": "button", "label": "no id", "interactive": True},
                 ],
             },
-            "transitions": [],
         }]
         stages = [{"id": "s1", "label": "S1", "steps": [{"id": "t1", "screen_refs": ["a"]}]}]
-        out = self.func(screens, stages)
+        out = self.func(screens, stages, [])
         assert any("without id" in w for w in out["warnings"])
 
     def test_dead_end_middle_screen_infos(self):
-        screens = [_screen("a"), _screen("b", transitions=[])]
+        # `a` has an arrow to `b`; `b` is a dead-end mid-flow (referenced in
+        # step 2 of 2 in stage s1, but s1 is NOT the last stage).
+        screens = [_screen("a"), _screen("b")]
         stages = [{
             "id": "s1", "label": "S1", "steps": [
                 {"id": "t1", "screen_refs": ["a"]},
@@ -859,16 +883,294 @@ class TestValidateScreens:
                 {"id": "t3", "screen_refs": ["a"]},
             ],
         }]
-        # Link a -> b so b has inbound
-        screens[0]["transitions"] = [
-            {"from_element": "go", "trigger": "tap", "to_screen": "b",
-             "label": "go to b"},
+        arrows = [{"from": "a#go", "to": "b", "label": "a→b", "trigger": "tap"}]
+        out = self.func(screens, stages, arrows)
+        assert any("no outgoing arrows" in i for i in out["info"])
+
+    def test_invalid_state_errors(self):
+        screen = _screen("a")
+        screen["state"] = "ecstatic"
+        out = self.func([screen], [], [])
+        assert any("invalid state" in e for e in out["errors"])
+
+    def test_invalid_arrow_kind_errors(self):
+        screens = [_screen("a")]
+        arrows = [{"from": "a#go", "to": "a", "kind": "whoops", "trigger": "tap"}]
+        out = self.func(screens, [], arrows)
+        assert any("invalid kind" in e for e in out["errors"])
+
+    def test_invalid_position_errors(self):
+        screen = _screen("a")
+        screen["position"] = "0,0"  # must be a {x, y} object
+        out = self.func([screen], [], [])
+        assert any("position" in e for e in out["errors"])
+
+
+# ---------------------------------------------------------------------------
+# Design-pattern sense (flat-stack-soup detector)
+# ---------------------------------------------------------------------------
+
+
+class TestAssessDesignPatternSense:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from validate_screens import assess_design_pattern_sense
+        self.func = assess_design_pattern_sense
+
+    def test_flat_stack_soup_detected(self):
+        screen = {
+            "id": "soup",
+            "layout": {
+                "type": "stack",
+                "elements": [{"type": "button", "label": str(i)} for i in range(10)],
+            },
+        }
+        msgs = self.func(screen)
+        assert any(m.startswith("[flat-stack]") for m in msgs)
+
+    def test_no_hierarchy_detected(self):
+        screen = {
+            "id": "bare",
+            "layout": {
+                "type": "stack",
+                "elements": [
+                    {"type": "text", "label": "a"},
+                    {"type": "text", "label": "b"},
+                    {"type": "text", "label": "c"},
+                    {"type": "text", "label": "d"},
+                    {"type": "text", "label": "e"},
+                ],
+            },
+        }
+        msgs = self.func(screen)
+        assert any(m.startswith("[no-hierarchy]") for m in msgs)
+
+    def test_monotonous_detected(self):
+        screen = {
+            "id": "mono",
+            "layout": {
+                "type": "stack",
+                "elements": [
+                    {"type": "app-bar", "title": "M"},
+                    *[{"type": "text", "label": str(i)} for i in range(8)],
+                ],
+            },
+        }
+        msgs = self.func(screen)
+        assert any(m.startswith("[monotonous]") for m in msgs)
+
+    def test_monotonous_exempt_for_keypad_button(self):
+        # 12 keypad-buttons in a grid is a legit keypad, not monotony.
+        screen = {
+            "id": "keypad",
+            "layout": {
+                "type": "stack",
+                "elements": [
+                    {"type": "app-bar", "title": "PIN"},
+                    {"type": "grid", "cols": 3, "elements": [
+                        {"type": "keypad-button", "label": str(i)} for i in range(12)
+                    ]},
+                ],
+            },
+        }
+        msgs = self.func(screen)
+        assert not any(m.startswith("[monotonous]") for m in msgs)
+
+    def test_monotonous_exempt_for_list_items(self):
+        # A list of list-items is a legit list, not monotony.
+        screen = {
+            "id": "list",
+            "layout": {
+                "type": "stack",
+                "elements": [
+                    {"type": "app-bar", "title": "Items"},
+                    {"type": "section", "title": "All", "elements": [
+                        {"type": "list-item", "title": f"Row {i}"} for i in range(8)
+                    ]},
+                ],
+            },
+        }
+        msgs = self.func(screen)
+        assert not any(m.startswith("[monotonous]") for m in msgs)
+
+    def test_overstuffed_section_detected(self):
+        screen = {
+            "id": "stuffed",
+            "layout": {
+                "type": "stack",
+                "elements": [
+                    {"type": "app-bar", "title": "S"},
+                    {"type": "section", "title": "Big", "elements": [
+                        {"type": "list-item", "title": str(i)} for i in range(10)
+                    ]},
+                ],
+            },
+        }
+        msgs = self.func(screen)
+        assert any(m.startswith("[overstuffed]") for m in msgs)
+
+    def test_clean_composed_screen_has_no_warnings(self):
+        screen = {
+            "id": "clean",
+            "layout": {
+                "type": "stack",
+                "elements": [
+                    {"type": "app-bar", "title": "Home"},
+                    {"type": "section", "title": "A", "elements": [
+                        {"type": "text", "label": "hi"},
+                        {"type": "button", "label": "go"},
+                    ]},
+                    {"type": "section", "title": "B", "elements": [
+                        {"type": "alert", "severity": "info", "title": "i"},
+                    ]},
+                    {"type": "footer-bar", "actions": [
+                        {"label": "OK", "variant": "primary"}
+                    ]},
+                ],
+            },
+        }
+        assert self.func(screen) == []
+
+    def test_small_screen_skipped(self):
+        # Few elements + no clear hierarchy is still acceptable when the
+        # screen is small (≤ 4 atoms). Don't nag the user.
+        screen = {
+            "id": "small",
+            "layout": {
+                "type": "stack",
+                "elements": [
+                    {"type": "text", "label": "one"},
+                    {"type": "text", "label": "two"},
+                    {"type": "button", "label": "go"},
+                ],
+            },
+        }
+        assert self.func(screen) == []
+
+    def test_non_dict_input_safe(self):
+        assert self.func(None) == []
+        assert self.func({"id": "x"}) == []
+        assert self.func({"id": "x", "layout": "not-an-object"}) == []
+
+
+class TestNewPrimitiveIdsAreCollected:
+    """The validator must walk into the new composition primitives
+    (app-bar actions, footer-bar actions, tab-bar items, key-value-list
+    items) so that arrows whose `from` references e.g. `home#search`
+    resolve correctly."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from validate_screens import collect_element_ids
+        self.func = collect_element_ids
+
+    def test_app_bar_action_ids(self):
+        layout = {
+            "type": "stack",
+            "elements": [
+                {"type": "app-bar", "title": "X", "actions": [
+                    {"icon": "search", "id": "search"},
+                    {"icon": "settings", "id": "settings"},
+                ]}
+            ],
+        }
+        assert self.func(layout) >= {"search", "settings"}
+
+    def test_footer_bar_action_ids(self):
+        layout = {
+            "type": "stack",
+            "elements": [
+                {"type": "footer-bar", "actions": [
+                    {"label": "Cancel", "id": "cancel"},
+                    {"label": "Confirm", "id": "confirm"},
+                ]}
+            ],
+        }
+        assert self.func(layout) >= {"cancel", "confirm"}
+
+    def test_tab_bar_item_ids(self):
+        layout = {
+            "type": "stack",
+            "elements": [
+                {"type": "tab-bar", "items": [
+                    {"id": "tab-home", "label": "Home"},
+                    {"id": "tab-me", "label": "Me"},
+                ]}
+            ],
+        }
+        assert self.func(layout) >= {"tab-home", "tab-me"}
+
+    def test_section_descended_into(self):
+        layout = {
+            "type": "stack",
+            "elements": [
+                {"type": "section", "title": "S", "elements": [
+                    {"type": "button", "id": "btn-inside-section", "label": "X"},
+                ]}
+            ],
+        }
+        assert "btn-inside-section" in self.func(layout)
+
+    def test_empty_state_action_id(self):
+        layout = {
+            "type": "stack",
+            "elements": [
+                {"type": "empty-state",
+                  "title": "X",
+                  "action": {"label": "Go", "id": "go-from-empty"}}
+            ],
+        }
+        assert "go-from-empty" in self.func(layout)
+
+    def test_alert_action_id(self):
+        layout = {
+            "type": "stack",
+            "elements": [
+                {"type": "alert",
+                  "severity": "info",
+                  "title": "T",
+                  "action": {"label": "Learn", "id": "alert-learn"}}
+            ],
+        }
+        assert "alert-learn" in self.func(layout)
+
+    def test_section_action_id(self):
+        layout = {
+            "type": "stack",
+            "elements": [
+                {"type": "section",
+                  "title": "S",
+                  "action": {"label": "See all", "id": "see-all"},
+                  "elements": []}
+            ],
+        }
+        assert "see-all" in self.func(layout)
+
+    def test_arrow_to_app_bar_action_resolves(self):
+        # End-to-end through validate_screens — ensure arrows that
+        # target an app-bar action don't get falsely rejected.
+        from validate_screens import validate_screens
+        screens = [{
+            "id": "home", "kind": "mobile-screen", "title": "Home",
+            "stage_id": "s1", "state": "default",
+            "layout": {
+                "type": "stack",
+                "elements": [
+                    {"type": "app-bar", "title": "Home", "actions": [
+                        {"icon": "search", "id": "search"},
+                    ]},
+                    {"type": "footer-bar", "actions": [
+                        {"label": "Go", "id": "go-btn", "interactive": True},
+                    ]},
+                ],
+            },
+        }]
+        arrows = [
+            {"from": "home#search", "to": "home", "label": "search", "trigger": "tap"},
+            {"from": "home#go-btn", "to": "home", "label": "go",     "trigger": "tap"},
         ]
-        out = self.func(screens, stages)
-        # b is referenced in step 2 of 2 in stage s1 (last step of that stage)
-        # but stage s1 is NOT the last stage, so it should NOT be flagged as
-        # a "natural terminal screen" — info should mention dead-end.
-        assert any("no outgoing transitions" in i for i in out["info"])
+        out = validate_screens(screens, [], arrows)
+        assert out["errors"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -986,7 +1288,9 @@ class TestSeedScreensByDeviceKind:
         from validate_screens import validate_screens
         for kind in ["mobile", "atm", "kiosk", "desktop", "tv"]:
             out = self._journey(kind)
-            report = validate_screens(out["screens"], out["stages"])
+            report = validate_screens(
+                out["screens"], out["stages"], out.get("arrows", []),
+            )
             assert report["errors"] == [], f"{kind} seed has errors: {report['errors']}"
             # Device-modeling warning should NOT fire on any seed
             device_warnings = [
@@ -1047,10 +1351,10 @@ class TestCollectElementIdsIncludesDeviceElements:
         assert self.collect_hardware(None) == set()
 
 
-class TestFromElementResolvesDeviceVocab:
-    """A transition with `from_element='k-withdraw'` (a side-key id) or
-    `from_element='h-card'` (a hardware-slot id) must NOT report
-    'has no element with that id'."""
+class TestArrowFromElementResolvesDeviceVocab:
+    """An arrow with `from='menu#k-withdraw'` (a side-key id) or
+    `from='wel#h-card'` (a hardware-slot id) must NOT report
+    'element not found'."""
 
     @pytest.fixture(autouse=True)
     def _import(self):
@@ -1060,23 +1364,22 @@ class TestFromElementResolvesDeviceVocab:
     def test_side_key_id_resolves(self):
         screen = {
             "id": "menu", "kind": "atm-screen", "title": "Menu",
+            "stage_id": "s1", "state": "default",
             "chrome": "panel",
             "layout": {"type": "row", "elements": [
                 {"type": "side-key-rail", "side": "left", "keys": [
                     {"id": "k-w", "label": "W", "interactive": True},
                 ]},
             ]},
-            "transitions": [
-                {"from_element": "k-w", "trigger": "tap", "to_screen": "menu",
-                 "label": "loop", "is_default": True},
-            ],
         }
-        out = self.func([screen], [])
+        arrows = [{"from": "menu#k-w", "to": "menu", "label": "loop", "trigger": "tap", "is_default": True}]
+        out = self.func([screen], [], arrows)
         assert out["errors"] == []
 
     def test_hardware_id_resolves(self):
         screen = {
             "id": "wel", "kind": "atm-screen", "title": "Welcome",
+            "stage_id": "s1", "state": "default",
             "chrome": "panel",
             "hardware": [
                 {"id": "h-card", "slot": "card-reader", "position": "top"},
@@ -1084,12 +1387,9 @@ class TestFromElementResolvesDeviceVocab:
             "layout": {"type": "stack", "elements": [
                 {"type": "text", "label": "Insert card"},
             ]},
-            "transitions": [
-                {"from_element": "h-card", "trigger": "insert-card",
-                 "to_screen": "wel", "label": "loop", "is_default": True},
-            ],
         }
-        out = self.func([screen], [])
+        arrows = [{"from": "wel#h-card", "to": "wel", "label": "loop", "trigger": "insert-card", "is_default": True}]
+        out = self.func([screen], [], arrows)
         assert out["errors"] == []
 
 
@@ -1122,50 +1422,71 @@ class TestDeviceAwareModelingCheck:
 
     def test_warns_when_all_atm_screens_are_phone_shaped(self):
         screens = [
-            {"id": "a", "kind": "atm-screen", "title": "A", "stage_id": "s1",
+            {"id": "a", "kind": "atm-screen", "title": "A", "stage_id": "s1", "state": "default",
              "layout": {"type": "stack", "elements": [
                 {"type": "button", "id": "x", "label": "X", "interactive": True},
-             ]},
-             "transitions": []},
-            {"id": "b", "kind": "atm-screen", "title": "B", "stage_id": "s1",
-             "layout": {"type": "stack", "elements": [{"type": "text", "label": "y"}]},
-             "transitions": []},
+             ]}},
+            {"id": "b", "kind": "atm-screen", "title": "B", "stage_id": "s1", "state": "default",
+             "layout": {"type": "stack", "elements": [{"type": "text", "label": "y"}]}},
         ]
         stages = [{"id": "s1", "label": "S1", "steps": [
             {"id": "t1", "screen_refs": ["a", "b"]},
         ]}]
-        out = self.func(screens, stages)
+        out = self.func(screens, stages, [])
         assert any("kind='atm-screen'" in w and "NONE" in w for w in out["warnings"])
 
     def test_does_not_warn_when_at_least_one_atm_has_chrome(self):
         screens = [
-            {"id": "a", "kind": "atm-screen", "title": "A", "stage_id": "s1",
+            {"id": "a", "kind": "atm-screen", "title": "A", "stage_id": "s1", "state": "default",
              "chrome": "panel",
              "hardware": [{"slot": "card-reader", "position": "top"}],
-             "layout": {"type": "stack", "elements": [{"type": "text", "label": "x"}]},
-             "transitions": []},
-            {"id": "b", "kind": "atm-screen", "title": "B", "stage_id": "s1",
+             "layout": {"type": "stack", "elements": [{"type": "text", "label": "x"}]}},
+            {"id": "b", "kind": "atm-screen", "title": "B", "stage_id": "s1", "state": "default",
              "layout": {"type": "stack", "elements": [
                 {"type": "button", "id": "x", "label": "X", "interactive": True},
-             ]},
-             "transitions": []},
+             ]}},
         ]
         stages = [{"id": "s1", "label": "S1", "steps": [
             {"id": "t1", "screen_refs": ["a", "b"]},
         ]}]
-        out = self.func(screens, stages)
+        out = self.func(screens, stages, [])
         # One screen has chrome → journey-wide check passes; no warning emitted
         assert not any("NONE use side-key-rail" in w for w in out["warnings"])
 
     def test_does_not_warn_when_no_atm_screens(self):
         screens = [
-            {"id": "a", "kind": "mobile-screen", "title": "A", "stage_id": "s1",
-             "layout": {"type": "stack", "elements": [{"type": "text", "label": "x"}]},
-             "transitions": []},
+            {"id": "a", "kind": "mobile-screen", "title": "A", "stage_id": "s1", "state": "default",
+             "layout": {"type": "stack", "elements": [{"type": "text", "label": "x"}]}},
         ]
         stages = [{"id": "s1", "label": "S1", "steps": [{"id": "t1", "screen_refs": ["a"]}]}]
-        out = self.func(screens, stages)
+        out = self.func(screens, stages, [])
         assert not any("NONE use side-key-rail" in w for w in out["warnings"])
+
+
+class TestParseArrowFrom:
+    """`from` accepts either `<screen-id>` (whole screen) or
+    `<screen-id>#<element-id>` (anchored at an element)."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from validate_screens import parse_arrow_from
+        self.func = parse_arrow_from
+
+    def test_screen_only(self):
+        assert self.func("welcome") == ("welcome", None)
+
+    def test_screen_with_element(self):
+        assert self.func("welcome#confirm") == ("welcome", "confirm")
+
+    def test_empty(self):
+        assert self.func("") == ("", None)
+
+    def test_non_string(self):
+        assert self.func(None) == ("", None)
+
+    def test_strips_blank_element(self):
+        # "welcome#" with no element id → treat as whole-screen anchor
+        assert self.func("welcome#") == ("welcome", None)
 
 
 class TestComputeMinScreenCount:
@@ -1201,8 +1522,8 @@ class TestScreenCountGate:
     def _screens_n(self, n: int, kind: str = "mobile-screen") -> list[dict]:
         return [{
             "id": f"s{i}", "kind": kind, "title": f"S{i}", "stage_id": "stg",
+            "state": "default",
             "layout": {"type": "stack", "elements": [{"type": "text", "label": f"s{i}"}]},
-            "transitions": [],
         } for i in range(n)]
 
     def _stages_n(self, n: int) -> list[dict]:
@@ -1213,19 +1534,17 @@ class TestScreenCountGate:
         } for i in range(n)]
 
     def test_warns_when_below_floor(self):
-        out = self.func(self._screens_n(3), self._stages_n(3), strict=False)
+        out = self.func(self._screens_n(3), self._stages_n(3), [], strict=False)
         assert any("Recommended floor" in w and "= 8" in w for w in out["warnings"])
-        # NOT an error in non-strict mode
         assert not any("Recommended floor" in e for e in out["errors"])
 
     def test_strict_promotes_to_error(self):
-        out = self.func(self._screens_n(3), self._stages_n(3), strict=True)
+        out = self.func(self._screens_n(3), self._stages_n(3), [], strict=True)
         assert any("Recommended floor" in e and "= 8" in e for e in out["errors"])
-        # NOT also in warnings in strict mode
         assert not any("Recommended floor" in w for w in out["warnings"])
 
     def test_passes_when_above_floor(self):
-        out = self.func(self._screens_n(10), self._stages_n(3), strict=True)
+        out = self.func(self._screens_n(10), self._stages_n(3), [], strict=True)
         assert not any("Recommended floor" in e for e in out["errors"])
         assert not any("Recommended floor" in w for w in out["warnings"])
 

@@ -1,6 +1,7 @@
-# Screens Validation Rules
+# Screens & Arrows Validation Rules (v3)
 
-`validate_screens.py` enforces structural integrity of `screens[]` and `transitions[]` in `journey.json`. Run after every edit:
+`validate_screens.py` enforces structural integrity of `screens[]` and the
+top-level `arrows[]` in `journey.json`. Run after every edit:
 
 ```bash
 # Iteration mode — warnings stay as warnings:
@@ -21,13 +22,13 @@ Output format:
 ```
 STATUS=PASS|FAIL
 SCREENS_CHECKED=<N>
-TRANSITIONS_CHECKED=<N>
+ARROWS_CHECKED=<N>
 ERROR:   <message>
 WARNING: <message>
 INFO:    <message>
 ```
 
-## The 10 rules
+## The rules
 
 ### Rule 1 — Screen `id` must be unique
 
@@ -35,31 +36,38 @@ INFO:    <message>
 ERROR: duplicate screen id 'pin-entry'
 ```
 
-`screens[].id` is referenced by `step.screen_refs` and `transitions.to_screen`. Duplicates make references ambiguous.
+`screens[].id` is referenced by `step.screen_refs` and by `arrows[].from` /
+`arrows[].to`. Duplicates make references ambiguous.
 
-### Rule 2 — `transitions.to_screen` must resolve
-
-```
-ERROR: screen 'pin-entry' transition #1 to_screen='main-menu' does not exist in screens[]
-```
-
-A transition pointing at a non-existent screen is dead — Flow view's click-to-jump and Presenter's auto-play will break.
-
-### Rule 3 — `transitions.from_element` must resolve
+### Rule 2 — Every `arrow.to` must resolve
 
 ```
-ERROR: screen 'pin-entry' transition #1 from_element='confirm' has no element with that id in this screen's layout
+ERROR: arrow #3 to='main-menu' does not exist in screens[]
 ```
 
-The validator resolves `from_element` against three address spaces:
+An arrow that lands nowhere is dead — it would render as a red dotted stub
+on the canvas.
 
-1. **Layout-tree element ids** (anything with an `id` under `screen.layout`)
-2. **Side-key-rail key ids** — every `keys[].id` inside a `side-key-rail` element
-3. **Top-level `screen.hardware[]` slot ids** — `id` on any chrome-bezel hardware slot
+### Rule 3 — Every `arrow.from` must resolve
 
-Special value `from_element: "any"` is always allowed (treats the entire screen as the tap target).
+The validator parses `from` into `<screen-id>` (always required) and
+`<element-id>` (optional, after `#`). Both must resolve.
 
-The element does NOT need to have `interactive: true` for the rule to pass — the validator only checks element existence. But the renderer will silently skip transitions whose source element is not interactive, so the AI should set `interactive: true` on referenced elements (rule 8 below catches the most common case).
+```
+ERROR: arrow #1 from='ghost#confirm' — screen 'ghost' does not exist in screens[]
+ERROR: arrow #1 from='pin-entry#confirm' — element 'confirm' not found in screen 'pin-entry'
+```
+
+Element resolution checks three address spaces:
+
+1. **Layout-tree element ids** — anything with an `id` under `screen.layout`
+2. **Side-key-rail key ids** — every `keys[].id` inside a `side-key-rail`
+3. **Top-level `screen.hardware[]` slot ids**
+
+The element does NOT need `interactive: true` to pass — the validator only
+checks existence. But the renderer draws hotspot bubbles only on
+`interactive: true` elements, so the AI should set `interactive: true` on
+any element referenced from an arrow.
 
 ### Rule 4 — `step.screen_refs[]` must resolve
 
@@ -67,44 +75,48 @@ The element does NOT need to have `interactive: true` for the rule to pass — t
 ERROR: stage 'select-service' step 'browse-menu' screen_refs[0]='menu' does not exist in screens[]
 ```
 
-A step referencing a non-existent screen will render an empty placeholder in Stage view.
+A step referencing a non-existent screen is broken in `JOURNEY.md`'s textual
+index.
 
 ### Rule 5 — Orphan screen (warning)
 
 ```
-WARNING: screen 'help-overlay' has no incoming references — no step references it AND no transition points at it
+WARNING: screen 'help-overlay' has no incoming references — no step references it AND no arrow points at it
 ```
 
 Possible causes:
-1. The screen is genuinely unused (drafted but not yet wired up) — wire it up or delete it
+1. The screen is genuinely unused (drafted but not yet wired up) — wire it
+   up or delete it
 2. A `step.screen_refs` typo — fix the typo
-3. The screen is intentionally a deep-link only (rare) — silence with `"orphan_ok": true` in the screen (not common)
+3. An `arrows[].to` typo — fix the typo
+4. The screen is intentionally a deep-link only — set `"orphan_ok": true`
+   on the screen (rare)
 
 ### Rule 6 — Dead-end non-terminal screen (info)
 
 ```
-INFO: screen 'pin-entry' has no outgoing transitions but appears in step 1.2 of 3 — likely needs at least one transition out
+INFO: screen 'pin-entry' has no outgoing arrows but appears in step 1.2 of 3 — likely needs at least one arrow out
 ```
 
-A dead-end screen is fine for genuine terminal screens (e.g. "Transaction complete"). It's worth flagging when it sits in the middle of a flow.
+A dead-end screen is fine for genuine terminals ("Transaction complete").
+Flagged when it sits in the middle of a flow.
 
-### Rule 7 — At most one `is_default: true` per screen (error)
+### Rule 7 — At most one `is_default: true` arrow per source screen (error)
 
 ```
-ERROR: screen 'main-menu' has 2 transitions with is_default=true — only one main path is allowed per screen
+ERROR: 2 arrows out of screen 'main-menu' have is_default=true — only one main path is allowed per source screen
 ```
 
-Presenter auto-play picks the default outgoing edge to advance. Ambiguous defaults break this. To have multiple paths, leave them all `is_default: false`; Presenter then stops at this screen and waits for manual navigation.
+The default arrow is the visual "happy path" — at most one per source.
 
 ### Rule 8 — Interactive elements should have `id` (warning)
 
 ```
-WARNING: screen 'main-menu' has interactive element of type 'button' without id — no transition can reference it
+WARNING: screen 'main-menu' has interactive element of type 'button' without id — no arrow can reference it
 ```
 
-Caught at validation time so you don't end up with a "tappable" button that has no edge connected.
-
-This also applies to `side-key-rail` keys: a key with `interactive: true` but no `id` cannot be referenced by any transition.
+Caught at validation time so you don't end up with a "tappable" button no
+arrow can attach to.
 
 ### Rule 9 — Device-aware modeling (warning)
 
@@ -114,68 +126,115 @@ WARNING: 3 screen(s) of kind='atm-screen' ('welcome', 'menu', 'cash-out')
          are most likely modeled as mobile screens.
 ```
 
-Triggers when a journey contains any `atm-screen` or `kiosk-screen` screens but **none** of them use `side-key-rail`, `hardware-slot`, or `chrome: "panel"`. This is the harness-level guard against the "ATM looks like a phone" failure mode — when AI defaults to mobile thinking and models an ATM main menu as a vertical stack of phone-style buttons.
+Triggers when a journey contains `atm-screen` / `kiosk-screen` screens but
+**none** of them use `side-key-rail`, `hardware-slot`, or `chrome: "panel"`.
+This is the harness-level guard against the "ATM looks like a phone" failure
+mode.
 
-The check is **journey-wide per kind**, not per-screen, so a legitimate touch-only kiosk screen (e.g. a product picker between two hardware-interaction screens) does not falsely trigger as long as at least one screen of the same kind uses the right vocabulary.
-
-Fix: re-model at least the transactional screens (main menu, hardware-interaction) per the `references/WIREFRAMES.md` "Device-aware modeling" table and "End-to-end example B".
+Fix: re-model at least the transactional screens (main menu, hardware-
+interaction) per the `references/WIREFRAMES.md` "Device-aware modeling"
+table.
 
 ### Rule 10 — Screen-count floor (warning / strict error)
 
 ```
-WARNING: only 3 screens defined for 4 stages — Flow view will be sparse.
+WARNING: only 3 screens defined for 4 stages — canvas will be sparse.
          Recommended floor is max(stages*2, 8) = 8.
 ```
 
-Recommends at least `max(stages * 2, 8)` screens per journey. A journey with too few screens has an empty/sparse Flow view, which defeats the purpose of opening into Flow by default.
+Recommends at least `max(stages * 2, 8)` screens per journey. The canvas is
+designed for ~10+ screens — fewer and you should consider whether this needs
+to be a journey workspace at all (vs a JOURNEY.md-only doc).
 
 | Mode | Behavior |
 |---|---|
 | Default (no `--strict`) | Warning only — useful for iteration |
-| `--strict` | Promoted to error — use before declaring a journey "done" |
+| `--strict` | Promoted to error — use before declaring final |
+
+### Rule 11 — Design-pattern sense (warnings)
+
+These advisory warnings catch the "flat element soup" anti-pattern — screens
+that work but lack design-pattern composition. Each warning is tagged with a
+`[smell-name]` prefix so the AI can address them systematically.
+
+```
+WARNING: [flat-stack]    screen 'profile' root stack has 12 direct children and
+                         no app-bar/section/header — group into 2-4 sections
+                         instead of one big stack.
+
+WARNING: [no-hierarchy]  screen 'list' has 9 atomic elements but no app-bar,
+                         header, section, or tab-bar — add at least one
+                         structural primitive so the screen reads as a screen.
+
+WARNING: [monotonous]    screen 'pad' is 92% 'button' elements (11/12) — mix
+                         at least one other primitive (section, alert, stat-
+                         tile, divider, ...) to break the rhythm.
+
+WARNING: [overstuffed]   screen 'settings' section 'Account' has 9 immediate
+                         children — split into 2 sections (max 6).
+```
+
+Trigger conditions:
+
+| Smell | Fires when |
+|---|---|
+| `[flat-stack]`   | root is `stack`/`grid` with > 8 direct children AND none is structural |
+| `[no-hierarchy]` | > 4 atomic elements AND no `app-bar`/`header`/`section`/`tab-bar`/`step-indicator`/`alert`/`empty-state`/`footer-bar` anywhere |
+| `[monotonous]`   | ≥ 5 atomic elements AND ≥ 80% are the same primitive type (exemptions: `keypad-button`, `key-value`, `list-item` — these are legitimately repeated) |
+| `[overstuffed]`  | any `section` with > 6 immediate children |
+
+These are **advisory** — they don't fail the build, but the AI should fix them
+before declaring Pass C done. See `WIREFRAMES.md` "Composition recipes" for
+the patterns that satisfy these checks.
 
 ## Common workflows
 
 ### Wiring up a new screen
 
-1. Add the screen to `screens[]` with `layout` and `transitions: []` (empty, fill later).
-2. Add `screen_refs: ["new-screen"]` to whichever step displays it.
-3. Define outgoing transitions on the new screen.
-4. Define incoming transition on whichever screen jumps to it.
+1. Add the screen to `screens[]` with `layout` and (optionally) a `position`.
+2. Add `screen_refs: ["new-screen"]` on the step(s) it represents.
+3. Add at least one `arrows[]` entry whose `to` is the new screen.
+4. Add at least one `arrows[]` entry whose `from` is the new screen (or
+   leave it as a terminal if it really is one).
 5. Run validators.
 
 ### Renaming a screen
 
-**Don't.** `screen.id` is immutable (same rule as `stage.id` and `step.id`). To rename, change `screen.title` (display name) — `id` stays the same.
-
-If you really need to rename `id`: delete + re-create, then update all references. Validator will catch missed references.
+**Don't.** `screen.id` is immutable (same rule as `stage.id` and `step.id`).
+Change `screen.title` (display name) — `id` stays. To truly rename: delete +
+re-create, then update all `arrows[]` and `step.screen_refs` references.
+Validator will catch missed references.
 
 ### Reusing a screen across stages
 
-Define the screen once, set `stage_id` to its primary stage (where it visually "belongs" in the Flow nav), reference it from `step.screen_refs[]` in as many steps as needed across stages. The renderer counts incoming references and shows them all in the Flow right panel.
+Define once, set `stage_id` to its primary stage, reference from
+`step.screen_refs[]` in as many steps as needed. The canvas places it once;
+multiple arrows can land on it from different parts of the canvas.
 
 ### Modeling error paths
 
-Set `is_error_path: true` on a transition. The Flow view edge renders red. Presenter auto-play skips it. Hover tooltip prefixes with "(error)".
+Set `kind: "error"` on the arrow (renders red). Set `kind: "error"` on the
+target screen if it's a dedicated error state (the screen card turns red).
 
 ### Modeling timeouts
 
 ```json
 {
-  "from_element": "any",
+  "from": "loading",
+  "to": "ready",
   "trigger": "timeout",
-  "to_screen": "idle",
-  "delay_ms": 30000,
-  "label": "30s 无操作 → 回到待机"
+  "delay_ms": 2000,
+  "label": "2s 后自动",
+  "kind": "default"
 }
 ```
 
-`trigger: "timeout"` + `delay_ms` lets Presenter auto-play wait. Flow view shows a clock icon on the edge.
-
 ## What this validator does NOT check
 
-- Whether the screen's `layout` is visually good (use the browser preview for that)
-- Whether `step.screen_refs` order matches the actual UX flow (use Flow view's left nav order to sanity-check)
-- Whether `is_default` paths form a connected DAG from start to end (future enhancement)
+- Whether the screen's `layout` looks visually good (use the browser preview)
+- Whether `arrows[]` form a connected DAG (future enhancement)
+- Whether explicit `screen.position` values overlap (the canvas auto-resolves
+  by stacking; this is fine for iteration)
 
-Pass these all by running the validator after every edit. Treat any ERROR as blocking; treat WARNING and INFO as "check this before declaring done".
+Treat any ERROR as blocking; treat WARNING / INFO as "check before declaring
+done".

@@ -101,13 +101,14 @@ def _slugify(text: str) -> str:
     return text
 
 
-VALID_SCHEMA_VERSIONS = {"1", "2"}
+VALID_SCHEMA_VERSIONS = {"1", "2", "3"}
 
 
 def validate_journey_structure(journey: dict) -> list[str]:
     """Run JSON-only structural validation. Returns a list of error strings.
 
-    Accepts both schema_version "1" (legacy, read-only) and "2" (current).
+    Accepts schema_version "1" (legacy, read-only), "2" (deprecated v2 nested
+    transitions), and "3" (current — canvas + top-level arrows).
     """
     errors: list[str] = []
     if str(journey.get("schema_version") or "") not in VALID_SCHEMA_VERSIONS:
