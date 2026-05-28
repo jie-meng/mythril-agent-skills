@@ -55,6 +55,43 @@ spacing:
   lg: 24px
   xl: 40px
   xxl: 64px
+# Semantic state palette. Each state has a fixed meaning across ALL themes:
+#   default = neutral, loading = blue, success = green, error = red, warning = amber.
+# Themes may shift brightness / saturation per surface (light vs dark) but
+# MUST NOT reassign meaning (no red = success, no green = error). The three
+# slots are: bg (card background), bd (border + minimap dot), hd (heading text).
+state:
+  default:
+    bg: "#F3F4F6"
+    bd: "#D1D5DB"
+    hd: "#1F2937"
+  loading:
+    bg: "#E0F2FE"
+    bd: "#38BDF8"
+    hd: "#0369A1"
+  success:
+    bg: "#DCFCE7"
+    bd: "#4ADE80"
+    hd: "#166534"
+  error:
+    bg: "#FEE2E2"
+    bd: "#F87171"
+    hd: "#991B1B"
+  warning:
+    bg: "#FEF3C7"
+    bd: "#FBBF24"
+    hd: "#92400E"
+# Arrow palette. Same semantic lock as state: success/error/cancel carry
+# meaning, never swap.
+arrows:
+  default: "#6B7280"
+  success: "#16A34A"
+  error:   "#DC2626"
+  cancel:  "#9CA3AF"
+canvas:
+  bg:         "#F8FAFC"
+  grid-major: "rgba(15, 23, 42, 0.06)"
+  grid-minor: "rgba(15, 23, 42, 0.03)"
 components:
   stage-card:
     backgroundColor: "{colors.surface}"

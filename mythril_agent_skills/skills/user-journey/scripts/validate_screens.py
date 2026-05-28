@@ -19,6 +19,10 @@ schema):
       lacks chrome / side-key-rail / hardware anywhere of that kind warns
   10. screen-count floor — in --strict mode, a journey with N stages must
       have at least max(N*2, 8) screens
+  11. design-pattern smells — flat-stack / no-hierarchy / monotonous /
+      overstuffed (advisory warnings)
+  12. arrow bundle-spam — ≥ 3 element-anchored kind=default arrows from
+      one screen to the same target should be merged via via_elements[]
 
 Exit codes:
   0 — all rules pass (warnings/infos still printed)
@@ -346,6 +350,68 @@ VALID_ARROW_TRIGGERS = {
 }
 VALID_SCREEN_STATES = {"default", "loading", "success", "error", "warning"}
 
+# Rule 12 — [bundle-spam] threshold. Three+ element-anchored arrows from
+# one screen to the same target with kind=default is almost always the
+# "one arrow per amount preset" anti-pattern. Two would be fine
+# (e.g. "confirm" + "skip" both leading to the next screen is a
+# legitimate split); three is where it stops being expressive and
+# starts being noise.
+BUNDLE_SPAM_THRESHOLD = 3
+
+
+def _bundle_spam_warnings(arrows: list[dict], screen_ids: dict[str, dict]) -> list[str]:
+    """Detect groups of N parallel kind=default arrows from screen A to
+    screen B that all anchor at distinct elements on A. The recommended
+    fix is to merge them into one arrow with `via_elements[]`.
+
+    Pure: arrows + screen index in, list of warning strings out.
+    """
+    msgs: list[str] = []
+    # Bucket: (from_screen, to_screen) -> list of (idx, element_id)
+    buckets: dict[tuple[str, str], list[tuple[int, str]]] = {}
+    for idx, arrow in enumerate(arrows, start=1):
+        if not isinstance(arrow, dict):
+            continue
+        if arrow.get("do_not_consolidate") is True:
+            continue
+        kind = arrow.get("kind") or "default"
+        if kind != "default":
+            continue
+        if isinstance(arrow.get("via_elements"), list) and arrow.get("via_elements"):
+            # Already bundled — author did the right thing.
+            continue
+        from_value = arrow.get("from", "")
+        to_value = arrow.get("to", "")
+        from_screen, from_element = parse_arrow_from(from_value)
+        to_screen, _ = parse_arrow_from(to_value if isinstance(to_value, str) else "")
+        if not from_screen or not to_screen:
+            continue
+        if from_screen not in screen_ids or to_screen not in screen_ids:
+            continue
+        if not from_element:
+            continue  # whole-screen anchors aren't part of the spam case
+        if from_screen == to_screen:
+            continue  # self-loops are intentional
+        buckets.setdefault((from_screen, to_screen), []).append((idx, from_element))
+
+    for (from_screen, to_screen), members in buckets.items():
+        n = len(members)
+        if n < BUNDLE_SPAM_THRESHOLD:
+            continue
+        elements_preview = ", ".join(repr(e) for _, e in members[:4])
+        if n > 4:
+            elements_preview += ", ..."
+        msgs.append(
+            f"[bundle-spam] {n} arrows go from screen '{from_screen}' to "
+            f"screen '{to_screen}' all with kind='default', anchored at "
+            f"distinct elements ({elements_preview}) — collapse into ONE "
+            f"arrow with via_elements=[{elements_preview}] for canvas "
+            f"legibility. Renderer auto-merges them on screen, but the "
+            f"JSON stays cleaner if you bundle them explicitly. See "
+            f"SCHEMA.md 'via_elements' and SKILL.md 'Arrow modeling'."
+        )
+    return msgs
+
 
 def validate_screens(
     screens: list[dict] | None,
@@ -516,6 +582,44 @@ def validate_screens(
                 f"{sorted(VALID_ARROW_TRIGGERS)}"
             )
 
+        # via_elements[] validation. When present, `from` MUST be a
+        # whole-screen anchor (no `#element`) and every listed element
+        # id MUST resolve on the source screen.
+        via = arrow.get("via_elements")
+        if via is not None:
+            if not isinstance(via, list):
+                errors.append(
+                    f"arrow #{idx} via_elements must be a list of element ids, "
+                    f"got {type(via).__name__}"
+                )
+            elif not via:
+                errors.append(
+                    f"arrow #{idx} via_elements is an empty list — either "
+                    f"drop the field or list at least one element id"
+                )
+            else:
+                if from_element is not None:
+                    errors.append(
+                        f"arrow #{idx} from='{arrow.get('from')}' has both an "
+                        f"explicit '#{from_element}' anchor AND via_elements[] — "
+                        f"use whole-screen 'from' (e.g. '{from_screen}') and put "
+                        f"all element ids in via_elements"
+                    )
+                if from_screen and from_screen in screen_ids:
+                    valid_ids = element_ids_per_screen.get(from_screen, set())
+                    for v_idx, vid in enumerate(via):
+                        if not isinstance(vid, str) or not vid:
+                            errors.append(
+                                f"arrow #{idx} via_elements[{v_idx}] is not a "
+                                f"non-empty string"
+                            )
+                            continue
+                        if vid not in valid_ids:
+                            errors.append(
+                                f"arrow #{idx} via_elements[{v_idx}]='{vid}' "
+                                f"not found in screen '{from_screen}'"
+                            )
+
         # outbound counts + default uniqueness
         if from_screen and from_screen in screen_ids:
             outbound_by_screen[from_screen] += 1
@@ -529,6 +633,15 @@ def validate_screens(
                 f"{n} arrows out of screen '{sid}' have is_default=true — "
                 f"only one main path is allowed per source screen"
             )
+
+    # Rule 12 — [bundle-spam] N parallel default arrows from one screen
+    # to the same target. Symptom of authoring "one arrow per button"
+    # for screens like amount-presets or chip-pickers. Renderer
+    # auto-collapses at draw time (see arrows.js consolidateArrows), but
+    # we still nag the author so the JSON itself stays clean.
+    warnings.extend(
+        _bundle_spam_warnings(arrows, screen_ids)
+    )
 
     # Rule 5 — orphans + Rule 6 — dead-end mid-flow screens
     for sid, screen in screen_ids.items():

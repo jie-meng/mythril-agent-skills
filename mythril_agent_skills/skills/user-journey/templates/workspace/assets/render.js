@@ -20,11 +20,58 @@
 
   /* ---------- Constants ------------------------------------ */
 
-  const COLUMN_WIDTH  = 880;   // world-px reserved per stage column
+  /* Per-device card widths in world-pixels. MUST stay in lockstep with
+     the `.screen-card-kind-*` rules in styles.css — we read the same
+     numbers here at layout time so column widths can shrink to the
+     content (mobile column ≈ 360px, desktop column ≈ 880px) instead of
+     forcing every column to the widest device's width. */
+  const SCREEN_KIND_WIDTH = {
+    "mobile-screen":   360,
+    "kiosk-screen":    400,
+    "tablet-screen":   600,
+    "atm-screen":      720,
+    "desktop-window":  880,
+    "tv-screen":       880,
+    "email":           600,
+    "modal":           520,
+    "notification":    720,
+  };
+  const DEFAULT_CARD_WIDTH = 760;   // fallback when screen.kind is unknown
   const COLUMN_GAP    = 160;   // gap between stage columns (room for arrows)
   const ROW_GAP       = 120;   // gap between screens within a column
   const COLUMN_TOP    = 80;    // top padding inside a column
   const STAGE_HEADER_HEIGHT = 64;
+
+  function widthForKind(kind) {
+    const w = SCREEN_KIND_WIDTH[kind];
+    return typeof w === "number" ? w : DEFAULT_CARD_WIDTH;
+  }
+
+  /* Build a per-column width plan from the actual screens-per-column.
+     Returns { columnWidths: Map<colIdx, number>, columnX: Map<colIdx, number> }
+     where columnX is the left-edge x coordinate of each column. Every
+     layout/header/reflow path reads from this so the columns line up
+     and the stage header sits exactly above its screens. */
+  function computeColumnPlan(byColumn, totalColumns) {
+    const columnWidths = new Map();
+    for (let i = 0; i < totalColumns; i += 1) {
+      const screens = byColumn.get(i) || [];
+      let widest = DEFAULT_CARD_WIDTH;
+      let seen = false;
+      screens.forEach((s) => {
+        const w = widthForKind(s && s.kind);
+        if (!seen || w > widest) { widest = w; seen = true; }
+      });
+      columnWidths.set(i, seen ? widest : DEFAULT_CARD_WIDTH);
+    }
+    const columnX = new Map();
+    let x = 0;
+    for (let i = 0; i < totalColumns; i += 1) {
+      columnX.set(i, x);
+      x += columnWidths.get(i) + COLUMN_GAP;
+    }
+    return { columnWidths, columnX };
+  }
 
   const I18N = {
     en: {
@@ -62,6 +109,10 @@
     arrowsSvg: null,
     arrowsLayer: null,
     contentBounds: { x: 0, y: 0, width: 0, height: 0 },
+    // { columnWidths: Map<colIdx, number>, columnX: Map<colIdx, number> } —
+    // populated on every renderEverything() so reflow + arrow resolution
+    // can consult per-column geometry instead of a single global width.
+    columnPlan: null,
   };
 
   function t(key) { return state.t[key] || key; }
@@ -93,6 +144,41 @@
         if (t && typeof t === "object") {
           root.style.setProperty(`--font-${name}`, fontStr(t));
         }
+      }
+    }
+    // State-card palette. Each state (default/loading/success/error/
+    // warning) carries three slots: bg (card background), bd
+    // (border / minimap dot), hd (header text). DESIGN.md may
+    // override any subset; missing slots fall back to the CSS root
+    // defaults. The SEMANTIC role of each state is FIXED — see
+    // SKILL.md "Anti-Patterns": red is always error, green is
+    // always success, etc. Presets may shift brightness / saturation
+    // (e.g. dark themes) but MUST NOT reassign meaning.
+    if (design.state && typeof design.state === "object") {
+      for (const [stateName, slots] of Object.entries(design.state)) {
+        if (!slots || typeof slots !== "object") continue;
+        for (const [slot, value] of Object.entries(slots)) {
+          if (!value) continue;
+          root.style.setProperty(`--state-${stateName}-${slot}`, value);
+        }
+      }
+    }
+    // Arrow palette. Same semantic-lock rule applies: success-arrow is
+    // always the positive-flow color, error-arrow always the
+    // negative-flow color. Themes may tune saturation but NOT swap
+    // meanings.
+    if (design.arrows && typeof design.arrows === "object") {
+      for (const [kind, value] of Object.entries(design.arrows)) {
+        if (!value) continue;
+        root.style.setProperty(`--arrow-${kind}`, value);
+      }
+    }
+    // Canvas chrome (grid + background). Optional — themes use it to
+    // adapt the workspace to dark mode without hijacking state colors.
+    if (design.canvas && typeof design.canvas === "object") {
+      for (const [token, value] of Object.entries(design.canvas)) {
+        if (!value) continue;
+        root.style.setProperty(`--canvas-${token}`, value);
       }
     }
   }
@@ -136,8 +222,19 @@
     const m = md.match(/^---\s*\n([\s\S]*?)\n---/);
     if (!m) return null;
     const yaml = m[1];
-    const out = { colors: {}, typography: {}, rounded: {}, spacing: {} };
-    let section = null, currentTypo = null;
+    const out = {
+      colors: {}, typography: {}, rounded: {}, spacing: {},
+      state: {}, arrows: {}, canvas: {},
+    };
+    // Sections that are flat key-value maps (one nesting level).
+    const FLAT_SECTIONS = new Set([
+      "colors", "rounded", "spacing", "arrows", "canvas",
+    ]);
+    // Sections that contain a level of named groups (two nesting levels).
+    const NESTED_SECTIONS = new Set(["typography", "state"]);
+    const ALL_SECTIONS = new Set([...FLAT_SECTIONS, ...NESTED_SECTIONS]);
+
+    let section = null, currentGroup = null;
     const lines = yaml.split("\n");
     for (let i = 0; i < lines.length; i++) {
       const raw = lines[i];
@@ -146,9 +243,9 @@
       const line = raw.trim();
       if (indent === 0) {
         const [k] = line.split(":");
-        if (["colors", "typography", "rounded", "spacing"].includes(k)) {
+        if (ALL_SECTIONS.has(k)) {
           section = k;
-          currentTypo = null;
+          currentGroup = null;
         } else {
           section = null;
         }
@@ -158,19 +255,15 @@
       const [keyRaw, ...rest] = line.split(":");
       const key = keyRaw.trim();
       const value = rest.join(":").trim();
-      if (section === "typography") {
+      if (NESTED_SECTIONS.has(section)) {
         if (indent === 2 && !value) {
-          currentTypo = key;
-          out.typography[currentTypo] = {};
-        } else if (indent >= 4 && currentTypo) {
-          out.typography[currentTypo][key] = stripQuotes(value);
+          currentGroup = key;
+          out[section][currentGroup] = {};
+        } else if (indent >= 4 && currentGroup) {
+          out[section][currentGroup][key] = stripQuotes(value);
         }
-      } else if (section === "colors") {
-        out.colors[key] = stripQuotes(value);
-      } else if (section === "rounded") {
-        out.rounded[key] = stripQuotes(value);
-      } else if (section === "spacing") {
-        out.spacing[key] = stripQuotes(value);
+      } else if (FLAT_SECTIONS.has(section)) {
+        out[section][key] = stripQuotes(value);
       }
     }
     return out;
@@ -200,6 +293,8 @@
       byColumn.get(colIdx).push(screen);
     });
 
+    const plan = computeColumnPlan(byColumn, stages.length + 1);
+
     // Compute auto position for each screen that has no explicit position.
     // Vertical stacking inside the column is determined by source order.
     const positions = new Map();
@@ -211,13 +306,13 @@
           positions.set(screen.id, { x: screen.position.x, y: screen.position.y });
           return;
         }
-        const x = colIdx * (COLUMN_WIDTH + COLUMN_GAP);
+        const x = plan.columnX.get(colIdx) || 0;
         positions.set(screen.id, { x, y });
         y += estimateScreenHeight(screen) + ROW_GAP;
       });
     });
 
-    return { positions, stageIndex };
+    return { positions, stageIndex, columnPlan: plan };
   }
 
   function estimateScreenHeight(screen) {
@@ -262,13 +357,22 @@
     const screens = data.screens || [];
     const stages  = data.stages  || [];
 
-    // Stage column headers (visual cue, no interaction).
+    // Auto-layout (also gives us the per-column width plan).
+    const { positions, columnPlan } = screens.length
+      ? computeAutoLayout(data)
+      : { positions: new Map(), columnPlan: null };
+    state.columnPlan = columnPlan;
+
+    // Stage column headers (visual cue, no interaction). Each header
+    // sits exactly above its column with the column's width.
     stages.forEach((stage, idx) => {
       if (!stage) return;
       const header = document.createElement("div");
       header.className = "canvas-stage-header";
-      header.style.left = (idx * (COLUMN_WIDTH + COLUMN_GAP)) + "px";
-      header.style.width = COLUMN_WIDTH + "px";
+      const x = columnPlan ? (columnPlan.columnX.get(idx) || 0) : 0;
+      const w = columnPlan ? (columnPlan.columnWidths.get(idx) || DEFAULT_CARD_WIDTH) : DEFAULT_CARD_WIDTH;
+      header.style.left = x + "px";
+      header.style.width = w + "px";
       header.style.top  = "0px";
       header.innerHTML = `
         <span class="canvas-stage-num">${String(idx + 1).padStart(2, "0")}</span>
@@ -293,9 +397,6 @@
       state.canvas.fit(state.contentBounds);
       return;
     }
-
-    // Auto-layout.
-    const { positions } = computeAutoLayout(data);
 
     screens.forEach((screen) => {
       const card = window.UJWireframe.renderScreenCard(screen);
@@ -362,9 +463,10 @@
       byColumn.get(colIdx).push({ screen, card });
     });
 
+    const plan = state.columnPlan;
     byColumn.forEach((items, colIdx) => {
       let y = COLUMN_TOP + STAGE_HEADER_HEIGHT;
-      const x = colIdx * (COLUMN_WIDTH + COLUMN_GAP);
+      const x = plan ? (plan.columnX.get(colIdx) || 0) : 0;
       items.forEach(({ card }) => {
         card.style.left = x + "px";
         card.style.top  = y + "px";

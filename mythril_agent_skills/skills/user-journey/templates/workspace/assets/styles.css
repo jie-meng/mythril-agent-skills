@@ -365,6 +365,10 @@ body {
 
 .screen-card {
   position: absolute;
+  /* Default width applies when screen.kind is missing/unknown. Per-device
+     widths below override this so a phone card doesn't sit inside a
+     desktop-sized frame. The canvas layout reads the computed width from
+     the card element when packing columns. */
   width: 760px;
   border-radius: var(--radius-lg);
   background: var(--state-default-bg);
@@ -374,6 +378,21 @@ body {
   gap: var(--space-sm);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
+/* Device-aware outer-card widths.
+   Each width is calibrated so the inner .wf-* device frame can fill the
+   card without leaving large empty gutters. The canvas layout (render.js)
+   reads each card's computed width and packs each stage column to the
+   widest card it contains, so mobile columns stay narrow and desktop
+   columns stay wide instead of everything being 760px. */
+.screen-card-kind-mobile-screen   { width: 360px; }
+.screen-card-kind-kiosk-screen    { width: 400px; }
+.screen-card-kind-tablet-screen   { width: 600px; }
+.screen-card-kind-atm-screen      { width: 720px; }
+.screen-card-kind-desktop-window  { width: 880px; }
+.screen-card-kind-tv-screen       { width: 880px; }
+.screen-card-kind-email           { width: 600px; }
+.screen-card-kind-modal           { width: 520px; }
+.screen-card-kind-notification    { width: 720px; }
 .screen-card-state-loading {
   background: var(--state-loading-bg);
   border-color: var(--state-loading-bd);
@@ -479,11 +498,16 @@ body {
 .wf-kiosk-screen   > .wf-body { padding: var(--space-lg); }
 .wf-tv-screen      > .wf-body { padding: var(--space-xl); }
 .wf-desktop-window > .wf-body { padding: var(--space-lg); }
-.wf-mobile-screen  { aspect-ratio: 9 / 19.5; max-width: 320px; margin: 0 auto; }
+/* Inner device frames. The aspect-ratio dictates the frame's shape; the
+   outer .screen-card-kind-* class above gives it width, so each frame fills
+   its card and grows tall (mobile/kiosk) or wide (desktop/tv) accordingly.
+   Frames keep min-height so content doesn't squash to nothing on very small
+   screens. */
+.wf-mobile-screen  { aspect-ratio: 9 / 19.5; }
 .wf-tablet-screen  { aspect-ratio: 3 / 4; }
 .wf-desktop-window { aspect-ratio: 16 / 10; }
 .wf-atm-screen     { aspect-ratio: 4 / 3; }
-.wf-kiosk-screen   { aspect-ratio: 9 / 16; max-width: 360px; margin: 0 auto; }
+.wf-kiosk-screen   { aspect-ratio: 9 / 16; }
 .wf-tv-screen      { aspect-ratio: 16 / 9; }
 .wf-email          { aspect-ratio: 3 / 4; }
 .wf-modal          { aspect-ratio: 4 / 3; }

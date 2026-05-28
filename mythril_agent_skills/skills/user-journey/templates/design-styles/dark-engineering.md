@@ -57,6 +57,41 @@ spacing:
   lg: 24px
   xl: 40px
   xxl: 64px
+# Semantic state palette adapted for dark mode. Meanings are LOCKED:
+#   default = neutral, loading = blue, success = green, error = red,
+#   warning = amber. On dark surfaces we use deep saturated backgrounds
+#   with brighter borders + light heading text so the cards still read
+#   as colored blocks against a near-black canvas.
+state:
+  default:
+    bg: "#1F2937"
+    bd: "#374151"
+    hd: "#E5E7EB"
+  loading:
+    bg: "#082F49"
+    bd: "#38BDF8"
+    hd: "#7DD3FC"
+  success:
+    bg: "#064E3B"
+    bd: "#34D399"
+    hd: "#A7F3D0"
+  error:
+    bg: "#7F1D1D"
+    bd: "#F87171"
+    hd: "#FECACA"
+  warning:
+    bg: "#78350F"
+    bd: "#FBBF24"
+    hd: "#FCD34D"
+arrows:
+  default: "#9CA3AF"
+  success: "#34D399"
+  error:   "#F87171"
+  cancel:  "#6B7280"
+canvas:
+  bg:         "#0B0F17"
+  grid-major: "rgba(229, 231, 235, 0.06)"
+  grid-minor: "rgba(229, 231, 235, 0.03)"
 components:
   stage-card:
     backgroundColor: "{colors.surface}"

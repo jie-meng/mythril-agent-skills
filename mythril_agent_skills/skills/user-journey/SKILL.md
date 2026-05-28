@@ -68,13 +68,13 @@ Help product managers and business analysts draft user journey maps and lo-fi wi
    - Body zone: 2–4 named `section`s — never a flat stack of 10+ atoms
    - Bottom zone: `tab-bar` (navigation) OR `footer-bar` (primary action)
 
-   A wireframe that reads "title bar, two clearly-labeled sections, fixed bottom action" looks designed. A wireframe that reads "header + 8 buttons in a column" looks unfinished. The validator (`validate_screens.py`) flags `[flat-stack]`, `[no-hierarchy]`, `[monotonous]`, and `[overstuffed]` smells — listen to them.
+   A wireframe that reads "title bar, two clearly-labeled sections, fixed bottom action" looks designed. A wireframe that reads "header + 8 buttons in a column" looks unfinished. The validator (`validate_screens.py`) flags `[flat-stack]`, `[no-hierarchy]`, `[monotonous]`, `[overstuffed]`, and `[bundle-spam]` smells — listen to them.
 
 6. **Conversational, low-friction.** Infer everything possible from the user's message (language, project, persona type). Ask only what is genuinely missing. The user is a PM/BA, not a developer — never talk about HTML/CSS, JSON schemas, or git unless asked.
 
 7. **Resumable.** Any session can be resumed by passing the workspace path. The skill reads all three files to rebuild full context.
 
-8. **Browser-first preview.** Double-clicking `index.html` works in 99% of cases (journey data is inlined). If the user reports a blank page, fall back to `python3 preview.py`.
+8. **Browser-first preview.** Double-clicking `index.html` works because `journey.json` and the design tokens are also inlined into the HTML. **This only stays true if you run `sync_index_html.py` after every edit to `journey.json` or `DESIGN.md`** — Phase 3 Gate 4 enforces that. If a user reports that double-clicking shows only 3 seed screens or stale content, the sync gate was skipped; rerun it. As an always-works fallback, `python3 preview.py` serves the workspace over HTTP and fetches the live files instead of the inline copies.
 
 ## Phase 1 — Intake & Workspace Bootstrap
 
@@ -129,7 +129,7 @@ The script creates the workspace with template `JOURNEY.md`, seed `journey.json`
 | `dark-engineering` | DevTools, infra dashboards | Dark surface, monospace, neon accent |
 | `editorial-mono` | Content products, media | High-contrast mono headlines, generous whitespace |
 
-If the user wants a custom palette, edit `DESIGN.md` directly after init.
+If the user wants a custom palette, edit `DESIGN.md` directly after init. The frontmatter has six themable sections — `colors:` (brand / emotion hues), `typography:` (font stacks), `rounded:` / `spacing:` (geometry), `state:` (the five state-card backgrounds + borders + heading colors — `default / loading / success / error / warning`), `arrows:` (the four arrow-stroke colors — `default / success / error / cancel`), and `canvas:` (page background + grid). Every preset declares all six so dark themes (`dark-engineering`) and light themes (others) stay legible. The state and arrow palettes carry FIXED semantics across themes — see the corresponding Anti-Pattern in the bottom section.
 
 ## Phase 2 — Draft the Journey
 
@@ -183,6 +183,53 @@ For each stage with digital touchpoints, design the screens **before** declaring
    - `is_default: true` on the happy-path arrow out of each screen (at most one per source)
 5. **Wire steps to screens** — set each step's `screen_refs: ["screen-id"]` in document order. This is the textual index that lives in `JOURNEY.md`.
 
+#### Arrow modeling (MANDATORY before declaring Pass C done)
+
+Most "messy canvas" complaints come from one of two arrow anti-patterns. Both have explicit fixes — apply them while authoring, don't wait for the validator.
+
+**A. One arrow per *decision*, not per *button*.**
+When N elements on a screen all lead to the **same target** with the **same intent**, model them as ONE arrow with `via_elements[]`, NOT N parallel arrows. Examples that ALWAYS bundle: amount presets (¥100 / ¥200 / ...), chip pickers ("category A / B / C → results"), "choose any of these → next" lists.
+
+```jsonc
+// ❌ Don't — 8 arrows that say one thing
+{ "from": "withdraw-amount#k-100",   "to": "withdraw-processing", "label": "¥100" },
+{ "from": "withdraw-amount#k-200",   "to": "withdraw-processing", "label": "¥200" },
+{ "from": "withdraw-amount#k-500",   "to": "withdraw-processing", "label": "¥500" },
+// ... 5 more ...
+
+// ✅ Do — one arrow with via_elements[]
+{
+  "from": "withdraw-amount",
+  "via_elements": ["k-100","k-200","k-500","k-1000","k-2000","k-3000","k-5000","k-custom"],
+  "to": "withdraw-processing",
+  "kind": "default",
+  "is_default": true,
+  "label": "任一金额"
+}
+```
+
+Keep separate arrows ONLY when buttons go to **different** targets OR have **different `kind`** (e.g. `confirm` → success-arrow vs `cancel` → cancel-arrow; the colors carry meaning). The validator's `[bundle-spam]` warning flags this; the canvas renderer auto-collapses untagged groups as a safety net, but bundle explicitly so the JSON itself stays clean and Prototype mode behaves correctly.
+
+**B. Funnel return paths through a hub, don't fan back across columns.**
+When 3+ terminal screens (success, fail, transfer-success, deposit-success, ...) all "return to menu", do NOT draw N long backward arrows from each terminal to `main-menu`. Each backward arrow has to cross 1–5 stage columns and the result is criss-crossing noise.
+
+Instead, introduce a single hub screen between them and the menu — typically a `continue-or-exit` / "Anything else?" screen. All terminals point at the hub (a short forward arrow within the same column), and the hub owns the one arrow back to `main-menu` AND the one arrow to `card-ejected` / exit.
+
+```text
+❌ Without a hub:                       ✅ With a hub:
+   withdraw-success ───┐                   withdraw-success ─┐
+   deposit-success  ───┼──→ main-menu      deposit-success ──┼→ continue-or-exit ─→ main-menu
+   transfer-success ───┘                   transfer-success ─┘                    └→ card-ejected
+   (3 long backward arrows)                (3 short forward + 2 hub arrows)
+```
+
+If a hub already exists, drop any direct `terminal → main-menu` arrows that bypass it. The hub is the single backward path.
+
+**C. Default to the simplest legal arrow.**
+- One `is_default: true` arrow per source — pick the happy path; don't tag two.
+- Whole-screen `from: "<screen-id>"` is fine for timeouts, auto-transitions, and loading screens. Don't invent a fake element id for them.
+- Self-loops (`pin-error → pin-entry`) are legitimate when modeling a retry — use them, don't force an extra screen.
+
 #### Composition checklist (MANDATORY before declaring Pass C done)
 
 Every screen with non-trivial content (>4 atomic elements) must satisfy ALL of these. The validator catches the smells but the AI should self-check first.
@@ -202,7 +249,7 @@ Every screen with non-trivial content (>4 atomic elements) must satisfy ALL of t
 - [ ] **Interactive elements have a stable `id`** so arrows can attach.
 - [ ] **`is_default: true`** is set on the happy-path arrow out of each screen (at most one per source).
 
-Run `python3 SKILL_PATH/scripts/validate_screens.py "<workspace-path>"` after Pass C — it flags `[flat-stack]`, `[no-hierarchy]`, `[monotonous]`, and `[overstuffed]` smells. Fix them before declaring done.
+Run `python3 SKILL_PATH/scripts/validate_screens.py "<workspace-path>"` after Pass C — it flags `[flat-stack]`, `[no-hierarchy]`, `[monotonous]`, `[overstuffed]`, and `[bundle-spam]` smells. Fix them before declaring done.
 
 The canvas auto-lays out screens in columns (one column per stage), so you usually don't need to set explicit `position`. Use `position: {x, y}` only when you want to override the default placement (e.g. "this error screen sits below the happy path screen").
 
@@ -232,7 +279,7 @@ See `references/WIREFRAMES.md` "Device-aware modeling" + "End-to-end example B" 
 
 ## Phase 3 — Sync Discipline (MANDATORY)
 
-Three gates run after every change. All three must pass before declaring an edit done.
+Four gates run after every change. All four must pass before declaring an edit done.
 
 ### Gate 1 — Sync Validator
 
@@ -269,11 +316,27 @@ python3 SKILL_PATH/scripts/mermaid_lint.py "<workspace-path>/JOURNEY.md"
 
 Lints every ` ```mermaid ` block in `JOURNEY.md` against the rules in [`references/MERMAID-RULES.md`](references/MERMAID-RULES.md).
 
+### Gate 4 — Inline JSON Sync (so double-click keeps working)
+
+```bash
+python3 SKILL_PATH/scripts/sync_index_html.py "<workspace-path>"
+```
+
+`index.html` carries inline copies of `journey.json` and the `DESIGN.md` tokens so that opening it via `file://` (double-click) works without a server. Those inline copies are injected ONCE at bootstrap and **do not update automatically** when you edit `journey.json` or `DESIGN.md`. Run this gate after every edit — otherwise the user double-clicks and sees stale (or seed) content while `preview.py` looks fine.
+
+`validate_sync.py` (Gate 1) also reports inline-JSON drift as an error, so a missed Gate 4 fails Gate 1 on the next run.
+
+Use `--check` in read-only contexts (e.g. when you just need to confirm sync without writing):
+
+```bash
+python3 SKILL_PATH/scripts/sync_index_html.py "<workspace-path>" --check
+```
+
 ### When the user requests an edit (add a stage, rename a step, add a screen, rewire an arrow, change state):
 
 1. Update `journey.json` (the structured source).
 2. Regenerate the affected section of `JOURNEY.md` from the JSON (prose + mermaid). Use `<br/>` for any line break inside a mermaid label.
-3. Run `validate_sync.py`, `validate_screens.py`, AND `mermaid_lint.py`. All must pass.
+3. Run `validate_sync.py`, `validate_screens.py`, `mermaid_lint.py`, AND `sync_index_html.py`. All four must pass.
 4. Tell the user what changed in plain language.
 
 ## Phase 4 — Resumption (User Returns Later)
@@ -352,8 +415,11 @@ This skill does NOT require API tokens or credentials. It writes only to the use
 - ❌ **Skipping the zone model** — no `app-bar` on a mobile/desktop screen, or no `footer-bar`/`tab-bar` on a screen that clearly needs a fixed bottom action.
 - ❌ Defining the same screen twice with different ids — define once in `screens[]`, reference by id from multiple steps and arrows.
 - ❌ Forgetting to mark a happy-path arrow with `is_default: true`.
+- ❌ **Bundle-spam** — N parallel arrows from one screen to the same target (e.g. one per amount preset, one per chip). Collapse into ONE arrow with `via_elements[]`. The validator warns with `[bundle-spam]`; the renderer auto-collapses, but the JSON should be clean too.
+- ❌ **Fanning return arrows across columns** — N terminal screens each drawing a long backward arrow to `main-menu`. Funnel them through a single `continue-or-exit` / "Anything else?" hub instead. One short forward arrow per terminal, one shared arrow back.
 - ❌ Cramming more than 7 stages into one journey — split it.
 - ❌ Asking 10 questions upfront — infer and confirm in ONE block.
 - ❌ Declaring done without running ALL THREE: `validate_sync.py`, `validate_screens.py`, AND `mermaid_lint.py`.
 - ❌ Using `\n` for line breaks inside a mermaid label — use `<br/>` instead.
 - ❌ Setting `screen.state` to `success` on every screen — state should mean something. Use it intentionally.
+- ❌ **Reassigning the meaning of state / arrow colors in `DESIGN.md`.** The semantic palette is a CROSS-WORKSPACE visual contract: **red = error, green = success, amber = warning, blue = loading, gray = default/cancel**. Every stakeholder reads the canvas this way without thinking. You MAY shift brightness / saturation for theme fit (e.g. the `dark-engineering` preset uses `#7F1D1D` deep-red for `--state-error-bg` instead of `#FEE2E2`), but you MUST NEVER make red = success or green = error. Themes that need a third "info" or "neutral-positive" hue should pick from the `--color-tertiary` accent slot, not repaint the state palette.

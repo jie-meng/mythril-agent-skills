@@ -23,6 +23,16 @@ import re
 import sys
 from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+from sync_index_html import (  # noqa: E402
+    extract_inline_design,
+    extract_inline_journey,
+    serialize_design_tokens,
+    serialize_journey,
+)
+from init_workspace import parse_design_frontmatter  # noqa: E402
+
 GREEN = "\033[0;32m"
 YELLOW = "\033[1;33m"
 RED = "\033[0;31m"
@@ -245,6 +255,45 @@ def compare_sync(journey: dict, markdown: str) -> dict:
 # Filesystem orchestration
 # ---------------------------------------------------------------------------
 
+def check_inline_drift(workspace: Path, journey: dict) -> list[str]:
+    """Compare the inline <script> blocks in index.html against the source files.
+
+    Returns a list of error strings (empty when in sync). When index.html or
+    DESIGN.md is absent we stay silent — that's a workspace-shape problem
+    surfaced elsewhere, not a sync problem.
+    """
+    html_path = workspace / "index.html"
+    design_path = workspace / "DESIGN.md"
+    if not html_path.exists() or not design_path.exists():
+        return []
+    html = html_path.read_text(encoding="utf-8")
+    inline_journey = extract_inline_journey(html)
+    inline_design = extract_inline_design(html)
+    if inline_journey is None or inline_design is None:
+        return [
+            "index.html is missing the inline <script> blocks "
+            "(journey-data / design-tokens). Re-bootstrap the workspace or "
+            "run sync_index_html.py."
+        ]
+    expected_journey = serialize_journey(journey)
+    design_tokens = parse_design_frontmatter(design_path.read_text(encoding="utf-8"))
+    expected_design = serialize_design_tokens(design_tokens)
+    errors: list[str] = []
+    if inline_journey != expected_journey:
+        errors.append(
+            "index.html inline journey-data is OUT OF SYNC with journey.json — "
+            "double-clicking index.html will show stale content. "
+            "Run: python3 SKILL_PATH/scripts/sync_index_html.py <workspace>"
+        )
+    if inline_design != expected_design:
+        errors.append(
+            "index.html inline design-tokens is OUT OF SYNC with DESIGN.md — "
+            "double-clicking index.html will show stale theme. "
+            "Run: python3 SKILL_PATH/scripts/sync_index_html.py <workspace>"
+        )
+    return errors
+
+
 def validate_workspace(workspace: Path) -> dict:
     """Top-level: load both files and produce a full report."""
     journey_path = workspace / "journey.json"
@@ -281,6 +330,8 @@ def validate_workspace(workspace: Path) -> dict:
     report["errors"].extend(sync_report["errors"])
     report["warnings"].extend(sync_report["warnings"])
     report["info"].extend(sync_report["info"])
+
+    report["errors"].extend(check_inline_drift(workspace, journey))
 
     return report
 

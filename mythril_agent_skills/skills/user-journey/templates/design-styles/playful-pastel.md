@@ -57,6 +57,39 @@ spacing:
   lg: 24px
   xl: 40px
   xxl: 64px
+# Semantic state palette (red = error / green = success / amber = warning /
+# blue = loading) — meanings are locked across themes. Playful tones lean
+# softer / warmer; meanings unchanged.
+state:
+  default:
+    bg: "#F5F1F9"
+    bd: "#D7C8E6"
+    hd: "#3D2C5C"
+  loading:
+    bg: "#DCEEFF"
+    bd: "#7CC2FF"
+    hd: "#1E5A99"
+  success:
+    bg: "#E1F8EC"
+    bd: "#86E0B0"
+    hd: "#1B7A48"
+  error:
+    bg: "#FDE4E1"
+    bd: "#F49B95"
+    hd: "#A23D38"
+  warning:
+    bg: "#FFF1D6"
+    bd: "#FFC872"
+    hd: "#8A5A1B"
+arrows:
+  default: "#7C6F9A"
+  success: "#1FA968"
+  error:   "#D9534F"
+  cancel:  "#B8AFCB"
+canvas:
+  bg:         "#FFF8F0"
+  grid-major: "rgba(61, 44, 92, 0.06)"
+  grid-minor: "rgba(61, 44, 92, 0.03)"
 components:
   stage-card:
     backgroundColor: "{colors.surface}"

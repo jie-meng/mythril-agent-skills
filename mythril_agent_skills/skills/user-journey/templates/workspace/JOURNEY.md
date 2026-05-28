@@ -64,10 +64,17 @@ Open it to see the full picture — Canvas view for the overview, Prototype view
 > - Both views share the **left sidebar** screen list + search.
 > - `H` shows the full keyboard reference.
 >
-> **Authoring note (sync):** this file and `journey.json` must stay in sync. After any
-> change to either, run BOTH validators:
+> **Authoring note (sync):** this file, `journey.json`, and the inline copies inside
+> `index.html` must all stay in sync. After any change to `journey.json` or `DESIGN.md`,
+> run ALL three gates:
 > `python3 SKILL_PATH/scripts/validate_sync.py    .`
 > `python3 SKILL_PATH/scripts/validate_screens.py .`
+> `python3 SKILL_PATH/scripts/sync_index_html.py  .`
+>
+> The last script re-inlines the latest `journey.json` and `DESIGN.md` tokens into
+> `index.html` so that double-clicking it (file:// URL) keeps showing the up-to-date
+> journey instead of the original seed. If you skip it, `preview.py` (HTTP server)
+> will still look fine but a double-click will silently load stale data.
 >
 > **Authoring note (mermaid line breaks):** inside any ` ```mermaid ` block, use
 > `<br/>` for line breaks — never `\n`. On most renderers (GitHub, Mermaid 10.x,

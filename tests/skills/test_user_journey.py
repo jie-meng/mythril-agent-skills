@@ -1549,3 +1549,635 @@ class TestScreenCountGate:
         assert not any("Recommended floor" in w for w in out["warnings"])
 
 
+# ---------------------------------------------------------------------------
+# Rule 12 — [bundle-spam] (validate_screens.validate_screens)
+# ---------------------------------------------------------------------------
+
+
+def _amount_screen() -> dict:
+    """A typical bundle-prone screen: 8 keypad-button elements that
+    a naive author would wire to 8 separate arrows."""
+    keys = [
+        {"type": "keypad-button", "id": f"k-{n}", "label": f"¥{n}", "interactive": True}
+        for n in (100, 200, 500, 1000, 2000, 3000, 5000)
+    ] + [
+        {"type": "keypad-button", "id": "k-custom", "label": "Custom", "interactive": True},
+    ]
+    return {
+        "id": "amount",
+        "kind": "atm-screen",
+        "title": "Amount",
+        "stage_id": "s1",
+        "state": "default",
+        "chrome": "panel",
+        "layout": {"type": "grid", "cols": 4, "elements": keys},
+    }
+
+
+class TestBundleSpamWarning:
+    """Rule 12 — N ≥ 3 element-anchored kind=default arrows from one
+    screen to the same target should be merged via via_elements[]."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from validate_screens import validate_screens
+        self.func = validate_screens
+
+    def _processing_screen(self) -> dict:
+        return _screen("processing")
+
+    def test_eight_parallel_arrows_warn(self):
+        screens = [_amount_screen(), self._processing_screen()]
+        arrows = [
+            {"from": f"amount#k-{n}", "to": "processing", "label": f"¥{n}", "trigger": "tap"}
+            for n in (100, 200, 500, 1000, 2000, 3000, 5000)
+        ] + [
+            {"from": "amount#k-custom", "to": "processing", "label": "Custom", "trigger": "tap"},
+        ]
+        out = self.func(screens, [], arrows)
+        msgs = [w for w in out["warnings"] if "[bundle-spam]" in w]
+        assert msgs, f"expected one [bundle-spam] warning, got: {out['warnings']}"
+        assert len(msgs) == 1
+        assert "8 arrows" in msgs[0]
+        assert "'amount'" in msgs[0]
+        assert "'processing'" in msgs[0]
+        assert "via_elements" in msgs[0]
+
+    def test_two_parallel_arrows_do_not_warn(self):
+        # Threshold is 3 — two parallel arrows are still readable.
+        screens = [_amount_screen(), self._processing_screen()]
+        arrows = [
+            {"from": "amount#k-100", "to": "processing", "label": "¥100", "trigger": "tap"},
+            {"from": "amount#k-200", "to": "processing", "label": "¥200", "trigger": "tap"},
+        ]
+        out = self.func(screens, [], arrows)
+        assert not any("[bundle-spam]" in w for w in out["warnings"])
+
+    def test_different_kinds_do_not_collapse(self):
+        # success / error / cancel arrows landing on the same target are
+        # NOT bundle-spam — the colors carry meaning.
+        screens = [_amount_screen(), self._processing_screen()]
+        arrows = [
+            {"from": "amount#k-100", "to": "processing", "label": "ok",     "trigger": "tap", "kind": "success"},
+            {"from": "amount#k-200", "to": "processing", "label": "fail",   "trigger": "tap", "kind": "error"},
+            {"from": "amount#k-500", "to": "processing", "label": "cancel", "trigger": "tap", "kind": "cancel"},
+        ]
+        out = self.func(screens, [], arrows)
+        assert not any("[bundle-spam]" in w for w in out["warnings"])
+
+    def test_via_elements_arrow_does_not_warn(self):
+        # Author already bundled the group — no warning.
+        screens = [_amount_screen(), self._processing_screen()]
+        arrows = [{
+            "from": "amount",
+            "via_elements": ["k-100","k-200","k-500","k-1000","k-2000","k-3000","k-5000","k-custom"],
+            "to": "processing",
+            "kind": "default",
+            "label": "Any amount",
+            "trigger": "tap",
+        }]
+        out = self.func(screens, [], arrows)
+        assert not any("[bundle-spam]" in w for w in out["warnings"])
+
+    def test_do_not_consolidate_skips_warning(self):
+        # Explicit author opt-out also skips the warning.
+        screens = [_amount_screen(), self._processing_screen()]
+        arrows = [
+            {"from": f"amount#k-{n}", "to": "processing", "label": f"¥{n}",
+             "trigger": "tap", "do_not_consolidate": True}
+            for n in (100, 200, 500, 1000)
+        ]
+        out = self.func(screens, [], arrows)
+        assert not any("[bundle-spam]" in w for w in out["warnings"])
+
+    def test_whole_screen_arrows_do_not_count(self):
+        # `from: "screen"` without `#element` is intentional whole-screen
+        # — never spam. Mixed with one element arrow stays under threshold.
+        screens = [_amount_screen(), self._processing_screen()]
+        arrows = [
+            {"from": "amount", "to": "processing", "label": "timeout", "trigger": "timeout"},
+            {"from": "amount", "to": "processing", "label": "auto",    "trigger": "auto"},
+            {"from": "amount#k-100", "to": "processing", "label": "¥100", "trigger": "tap"},
+        ]
+        out = self.func(screens, [], arrows)
+        assert not any("[bundle-spam]" in w for w in out["warnings"])
+
+    def test_self_loops_do_not_warn(self):
+        # An element looping back to the same screen is a retry pattern,
+        # not a bundle. (Also: the spam case requires from_screen != to_screen.)
+        screens = [_amount_screen()]
+        arrows = [
+            {"from": f"amount#k-{n}", "to": "amount", "label": f"loop¥{n}", "trigger": "tap"}
+            for n in (100, 200, 500, 1000)
+        ]
+        out = self.func(screens, [], arrows)
+        assert not any("[bundle-spam]" in w for w in out["warnings"])
+
+
+# ---------------------------------------------------------------------------
+# Arrow.via_elements[] validation (Rule for new schema field)
+# ---------------------------------------------------------------------------
+
+
+class TestViaElementsValidation:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from validate_screens import validate_screens
+        self.func = validate_screens
+
+    def _screens(self) -> list[dict]:
+        return [_amount_screen(), _screen("processing")]
+
+    def test_happy_path(self):
+        arrows = [{
+            "from": "amount",
+            "via_elements": ["k-100","k-200","k-500"],
+            "to": "processing",
+            "kind": "default",
+            "label": "Any amount",
+            "trigger": "tap",
+        }]
+        out = self.func(self._screens(), [], arrows)
+        assert out["errors"] == []
+
+    def test_via_elements_not_list_errors(self):
+        arrows = [{
+            "from": "amount",
+            "via_elements": "k-100,k-200",
+            "to": "processing",
+            "trigger": "tap",
+        }]
+        out = self.func(self._screens(), [], arrows)
+        assert any("via_elements must be a list" in e for e in out["errors"])
+
+    def test_via_elements_empty_errors(self):
+        arrows = [{
+            "from": "amount",
+            "via_elements": [],
+            "to": "processing",
+            "trigger": "tap",
+        }]
+        out = self.func(self._screens(), [], arrows)
+        assert any("empty list" in e for e in out["errors"])
+
+    def test_unknown_element_id_errors(self):
+        arrows = [{
+            "from": "amount",
+            "via_elements": ["k-100", "ghost-key"],
+            "to": "processing",
+            "trigger": "tap",
+        }]
+        out = self.func(self._screens(), [], arrows)
+        assert any("via_elements[1]='ghost-key'" in e for e in out["errors"])
+
+    def test_blank_element_id_errors(self):
+        arrows = [{
+            "from": "amount",
+            "via_elements": ["k-100", ""],
+            "to": "processing",
+            "trigger": "tap",
+        }]
+        out = self.func(self._screens(), [], arrows)
+        assert any("via_elements[1] is not a non-empty string" in e for e in out["errors"])
+
+    def test_mixing_with_explicit_element_anchor_errors(self):
+        # When via_elements[] is used, `from` MUST be whole-screen.
+        arrows = [{
+            "from": "amount#k-100",          # ❌ also has explicit anchor
+            "via_elements": ["k-200", "k-500"],
+            "to": "processing",
+            "trigger": "tap",
+        }]
+        out = self.func(self._screens(), [], arrows)
+        assert any("has both an explicit" in e for e in out["errors"])
+
+
+# ---------------------------------------------------------------------------
+# Design-style presets must declare state + arrows + canvas blocks
+# (regression test for the theme-aware color contract).
+# ---------------------------------------------------------------------------
+
+
+class TestDesignPresetsDeclareThemeContract:
+    """Every shipped preset MUST declare the full state + arrows + canvas
+    palette so dark themes don't fall back to washed-out light-mode
+    colors at runtime."""
+
+    REQUIRED_STATES  = ("default", "loading", "success", "error", "warning")
+    REQUIRED_SLOTS   = ("bg", "bd", "hd")
+    REQUIRED_ARROWS  = ("default", "success", "error", "cancel")
+    REQUIRED_CANVAS  = ("bg", "grid-major", "grid-minor")
+
+    @pytest.fixture(autouse=True)
+    def _load_parser(self):
+        from init_workspace import parse_design_frontmatter
+        self.parse = parse_design_frontmatter
+
+    @pytest.fixture(autouse=True)
+    def _resolve_dir(self):
+        from init_workspace import DESIGN_STYLES_DIR
+        self.styles_dir = DESIGN_STYLES_DIR
+
+    def _parse(self, name: str) -> dict:
+        path = self.styles_dir / f"{name}.md"
+        return self.parse(path.read_text(encoding="utf-8"))
+
+    @pytest.mark.parametrize("preset", [
+        "corporate-clean", "playful-pastel", "dark-engineering", "editorial-mono",
+    ])
+    def test_state_block_complete(self, preset: str):
+        fm = self._parse(preset)
+        state = fm.get("state") or {}
+        for s in self.REQUIRED_STATES:
+            assert s in state, f"{preset}: missing state '{s}'"
+            for slot in self.REQUIRED_SLOTS:
+                assert slot in state[s], f"{preset}: state.{s} missing slot '{slot}'"
+                assert state[s][slot].startswith("#"), (
+                    f"{preset}: state.{s}.{slot} should be a hex color"
+                )
+
+    @pytest.mark.parametrize("preset", [
+        "corporate-clean", "playful-pastel", "dark-engineering", "editorial-mono",
+    ])
+    def test_arrows_block_complete(self, preset: str):
+        fm = self._parse(preset)
+        arrows = fm.get("arrows") or {}
+        for kind in self.REQUIRED_ARROWS:
+            assert kind in arrows, f"{preset}: missing arrows.{kind}"
+            assert arrows[kind].startswith("#"), (
+                f"{preset}: arrows.{kind} should be a hex color"
+            )
+
+    @pytest.mark.parametrize("preset", [
+        "corporate-clean", "playful-pastel", "dark-engineering", "editorial-mono",
+    ])
+    def test_canvas_block_complete(self, preset: str):
+        fm = self._parse(preset)
+        canvas = fm.get("canvas") or {}
+        for k in self.REQUIRED_CANVAS:
+            assert k in canvas and canvas[k], f"{preset}: missing canvas.{k}"
+
+
+# ---------------------------------------------------------------------------
+# parse_design_frontmatter — the Python-side parser also used by
+# init_workspace.py. It MUST recognize the new state / arrows / canvas
+# sections so the bootstrap can preview them.
+# ---------------------------------------------------------------------------
+
+
+class TestParseDesignFrontmatterNewSections:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from init_workspace import parse_design_frontmatter
+        self.parse = parse_design_frontmatter
+
+    def test_state_section_parses(self):
+        md = (
+            "---\n"
+            "state:\n"
+            "  success:\n"
+            '    bg: "#DCFCE7"\n'
+            '    bd: "#4ADE80"\n'
+            "  error:\n"
+            '    bg: "#FEE2E2"\n'
+            "---\n"
+        )
+        fm = self.parse(md)
+        assert fm["state"]["success"]["bg"] == "#DCFCE7"
+        assert fm["state"]["success"]["bd"] == "#4ADE80"
+        assert fm["state"]["error"]["bg"] == "#FEE2E2"
+
+    def test_arrows_section_parses(self):
+        md = (
+            "---\n"
+            "arrows:\n"
+            '  default: "#6B7280"\n'
+            '  success: "#16A34A"\n'
+            '  error:   "#DC2626"\n'
+            '  cancel:  "#9CA3AF"\n'
+            "---\n"
+        )
+        fm = self.parse(md)
+        assert fm["arrows"]["default"] == "#6B7280"
+        assert fm["arrows"]["success"] == "#16A34A"
+        assert fm["arrows"]["error"]   == "#DC2626"
+        assert fm["arrows"]["cancel"]  == "#9CA3AF"
+
+    def test_canvas_section_parses(self):
+        md = (
+            "---\n"
+            "canvas:\n"
+            '  bg: "#F8FAFC"\n'
+            '  grid-major: "rgba(15, 23, 42, 0.06)"\n'
+            "---\n"
+        )
+        fm = self.parse(md)
+        assert fm["canvas"]["bg"] == "#F8FAFC"
+        assert fm["canvas"]["grid-major"] == "rgba(15, 23, 42, 0.06)"
+
+
+# ---------------------------------------------------------------------------
+# sync_index_html — re-inject inline JSON into index.html
+# ---------------------------------------------------------------------------
+
+
+def _make_minimal_workspace(
+    tmp_path: Path,
+    *,
+    journey: dict | None = None,
+    design_md: str | None = None,
+    journey_inline: str | None = None,
+    design_inline: str | None = None,
+) -> Path:
+    """Build a throw-away workspace with the four files sync_index_html reads.
+
+    Lets each test plug in its own journey/design state plus what's *currently
+    inlined* in index.html, so we can simulate the drift / no-drift cases.
+    """
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    journey = journey or {
+        "schema_version": "3",
+        "title": "T",
+        "language": "en",
+        "personas": [{"id": "p", "name": "N"}],
+        "stages": [{"id": "s", "label": "S", "persona_id": "p", "steps": []}],
+        "screens": [],
+        "arrows": [],
+        "stickies": [],
+    }
+    (ws / "journey.json").write_text(
+        json.dumps(journey, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    if design_md is None:
+        design_md = (
+            "---\n"
+            "colors:\n"
+            '  primary: "#1F2937"\n'
+            "---\n"
+            "# Design\n"
+        )
+    (ws / "DESIGN.md").write_text(design_md, encoding="utf-8")
+
+    if journey_inline is None:
+        journey_inline = json.dumps(journey, indent=2, ensure_ascii=False)
+    if design_inline is None:
+        from init_workspace import parse_design_frontmatter
+
+        design_inline = json.dumps(
+            parse_design_frontmatter(design_md),
+            indent=2,
+            ensure_ascii=False,
+        )
+    (ws / "index.html").write_text(
+        '<!doctype html><html><head>'
+        f'<script id="journey-data" type="application/json">{journey_inline}</script>'
+        f'<script id="design-tokens" type="application/json">{design_inline}</script>'
+        '</head><body>BODY</body></html>',
+        encoding="utf-8",
+    )
+    (ws / "JOURNEY.md").write_text("# T\n", encoding="utf-8")
+    return ws
+
+
+class TestSyncIndexHtmlInjection:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from sync_index_html import (
+            extract_inline_design,
+            extract_inline_journey,
+            inject_inline_blocks,
+        )
+        self.inject = inject_inline_blocks
+        self.extract_journey = extract_inline_journey
+        self.extract_design = extract_inline_design
+
+    def test_rewrites_both_blocks(self):
+        html = (
+            '<head>'
+            '<script id="journey-data" type="application/json">STALE_JOURNEY</script>'
+            '<script id="design-tokens" type="application/json">STALE_DESIGN</script>'
+            '</head>'
+        )
+        out = self.inject(
+            html,
+            journey_json='{"k":"v"}',
+            design_tokens_json='{"theme":"x"}',
+        )
+        assert self.extract_journey(out) == '{"k":"v"}'
+        assert self.extract_design(out) == '{"theme":"x"}'
+
+    def test_preserves_surrounding_html(self):
+        html = (
+            '<!doctype html>\n<html>\n<head>\n  '
+            '<script id="journey-data" type="application/json">OLD</script>\n  '
+            '<script id="design-tokens" type="application/json">OLD</script>\n'
+            '</head>\n<body><p>hello</p></body>\n</html>'
+        )
+        out = self.inject(
+            html,
+            journey_json='{"a":1}',
+            design_tokens_json='{"b":2}',
+        )
+        assert out.startswith("<!doctype html>\n<html>\n<head>\n")
+        assert "<p>hello</p>" in out
+        assert out.endswith("</html>")
+
+    def test_handles_multiline_inline_payload(self):
+        html = (
+            '<script id="journey-data" type="application/json">{\n'
+            '  "title": "old"\n'
+            '}</script>\n'
+            '<script id="design-tokens" type="application/json">{\n'
+            '  "colors": {}\n'
+            '}</script>'
+        )
+        new_journey = '{\n  "title": "new",\n  "stages": []\n}'
+        new_design = '{\n  "colors": {\n    "primary": "#000"\n  }\n}'
+        out = self.inject(
+            html,
+            journey_json=new_journey,
+            design_tokens_json=new_design,
+        )
+        assert self.extract_journey(out) == new_journey
+        assert self.extract_design(out) == new_design
+
+    def test_raises_when_journey_block_missing(self):
+        html = '<script id="design-tokens" type="application/json">x</script>'
+        with pytest.raises(ValueError, match="journey-data"):
+            self.inject(html, journey_json="{}", design_tokens_json="{}")
+
+    def test_raises_when_design_block_missing(self):
+        html = '<script id="journey-data" type="application/json">x</script>'
+        with pytest.raises(ValueError, match="design-tokens"):
+            self.inject(html, journey_json="{}", design_tokens_json="{}")
+
+    def test_extract_returns_none_when_block_absent(self):
+        assert self.extract_journey("<html></html>") is None
+        assert self.extract_design("<html></html>") is None
+
+
+class TestSyncIndexHtmlRunSync:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from sync_index_html import run_sync
+        self.run_sync = run_sync
+
+    def test_no_op_when_already_in_sync(self, tmp_path: Path, capsys):
+        ws = _make_minimal_workspace(tmp_path)
+        rc = self.run_sync(ws, check_only=False, quiet=False)
+        captured = capsys.readouterr()
+        assert rc == 0
+        assert "already in sync" in captured.out
+
+    def test_rewrites_when_journey_drifted(self, tmp_path: Path):
+        journey = {
+            "schema_version": "3",
+            "title": "Real",
+            "language": "en",
+            "personas": [{"id": "p", "name": "N"}],
+            "stages": [
+                {"id": "stage-a", "label": "A", "persona_id": "p", "steps": []}
+            ],
+            "screens": [],
+            "arrows": [],
+            "stickies": [],
+        }
+        ws = _make_minimal_workspace(
+            tmp_path,
+            journey=journey,
+            journey_inline='{"title": "Seed", "stages": []}',
+        )
+        rc = self.run_sync(ws, check_only=False, quiet=True)
+        assert rc == 0
+        html_after = (ws / "index.html").read_text(encoding="utf-8")
+        assert '"Seed"' not in html_after
+        assert '"Real"' in html_after
+        assert "stage-a" in html_after
+
+    def test_check_mode_exits_nonzero_on_drift(self, tmp_path: Path):
+        ws = _make_minimal_workspace(
+            tmp_path,
+            journey_inline='{"title": "drifted"}',
+        )
+        rc = self.run_sync(ws, check_only=True, quiet=True)
+        assert rc == 1
+        html_after = (ws / "index.html").read_text(encoding="utf-8")
+        assert '"drifted"' in html_after  # check mode must NOT write
+
+    def test_check_mode_passes_when_in_sync(self, tmp_path: Path):
+        ws = _make_minimal_workspace(tmp_path)
+        rc = self.run_sync(ws, check_only=True, quiet=True)
+        assert rc == 0
+
+    def test_returns_error_when_workspace_files_missing(self, tmp_path: Path):
+        ws = tmp_path / "incomplete"
+        ws.mkdir()
+        (ws / "journey.json").write_text("{}", encoding="utf-8")
+        rc = self.run_sync(ws, check_only=False, quiet=True)
+        assert rc == 1
+
+    def test_returns_error_when_journey_json_invalid(self, tmp_path: Path):
+        ws = _make_minimal_workspace(tmp_path)
+        (ws / "journey.json").write_text("{not json", encoding="utf-8")
+        rc = self.run_sync(ws, check_only=False, quiet=True)
+        assert rc == 1
+
+    def test_returns_error_when_inline_blocks_missing_in_html(
+        self, tmp_path: Path
+    ):
+        ws = _make_minimal_workspace(tmp_path)
+        (ws / "index.html").write_text(
+            "<html><body>no script tags</body></html>",
+            encoding="utf-8",
+        )
+        rc = self.run_sync(ws, check_only=False, quiet=True)
+        assert rc == 1
+
+    def test_design_drift_is_detected_and_fixed(self, tmp_path: Path):
+        ws = _make_minimal_workspace(
+            tmp_path,
+            design_inline='{"colors": {"primary": "#FF00FF"}}',
+        )
+        rc = self.run_sync(ws, check_only=False, quiet=True)
+        assert rc == 0
+        html_after = (ws / "index.html").read_text(encoding="utf-8")
+        assert "#FF00FF" not in html_after
+        assert "#1F2937" in html_after
+
+
+# ---------------------------------------------------------------------------
+# validate_sync.check_inline_drift — picks up missed sync_index_html runs
+# ---------------------------------------------------------------------------
+
+
+class TestValidateSyncInlineDriftGate:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from validate_sync import check_inline_drift, validate_workspace
+        self.check = check_inline_drift
+        self.validate = validate_workspace
+
+    def test_check_inline_drift_passes_when_in_sync(self, tmp_path: Path):
+        ws = _make_minimal_workspace(tmp_path)
+        journey = json.loads((ws / "journey.json").read_text(encoding="utf-8"))
+        assert self.check(ws, journey) == []
+
+    def test_check_inline_drift_flags_stale_journey(self, tmp_path: Path):
+        ws = _make_minimal_workspace(
+            tmp_path,
+            journey_inline='{"title": "old"}',
+        )
+        journey = json.loads((ws / "journey.json").read_text(encoding="utf-8"))
+        errors = self.check(ws, journey)
+        assert len(errors) == 1
+        assert "journey-data" in errors[0] or "journey.json" in errors[0]
+        assert "OUT OF SYNC" in errors[0]
+        assert "sync_index_html.py" in errors[0]
+
+    def test_check_inline_drift_flags_stale_design(self, tmp_path: Path):
+        ws = _make_minimal_workspace(
+            tmp_path,
+            design_inline='{"colors": {"primary": "#012345"}}',
+        )
+        journey = json.loads((ws / "journey.json").read_text(encoding="utf-8"))
+        errors = self.check(ws, journey)
+        assert len(errors) == 1
+        assert "design-tokens" in errors[0] or "DESIGN.md" in errors[0]
+        assert "OUT OF SYNC" in errors[0]
+
+    def test_check_inline_drift_flags_missing_blocks(self, tmp_path: Path):
+        ws = _make_minimal_workspace(tmp_path)
+        (ws / "index.html").write_text(
+            "<html><body></body></html>",
+            encoding="utf-8",
+        )
+        journey = json.loads((ws / "journey.json").read_text(encoding="utf-8"))
+        errors = self.check(ws, journey)
+        assert len(errors) == 1
+        assert "missing the inline" in errors[0]
+
+    def test_validate_workspace_reports_drift_as_error(self, tmp_path: Path):
+        ws = _make_minimal_workspace(
+            tmp_path,
+            journey_inline='{"title": "drifted"}',
+        )
+        # JOURNEY.md needs a mermaid block to keep the unrelated sync gate
+        # quiet so the only error in the report is the drift one.
+        (ws / "JOURNEY.md").write_text(
+            "# T\n\n## Stages\n\n```mermaid\nflowchart LR\n    s\n```\n",
+            encoding="utf-8",
+        )
+        report = self.validate(ws)
+        assert report["structure_ok"] is True
+        drift_errors = [e for e in report["errors"] if "OUT OF SYNC" in e]
+        assert len(drift_errors) == 1
+
+    def test_validate_workspace_silent_when_design_md_missing(
+        self, tmp_path: Path
+    ):
+        ws = _make_minimal_workspace(tmp_path)
+        (ws / "DESIGN.md").unlink()
+        journey = json.loads((ws / "journey.json").read_text(encoding="utf-8"))
+        assert self.check(ws, journey) == []

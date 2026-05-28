@@ -55,6 +55,40 @@ spacing:
   lg: 32px
   xl: 56px
   xxl: 88px
+# Semantic state palette — meanings LOCKED (red=error, green=success,
+# amber=warning, blue=loading). Editorial tone favors muted, earthy
+# variants of the canonical palette so they sit naturally on a warm
+# paper background.
+state:
+  default:
+    bg: "#F0EDE5"
+    bd: "#C9C2B3"
+    hd: "#0A0A0A"
+  loading:
+    bg: "#E1ECF2"
+    bd: "#6FA0BD"
+    hd: "#1F4E63"
+  success:
+    bg: "#E1EEDF"
+    bd: "#6FA075"
+    hd: "#1F6B43"
+  error:
+    bg: "#F2DCD5"
+    bd: "#C77B6E"
+    hd: "#8A2A1F"
+  warning:
+    bg: "#F5E8CC"
+    bd: "#C9A45A"
+    hd: "#7A5215"
+arrows:
+  default: "#525252"
+  success: "#1F6B43"
+  error:   "#B8422E"
+  cancel:  "#A1A1A1"
+canvas:
+  bg:         "#F5F2EB"
+  grid-major: "rgba(10, 10, 10, 0.06)"
+  grid-minor: "rgba(10, 10, 10, 0.03)"
 components:
   stage-card:
     backgroundColor: "{colors.surface}"

@@ -91,6 +91,21 @@
     wholeScreenArrows = [];
     const arrows = window.UJView.getArrowsFromScreen(screenId);
     arrows.forEach((arrow) => {
+      // via_elements[] — every listed element becomes a hotspot
+      // routing to the same target. We register the same arrow
+      // under each element id so click dispatch picks it up.
+      if (Array.isArray(arrow.via_elements) && arrow.via_elements.length) {
+        arrow.via_elements.forEach((elementId) => {
+          if (!elementId || typeof elementId !== "string") return;
+          if (!elementIdToArrow.has(elementId)) {
+            elementIdToArrow.set(elementId, []);
+          }
+          elementIdToArrow.get(elementId).push(arrow);
+        });
+        // The bundle ALSO surfaces in the right-side arrows hint panel
+        // as a single "via N elements" entry — handled in renderArrowHintItem.
+        return;
+      }
       const addr = String(arrow.from || "");
       const parts = addr.split("#");
       if (parts.length === 2) {
@@ -178,12 +193,18 @@
     if (arrow.is_default) li.classList.add("is-default");
 
     const fromEl = el("div", "prototype-arrows-hint-from");
-    const addr = String(arrow.from || "");
-    const parts = addr.split("#");
-    if (parts.length === 2) {
-      fromEl.textContent = `#${parts[1]}`;
+    if (Array.isArray(arrow.via_elements) && arrow.via_elements.length) {
+      const n = arrow.via_elements.length;
+      fromEl.textContent = `via ${n} element${n === 1 ? "" : "s"}`;
+      fromEl.title = arrow.via_elements.map((e) => `#${e}`).join(", ");
     } else {
-      fromEl.textContent = "(whole screen)";
+      const addr = String(arrow.from || "");
+      const parts = addr.split("#");
+      if (parts.length === 2) {
+        fromEl.textContent = `#${parts[1]}`;
+      } else {
+        fromEl.textContent = "(whole screen)";
+      }
     }
     li.appendChild(fromEl);
 

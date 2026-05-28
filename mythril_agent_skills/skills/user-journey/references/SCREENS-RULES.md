@@ -187,6 +187,53 @@ These are **advisory** — they don't fail the build, but the AI should fix them
 before declaring Pass C done. See `WIREFRAMES.md` "Composition recipes" for
 the patterns that satisfy these checks.
 
+### Rule 12 — Arrow bundle-spam (warning)
+
+```
+WARNING: [bundle-spam] 8 arrows go from screen 'withdraw-amount' to screen
+         'withdraw-processing' all with kind='default', anchored at distinct
+         elements ('k-100', 'k-200', 'k-500', 'k-1000', ...) — collapse into
+         ONE arrow with via_elements=['k-100', 'k-200', 'k-500', 'k-1000', ...]
+         for canvas legibility.
+```
+
+Fires when **≥ 3 element-anchored arrows** from the same source screen lead
+to the same target screen, all with `kind="default"`. Almost always means
+the author wrote "one arrow per button" for a screen where N buttons are
+parallel ways to express ONE decision (numeric amount presets, chip
+pickers, "choose any of these → next").
+
+The canvas renderer auto-collapses such groups at draw time
+(`arrows.js` → `consolidateArrows`), so the visual result is already
+clean — but the `journey.json` stays noisy and the Prototype view loses
+the "this is a bundle" semantic. Fix it by merging into one arrow:
+
+```jsonc
+// Before — 8 arrows:
+{ "from": "withdraw-amount#k-100",  "to": "withdraw-processing", "label": "¥100" },
+{ "from": "withdraw-amount#k-200",  "to": "withdraw-processing", "label": "¥200" },
+// ... 6 more ...
+
+// After — 1 arrow:
+{
+  "from": "withdraw-amount",
+  "via_elements": ["k-100","k-200","k-500","k-1000","k-2000","k-3000","k-5000","k-custom"],
+  "to": "withdraw-processing",
+  "kind": "default",
+  "is_default": true,
+  "label": "任一金额"
+}
+```
+
+The warning does NOT fire when:
+
+- The kind is NOT `default` (success/error/cancel arrows landing on the
+  same target are usually distinct outcomes — keep them separate)
+- `via_elements[]` is already used (you bundled them — well done)
+- `do_not_consolidate: true` is set on the arrow (author override)
+- The `from` is whole-screen (no `#element-id`)
+- Fewer than 3 arrows share the bucket (two parallel arrows are still readable)
+
 ## Common workflows
 
 ### Wiring up a new screen

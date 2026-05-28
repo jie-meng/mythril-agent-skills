@@ -50,10 +50,29 @@
     // Clear existing children.
     while (svg.firstChild) svg.removeChild(svg.firstChild);
 
+    // Pass 0 — consolidate visually-redundant arrows. Multiple arrows
+    // that share the same (from_screen, to_screen, kind=default) and
+    // all anchor at distinct elements collapse into ONE rendered arrow
+    // with a `×N` multiplicity badge. This is the lo-fi heuristic: at
+    // canvas zoom the 8 individual "¥100 / ¥200 / ..." lines convey
+    // ONE piece of information — "pick any amount → processing" — and
+    // 8 parallel curves are pure visual noise.
+    //
+    // Rules:
+    //   - kind MUST be "default" (success / error / cancel carry signal,
+    //     never collapse — those colors mean something)
+    //   - at least 2 arrows must share (from_screen, to_screen)
+    //   - arrows with `via_elements[]` already express bundling
+    //     explicitly and are not re-consolidated
+    //   - any arrow flagged with `do_not_consolidate: true` opts out
+    //   - the consolidated arrow keeps the FIRST arrow's label + suffix
+    //     count when others have distinct labels (` · ×N` or ` · 任一项`)
+    const consolidated = consolidateArrows(arrows || []);
+
     // Pass 1 — resolve every arrow's raw endpoints.
     const computed = [];
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    (arrows || []).forEach((arrow, idx) => {
+    consolidated.forEach((arrow, idx) => {
       if (!arrow || typeof arrow !== "object") return;
       const fromPt = safeEndpoint(getEndpoint, arrow.from, arrow.to);
       const toPt   = safeEndpoint(getEndpoint, arrow.to, arrow.from);
@@ -106,6 +125,123 @@
     computed.forEach(({ arrow, fromPt, toPt, idx }) => {
       drawArrow(svg, arrow, fromPt, toPt, idx);
     });
+  }
+
+  /* ---------- Arrow consolidation ---------------------------- */
+
+  /* Group arrows by (from_screen, to_screen, kind) and collapse the
+     groups that satisfy the "redundant bundle" rule into a single
+     synthetic arrow with a multiplicity badge.
+
+     Why: a screen with 8 amount-preset buttons all leading to the
+     same `processing` screen is ONE decision ("pick any amount → go")
+     rendered as 8 visually-near-identical lines on the canvas. The
+     fan-out already nudges them apart, but the eye still has to
+     trace 8 curves to learn one fact. Collapsing to one curve with
+     a `×8` badge keeps the canvas legible while preserving the
+     authored data (Prototype mode still walks every original arrow).
+
+     Pure: input arrows[], output a NEW list (originals untouched).
+     The synthetic arrow carries `_consolidated_from: [origArrow, ...]`
+     so Prototype mode + tests can recover the original list. */
+  function consolidateArrows(arrows) {
+    const out = [];
+    const groups = new Map();   // key -> indices into `arrows`
+    const groupOrder = [];      // first-appearance order of each key
+    const skipIdx = new Set();  // indices that have been folded into a group
+
+    arrows.forEach((arrow, i) => {
+      if (!isConsolidatable(arrow)) return;
+      const fromScreen = String(arrow.from || "").split("#")[0];
+      const toScreen   = String(arrow.to   || "").split("#")[0];
+      if (!fromScreen || !toScreen || fromScreen === toScreen) return;
+      const kind = arrow.kind || "default";
+      const key = `${fromScreen}::${toScreen}::${kind}`;
+      if (!groups.has(key)) {
+        groups.set(key, []);
+        groupOrder.push(key);
+      }
+      groups.get(key).push(i);
+    });
+
+    // Mark groups that actually collapse (≥ 2 members AND every
+    // member is element-anchored — collapsing two whole-screen
+    // arrows hides nothing useful).
+    const collapseKeys = new Set();
+    groups.forEach((indices, key) => {
+      if (indices.length < 2) return;
+      const allElementAnchored = indices.every((i) => {
+        const addr = String(arrows[i].from || "");
+        return addr.includes("#") && addr.split("#")[1];
+      });
+      if (!allElementAnchored) return;
+      collapseKeys.add(key);
+      indices.forEach((i) => skipIdx.add(i));
+    });
+
+    // Re-emit arrows in their original order, replacing the FIRST
+    // member of each collapsed group with a synthetic representative
+    // and dropping the rest.
+    const emittedKey = new Set();
+    arrows.forEach((arrow, i) => {
+      if (!skipIdx.has(i)) {
+        out.push(arrow);
+        return;
+      }
+      const fromScreen = String(arrow.from || "").split("#")[0];
+      const toScreen   = String(arrow.to   || "").split("#")[0];
+      const kind = arrow.kind || "default";
+      const key = `${fromScreen}::${toScreen}::${kind}`;
+      if (!collapseKeys.has(key)) {
+        out.push(arrow);
+        return;
+      }
+      if (emittedKey.has(key)) return;
+      emittedKey.add(key);
+      const memberIndices = groups.get(key);
+      const members = memberIndices.map((mi) => arrows[mi]);
+      out.push(makeConsolidated(fromScreen, toScreen, kind, members));
+    });
+
+    return out;
+  }
+
+  /* An arrow opts OUT of consolidation when any of these is true:
+     - kind is not "default" (success / error / cancel carry meaning)
+     - it already uses via_elements[] (author bundled it explicitly)
+     - it carries `do_not_consolidate: true` (author override)
+     - it has no `from` or no `to` (broken arrow — leave for validator) */
+  function isConsolidatable(arrow) {
+    if (!arrow || typeof arrow !== "object") return false;
+    if (arrow.do_not_consolidate === true) return false;
+    if (Array.isArray(arrow.via_elements) && arrow.via_elements.length) return false;
+    const kind = arrow.kind || "default";
+    if (kind !== "default") return false;
+    if (!arrow.from || !arrow.to) return false;
+    return true;
+  }
+
+  /* Build a synthetic arrow that represents N collapsed members.
+     The `from` becomes whole-screen so the renderer draws one clean
+     curve from the source's right edge instead of N near-parallel
+     curves from N nearby element edges. is_default is preserved if
+     ANY member was default. The label gets a `×N` suffix. */
+  function makeConsolidated(fromScreen, toScreen, kind, members) {
+    const n = members.length;
+    const firstWithLabel = members.find((m) => m.label) || members[0];
+    const baseLabel = firstWithLabel && firstWithLabel.label ? firstWithLabel.label : "";
+    const label = baseLabel ? `${baseLabel} ×${n}` : `×${n}`;
+    const isDefault = members.some((m) => m.is_default === true);
+    return {
+      from: fromScreen,
+      to: toScreen,
+      kind,
+      label,
+      trigger: (firstWithLabel && firstWithLabel.trigger) || "tap",
+      is_default: isDefault,
+      _consolidated_from: members.slice(),
+      _consolidated_count: n,
+    };
   }
 
   /* ---------- Edge fan-out ----------------------------------- */
@@ -398,5 +534,5 @@
     };
   }
 
-  window.UJArrows = { render, refresh };
+  window.UJArrows = { render, refresh, consolidateArrows };
 })();

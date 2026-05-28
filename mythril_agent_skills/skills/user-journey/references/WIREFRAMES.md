@@ -650,6 +650,24 @@ The same `button` and `stack` primitives can model a phone or a 1980s ATM — bu
 
 If your screen is `kind: atm-screen` and your `layout` contains zero `side-key-rail` and zero `hardware-slot` elements, you almost certainly modeled it as a phone. `validate_screens.py` flags this.
 
+### Card width per device kind (design budget for layouts)
+
+The renderer sizes the outer card and the inner device frame to match the device's real-world aspect ratio. Mobile screens are tall and narrow; desktop screens are wide; ATMs are squarish. Design within the available width — don't assume an 880px desktop layout will fit inside a 360px phone.
+
+| Device `kind`     | Card width | Aspect ratio | Implied content budget |
+|---|---|---|---|
+| `mobile-screen`   | 360 px     | 9 : 19.5     | One column. `grid cols: 2` works; `cols: 4` is the maximum for quick-action chips. Long forms scroll. |
+| `kiosk-screen`    | 400 px     | 9 : 16       | One column. Big buttons; 1-2 form fields at a time. |
+| `tablet-screen`   | 600 px     | 3 : 4        | Two columns workable. Side-by-side cards OK. |
+| `atm-screen`      | 720 px     | 4 : 3        | Side-key-rail on left/right; centre column for prompt + keypad. `grid cols: 3` for the numeric keypad. |
+| `desktop-window`  | 880 px     | 16 : 10      | Full dashboard widths: 3-4 column grids, stat-tile rows, multi-pane lists. |
+| `tv-screen`       | 880 px     | 16 : 9       | Hero card + horizontal carousel. Avoid scrolling lists. |
+| `email`           | 600 px     | 3 : 4        | Subject + body + 1–2 CTAs. No tab-bar. |
+| `modal`           | 520 px     | 4 : 3        | Single decision: title + 1–3 form fields + 2 buttons. |
+| `notification`    | 720 px     | 8 : 1        | One short title + 1–2 inline buttons. No body sections. |
+
+The canvas auto-layout sizes each stage column to its widest card, so a journey mixing `mobile-screen` (early stages) with `desktop-window` (admin back-office screens) gets a slim mobile column followed by a wide desktop column. This is intentional — phones must look like phones.
+
 ## End-to-end example A: an ATM PIN screen (numeric keypad)
 
 ```json
