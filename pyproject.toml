@@ -49,6 +49,9 @@ pdf-images = [
 md-to-pdf = [
     "markdown-pdf>=1.10.0,<2",
 ]
+word = [
+    "python-docx>=1.2.0,<2",
+]
 test = [
     "pytest>=8.0,<10",
     "pyyaml>=6.0,<7",
@@ -68,6 +71,7 @@ extraPaths = [
     "mythril_agent_skills/skills/skill-creator/scripts",
     "mythril_agent_skills/skills/excel/scripts",
     "mythril_agent_skills/skills/pdf/scripts",
+    "mythril_agent_skills/skills/word/scripts",
     "mythril_agent_skills/skills/md-to-pdf/scripts",
     "mythril_agent_skills/skills/fullstack-impl/scripts",
     "mythril_agent_skills/skills/fullstack-init/scripts",
