@@ -548,11 +548,24 @@ def check_glean(config_path: Path) -> bool:
 # --- Python package helpers ---
 
 
+def _get_target_python() -> str:
+    """Find the system Python used to run skill scripts.
+
+    Pip-installed users: sys.executable IS the system Python.
+    uv tool users: skill scripts run with system python3, NOT the tool's venv Python.
+    """
+    for name in ("python3", "python"):
+        path = shutil.which(name)
+        if path:
+            return path
+    return sys.executable
+
+
 def _check_python_package(name: str) -> str | None:
     """Return version string of a Python package if installed, else None."""
     try:
         result = _run_command(
-            [sys.executable, "-c", f"import {name}; print({name}.__version__)"]
+            [_get_target_python(), "-c", f"import {name}; print({name}.__version__)"]
         )
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
@@ -562,19 +575,20 @@ def _check_python_package(name: str) -> str | None:
 
 
 def _install_pip_package(name: str) -> bool:
-    """Install a Python package via pip (falls back to uv pip)."""
-    # Try pip first
+    """Install a Python package (pip first, fallback uv pip --system)."""
+    target = _get_target_python()
+    # Try pip from the target (system) Python
     print(f"    {YELLOW}Installing {name} via pip...{NC}")
     result = subprocess.run(
-        [sys.executable, "-m", "pip", "install", name],
+        [target, "-m", "pip", "install", name],
         capture_output=False,
     )
     if result.returncode == 0:
         return True
-    # Fall back to uv pip if pip is not available
-    print(f"    {YELLOW}pip failed, trying uv pip install {name}...{NC}")
+    # Fall back to uv pip --system (for uv tool users whose tool venv has no pip)
+    print(f"    {YELLOW}pip failed, trying uv pip install --system {name}...{NC}")
     result = subprocess.run(
-        ["uv", "pip", "install", name],
+        ["uv", "pip", "install", "--system", name],
         capture_output=False,
     )
     return result.returncode == 0
@@ -596,7 +610,8 @@ def check_excel(config_path: Path) -> bool:
     if _confirm("Install openpyxl now?"):
         if not _install_pip_package("openpyxl"):
             print(f"    {RED}Installation failed.{NC}")
-            print(f"    {BOLD}Install manually:{NC} pip install openpyxl (or: uv pip install openpyxl)")
+            print(f"    {BOLD}Install manually:{NC} pip install openpyxl")
+            print(f"      (or: uv pip install --system openpyxl)")
             return False
         version = _check_python_package("openpyxl")
         if not version:
@@ -605,7 +620,8 @@ def check_excel(config_path: Path) -> bool:
         print(f"    {GREEN}openpyxl {version} installed successfully.{NC}")
         return True
     else:
-        print(f"    {DIM}Skipped.{NC} Install manually: pip install openpyxl (or: uv pip install openpyxl)")
+        print(f"    {DIM}Skipped.{NC} Install manually: pip install openpyxl")
+        print(f"      (or: uv pip install --system openpyxl)")
         return False
 
 
@@ -626,7 +642,8 @@ def check_pdf(config_path: Path) -> bool:
             if _confirm(f"Install {pkg} now?"):
                 if not _install_pip_package(pkg):
                     print(f"    {RED}Installation failed.{NC}")
-                    print(f"    {BOLD}Install manually:{NC} pip install {pkg} (or: uv pip install {pkg})")
+                    print(f"    {BOLD}Install manually:{NC} pip install {pkg}")
+                    print(f"      (or: uv pip install --system {pkg})")
                     all_ok = False
                     continue
                 version = _check_python_package(pkg)
@@ -638,7 +655,8 @@ def check_pdf(config_path: Path) -> bool:
                     continue
                 print(f"    {GREEN}{pkg} {version} installed successfully.{NC}")
             else:
-                print(f"    {DIM}Skipped.{NC} Install manually: pip install {pkg} (or: uv pip install {pkg})")
+                print(f"    {DIM}Skipped.{NC} Install manually: pip install {pkg}")
+                print(f"      (or: uv pip install --system {pkg})")
                 all_ok = False
 
     version = _check_python_package("pypdfium2")
@@ -665,7 +683,7 @@ def _check_markdown_pdf_version() -> str | None:
     try:
         result = _run_command(
             [
-                sys.executable,
+                _get_target_python(),
                 "-c",
                 "from importlib.metadata import version; print(version('markdown-pdf'))",
             ]
@@ -690,7 +708,8 @@ def check_md_to_pdf(config_path: Path) -> bool:
     if _confirm("Install markdown-pdf now?"):
         if not _install_pip_package("markdown-pdf"):
             print(f"    {RED}Installation failed.{NC}")
-            print(f"    {BOLD}Install manually:{NC} pip install markdown-pdf (or: uv pip install markdown-pdf)")
+            print(f"    {BOLD}Install manually:{NC} pip install markdown-pdf")
+            print(f"      (or: uv pip install --system markdown-pdf)")
             return False
         version = _check_markdown_pdf_version()
         if not version:
@@ -699,7 +718,8 @@ def check_md_to_pdf(config_path: Path) -> bool:
         print(f"    {GREEN}markdown-pdf {version} installed successfully.{NC}")
         return True
     else:
-        print(f"    {DIM}Skipped.{NC} Install manually: pip install markdown-pdf (or: uv pip install markdown-pdf)")
+        print(f"    {DIM}Skipped.{NC} Install manually: pip install markdown-pdf")
+        print(f"      (or: uv pip install --system markdown-pdf)")
         return False
 
 
