@@ -259,17 +259,17 @@ If you just want to install and use existing skills, start here.
 Install it from PyPI — no need to clone the repository:
 
 ```bash
-pip install mythril-agent-skills
+pipx install mythril-agent-skills
 
-# Or with uv (faster):
-uv pip install mythril-agent-skills
+# Or with uv (isolated, globally available):
+uv tool install mythril-agent-skills
 ```
 
 To upgrade to the latest version:
 
 ```bash
-pip install -U mythril-agent-skills
-# uv pip install -U mythril-agent-skills
+pipx upgrade mythril-agent-skills
+# uv tool upgrade mythril-agent-skills
 ```
 
 This gives you four commands:
