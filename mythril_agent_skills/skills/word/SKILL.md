@@ -26,7 +26,7 @@ license: Apache-2.0
 
 # Prerequisites
 
-- `python-docx` — install with: `pip install python-docx` (or: `uv pip install python-docx`)
+- `python-docx` — install with: `pip install python-docx`
 
 Pre-flight check:
 
@@ -38,7 +38,6 @@ Install if missing:
 
 ```bash
 pip install python-docx
-# Or with uv: uv pip install python-docx
 ```
 
 # Workflow

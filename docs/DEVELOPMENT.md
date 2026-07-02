@@ -9,28 +9,10 @@ For full coding conventions, naming rules, and architectural decisions, see [AGE
 ```bash
 git clone https://github.com/jie-meng/mythril-agent-skills.git
 cd mythril-agent-skills
-```
 
-### Option A: pip (editable, for running tests)
-
-```bash
+# Editable install with test dependencies
 pip install -e ".[test]"
 ```
-
-### Option B: uv tool (for testing CLI commands without a venv)
-
-```bash
-# Install from local source into an isolated tool venv
-uv tool install .
-
-# After code changes, reinstall to pick them up
-uv tool install --reinstall .
-
-# If you need test dependencies (pytest, etc.), use a venv instead:
-uv venv && uv pip install -e ".[test]"
-```
-
-`uv tool install .` is the recommended way to test CLI commands (`skills-setup`, `skills-check`, etc.) locally without publishing to PyPI. It uses uv's managed Python and installs to an isolated tool venv — same UX as end users get from `uv tool install mythril-agent-skills`, but from local source.
 
 ## Running Tests
 

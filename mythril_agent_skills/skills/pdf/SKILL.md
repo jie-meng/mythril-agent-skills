@@ -49,9 +49,7 @@ Install if missing:
 
 ```bash
 pip install pypdf pdfplumber
-# Or with uv: uv pip install pypdf pdfplumber
 pip install pypdfium2  # optional, for to-images
-# Or with uv: uv pip install pypdfium2
 ```
 
 # Workflow
