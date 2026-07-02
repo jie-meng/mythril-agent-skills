@@ -632,21 +632,21 @@ def _select_package_manager(cli_choice: str | None = None) -> str | None:
 def _pip_install_cmd(name: str) -> str:
     """Return a human-readable install command for the selected manager."""
     if _package_manager == "uv":
-        return f"uv pip install --system {name}"
+        return f"uv pip install --python <python-path> --system {name}"
     return f"pip install {name}"
 
 
 def _install_python_package(name: str) -> bool:
     """Install a Python package using the selected package manager."""
+    target = _get_target_python()
     if _package_manager == "uv":
-        print(f"    {YELLOW}Installing {name} via uv...{NC}")
+        print(f"    {YELLOW}Installing {name} via uv (targeting {target})...{NC}")
         result = subprocess.run(
-            ["uv", "pip", "install", "--system", name],
+            ["uv", "pip", "install", "--python", target, "--system", name],
             capture_output=False,
         )
         return result.returncode == 0
     else:
-        target = _get_target_python()
         print(f"    {YELLOW}Installing {name} via pip...{NC}")
         result = subprocess.run(
             [target, "-m", "pip", "install", name],
