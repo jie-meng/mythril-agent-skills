@@ -260,12 +260,16 @@ Install it from PyPI — no need to clone the repository:
 
 ```bash
 pip install mythril-agent-skills
+
+# Or with uv (faster):
+uv pip install mythril-agent-skills
 ```
 
 To upgrade to the latest version:
 
 ```bash
 pip install -U mythril-agent-skills
+# uv pip install -U mythril-agent-skills
 ```
 
 This gives you four commands:
