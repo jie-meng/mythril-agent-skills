@@ -547,6 +547,8 @@ def check_glean(config_path: Path) -> bool:
 
 # --- Python package helpers ---
 
+_package_manager: str | None = None  # 'pip' or 'uv', set by _select_package_manager
+
 
 def _get_target_python() -> str:
     """Find the system Python used to run skill scripts.
@@ -574,24 +576,83 @@ def _check_python_package(name: str) -> str | None:
     return None
 
 
-def _install_pip_package(name: str) -> bool:
-    """Install a Python package (pip first, fallback uv pip --system)."""
+def _detect_available_managers() -> dict[str, bool]:
+    """Check which package managers are available."""
+    available: dict[str, bool] = {"pip": False, "uv": False}
+
     target = _get_target_python()
-    # Try pip from the target (system) Python
-    print(f"    {YELLOW}Installing {name} via pip...{NC}")
-    result = subprocess.run(
-        [target, "-m", "pip", "install", name],
-        capture_output=False,
-    )
+    result = _run_command([target, "-m", "pip", "--version"])
     if result.returncode == 0:
-        return True
-    # Fall back to uv pip --system (for uv tool users whose tool venv has no pip)
-    print(f"    {YELLOW}pip failed, trying uv pip install --system {name}...{NC}")
-    result = subprocess.run(
-        ["uv", "pip", "install", "--system", name],
-        capture_output=False,
-    )
-    return result.returncode == 0
+        available["pip"] = True
+
+    if shutil.which("uv"):
+        available["uv"] = True
+
+    return available
+
+
+def _select_package_manager(cli_choice: str | None = None) -> str | None:
+    """Select the package manager for Python package installation.
+
+    Returns 'pip', 'uv', or None if neither is available.
+    """
+    global _package_manager
+    available = _detect_available_managers()
+
+    if cli_choice:
+        if cli_choice in available and available[cli_choice]:
+            _package_manager = cli_choice
+            return cli_choice
+        print(f"    {RED}{cli_choice} is not available on this system.{NC}")
+        return None
+
+    if available["pip"] and not available["uv"]:
+        _package_manager = "pip"
+        return "pip"
+    if available["uv"] and not available["pip"]:
+        _package_manager = "uv"
+        return "uv"
+    if not available["pip"] and not available["uv"]:
+        print(f"    {RED}Neither pip nor uv is available.{NC}")
+        print(f"    {BOLD}Install pip{NC}: python3 -m ensurepip --upgrade")
+        print(f"    {BOLD}Install uv{NC}: curl -LsSf https://astral.sh/uv/install.sh | sh")
+        return None
+
+    print(f"\n  {BOLD}Python package manager selection:{NC}")
+    print(f"    [1] pip  (python3 -m pip install ...)")
+    print(f"    [2] uv   (uv pip install --system ...)")
+    choice = _prompt_value("Choose (1/2, default: 1)")
+    if choice == "2":
+        _package_manager = "uv"
+        return "uv"
+    _package_manager = "pip"
+    return "pip"
+
+
+def _pip_install_cmd(name: str) -> str:
+    """Return a human-readable install command for the selected manager."""
+    if _package_manager == "uv":
+        return f"uv pip install --system {name}"
+    return f"pip install {name}"
+
+
+def _install_python_package(name: str) -> bool:
+    """Install a Python package using the selected package manager."""
+    if _package_manager == "uv":
+        print(f"    {YELLOW}Installing {name} via uv...{NC}")
+        result = subprocess.run(
+            ["uv", "pip", "install", "--system", name],
+            capture_output=False,
+        )
+        return result.returncode == 0
+    else:
+        target = _get_target_python()
+        print(f"    {YELLOW}Installing {name} via pip...{NC}")
+        result = subprocess.run(
+            [target, "-m", "pip", "install", name],
+            capture_output=False,
+        )
+        return result.returncode == 0
 
 
 # --- Excel (openpyxl) ---
@@ -608,10 +669,9 @@ def check_excel(config_path: Path) -> bool:
 
     print(f"  openpyxl: {RED}NOT INSTALLED{NC}")
     if _confirm("Install openpyxl now?"):
-        if not _install_pip_package("openpyxl"):
+        if not _install_python_package("openpyxl"):
             print(f"    {RED}Installation failed.{NC}")
-            print(f"    {BOLD}Install manually:{NC} pip install openpyxl")
-            print(f"      (or: uv pip install --system openpyxl)")
+            print(f"    {BOLD}Install manually:{NC} {_pip_install_cmd('openpyxl')}")
             return False
         version = _check_python_package("openpyxl")
         if not version:
@@ -620,8 +680,7 @@ def check_excel(config_path: Path) -> bool:
         print(f"    {GREEN}openpyxl {version} installed successfully.{NC}")
         return True
     else:
-        print(f"    {DIM}Skipped.{NC} Install manually: pip install openpyxl")
-        print(f"      (or: uv pip install --system openpyxl)")
+        print(f"    {DIM}Skipped.{NC} Install manually: {_pip_install_cmd('openpyxl')}")
         return False
 
 
@@ -640,10 +699,9 @@ def check_pdf(config_path: Path) -> bool:
         else:
             print(f"  {pkg}: {RED}NOT INSTALLED{NC}")
             if _confirm(f"Install {pkg} now?"):
-                if not _install_pip_package(pkg):
+                if not _install_python_package(pkg):
                     print(f"    {RED}Installation failed.{NC}")
-                    print(f"    {BOLD}Install manually:{NC} pip install {pkg}")
-                    print(f"      (or: uv pip install --system {pkg})")
+                    print(f"    {BOLD}Install manually:{NC} {_pip_install_cmd(pkg)}")
                     all_ok = False
                     continue
                 version = _check_python_package(pkg)
@@ -655,8 +713,7 @@ def check_pdf(config_path: Path) -> bool:
                     continue
                 print(f"    {GREEN}{pkg} {version} installed successfully.{NC}")
             else:
-                print(f"    {DIM}Skipped.{NC} Install manually: pip install {pkg}")
-                print(f"      (or: uv pip install --system {pkg})")
+                print(f"    {DIM}Skipped.{NC} Install manually: {_pip_install_cmd(pkg)}")
                 all_ok = False
 
     version = _check_python_package("pypdfium2")
@@ -706,10 +763,9 @@ def check_md_to_pdf(config_path: Path) -> bool:
 
     print(f"  markdown-pdf: {RED}NOT INSTALLED{NC}")
     if _confirm("Install markdown-pdf now?"):
-        if not _install_pip_package("markdown-pdf"):
+        if not _install_python_package("markdown-pdf"):
             print(f"    {RED}Installation failed.{NC}")
-            print(f"    {BOLD}Install manually:{NC} pip install markdown-pdf")
-            print(f"      (or: uv pip install --system markdown-pdf)")
+            print(f"    {BOLD}Install manually:{NC} {_pip_install_cmd('markdown-pdf')}")
             return False
         version = _check_markdown_pdf_version()
         if not version:
@@ -718,8 +774,7 @@ def check_md_to_pdf(config_path: Path) -> bool:
         print(f"    {GREEN}markdown-pdf {version} installed successfully.{NC}")
         return True
     else:
-        print(f"    {DIM}Skipped.{NC} Install manually: pip install markdown-pdf")
-        print(f"      (or: uv pip install --system markdown-pdf)")
+        print(f"    {DIM}Skipped.{NC} Install manually: {_pip_install_cmd('markdown-pdf')}")
         return False
 
 
@@ -1081,7 +1136,26 @@ def select_skills_interactive() -> list[str] | None:
 
 
 def main() -> None:
-    skills = sys.argv[1:]
+    pm_choice: str | None = None
+    args = list(sys.argv[1:])
+    if "--pm" in args:
+        idx = args.index("--pm")
+        if idx + 1 < len(args):
+            pm_choice = args[idx + 1]
+            del args[idx : idx + 2]
+        else:
+            print(f"{RED}--pm requires a value: pip or uv{NC}")
+            return
+    elif "--package-manager" in args:
+        idx = args.index("--package-manager")
+        if idx + 1 < len(args):
+            pm_choice = args[idx + 1]
+            del args[idx : idx + 2]
+        else:
+            print(f"{RED}--package-manager requires a value: pip or uv{NC}")
+            return
+
+    skills = args
     if not skills:
         skills_selection = select_skills_interactive()
         if skills_selection is None or len(skills_selection) == 0:
@@ -1098,7 +1172,23 @@ def main() -> None:
     print(f"\n{BOLD}=== Skills Dependency Check ==={NC}")
     print(f"  Shell config: {DIM}{config_path}{NC}")
 
+    has_py_pkg_skills = (
+        SKILL_EXCEL in skills
+        or SKILL_PDF in skills
+        or SKILL_MD_TO_PDF in skills
+    )
+
     all_configured = True
+
+    if has_py_pkg_skills:
+        if _select_package_manager(pm_choice) is None:
+            print(f"    {YELLOW}Skipping Python package checks "
+                  f"(no package manager available).{NC}")
+            has_py_pkg_skills = False
+            all_configured = False
+        else:
+            pm_label = _package_manager or "?"
+            print(f"    Using: {GREEN}{pm_label}{NC}")
 
     if (
         SKILL_GIT_REPO_READER in skills
@@ -1131,15 +1221,15 @@ def main() -> None:
         if not check_glean(config_path):
             all_configured = False
 
-    if SKILL_EXCEL in skills:
+    if SKILL_EXCEL in skills and has_py_pkg_skills:
         if not check_excel(config_path):
             all_configured = False
 
-    if SKILL_PDF in skills:
+    if SKILL_PDF in skills and has_py_pkg_skills:
         if not check_pdf(config_path):
             all_configured = False
 
-    if SKILL_MD_TO_PDF in skills:
+    if SKILL_MD_TO_PDF in skills and has_py_pkg_skills:
         if not check_md_to_pdf(config_path):
             all_configured = False
 
