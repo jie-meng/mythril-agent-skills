@@ -4,7 +4,7 @@
 Converts Markdown files to PDF with optional TOC, custom CSS, paper size,
 metadata, and file-size optimization.
 
-Requires: markdown-pdf (pip install markdown-pdf)
+Requires: markdown-pdf (pip/uv pip install markdown-pdf)
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ try:
 except ImportError:
     print(
         "ERROR: markdown-pdf is not installed.\n"
-        "Install it with: pip install markdown-pdf\n"
+        "Install it with: pip install markdown-pdf (or: uv pip install markdown-pdf)\n"
         "Or: pip install mythril-agent-skills[md-to-pdf]",
         file=sys.stderr,
     )

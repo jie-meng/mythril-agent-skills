@@ -3,7 +3,7 @@
 
 Provides subcommands for reading, extracting, and inspecting Word documents.
 
-Requires: python-docx (pip install python-docx)
+Requires: python-docx (pip/uv pip install python-docx)
 Optional: python-docx for .docx, antiword CLI for .doc
 """
 
@@ -22,7 +22,8 @@ try:
 except ImportError:
     print(
         "ERROR: python-docx is not installed.\n"
-        "Install it with: pip install python-docx",
+        "Install it with: pip install python-docx\n"
+        "  or: uv pip install python-docx",
         file=sys.stderr,
     )
     sys.exit(1)

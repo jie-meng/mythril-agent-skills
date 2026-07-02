@@ -5,8 +5,8 @@ Provides subcommands for reading, writing, searching, and manipulating
 Excel workbooks (.xlsx) via openpyxl. Legacy .xls files are auto-converted
 to .xlsx via xls2xlsx if available.
 
-Requires: openpyxl (pip install openpyxl)
-Optional: xls2xlsx (pip install xls2xlsx) — for .xls support
+Requires: openpyxl (pip/uv pip install openpyxl)
+Optional: xls2xlsx (pip/uv pip install xls2xlsx) — for .xls support
 """
 
 from __future__ import annotations
@@ -25,7 +25,8 @@ try:
 except ImportError:
     print(
         "ERROR: openpyxl is not installed.\n"
-        "Install it with: pip install openpyxl",
+        "Install it with: pip install openpyxl\n"
+        "  or: uv pip install openpyxl",
         file=sys.stderr,
     )
     sys.exit(1)
@@ -51,7 +52,7 @@ def _convert_xls_to_xlsx(xls_path: str) -> str:
     except ImportError:
         print(
             "ERROR: Cannot read .xls files without xls2xlsx.\n"
-            "Install it with: pip install xls2xlsx\n"
+            "Install it with: pip install xls2xlsx (or: uv pip install xls2xlsx)\n"
             "Or convert the file to .xlsx first (e.g. via LibreOffice).",
             file=sys.stderr,
         )

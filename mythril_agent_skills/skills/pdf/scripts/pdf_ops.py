@@ -3,8 +3,8 @@
 
 Provides subcommands for reading, extracting, and manipulating PDF files.
 
-Requires: pypdf (pip install pypdf), pdfplumber (pip install pdfplumber)
-Optional: pypdfium2 (pip install pypdfium2) — for PDF-to-image conversion
+Requires: pypdf (pip/uv pip install pypdf), pdfplumber (pip/uv pip install pdfplumber)
+Optional: pypdfium2 (pip/uv pip install pypdfium2) — for PDF-to-image conversion
 """
 
 from __future__ import annotations
@@ -21,7 +21,8 @@ try:
 except ImportError:
     print(
         "ERROR: pypdf is not installed.\n"
-        "Install it with: pip install pypdf",
+        "Install it with: pip install pypdf\n"
+        "  or: uv pip install pypdf",
         file=sys.stderr,
     )
     sys.exit(1)
@@ -31,7 +32,8 @@ try:
 except ImportError:
     print(
         "ERROR: pdfplumber is not installed.\n"
-        "Install it with: pip install pdfplumber",
+        "Install it with: pip install pdfplumber\n"
+        "  or: uv pip install pdfplumber",
         file=sys.stderr,
     )
     sys.exit(1)
@@ -282,7 +284,7 @@ def cmd_to_images(args: argparse.Namespace) -> None:
     except ImportError:
         print(
             "ERROR: pypdfium2 is not installed.\n"
-            "Install it with: pip install pypdfium2\n"
+            "Install it with: pip install pypdfium2 (or: uv pip install pypdfium2)\n"
             "Or: pip install mythril-agent-skills[pdf-images]",
             file=sys.stderr,
         )

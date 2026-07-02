@@ -33,12 +33,14 @@ Install if missing:
 
 ```bash
 pip install mythril-agent-skills[md-to-pdf]
+# Or with uv: uv pip install mythril-agent-skills[md-to-pdf]
 ```
 
 Or standalone:
 
 ```bash
 pip install markdown-pdf
+# Or with uv: uv pip install markdown-pdf
 ```
 
 # Workflow
