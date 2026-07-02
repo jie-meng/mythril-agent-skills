@@ -43,7 +43,7 @@ mythril-agent-skills/
 
 ## CLI Commands
 
-Installed via `pip install mythril-agent-skills` (or `pip install -e .` for development):
+Installed via `pip install mythril-agent-skills` (or `uv tool install .` / `pip install -e .` for development):
 
 | Command | Entry point | Description |
 |---|---|---|
@@ -485,9 +485,12 @@ Unit tests live in `tests/skills/`, one file per skill. They cover pure/determin
 ### Running tests
 
 ```bash
-pip install -e ".[test]"   # first time only
-pytest                     # run all
-pytest -vv                 # verbose
+# First time only (pick one):
+pip install -e ".[test]"       # pip
+uv venv && uv pip install -e ".[test]"  # uv
+
+pytest                         # run all
+pytest -vv                     # verbose
 pytest tests/skills/test_figma.py          # single skill
 pytest -k "parse_url"                      # filter by keyword
 ```
