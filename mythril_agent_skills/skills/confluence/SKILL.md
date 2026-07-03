@@ -28,15 +28,16 @@ Requires `ATLASSIAN_API_TOKEN` and `ATLASSIAN_USER_EMAIL`. See `README.md` in th
 
 - `ATLASSIAN_API_TOKEN` (**required**) — API token or Personal Access Token
 - `ATLASSIAN_USER_EMAIL` (**required for Confluence Cloud**) — Atlassian account email, used for Basic auth
-- `ATLASSIAN_BASE_URL` (optional) — e.g. `https://yoursite.atlassian.net`. Not needed when passing full Confluence URLs.
+- `CONFLUENCE_BASE_URL` (optional — takes precedence) — e.g. `https://confluence.yourcompany.com`
+- `ATLASSIAN_BASE_URL` (optional — shared fallback) — e.g. `https://yoursite.atlassian.net`
 
-When `ATLASSIAN_BASE_URL` is not set, page commands accept a full Confluence URL instead of a page ID. For commands without a specific page (search, spaces, pages, create), `ATLASSIAN_BASE_URL` is required.
+Base URL resolution: `CONFLUENCE_BASE_URL` > `ATLASSIAN_BASE_URL`. When neither is set, page commands accept a full Confluence URL instead of a page ID. For commands without a specific page (search, spaces, pages, create), one of these base URLs is required.
 
-These environment variables are shared with the Jira skill.
+If your Confluence and Jira share the same base URL, set only `ATLASSIAN_BASE_URL`. If they differ (e.g. self-hosted), set `CONFLUENCE_BASE_URL` for Confluence and `JIRA_BASE_URL` for Jira.
 
 ## Security — MANDATORY rules for AI agents
 
-1. **NEVER echo, print, or log** the values of `ATLASSIAN_API_TOKEN`, `ATLASSIAN_USER_EMAIL`, `ATLASSIAN_BASE_URL`, or any other environment variable. Do NOT run commands like `echo $ATLASSIAN_API_TOKEN` or `printenv ATLASSIAN_API_TOKEN` — even for debugging.
+1. **NEVER echo, print, or log** the values of `ATLASSIAN_API_TOKEN`, `ATLASSIAN_USER_EMAIL`, `ATLASSIAN_BASE_URL`, `CONFLUENCE_BASE_URL`, `JIRA_BASE_URL`, or any other environment variable. Do NOT run commands like `echo $ATLASSIAN_API_TOKEN` or `printenv ATLASSIAN_API_TOKEN` — even for debugging.
 2. **NEVER pass token/credential values as inline CLI arguments or env-var overrides** (e.g. `ATLASSIAN_API_TOKEN=xxx python3 ...`). The script reads credentials from the environment automatically — just run the script directly.
 3. **When debugging auth errors**, rely solely on the script's error output (401, 403, 404 messages). Do NOT attempt to verify tokens by reading or printing them.
 4. **Do NOT read environment variable values** using shell commands or programmatic access. The script handles all credential access internally.
@@ -265,4 +266,4 @@ For every task, provide:
 - When the user pastes a Confluence URL, prefer passing it directly to the script (URL-first).
 - For destructive actions (delete, purge), confirm intent before executing.
 - Page body uses Confluence storage format (HTML-like). For simple text, wrap in `<p>` tags.
-- Shares the same `ATLASSIAN_API_TOKEN` and `ATLASSIAN_USER_EMAIL` as the Jira skill.
+- Shares the same `ATLASSIAN_API_TOKEN` and `ATLASSIAN_USER_EMAIL` as the Jira skill. For the base URL, use `ATLASSIAN_BASE_URL` as a shared default or set `CONFLUENCE_BASE_URL` / `JIRA_BASE_URL` individually if your instances are on different URLs.

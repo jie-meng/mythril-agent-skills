@@ -5,9 +5,10 @@ Required environment variables:
   ATLASSIAN_API_TOKEN  — API token or Personal Access Token
   ATLASSIAN_USER_EMAIL — Atlassian account email (for Cloud basic auth)
 
-Optional:
-  ATLASSIAN_BASE_URL — e.g. https://yoursite.atlassian.net
-                       Not needed when passing a full Confluence URL to page commands.
+Optional (one of):
+  CONFLUENCE_BASE_URL  — e.g. https://confluence.yourcompany.com (takes precedence)
+  ATLASSIAN_BASE_URL   — e.g. https://yoursite.atlassian.net (shared fallback)
+                         Not needed when passing a full Confluence URL to page commands.
 
 Uses only Python 3.10+ standard library (zero dependencies).
 """
@@ -34,18 +35,24 @@ def get_token() -> str:
 
 
 def get_base_url() -> str:
-    """Return base URL from environment. Exits if not set."""
-    base_url = os.environ.get("ATLASSIAN_BASE_URL", "").strip().rstrip("/")
-    if not base_url:
-        print("ERROR: ATLASSIAN_BASE_URL not set and no Confluence URL provided.", file=sys.stderr)
-        print("", file=sys.stderr)
-        print("Either set the env var:", file=sys.stderr)
-        print('  export ATLASSIAN_BASE_URL="https://yoursite.atlassian.net"', file=sys.stderr)
-        print("", file=sys.stderr)
-        print("Or pass a full Confluence URL instead of a page ID:", file=sys.stderr)
-        print("  python3 confluence_api.py view https://yoursite.atlassian.net/wiki/spaces/TEAM/pages/12345", file=sys.stderr)
-        sys.exit(1)
-    return base_url
+    """Return base URL from environment. Checks CONFLUENCE_BASE_URL first,
+    falls back to ATLASSIAN_BASE_URL. Exits if neither is set."""
+    base_url = (
+        os.environ.get("CONFLUENCE_BASE_URL")
+        or os.environ.get("ATLASSIAN_BASE_URL")
+    )
+    if base_url:
+        return base_url.strip().rstrip("/")
+
+    print("ERROR: Neither CONFLUENCE_BASE_URL nor ATLASSIAN_BASE_URL is set, and no Confluence URL provided.", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("Set one of:", file=sys.stderr)
+    print('  export CONFLUENCE_BASE_URL="https://confluence.yourcompany.com"', file=sys.stderr)
+    print('  export ATLASSIAN_BASE_URL="https://yoursite.atlassian.net"', file=sys.stderr)
+    print("", file=sys.stderr)
+    print("Or pass a full Confluence URL instead of a page ID:", file=sys.stderr)
+    print("  python3 confluence_api.py view https://yoursite.atlassian.net/wiki/spaces/TEAM/pages/12345", file=sys.stderr)
+    sys.exit(1)
 
 
 def parse_page_input(input_str: str) -> tuple[str, str]:

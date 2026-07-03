@@ -369,7 +369,7 @@ def check_gh_operations(config_path: Path) -> bool:
 # --- Jira ---
 
 
-def check_atlassian(config_path: Path) -> bool:
+def check_atlassian(config_path: Path, skills: list[str]) -> bool:
     """Check and configure Atlassian credentials (shared by Jira and Confluence)."""
     print(f"\n{BOLD}Atlassian (Jira / Confluence):{NC}")
 
@@ -419,6 +419,35 @@ def check_atlassian(config_path: Path) -> bool:
         value = _prompt_value("Enter your Atlassian base URL (or Enter to skip)")
         if value:
             _append_env_var(config_path, "ATLASSIAN_BASE_URL", value)
+            url = value
+
+    if SKILL_JIRA in skills:
+        jira_url = os.environ.get("JIRA_BASE_URL")
+        if jira_url:
+            print(f"  JIRA_BASE_URL:         {GREEN}{jira_url}{NC}")
+        elif url:
+            print(f"  JIRA_BASE_URL:         {DIM}(inherits ATLASSIAN_BASE_URL){NC}")
+        else:
+            print(f"  JIRA_BASE_URL:         {DIM}not set{NC} (Optional — override for Jira)")
+            print("    Set this if your Jira instance uses a different URL than Confluence.")
+            print("    Press Enter to inherit ATLASSIAN_BASE_URL.")
+            value = _prompt_value("Enter your Jira base URL (or Enter to skip)")
+            if value:
+                _append_env_var(config_path, "JIRA_BASE_URL", value)
+
+    if SKILL_CONFLUENCE in skills:
+        conf_url = os.environ.get("CONFLUENCE_BASE_URL")
+        if conf_url:
+            print(f"  CONFLUENCE_BASE_URL:   {GREEN}{conf_url}{NC}")
+        elif url:
+            print(f"  CONFLUENCE_BASE_URL:   {DIM}(inherits ATLASSIAN_BASE_URL){NC}")
+        else:
+            print(f"  CONFLUENCE_BASE_URL:   {DIM}not set{NC} (Optional — override for Confluence)")
+            print("    Set this if your Confluence instance uses a different URL than Jira.")
+            print("    Press Enter to inherit ATLASSIAN_BASE_URL.")
+            value = _prompt_value("Enter your Confluence base URL (or Enter to skip)")
+            if value:
+                _append_env_var(config_path, "CONFLUENCE_BASE_URL", value)
 
     return all_ok
 
@@ -1091,7 +1120,7 @@ def main() -> None:
             all_configured = False
 
     if SKILL_JIRA in skills or SKILL_CONFLUENCE in skills:
-        if not check_atlassian(config_path):
+        if not check_atlassian(config_path, skills):
             all_configured = False
 
     if SKILL_FIGMA in skills:

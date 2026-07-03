@@ -25,13 +25,16 @@ Requires `ATLASSIAN_API_TOKEN` and `ATLASSIAN_USER_EMAIL`. See `README.md` in th
 
 - `ATLASSIAN_API_TOKEN` (**required**) — API token or Personal Access Token
 - `ATLASSIAN_USER_EMAIL` (**required for Jira Cloud**) — Atlassian account email, used for Basic auth
-- `ATLASSIAN_BASE_URL` (optional) — e.g. `https://yoursite.atlassian.net`. Not needed when passing full Jira URLs.
+- `JIRA_BASE_URL` (optional — takes precedence) — e.g. `https://jira.yourcompany.com`
+- `ATLASSIAN_BASE_URL` (optional — shared fallback) — e.g. `https://yoursite.atlassian.net`
 
-When `ATLASSIAN_BASE_URL` is not set, issue commands accept a full Jira URL instead of an issue key. For commands without a specific issue (search, create, boards, sprints, myself), `ATLASSIAN_BASE_URL` is required.
+Base URL resolution: `JIRA_BASE_URL` > `ATLASSIAN_BASE_URL`. When neither is set, issue commands accept a full Jira URL instead of an issue key. For commands without a specific issue (search, create, boards, sprints, myself), one of these base URLs is required.
+
+If your Confluence and Jira share the same base URL, set only `ATLASSIAN_BASE_URL`. If they differ (e.g. self-hosted), set `JIRA_BASE_URL` for Jira and `CONFLUENCE_BASE_URL` for Confluence.
 
 ## Security — MANDATORY rules for AI agents
 
-1. **NEVER echo, print, or log** the values of `ATLASSIAN_API_TOKEN`, `ATLASSIAN_USER_EMAIL`, `ATLASSIAN_BASE_URL`, or any other environment variable. Do NOT run commands like `echo $ATLASSIAN_API_TOKEN` or `printenv ATLASSIAN_API_TOKEN` — even for debugging.
+1. **NEVER echo, print, or log** the values of `ATLASSIAN_API_TOKEN`, `ATLASSIAN_USER_EMAIL`, `ATLASSIAN_BASE_URL`, `JIRA_BASE_URL`, `CONFLUENCE_BASE_URL`, or any other environment variable. Do NOT run commands like `echo $ATLASSIAN_API_TOKEN` or `printenv ATLASSIAN_API_TOKEN` — even for debugging.
 2. **NEVER pass token/credential values as inline CLI arguments or env-var overrides** (e.g. `ATLASSIAN_API_TOKEN=xxx python3 ...`). The script reads credentials from the environment automatically — just run the script directly.
 3. **When debugging auth errors**, rely solely on the script's error output (401, 403, 404 messages). Do NOT attempt to verify tokens by reading or printing them.
 4. **Do NOT read environment variable values** using shell commands or programmatic access. The script handles all credential access internally.

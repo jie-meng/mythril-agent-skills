@@ -5,9 +5,10 @@ Required environment variables:
   ATLASSIAN_API_TOKEN  — API token or Personal Access Token
   ATLASSIAN_USER_EMAIL — Atlassian account email (for Jira Cloud basic auth)
 
-Optional:
-  ATLASSIAN_BASE_URL — e.g. https://yoursite.atlassian.net
-                       Not needed when passing a full Jira URL to issue commands.
+Optional (one of):
+  JIRA_BASE_URL        — e.g. https://jira.yourcompany.com (takes precedence)
+  ATLASSIAN_BASE_URL   — e.g. https://yoursite.atlassian.net (shared fallback)
+                         Not needed when passing a full Jira URL to issue commands.
 
 Uses only Python 3.10+ standard library (zero dependencies).
 """
@@ -34,18 +35,24 @@ def get_token() -> str:
 
 
 def get_base_url() -> str:
-    """Return base URL from environment. Exits if not set."""
-    base_url = os.environ.get("ATLASSIAN_BASE_URL", "").strip().rstrip("/")
-    if not base_url:
-        print("ERROR: ATLASSIAN_BASE_URL not set and no Jira URL provided.", file=sys.stderr)
-        print("", file=sys.stderr)
-        print("Either set the env var:", file=sys.stderr)
-        print('  export ATLASSIAN_BASE_URL="https://yoursite.atlassian.net"', file=sys.stderr)
-        print("", file=sys.stderr)
-        print("Or pass a full Jira URL instead of an issue key:", file=sys.stderr)
-        print("  python3 jira_api.py view https://yoursite.atlassian.net/browse/PROJ-123", file=sys.stderr)
-        sys.exit(1)
-    return base_url
+    """Return base URL from environment. Checks JIRA_BASE_URL first,
+    falls back to ATLASSIAN_BASE_URL. Exits if neither is set."""
+    base_url = (
+        os.environ.get("JIRA_BASE_URL")
+        or os.environ.get("ATLASSIAN_BASE_URL")
+    )
+    if base_url:
+        return base_url.strip().rstrip("/")
+
+    print("ERROR: Neither JIRA_BASE_URL nor ATLASSIAN_BASE_URL is set, and no Jira URL provided.", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("Set one of:", file=sys.stderr)
+    print('  export JIRA_BASE_URL="https://jira.yourcompany.com"', file=sys.stderr)
+    print('  export ATLASSIAN_BASE_URL="https://yoursite.atlassian.net"', file=sys.stderr)
+    print("", file=sys.stderr)
+    print("Or pass a full Jira URL instead of an issue key:", file=sys.stderr)
+    print("  python3 jira_api.py view https://yoursite.atlassian.net/browse/PROJ-123", file=sys.stderr)
+    sys.exit(1)
 
 
 def parse_issue_input(input_str: str) -> tuple[str, str]:
