@@ -13,10 +13,33 @@ Optional (one of):
 Uses only Python 3.10+ standard library (zero dependencies).
 """
 
-import os, sys, json, re, argparse, base64, html
+import os, sys, json, re, argparse, base64, html, ssl
 import urllib.request
 import urllib.error
 from urllib.parse import urlencode, urlparse, quote
+
+
+def _create_ssl_context() -> ssl.SSLContext | None:
+    """Build an SSL context respecting enterprise network configuration.
+
+    Checks these environment variables (in precedence order):
+      SSL_NO_VERIFY=1          — disable certificate verification entirely
+      SSL_CERT_FILE=<path>     — custom CA bundle path
+      CURL_CA_BUNDLE=<path>    — same as SSL_CERT_FILE (curl convention)
+      REQUESTS_CA_BUNDLE=<path> — same as SSL_CERT_FILE (requests convention)
+
+    Returns None to use the default OS trust store.
+    """
+    if os.environ.get("SSL_NO_VERIFY", "").strip() == "1":
+        return ssl._create_unverified_context()
+    cert_file = (
+        os.environ.get("SSL_CERT_FILE", "")
+        or os.environ.get("CURL_CA_BUNDLE", "")
+        or os.environ.get("REQUESTS_CA_BUNDLE", "")
+    ).strip()
+    if cert_file:
+        return ssl.create_default_context(cafile=cert_file)
+    return None
 
 
 def get_token() -> str:
@@ -107,7 +130,8 @@ def confluence_request(
         req.add_header("Content-Type", "application/json")
 
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        ctx = _create_ssl_context()
+        with urllib.request.urlopen(req, timeout=30, context=ctx) as resp:
             raw = resp.read()
             if not raw:
                 return None
