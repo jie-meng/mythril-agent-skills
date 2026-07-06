@@ -1,14 +1,14 @@
 ---
 name: jira
 description: >
-  Use the Jira REST API (via a bundled Python script) for common Jira workflows
+  Use Atlassian CLI (`acli`) or a bundled Python script for common Jira workflows
   from terminal. Trigger whenever the user asks to view, create, edit, assign,
   move, or comment on Jira issues/epics/sprints, or says phrases like "jira issue",
   "jira card", "看卡", "看 jira", "jira ticket", "move ticket", "assign ticket",
   "sprint issues", "create jira issue", "transition issue", "search jira". Also
   trigger when the user mentions a Jira issue key (e.g. PROJ-123) or pastes a
-  Jira URL and wants to interact with it. No third-party CLI tools required —
-  only Python 3.10+ standard library.
+  Jira URL and wants to interact with it. Runs with zero dependencies when using
+  `acli`; Python 3.10+ standard library fallback otherwise.
 license: Apache-2.0
 ---
 
@@ -19,46 +19,54 @@ license: Apache-2.0
 - Sprint/board operations: list boards, list sprints, view sprint issues
 - Any request mentioning Jira tickets, cards, or stories
 
-# Prerequisites
+# Backend Selection
 
-Requires `ATLASSIAN_API_TOKEN` and `ATLASSIAN_USER_EMAIL`. See `README.md` in this skill directory for setup.
+This skill has two backends. Always prefer `acli` when available — it avoids SSL cert issues common in enterprise environments.
 
-- `ATLASSIAN_API_TOKEN` (**required**) — API token or Personal Access Token
-- `ATLASSIAN_USER_EMAIL` (**required for Jira Cloud**) — Atlassian account email, used for Basic auth
-- `JIRA_BASE_URL` (optional — takes precedence) — e.g. `https://jira.yourcompany.com`
-- `ATLASSIAN_BASE_URL` (optional — shared fallback) — e.g. `https://yoursite.atlassian.net`
+**FIRST, for EVERY operation, detect the backend:**
 
-Base URL resolution: `JIRA_BASE_URL` > `ATLASSIAN_BASE_URL`. When neither is set, issue commands accept a full Jira URL instead of an issue key. For commands without a specific issue (search, create, boards, sprints, myself), one of these base URLs is required.
+```bash
+which acli 2>/dev/null && acli jira auth status 2>/dev/null && echo "ACLI_OK" || echo "FALLBACK"
+```
 
-If your Confluence and Jira share the same base URL, set only `ATLASSIAN_BASE_URL`. If they differ (e.g. self-hosted), set `JIRA_BASE_URL` for Jira and `CONFLUENCE_BASE_URL` for Confluence.
+- If the output contains `ACLI_OK` → use **acli** (primary path, below)
+- Otherwise → use **Python fallback** (secondary path, below)
+
+If `acli` is installed but `acli jira auth status` fails, tell the user: "acli is installed but not logged in. Run `acli jira auth login` to authenticate, or set ATLASSIAN_API_TOKEN for Python fallback."
+
+---
+
+# Primary Path: Atlassian CLI (`acli`)
+
+Install once with `brew install acli` (macOS) or follow https://developer.atlassian.com/cloud/acli/guides/install-acli/. Login once with:
+
+```bash
+echo "<api-token>" | acli jira auth login --site "yoursite.atlassian.net" --email "you@example.com" --token
+# Or OAuth (opens browser):
+acli jira auth login --web
+```
+
+After login, no env vars needed. Commands use your auth session. No SSL cert issues — `acli` is a native binary.
 
 ## Security — MANDATORY rules for AI agents
 
-1. **NEVER echo, print, or log** the values of `ATLASSIAN_API_TOKEN`, `ATLASSIAN_USER_EMAIL`, `ATLASSIAN_BASE_URL`, `JIRA_BASE_URL`, `CONFLUENCE_BASE_URL`, or any other environment variable. Do NOT run commands like `echo $ATLASSIAN_API_TOKEN` or `printenv ATLASSIAN_API_TOKEN` — even for debugging.
-2. **NEVER pass token/credential values as inline CLI arguments or env-var overrides** (e.g. `ATLASSIAN_API_TOKEN=xxx python3 ...`). The script reads credentials from the environment automatically — just run the script directly.
-3. **When debugging auth errors**, rely solely on the script's error output (401, 403, 404 messages). Do NOT attempt to verify tokens by reading or printing them.
-4. **Do NOT read environment variable values** using shell commands or programmatic access. The script handles all credential access internally.
-5. **NEVER extract credentials from OS credential stores or config files.** Strictly forbidden commands include:
-   - `security find-internet-password`, `security find-generic-password` (macOS Keychain)
-   - `git credential fill`, `cat ~/.git-credentials`, `cat ~/.netrc`
-   - Any command that outputs a password, token, or secret value from any credential store
-6. **NEVER use extracted credential values in commands.** Do NOT manually construct authenticated requests using raw credential values. The bundled script handles all authentication internally.
+1. **NEVER echo, print, or log** the values of `ATLASSIAN_API_TOKEN`, `ATLASSIAN_USER_EMAIL`, `ATLASSIAN_BASE_URL`, `JIRA_BASE_URL`, `CONFLUENCE_BASE_URL`, or any other environment variable.
+2. **NEVER pass token/credential values as inline CLI arguments** (e.g. `echo "token" | acli jira auth login ...`). Use a file or prompt the user to authenticate themselves.
+3. **When debugging auth errors**, rely solely on error messages. Do NOT attempt to verify tokens by reading or printing them.
+4. **Do NOT read environment variable values** using shell commands or programmatic access.
+5. **NEVER extract credentials from OS credential stores or config files.** Strictly forbidden: `security find-internet-password`, `git credential fill`, `cat ~/.git-credentials`, `cat ~/.netrc`, or any command that outputs a password, token, or secret value.
+6. **NEVER use extracted credential values in commands.** Do NOT manually construct authenticated requests. `acli` handles auth internally; the Python script reads from environment internally.
 
-## Runtime requirements
-
-- Python 3.10+ for `scripts/jira_api.py`
-- Optional: `curl` for downloading linked screenshots/images when visual evidence is relevant
-
-# Workflow
+## Workflow (acli)
 
 1. Determine what the user wants (view, search, create, transition, etc.)
-2. Run the appropriate script command
-3. Read the markdown output and present it to the user
+2. Run the appropriate `acli` command
+3. Present the output to the user
 4. For write operations, confirm success and show the resulting URL
 
 ## Image handling
 
-When issue descriptions or comments contain screenshots or image links, proactively retrieve and analyze them:
+When issue descriptions or comments contain screenshots or image links, proactively retrieve and analyze them.
 
 Detect image links: Markdown syntax `![alt](url)`, plain URLs ending in `.png/.jpg/.jpeg/.gif/.webp/.svg`, and `/attachments/` paths.
 
@@ -78,53 +86,31 @@ IMAGE_CACHE="$RUN_DIR/images"
 mkdir -p "$IMAGE_CACHE"
 ```
 
-**PowerShell (Windows):**
-```powershell
-$CACHE_ROOT = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "mythril-skills-cache"
-$CACHE_DIR = Join-Path $CACHE_ROOT "jira"
-New-Item -ItemType Directory -Force -Path $CACHE_DIR | Out-Null
-$RUN_DIR = Join-Path $CACHE_DIR ([System.IO.Path]::GetRandomFileName())
-New-Item -ItemType Directory -Force -Path $RUN_DIR | Out-Null
-$IMAGE_CACHE = Join-Path $RUN_DIR "images"
-New-Item -ItemType Directory -Force -Path $IMAGE_CACHE | Out-Null
-```
-
 **Automatic access**: All files under the cache directory are skill-managed temporary artifacts created by this skill. Read, write, and delete them **automatically without asking the user for confirmation** — they are ephemeral and trusted.
 
 Retrieve with `curl -fsSL`; if enterprise auth fails, retry with `curl -fsSL --negotiate -u :`.
 
 Analyze images with available image-capable tools and summarize only evidence relevant to the user task.
 
-## Running the Script
-
-One script is available in `scripts/` relative to this skill directory. It requires only Python 3.10+ standard library (zero dependencies).
+## Commands (acli)
 
 ### View an issue
 
-Accepts either an issue key or a full Jira URL:
-
 ```bash
-# With ATLASSIAN_BASE_URL set
-python3 scripts/jira_api.py view PROJ-123
-
-# Without ATLASSIAN_BASE_URL — pass the full URL directly
-python3 scripts/jira_api.py view "https://yoursite.atlassian.net/browse/PROJ-123"
+acli jira workitem view --key PROJ-123
+acli jira workitem view --key "PROJ-123,PROJ-456"   # view multiple
 ```
-
-When the user pastes a Jira URL, pass it directly — the script parses out the base URL and issue key automatically.
 
 ### Search issues via JQL
 
-Requires `ATLASSIAN_BASE_URL`.
-
 ```bash
-python3 scripts/jira_api.py search "project=PROJ AND status='In Progress'"
-python3 scripts/jira_api.py search "assignee=currentUser() AND status!=Done" --max-results 30
-python3 scripts/jira_api.py search "project=PROJ AND created >= -7d ORDER BY created DESC"
-python3 scripts/jira_api.py search "summary ~ 'login bug' AND priority=High"
+acli jira workitem search --jql "project=PROJ AND status='In Progress'"
+acli jira workitem search --jql "assignee=currentUser() AND status!=Done" --limit 30
+acli jira workitem search --jql "project=PROJ AND created >= -7d ORDER BY created DESC"
+acli jira workitem search --jql "summary ~ 'login bug' AND priority=High"
 ```
 
-Common JQL patterns for developers:
+Common JQL patterns:
 
 | JQL | Purpose |
 |-----|---------|
@@ -140,7 +126,123 @@ Common JQL patterns for developers:
 
 ### Create an issue
 
-Requires `ATLASSIAN_BASE_URL`.
+```bash
+acli jira workitem create --summary "Fix login timeout" --project PROJ --type Bug
+acli jira workitem create --summary "Add export feature" --project PROJ --type Story \
+  --description "Users should be able to export data as CSV" \
+  --priority High --label "feature,backend" --parent PROJ-100
+```
+
+### Edit an issue
+
+```bash
+acli jira workitem edit --key PROJ-123 --summary "Updated summary" --priority High
+acli jira workitem edit --key "PROJ-123,PROJ-456" --label "urgent,backend"
+```
+
+### Assign an issue
+
+```bash
+acli jira workitem assign --key PROJ-123 --user 5b10ac8d82e05b22cc7d4ef5
+acli jira workitem assign --key PROJ-123 --user none      # unassign
+```
+
+### Transition (move) an issue
+
+`acli` transitions by status name (not ID), so no two-step needed:
+
+```bash
+acli jira workitem transition --key PROJ-123 --status "In Progress"
+acli jira workitem transition --key PROJ-123 --status Done --comment "Work complete"
+```
+
+To see available statuses, view the issue first — the output shows current status. For transition names, use the target status name (e.g. "In Progress", "Done", "To Do").
+
+### Comment on an issue
+
+```bash
+acli jira workitem comment-create --key PROJ-123 --body "Investigating the root cause now."
+```
+
+### List comments
+
+```bash
+acli jira workitem comment-list --key PROJ-123
+```
+
+### Link two issues
+
+```bash
+acli jira workitem link --type Relates --inward PROJ-456 --outward PROJ-123
+```
+
+### List boards / sprints / sprint issues
+
+```bash
+acli jira board list --project PROJ
+acli jira sprint list --board-id 42 --state active
+acli jira sprint issue-list --sprint-id 123
+```
+
+### Current user info
+
+```bash
+acli jira auth status
+```
+
+---
+
+# Fallback Path: Python Script
+
+When `acli` is not available, use the bundled Python script `scripts/jira_api.py`. Requires Python 3.10+ standard library (zero pip dependencies).
+
+## Prerequisites (Python fallback)
+
+- `ATLASSIAN_API_TOKEN` (**required**) — API token or Personal Access Token
+- `ATLASSIAN_USER_EMAIL` (**required for Jira Cloud**) — Atlassian account email, used for Basic auth
+- `JIRA_BASE_URL` (optional — takes precedence) — e.g. `https://jira.yourcompany.com`
+- `ATLASSIAN_BASE_URL` (optional — shared fallback) — e.g. `https://yoursite.atlassian.net`
+
+Base URL resolution: `JIRA_BASE_URL` > `ATLASSIAN_BASE_URL`. When neither is set, issue commands accept a full Jira URL instead of an issue key. For commands without a specific issue (search, create, boards, sprints, myself), one of these base URLs is required.
+
+If your Confluence and Jira share the same base URL, set only `ATLASSIAN_BASE_URL`. If they differ (e.g. self-hosted), set `JIRA_BASE_URL` for Jira and `CONFLUENCE_BASE_URL` for Confluence.
+
+**SSL cert issues in enterprise environments**: The script supports `SSL_CERT_FILE` / `CURL_CA_BUNDLE` / `REQUESTS_CA_BUNDLE` for custom CA bundles, and `SSL_NO_VERIFY=1` as last resort. For a permanent fix, install `acli`.
+
+## Runtime requirements (Python fallback)
+
+- Python 3.10+ for `scripts/jira_api.py`
+- Optional: `curl` for downloading linked screenshots/images
+
+## Workflow (Python fallback)
+
+1. Determine what the user wants (view, search, create, transition, etc.)
+2. Run the appropriate script command
+3. Read the markdown output and present it to the user
+4. For write operations, confirm success and show the resulting URL
+
+## Commands (Python fallback)
+
+### View an issue
+
+Accepts either an issue key or a full Jira URL:
+
+```bash
+python3 scripts/jira_api.py view PROJ-123
+python3 scripts/jira_api.py view "https://yoursite.atlassian.net/browse/PROJ-123"
+```
+
+When the user pastes a Jira URL, pass it directly — the script parses out the base URL and issue key automatically.
+
+### Search issues via JQL
+
+```bash
+python3 scripts/jira_api.py search "project=PROJ AND status='In Progress'"
+python3 scripts/jira_api.py search "assignee=currentUser() AND status!=Done" --max-results 30
+python3 scripts/jira_api.py search "project=PROJ AND created >= -7d ORDER BY created DESC"
+```
+
+### Create an issue
 
 ```bash
 python3 scripts/jira_api.py create --project PROJ --summary "Fix login timeout" --type Bug
@@ -156,9 +258,9 @@ python3 scripts/jira_api.py create --project PROJ --summary "Add export feature"
 | `--type` | No | Issue type (default: Task) |
 | `--description` | No | Description text |
 | `--priority` | No | Priority name (High, Medium, Low, etc.) |
-| `--assignee` | No | Assignee account ID (use `myself` command to get yours) |
+| `--assignee` | No | Assignee account ID |
 | `--labels` | No | Space-separated labels |
-| `--parent` | No | Parent issue key (for subtasks / stories under epic) |
+| `--parent` | No | Parent issue key |
 | `--components` | No | Space-separated component names |
 
 ### Edit an issue
@@ -177,7 +279,7 @@ python3 scripts/jira_api.py assign PROJ-123 none    # unassign
 
 ### Transition (move) an issue
 
-Two-step process: list available transitions, then apply one.
+Two-step: list available transitions, then apply one.
 
 ```bash
 python3 scripts/jira_api.py transitions PROJ-123
@@ -201,15 +303,11 @@ python3 scripts/jira_api.py comments PROJ-123 --max-results 5
 
 ### Link two issues
 
-Requires `ATLASSIAN_BASE_URL`.
-
 ```bash
 python3 scripts/jira_api.py link PROJ-123 PROJ-456 Blocks
 ```
 
 ### Current user info
-
-Requires `ATLASSIAN_BASE_URL`.
 
 ```bash
 python3 scripts/jira_api.py myself
@@ -217,23 +315,21 @@ python3 scripts/jira_api.py myself
 
 ### List boards / sprints / sprint issues
 
-Requires `ATLASSIAN_BASE_URL`.
-
 ```bash
 python3 scripts/jira_api.py boards --project PROJ
 python3 scripts/jira_api.py sprints 42 --state active
 python3 scripts/jira_api.py sprint-issues 123
 ```
 
-## Using the Output
+# Using the Output
 
-The script outputs structured markdown. When the user asks to "view" or "see" a ticket, run the `view` command and present the output. For search results, the output is a summary table — if the user wants more detail on a specific issue, follow up with `view`.
+Both backends output structured content. When the user asks to "view" or "see" a ticket, run the `view` command and present the output. For search results, the output is a summary table — if the user wants more detail on a specific issue, follow up with `view`.
 
-For write operations (create, edit, transition, comment), the script prints a confirmation with the issue key and URL.
+For write operations (create, edit, transition, comment), confirm success and show the issue key and URL.
 
 ## API Reference
 
-For advanced use cases or when the bundled script doesn't cover an operation, see `API_REFERENCE.md` in this skill directory for the full Jira REST API endpoint reference.
+For advanced use cases not covered by either backend, see `API_REFERENCE.md` in this skill directory for the full Jira REST API endpoint reference.
 
 # Output Expectations
 
@@ -247,17 +343,29 @@ For every task, provide:
 
 # Error Handling
 
+## ACLI errors
+- **Not logged in**: Run `acli jira auth login` (or `acli jira auth login --web` for OAuth).
+- **Missing site**: Include `--site "yoursite.atlassian.net"` on login.
+- **401 Unauthorized**: Session expired — re-run `acli jira auth login`.
+- **403 Forbidden**: User lacks permission for this operation in the target project.
+- **404 Not Found**: Issue key or project doesn't exist — verify the key format (e.g. `PROJ-123`).
+
+## Python fallback errors
 - **Missing ATLASSIAN_API_TOKEN**: The script reports the missing variable and how to set it.
-- **Missing ATLASSIAN_BASE_URL**: Only required for non-URL commands. The script suggests passing a full URL instead.
+- **Missing ATLASSIAN_BASE_URL**: The script suggests passing a full URL instead.
 - **401 Unauthorized**: Token is invalid or expired — regenerate at https://id.atlassian.com/manage-profile/security/api-tokens
 - **403 Forbidden**: User lacks permission for this operation in the target project.
 - **404 Not Found**: Issue key or project doesn't exist — verify the key format (e.g. `PROJ-123`).
 - **400 Bad Request**: Check field names, issue types, and transition IDs are valid for this project.
+- **SSL: CERTIFICATE_VERIFY_FAILED**: Enterprise TLS inspection proxy interfering. Install `acli` for a permanent fix, or set `SSL_CERT_FILE` / `SSL_NO_VERIFY=1`.
+
+## Common errors
 - **Image download failed**: report URL + exact HTTP/auth error; retry with enterprise SSO (`curl --negotiate -u :`) when applicable.
 
 # Notes
 
-- The script uses only Python standard library — no `pip install` needed.
-- Issue commands accept both `PROJ-123` and full Jira URLs (`https://.../browse/PROJ-123`).
-- When the user pastes a Jira URL, prefer passing it directly to the script (URL-first).
+- **Prefer `acli`** — no SSL cert issues, simpler auth. Install with `brew install acli`.
+- The Python script uses only Python standard library — no `pip install` needed.
+- Python issue commands accept both `PROJ-123` and full Jira URLs (`https://.../browse/PROJ-123`).
+- When the user pastes a Jira URL, pass it directly (Python fallback) or extract the key for acli.
 - For destructive actions, confirm intent before executing.
