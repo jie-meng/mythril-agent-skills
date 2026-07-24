@@ -1,0 +1,25 @@
+mythril_agent_skills/skills/fullstack-init/scripts/workspace_init.py
+  s_3e3320d41935e7::t_e5e871e09ebb98 274-282
+mythril_agent_skills/skills/fullstack-spike/SKILL.md
+  s_3e3320d41935e7::t_d501d70b7a58d9 442-444
+  s_3e3320d41935e7::t_aff54d74261d85 457-458
+mythril_agent_skills/skills/fullstack-impl/SKILL.md
+  s_3e3320d41935e7::t_85d38e9a0d6e04 606-610
+  s_3e3320d41935e7::t_b4dc5aed1fb8db 742-743
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "7ef2f25ff6ca0d29f083eb5cf044f7a2453b7a1f",
+  "prompts": {},
+  "sessions": {
+    "s_3e3320d41935e7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06ad9fd9affe7IahaKLT9Qs41V",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
