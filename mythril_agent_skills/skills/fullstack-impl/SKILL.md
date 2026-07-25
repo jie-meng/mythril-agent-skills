@@ -604,10 +604,11 @@ For each affected repository, in the dependency order from `plan.md`:
    the repo has specialized agents, prefer them for that repo's
    changes.
 4. **Check for `graphify-out/graph.json`** — if the repo has this file,
-   prefer using the `graphify` skill to query and understand the
-   codebase before reading individual files. The knowledge graph
-   provides faster and more accurate insights into code structure,
-   relationships, and architecture.
+   `cd` into the repo directory and prefer using
+   `graphify query "<question>"` to understand the codebase before
+   reading individual files. The knowledge graph provides faster and
+   more accurate insights into code structure, relationships, and
+   architecture.
 
 #### 6b. Set up repo environment
 
@@ -739,8 +740,9 @@ noted.
 2. `git commit -m "<message>"`
 3. Update `progress.md`: what was implemented, review result, test
    results, issues encountered.
-4. If the repo has a `graphify-out/` directory, run `graphify update`
-   to keep the knowledge graph in sync with the committed changes.
+4. If the repo has a `graphify-out/` directory, `cd` into the repo and
+   run `graphify update` to keep the knowledge graph in sync with the
+   committed changes.
 
 ##### 6e-vi. Forward pointer — what happens AFTER round 0
 

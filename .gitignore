@@ -166,3 +166,10 @@ cython_debug/
 
 # Test artifacts
 smoke-map.png
+
+# AI tools config
+CLAUDE.md
+.claude
+.opencode
+**/graphify-out/
+.playwright-mcp/

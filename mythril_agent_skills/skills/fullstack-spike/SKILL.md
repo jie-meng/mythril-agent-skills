@@ -440,8 +440,9 @@ For each repo that will be examined or modified:
 2. **Read `README.md`** — understand build commands, test commands, and
    environment setup.
 3. **Check for `graphify-out/graph.json`** — if the repo has this file,
-   prefer using the `graphify` skill to query and understand the
-   codebase before reading individual files.
+   `cd` into the repo directory and prefer using
+   `graphify query "<question>"` to understand the codebase before
+   reading individual files.
 
 ### Set up repo environment
 
@@ -454,8 +455,9 @@ nvm use, etc.) so that temporary changes can be tested properly.
 - **Do NOT run `git add` or `git commit`** on any code repo
 - Run tests, start dev servers, check logs — whatever validates the hypothesis
 - Record each experiment and its results in `findings.md`
-- If the repo has a `graphify-out/` directory, run `graphify update`
-  to sync the knowledge graph after making temporary changes
+- If the repo has a `graphify-out/` directory, `cd` into the repo and
+  run `graphify update` to sync the knowledge graph after making
+  temporary changes
 
 ### Update findings as you go
 

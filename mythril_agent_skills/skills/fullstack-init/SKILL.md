@@ -16,16 +16,24 @@ android, and other repos live as sibling directories under one root.
 
 ## Design Philosophy
 
-**Every run is a full refresh.** The script regenerates all scaffolding files
-from scratch — no merge logic, no migration, no stale state. This makes it
-safe to re-run at any time: after adding repos, after upgrading the skill,
-or just to fix a broken workspace.
+**First run is a full refresh; subsequent runs do incremental updates.**
+On first run (or if `--force` is passed), the script regenerates all
+scaffolding files from scratch. On subsequent runs, it detects that the
+workspace has already been initialized and performs an **incremental
+update**: preserving existing content while adding any new sections or
+conventions introduced by template updates.
 
-| Category | What happens on every run |
-|----------|--------------------------|
-| **Regenerated** | `AGENTS.md`, `README.md`, `.agents/agents/*.md` |
-| **Preserved** | `fullstack.json`, `<docs-dir>/`, `scripts/`, `.agents/skills/` |
-| **Create-only** | `<docs-dir>/` + git init, `scripts/`, `.agents/skills/` — created if missing, never touched if present |
+| Category | First run / `--force` | Subsequent run |
+|----------|----------------------|----------------|
+| **Regenerated from scratch** | `AGENTS.md`, `README.md`, `.agents/agents/*.md` | `.agents/agents/*.md` (always fresh) |
+| **Merged incrementally** | — | `AGENTS.md` (add new sections, update repos table, preserve existing) |
+| **Regenerated from scratch** | — | `README.md` (full refresh — since it's a usage guide, not a customization target) |
+| **Preserved** | `fullstack.json`, `<docs-dir>/`, `scripts/`, `.agents/skills/` | same |
+| **Create-only** | `<docs-dir>/` + git init, `scripts/`, `.agents/skills/` — created if missing, never touched if present | same |
+
+This allows the workspace's AGENTS.md to evolve organically — users can add
+project-specific sections, conventions, or documentation — while still
+receiving template updates (like the Knowledge Graph section) on re-runs.
 
 ## What It Does
 
@@ -33,6 +41,41 @@ or just to fix a broken workspace.
 2. **Analyzes** each repo's README.md, AGENTS.md, tech stack, and role
 3. **Regenerates** workspace-level infrastructure from scratch
 4. **Preserves** user content in docs dir, scripts/, and .agents/skills/
+
+## How the AI Agent MUST Handle Already-Initialized Workspaces
+
+When `fullstack.json` **and** `AGENTS.md` both exist in the workspace root,
+the workspace has already been initialized. The AI agent MUST do an
+**incremental update** rather than a blind overwrite:
+
+1. **Save a copy** of the existing `AGENTS.md`.
+2. **Read the generated template** — the new AGENTS.md that the script
+   would produce (from `generate_agents_md()` in `workspace_init.py`).
+3. **Run the script normally** — pass all the usual flags (`--docs-dir`,
+   `--lang`, `--github`/`--no-github`). The script will:
+   - Regenerate `AGENTS.md` from scratch (full overwrite)
+   - Regenerate `README.md` and `.agents/agents/*.md` (full overwrite)
+   - Leave preserved/create-only dirs untouched
+4. **Compare the saved original with the generated AGENTS.md** and merge:
+   - **Repos table**: Update to match the generated version (new repos
+     may have been added).
+   - **New H2 sections**: If the generated version has an H2 section
+     that does NOT exist in the saved original, insert it at the matching
+     position (preserving section order from the generated version).
+   - **Workspace Conventions bullet points**: Compare the bullet points
+     in the "Workspace Conventions" section. For any bullet point in the
+     generated version that is absent from the saved original, add it
+     (the Knowledge Graph section is a current example — future template
+     updates may add more).
+   - **"Directory Structure" section**: Update to match the generated
+     version (reflects current scaffolding layout).
+   - **Everything else**: KEEP the saved original's content. Do NOT
+     overwrite H2 sections that exist in both versions — these may
+     contain project-specific customizations.
+5. **Write the merged AGENTS.md** back.
+
+The result: the AGENTS.md keeps all project-specific additions while
+receiving new template sections and updated repos/workspace conventions.
 
 ## Docs Directory — Independent Git Repo
 
@@ -60,7 +103,7 @@ python3 SKILL_PATH/scripts/workspace_init.py --docs-dir my-docs      # custom do
 python3 SKILL_PATH/scripts/workspace_init.py --lang zh               # Chinese README
 python3 SKILL_PATH/scripts/workspace_init.py --github                # repos are on GitHub
 python3 SKILL_PATH/scripts/workspace_init.py --no-github             # repos are NOT on GitHub
-python3 SKILL_PATH/scripts/workspace_init.py                         # re-run: safe refresh
+python3 SKILL_PATH/scripts/workspace_init.py                         # re-run: incremental update
 python3 SKILL_PATH/scripts/workspace_init.py --dry-run               # preview only
 python3 SKILL_PATH/scripts/workspace_init.py --json                  # JSON output
 ```
@@ -127,7 +170,7 @@ For persistent custom agents, use `.agents/skills/` or repo-level agents.
 
 ```
 project-workspace/
-├── AGENTS.md                     # Regenerated each run
+├── AGENTS.md                     # Merged incrementally on re-runs
 ├── README.md                     # Regenerated each run
 ├── fullstack.json                # Only persistent state
 ├── .agents/
