@@ -1,0 +1,30 @@
+mythril_agent_skills/skills/fullstack-init/scripts/workspace_init.py
+  s_ee3e866efaad4d::t_5f77ac2d679771 278-279,282-284
+mythril_agent_skills/skills/fullstack-init/SKILL.md
+  s_ee3e866efaad4d::t_b7ceebaaf785f0 106
+  s_ee3e866efaad4d::t_b1020b5fc2682b 173
+  s_ee3e866efaad4d::t_557bc346d2f25f 19-36
+  s_ee3e866efaad4d::t_bb96098f747012 45-79
+mythril_agent_skills/skills/fullstack-impl/SKILL.md
+  s_ee3e866efaad4d::t_486bb9c26073a0 607-611
+  s_ee3e866efaad4d::t_aab93c4ad281cb 743-745
+mythril_agent_skills/skills/fullstack-spike/SKILL.md
+  s_ee3e866efaad4d::t_61dfe3e318fd20 443-445
+  s_ee3e866efaad4d::t_149e780b85ce26 458-460
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "d6f168098df82992a3907d2edcf4d36d6996bdf9",
+  "prompts": {},
+  "sessions": {
+    "s_ee3e866efaad4d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_065fc572affe3UcXr2sW6Xog2j",
+        "model": "deepseek-v4-flash-free"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
