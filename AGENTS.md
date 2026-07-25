@@ -600,3 +600,16 @@ def parse_skill_md(skill_path: Path) -> tuple[str, str, str]:
 - Hardcode absolute paths — use relative paths or CLI args
 - Mix string paths and Path objects in the same function
 - Delete or modify eval/test files to force passing validation
+
+---
+
+## Graphify Knowledge Graph
+
+This repository uses `graphify` to build a navigable knowledge graph. The graph is stored in `graphify-out/` at the project root.
+
+**Permissions**: AI agents MUST have read/write access to `graphify-out/` and all its contents (`graph.json`, `GRAPH_REPORT.md`, `graph.html`, `.graphify_python`, `cost.json`, and any intermediate files). This is required for:
+- Querying the graph (`graphify query "..."`) reads `graphify-out/graph.json`
+- Building or rebuilding the graph reads/writes detection files, chunk files, and extraction caches in `graphify-out/`
+- Generating HTML/JSON output writes to `graphify-out/`
+
+When you need to understand the codebase, check if `graphify-out/graph.json` exists before reading source files directly. If it exists, run `graphify query "<question>"` first — the graph is faster and more comprehensive than ad-hoc file grepping.
