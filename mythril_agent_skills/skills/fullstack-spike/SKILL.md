@@ -118,6 +118,20 @@ Read these files from the workspace root:
 2. **`AGENTS.md`** — understand the repo table, conventions, and structure
 3. **`<docs-dir>/AGENTS.md`** — understand documentation conventions
 
+### Knowledge graph context (MANDATORY when available)
+
+For each repo in the workspace (identified from `fullstack.json`),
+check if `<repo>/graphify-out/` exists at the repo root. When a repo
+has `graphify-out/`, you MUST `cd` into that repo and use
+`graphify query "<question>"` to understand the codebase BEFORE
+running grep or reading source files directly.
+
+This step happens BEFORE Step 3 (identifying affected repos) — the
+knowledge graph provides faster and more accurate insights into which
+repos contain relevant code, architecture patterns, and relationships.
+Do NOT grep or read files until you have exhausted the knowledge
+graph for every repo that has it.
+
 ### Existing spike context
 
 Check if the user references a previous spike. If so, read its
@@ -439,10 +453,11 @@ For each repo that will be examined or modified:
    architecture constraints.
 2. **Read `README.md`** — understand build commands, test commands, and
    environment setup.
-3. **Check for `graphify-out/graph.json`** — if the repo has this file,
-   `cd` into the repo directory and prefer using
+3. **Check for `graphify-out/`** — if the repo has this directory,
+   `cd` into the repo and you MUST use
    `graphify query "<question>"` to understand the codebase before
-   reading individual files.
+   reading individual files. Do NOT run grep or read source files
+   directly until you have queried the knowledge graph.
 
 ### Set up repo environment
 

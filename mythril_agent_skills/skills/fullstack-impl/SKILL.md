@@ -603,12 +603,13 @@ For each affected repository, in the dependency order from `plan.md`:
 3. **Check for repo-level agents** at `<repo>/.agents/agents/` — if
    the repo has specialized agents, prefer them for that repo's
    changes.
-4. **Check for `graphify-out/graph.json`** — if the repo has this file,
-   `cd` into the repo directory and prefer using
+4. **Check for `graphify-out/`** — if the repo has this directory,
+   `cd` into the repo and you MUST use
    `graphify query "<question>"` to understand the codebase before
-   reading individual files. The knowledge graph provides faster and
-   more accurate insights into code structure, relationships, and
-   architecture.
+   reading individual files. Do NOT run grep or read source files
+   directly until you have queried the knowledge graph. The knowledge
+   graph provides faster and more accurate insights into code
+   structure, relationships, and architecture.
 
 #### 6b. Set up repo environment
 
