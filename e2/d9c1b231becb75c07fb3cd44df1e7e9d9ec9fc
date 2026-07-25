@@ -1,0 +1,19 @@
+AGENTS.md
+  s_b708ed0fbe4761::t_84135f9a153a6b 603-615
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "e2d9c1b231becb75c07fb3cd44df1e7e9d9ec9fc",
+  "prompts": {},
+  "sessions": {
+    "s_b708ed0fbe4761": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_065ddbf98ffeN05njlGuKn6C68",
+        "model": "deepseek-v4-flash-free"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
