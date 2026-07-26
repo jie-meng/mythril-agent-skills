@@ -1,0 +1,22 @@
+mythril_agent_skills/skills/fullstack-impl/SKILL.md
+  s_9433d33efbe989::t_5ad2702ab7a2f0 610-614
+mythril_agent_skills/skills/fullstack-spike/SKILL.md
+  s_9433d33efbe989::t_495ce9ab7b1b18 133-135
+  s_9433d33efbe989::t_0f6c4929c18893 462-464
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "82f89a8be26cfee0dc84fe0079ffbb4ddbc26e76",
+  "prompts": {},
+  "sessions": {
+    "s_9433d33efbe989": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_06437f678ffeHdgvXclp77J1QT",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
