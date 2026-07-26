@@ -607,9 +607,11 @@ For each affected repository, in the dependency order from `plan.md`:
    `cd` into the repo and you MUST use
    `graphify query "<question>"` to understand the codebase before
    reading individual files. Do NOT run grep or read source files
-   directly until you have queried the knowledge graph. The knowledge
-   graph provides faster and more accurate insights into code
-   structure, relationships, and architecture.
+   directly until you have queried the knowledge graph. If output
+   shows `TRUNCATED`, raise the budget (`--budget 8000`) or narrow
+   the query before proceeding. The knowledge graph provides faster
+   and more accurate insights into code structure, relationships,
+   and architecture.
 
 #### 6b. Set up repo environment
 

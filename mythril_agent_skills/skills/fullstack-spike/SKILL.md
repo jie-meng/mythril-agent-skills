@@ -130,7 +130,9 @@ This step happens BEFORE Step 3 (identifying affected repos) — the
 knowledge graph provides faster and more accurate insights into which
 repos contain relevant code, architecture patterns, and relationships.
 Do NOT grep or read files until you have exhausted the knowledge
-graph for every repo that has it.
+graph for every repo that has it. If graphify output shows
+`TRUNCATED` with cut nodes, raise the budget (`--budget 8000`)
+or narrow the query before proceeding.
 
 ### Existing spike context
 
@@ -457,7 +459,9 @@ For each repo that will be examined or modified:
    `cd` into the repo and you MUST use
    `graphify query "<question>"` to understand the codebase before
    reading individual files. Do NOT run grep or read source files
-   directly until you have queried the knowledge graph.
+   directly until you have queried the knowledge graph. If output
+   shows `TRUNCATED`, raise the budget (`--budget 8000`) or narrow
+   the query before proceeding.
 
 ### Set up repo environment
 
