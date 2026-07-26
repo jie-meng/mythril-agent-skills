@@ -546,25 +546,6 @@ def select_tools_interactive() -> list[int] | None:
 # --- CLI modes ---
 
 
-def run_skills_check(selected_entries: list[SkillEntry]) -> None:
-    """Run the dependency checker for selected builtin skills.
-
-    Local skills are excluded — their dependencies are the user's responsibility.
-    """
-    from mythril_agent_skills.cli.skills_check import main as check_main
-
-    builtin_names = [e.name for e in selected_entries if not e.is_local]
-    if not builtin_names:
-        return
-    sys.stdout.flush()
-    original_argv = sys.argv
-    sys.argv = ["skills-check"] + builtin_names
-    try:
-        check_main()
-    finally:
-        sys.argv = original_argv
-
-
 def direct_target_mode(target_dir: str) -> None:
     """Install selected skills to a specific target directory."""
     target_path = Path.home() / target_dir
@@ -585,7 +566,6 @@ def direct_target_mode(target_dir: str) -> None:
         sys.exit(0)
 
     sync_skill_entries(target_dir, target_dir, "skills", selected)
-    run_skills_check(selected)
 
 
 def interactive_mode() -> None:
@@ -620,8 +600,6 @@ def interactive_mode() -> None:
         f"{BOLD}Done.{NC} Installed: {GREEN}{installed}{NC}, "
         f"Skipped: {YELLOW}{skipped}{NC}"
     )
-
-    run_skills_check(selected_entries)
 
 
 def main() -> None:
