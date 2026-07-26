@@ -521,12 +521,47 @@ def cmd_add_label(args: argparse.Namespace) -> None:
     print(f"Added labels to page {page_id}: {', '.join(args.names)}")
 
 
+def format_attachments_table(results: list[dict], page_id: str) -> str:
+    """Format a list of attachments as a markdown table."""
+    lines = [f"## Attachments for page {page_id} ({len(results)})"]
+    lines.append("")
+
+    if not results:
+        lines.append("No attachments found.")
+        return "\n".join(lines)
+
+    lines.append("| ID | Title | Media Type | Size (Bytes) | Created At |")
+    lines.append("|----|-------|------------|--------------|------------|")
+
+    for a in results:
+        aid = a.get("id", "")
+        title = a.get("title", "")
+        if len(title) > 40:
+            title = title[:37] + "..."
+        media_type = a.get("mediaType", "")
+        file_size = a.get("fileSize", "-")
+        created_at = a.get("createdAt", "")[:10] if a.get("createdAt") else ""
+        lines.append(f"| {aid} | {title} | {media_type} | {file_size} | {created_at} |")
+
+    return "\n".join(lines)
+
+
+def cmd_attachments(args: argparse.Namespace) -> None:
+    """List attachments on a page."""
+    token = get_token()
+    base_url, page_id = parse_page_input(args.page)
+    params: dict[str, str | int] = {"limit": args.limit}
+    data = confluence_request("GET", f"/pages/{page_id}/attachments", base_url, token, params=params)
+    results = data.get("results", [])
+    print(format_attachments_table(results, page_id))
+
+
 def cmd_children(args: argparse.Namespace) -> None:
     """List child pages of a page."""
     token = get_token()
     base_url, page_id = parse_page_input(args.page)
     params: dict[str, str | int] = {"limit": args.limit}
-    data = confluence_request("GET", f"/pages/{page_id}/children", base_url, token, params=params)
+    data = confluence_request("GET", f"/pages/{page_id}/direct-children", base_url, token, params=params)
     results = data.get("results", [])
     print(format_pages_table(results, f"Children of page {page_id}"))
 
@@ -621,9 +656,16 @@ def main() -> None:
     p_children.add_argument("--limit", type=int, default=25, help="Max results (default: 25)")
     p_children.set_defaults(func=cmd_children)
 
+    # attachments
+    p_attachments = sub.add_parser("attachments", help="List page attachments")
+    p_attachments.add_argument("page", help=PAGE_HELP)
+    p_attachments.add_argument("--limit", type=int, default=25, help="Max results (default: 25)")
+    p_attachments.set_defaults(func=cmd_attachments)
+
     args = parser.parse_args()
     args.func(args)
 
 
 if __name__ == "__main__":
     main()
+

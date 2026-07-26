@@ -324,6 +324,7 @@ def format_search_results_markdown(data: dict) -> str:
     """Format JQL search results as a markdown table."""
     issues = data.get("issues", [])
     total = data.get("total", len(issues))
+    next_page_token = data.get("nextPageToken")
 
     lines = [f"## Search Results ({len(issues)} of {total} issues)"]
     lines.append("")
@@ -346,6 +347,34 @@ def format_search_results_markdown(data: dict) -> str:
         if len(summary) > 60:
             summary = summary[:57] + "..."
         lines.append(f"| {key} | {itype} | {priority} | {status} | {assignee} | {summary} |")
+
+    if next_page_token:
+        lines.append("")
+        lines.append(f"**Next Page Token**: `{next_page_token}` (use `--next-page-token {next_page_token}` for next page)")
+
+    return "\n".join(lines)
+
+
+def format_components_markdown(data: list[dict], project_key: str) -> str:
+    """Format project components as markdown table."""
+    lines = [f"## Components for project {project_key} ({len(data)})"]
+    lines.append("")
+
+    if not data:
+        lines.append("No components found.")
+        return "\n".join(lines)
+
+    lines.append("| ID | Name | Description | Lead |")
+    lines.append("|----|------|-------------|------|")
+
+    for c in data:
+        cid = c.get("id", "")
+        name = c.get("name", "")
+        desc = c.get("description", "-")
+        if len(desc) > 50:
+            desc = desc[:47] + "..."
+        lead = (c.get("lead") or {}).get("displayName", "-")
+        lines.append(f"| {cid} | {name} | {desc} | {lead} |")
 
     return "\n".join(lines)
 
@@ -430,8 +459,19 @@ def cmd_search(args: argparse.Namespace) -> None:
         "maxResults": args.max_results,
         "fields": "summary,status,issuetype,priority,assignee",
     }
+    if args.next_page_token:
+        params["nextPageToken"] = args.next_page_token
     data = jira_request("GET", "/search/jql", base_url, token, params=params)
     print(format_search_results_markdown(data))
+
+
+def cmd_components(args: argparse.Namespace) -> None:
+    """List components in a project."""
+    token = get_token()
+    base_url = get_base_url()
+    data = jira_request("GET", f"/project/{args.project}/components", base_url, token)
+    print(format_components_markdown(data, args.project))
+
 
 
 def cmd_create(args: argparse.Namespace) -> None:
@@ -651,7 +691,13 @@ def main() -> None:
     p_search = sub.add_parser("search", help="Search issues via JQL")
     p_search.add_argument("jql", help='JQL query string (e.g. "project=PROJ AND status=Open")')
     p_search.add_argument("--max-results", type=int, default=20, help="Max results (default: 20)")
+    p_search.add_argument("--next-page-token", help="Pagination token for next page")
     p_search.set_defaults(func=cmd_search)
+
+    # components
+    p_comp = sub.add_parser("components", help="List components in a project")
+    p_comp.add_argument("project", help="Project key or ID (e.g. PROJ)")
+    p_comp.set_defaults(func=cmd_components)
 
     # create
     p_create = sub.add_parser("create", help="Create a new issue")

@@ -229,6 +229,14 @@ python3 scripts/confluence_api.py add-label 12345 architecture backend
 python3 scripts/confluence_api.py children 12345
 ```
 
+Uses the non-deprecated `/pages/{id}/direct-children` endpoint under Confluence v2 API.
+
+### List page attachments
+
+```bash
+python3 scripts/confluence_api.py attachments 12345
+```
+
 ## Using the Output
 
 The script outputs structured markdown. When the user asks to "view" or "read" a page, run the `view` command and present the output. For search results, the output is a summary table — if the user wants more detail on a specific page, follow up with `view`.

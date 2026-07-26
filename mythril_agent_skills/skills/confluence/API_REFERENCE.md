@@ -265,15 +265,30 @@ Adds labels to a page.
 
 ## Children
 
-### `GET /wiki/api/v2/pages/{id}/children`
+### `GET /wiki/api/v2/pages/{id}/direct-children`
 
-Returns child pages.
+Returns immediate child pages. (Note: `/wiki/api/v2/pages/{id}/children` is deprecated in v2 OpenAPI spec).
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `cursor` | string | Pagination cursor |
 | `limit` | integer | Max results |
 | `sort` | string | Sort order |
+
+---
+
+## Attachments
+
+### `GET /wiki/api/v2/pages/{id}/attachments`
+
+Returns attachments for a page.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `cursor` | string | Pagination cursor |
+| `limit` | integer | Max results |
+| `mediaType` | string | Filter by media type |
+| `filename` | string | Filter by filename |
 
 ---
 

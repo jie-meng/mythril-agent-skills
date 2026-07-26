@@ -51,6 +51,13 @@ When the user pastes a Jira URL, pass it directly — the script parses out the 
 python3 scripts/jira_api.py search "project=PROJ AND status='In Progress'"
 python3 scripts/jira_api.py search "assignee=currentUser() AND status!=Done" --max-results 30
 python3 scripts/jira_api.py search "project=PROJ AND created >= -7d ORDER BY created DESC"
+python3 scripts/jira_api.py search "project=PROJ" --next-page-token "30"  # pagination token
+```
+
+## List project components
+
+```bash
+python3 scripts/jira_api.py components PROJ
 ```
 
 ## Create an issue

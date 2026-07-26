@@ -296,6 +296,10 @@ Returns all projects visible to the user.
 | `maxResults` | int | Max results |
 | `startAt` | int | Pagination offset |
 
+#### `GET /rest/api/3/project/{projectIdOrKey}/components`
+
+Returns all components defined in a project.
+
 ---
 
 ## Agile REST API (Sprints & Boards)
