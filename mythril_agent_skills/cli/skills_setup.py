@@ -34,6 +34,9 @@ class SkillEntry:
     name: str
     is_local: bool  # False = builtin (from package), True = local (from cwd)
     has_conflict: bool  # local skill whose name matches a builtin skill
+    is_installed: bool = False  # True if installed and up to date in target tools
+    needs_update: bool = False  # True if installed in target tool(s) but content differs
+
 
 
 TOOLS: list[tuple[str, str, str]] = [
@@ -174,6 +177,43 @@ def dirs_differ(src: Path, dst: Path) -> bool:
         if sub.left_only or sub.right_only or sub.diff_files:
             return True
     return False
+
+
+def annotate_skill_entries_status(
+    entries: list[SkillEntry],
+    target_skills_dirs: list[Path],
+) -> None:
+    """Annotate SkillEntry objects with is_installed and needs_update status.
+
+    Checks target skills directories for each entry:
+    - is_installed: True if present in all target dirs and up to date.
+    - needs_update: True if present in target dir(s) but content differs.
+    """
+    if not target_skills_dirs:
+        return
+
+    for entry in entries:
+        all_installed = True
+        any_needs_update = False
+
+        for target_dir in target_skills_dirs:
+            target_skill = target_dir / entry.name
+            if not target_skill.is_dir():
+                all_installed = False
+            elif dirs_differ(entry.path, target_skill):
+                any_needs_update = True
+                all_installed = False
+
+        if any_needs_update:
+            entry.is_installed = True
+            entry.needs_update = True
+        elif all_installed:
+            entry.is_installed = True
+            entry.needs_update = False
+        else:
+            entry.is_installed = False
+            entry.needs_update = False
+
 
 
 def sync_skill_entries(
@@ -388,7 +428,7 @@ def _curses_skills_select(
     # All selectable skills: builtin first, local second
     all_skills: list[SkillEntry] = builtin_entries + local_entries
     n = len(all_skills)
-    selected = [False] * n
+    selected = [not (e.is_installed and not e.needs_update) for e in all_skills]
 
     # Row structure: ("header", label) — non-navigable separator/heading
     #                ("skill", skill_idx) — navigable, index into all_skills
@@ -468,14 +508,24 @@ def _curses_skills_select(
                 marker = "[x]" if is_sel else "[ ]"
                 attr = curses.A_REVERSE if cursor == pos else 0
 
+                tags: list[str] = []
                 if entry.has_conflict:
-                    label = f"{entry.name}  (overrides builtin)"
-                    color = curses.color_pair(5)  # magenta
-                elif is_sel:
-                    label = entry.name
-                    color = curses.color_pair(2)  # green
+                    tags.append("overrides builtin")
+                if entry.needs_update:
+                    tags.append("update available")
+                elif entry.is_installed:
+                    tags.append("installed")
+
+                if tags:
+                    label = f"{entry.name}  ({', '.join(tags)})"
                 else:
                     label = entry.name
+
+                if entry.has_conflict:
+                    color = curses.color_pair(5)  # magenta
+                elif is_sel:
+                    color = curses.color_pair(2)  # green
+                else:
                     color = 0
 
                 try:
@@ -546,6 +596,25 @@ def select_tools_interactive() -> list[int] | None:
 # --- CLI modes ---
 
 
+def run_skills_check(selected_entries: list[SkillEntry]) -> None:
+    """Run the dependency checker for selected builtin skills.
+
+    Local skills are excluded — their dependencies are the user's responsibility.
+    """
+    from mythril_agent_skills.cli.skills_check import main as check_main
+
+    builtin_names = [e.name for e in selected_entries if not e.is_local]
+    if not builtin_names:
+        return
+    sys.stdout.flush()
+    original_argv = sys.argv
+    sys.argv = ["skills-check"] + builtin_names
+    try:
+        check_main()
+    finally:
+        sys.argv = original_argv
+
+
 def direct_target_mode(target_dir: str) -> None:
     """Install selected skills to a specific target directory."""
     target_path = Path.home() / target_dir
@@ -560,12 +629,18 @@ def direct_target_mode(target_dir: str) -> None:
     local_dirs = get_local_skill_dirs()
     builtin_entries, local_entries = build_skill_entries(builtin_dirs, local_dirs)
 
+    target_skills_dir = target_path / "skills"
+    annotate_skill_entries_status(
+        builtin_entries + local_entries, [target_skills_dir]
+    )
+
     selected = select_skills_interactive(builtin_entries, local_entries)
     if selected is None or len(selected) == 0:
         print("No skills selected. Aborted.")
         sys.exit(0)
 
     sync_skill_entries(target_dir, target_dir, "skills", selected)
+    run_skills_check(selected)
 
 
 def interactive_mode() -> None:
@@ -578,6 +653,13 @@ def interactive_mode() -> None:
     builtin_dirs = get_builtin_skill_dirs()
     local_dirs = get_local_skill_dirs()
     builtin_entries, local_entries = build_skill_entries(builtin_dirs, local_dirs)
+
+    target_skills_dirs = [
+        Path.home() / TOOLS[i][1] / TOOLS[i][2] for i in tool_indices
+    ]
+    annotate_skill_entries_status(
+        builtin_entries + local_entries, target_skills_dirs
+    )
 
     selected_entries = select_skills_interactive(builtin_entries, local_entries)
     if selected_entries is None or len(selected_entries) == 0:
@@ -600,6 +682,8 @@ def interactive_mode() -> None:
         f"{BOLD}Done.{NC} Installed: {GREEN}{installed}{NC}, "
         f"Skipped: {YELLOW}{skipped}{NC}"
     )
+
+    run_skills_check(selected_entries)
 
 
 def main() -> None:
