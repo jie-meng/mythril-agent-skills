@@ -36,23 +36,32 @@ This skill MUST NOT:
 - Modify any file in any repo
 
 This skill ONLY:
-- Reads workspace documentation and prior work tracking docs
-- Queries knowledge graphs (graphify) or reads source files
+- Reads workspace documentation, knowledge graphs, and source files
 - Synthesizes findings and answers questions
 - Recommends follow-up actions (which fullstack skill to use next)
 
-## Token Efficiency — Information Hierarchy
+## Source-of-Truth Rule — Documents & Graphify Are Navigation, Not Answers
 
-Information is gathered in descending order of token efficiency:
+**Documents and graphify tell you WHERE to look. Source code tells you
+WHAT the answer is.**
 
-| Priority | Source | Why | Example |
-|----------|--------|-----|---------|
-| **1st** | Docs repo (work tracking docs) | Human-curated summaries — best density | `feat/oauth-migration/plan.md` already analyzed the auth flow |
-| **2nd** | Graphify knowledge graphs | Structured code relationships — fast queries | `graphify query "where is auth logic"` |
-| **3rd** | Source files (grep / read) | Raw code — most tokens per insight | Grep for `authenticate` then read matching files |
+Documents (from `fullstack-impl`/`fullstack-spike`) may be stale or
+incomplete. Graphify indexes may be out of date. Both are accelerators
+to find relevant code efficiently — they are NOT substitutes for reading
+the actual source files.
 
-**Always exhaust higher-priority sources before falling to lower ones.**
-This cascade minimizes token usage while maximizing insight quality.
+The information chain works like this:
+
+| Step | Source | Purpose |
+|------|--------|---------|
+| **1. Navigate** | Docs repo (work tracking docs) | Human summaries that tell you *what* to look for and *which repos/files* are relevant |
+| **2. Navigate** | Graphify knowledge graphs | Structured code index that tells you *where* modules, functions, and relationships live |
+| **3. Verify & Answer** | Source files (read) | **The only authoritative source.** Every key claim in your answer MUST be confirmed by reading the actual source code |
+
+**You MUST NOT present a finding as fact until you have read the
+corresponding source file.** When documents, graphify, and source code
+disagree, source code always wins. If documents or graphify claim a file
+exists at a path, read that file before citing it.
 
 ## Prerequisites — Workspace Validation Gate
 
@@ -125,10 +134,9 @@ From the repos table, build a mental map of what each repo does.
 ## Step 3 — Check Documents First (MANDATORY)
 
 **Before querying any repo**, scan the docs directory for prior work that
-covers the query topic. The workspace docs (`<docs-dir>/`) contain human-
-curated summaries from previous `fullstack-impl` and `fullstack-spike` runs.
-These are the highest-density information source — one `plan.md` may already
-have the architecture analysis you need.
+covers the query topic. Documents are **navigation aids** — they tell you
+which repos, files, and concepts are relevant, saving you from blind searching.
+Do NOT use document content as your answer; use it to know WHERE to look.
 
 ### 3a. Find relevant documents — GATE (check this FIRST)
 
@@ -212,7 +220,14 @@ After scanning, categorize the document coverage:
 
 ## Step 4 — Identify Repos & Choose Approach
 
-Based on document coverage (Step 3) and the workspace repos table (Step 2):
+Based on document coverage (Step 3) and the workspace repos table (Step 2).
+
+**Repos completeness rule:** The workspace `AGENTS.md` repos table is the
+authoritative list of all repos. When the query involves behavior that
+spans multiple repos (e.g. "how does auth work"), apply the per-repo
+protocol to EVERY repo in the table whose role or description relates to
+the query topic. Documents from Step 3 may identify repos to prioritize,
+but they are NOT a reason to skip repos — documents may be incomplete.
 
 ### 4a. Full coverage — Verify mode
 
@@ -273,28 +288,60 @@ determined which path to take.
 
 When the repo has `graphify-out/`, graphify query is MANDATORY. Do NOT
 run grep or read source files directly until you have exhausted the
-knowledge graph — graphify provides faster and more accurate insights
-into code structure, relationships, and architecture while using far
-fewer tokens.
+knowledge graph.
+
+**Graphify query strategy — narrow is better than wide.**
+
+Broad natural-language queries (`"authentication, JWT validation, WebSocket auth"`)
+return thousands of community-mapped nodes and get truncated. Precision
+queries return focused, relevant results:
+
+| Instead of | Try this | Why |
+|-----------|----------|-----|
+| `graphify query "how does auth work in the codebase"` | `graphify query "what does the auth_manager module handle"` | Narrow scope to a specific module |
+| `graphify query "authentication, JWT validation, WebSocket auth"` | `graphify query "where is JWT token signing implemented"` | One precise question per query |
+| `graphify query "what are all the WebSocket handlers"` | `graphify query "show me the WebSocket authentication flow"` | Ask for a flow, not a list |
+
+**Protocol:**
 
 1. Read the repo's **`AGENTS.md`** (if it exists) — architecture conventions,
-   design decisions, and domain terminology make graphify queries more precise.
+   design decisions, and domain terminology. Extract specific module names,
+   class names, and function names to use in graphify queries.
 2. **`cd` into the repo directory** (graphify is cwd-based).
-3. **Use `graphify query "<question>"`** to retrieve information. Start
-   broad, then narrow:
+3. **Start with one precise query**, not a list of keywords:
    ```
-   graphify query "what is the overall architecture of this repo"
-   graphify query "where is the authentication logic implemented"
-   graphify query "how does the API routing work"
+   graphify query "where is the <topic> logic implemented in <module-from-AGENTS.md>"
    ```
-4. When document context is available (from Step 3), use it for targeted
-   verification:
+4. **Check for truncation.** If the output says `TRUNCATED` with cut nodes,
+   you MUST take one of these actions before continuing:
+   - **Raise the budget**: add `--budget 8000` to increase the token limit
+   - **Narrow the scope**: re-query with a more specific module/function name
+   - **Use a symbol name**: `graphify query "show me AuthManager"` targets
+     a specific symbol rather than doing a broad traversal
+5. **When document context is available** (from Step 3), use it for targeted
+   verification — documents give you exact file paths and module names:
    ```
-   graphify query "is there a file at <path-from-doc>? what does it do?"
-   graphify query "has <module-name> been renamed or restructured?"
+   graphify query "does <path-from-doc> still exist? what does it do now?"
+   graphify query "has <module-from-doc> been renamed or restructured?"
    ```
-5. Only AFTER exhausting graphify queries may you fall back to grep/file
+6. **Iterate depth-first by module**, not breadth-first across topics:
+   - Query each relevant module fully before moving to the next
+   - Don't list 5 unrelated topics in one query
+7. Only AFTER exhausting graphify queries may you fall back to grep/file
    reads for any remaining gaps.
+
+**After graphify — verify against source code (MANDATORY).** Graphify is
+a navigation index, not the answer. Before treating any graphify finding
+as truth:
+
+- For every key claim (file path, function name, module structure),
+  **read the actual source file** to confirm it matches what graphify
+  reported.
+- Graphify may be stale — if the source file's content doesn't match
+  graphify's description, source wins. Note the discrepancy in your answer.
+- Read enough of each file to understand the logic, not just the first
+  line. An answer built on graphify alone is an answer built on potentially
+  stale data.
 
 ### § Normal path
 
@@ -319,8 +366,14 @@ After querying each repo, check cross-repo relationships:
 
 ## Step 6 — Synthesize the Answer
 
-Combine findings from documents (Step 3) and repo queries (Step 5) into
-a clear, structured response.
+Combine findings from documents (Step 3), graphify (Step 5), and source
+code (Step 5 verification) into a clear, structured response.
+
+**Answers MUST be source-code-based.** Documents and graphify tell you
+where to look; your answer describes what you actually read in the source
+files. Cite specific files and line ranges.
+
+### Answer format
 
 ### When documents cover the query (verify mode)
 
@@ -362,8 +415,13 @@ Note which findings come from documents vs. code verification:
 
 1. **Direct answer** — answer concisely first
 2. **Source attribution** — where each finding came from (doc / graphify / file)
-3. **Staleness notes** — if documents diverge from current code, flag it
-4. **Key files/locations** — specific paths for further exploration
+3. **Staleness notes** — if documents or graphify diverge from source code,
+   flag it. **Source code is the single source of truth** — when document,
+   graphify, and source disagree, source wins.
+4. **Key files/locations** — specific paths for further exploration, verified
+   against actual source (not graphify-reported paths alone)
+5. **Spot-check confirmation** — explicitly note which key findings were
+   verified by reading the actual source files
 
 ## Step 7 — Recommend Next Steps
 
