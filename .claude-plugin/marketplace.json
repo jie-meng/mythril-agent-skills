@@ -396,6 +396,25 @@
       "strict": false
     },
     {
+      "name": "fullstack-query",
+      "source": "./plugins/fullstack-query",
+      "description": "Read-only knowledge exploration across a multi-repo fullstack workspace — answer architecture questions, locate implementations, and suggest next steps using graphify knowledge graphs",
+      "version": "0.2.16",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "development",
+      "tags": [
+        "workspace",
+        "fullstack",
+        "multi-repo",
+        "query",
+        "exploration"
+      ],
+      "strict": false
+    },
+    {
       "name": "fullstack-spike",
       "source": "./plugins/fullstack-spike",
       "description": "Run time-boxed spikes across a multi-repo fullstack workspace — prototype, validate, and estimate without creating branches or committing code",

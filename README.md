@@ -230,6 +230,13 @@ Initialize or update a multi-repo fullstack workspace with unified AI context. C
 - **Try:** Initialize this fullstack workspace
 - **Deps:** `git` CLI
 
+**[Fullstack Query](./mythril_agent_skills/skills/fullstack-query/)**
+
+Read-only knowledge exploration across a multi-repo fullstack workspace. Answer architecture questions, locate implementations, and explain cross-repo relationships. Uses graphify knowledge graphs when available for token-efficient querying.
+
+- **Try:** Which repo handles user authentication?
+- **Deps:** Workspace initialized by `fullstack-init`
+
 **[Fullstack Spike](./mythril_agent_skills/skills/fullstack-spike/)**
 
 Run a time-boxed spike across a multi-repo fullstack workspace — write throwaway code to validate a technical hypothesis, reduce uncertainty, or estimate effort. No branches, no commits. Outputs analysis, findings, and a verdict. If feasible, hand off to `fullstack-impl` for formal implementation.
@@ -368,6 +375,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `blog-writer` | Write, refine, and adapt tech-first multilingual blog posts |
 | `user-journey` | Draft user journey maps and lo-fi wireframes via natural language — HTML/CSS workspace with map/stage/presenter views |
 | `fullstack-init` | Initialize multi-repo fullstack workspace with AI context |
+| `fullstack-query` | Read-only knowledge exploration across a fullstack workspace |
 | `fullstack-spike` | Run time-boxed spikes without committing |
 | `fullstack-impl` | Implement features/fixes across a fullstack workspace |
 
@@ -609,6 +617,7 @@ mythril-agent-skills/
 │       ├── blog-writer/         # Tech-first multilingual blog writing
 │       ├── user-journey/        # User journey maps & lo-fi wireframes via natural language
 │       ├── fullstack-init/      # Initialize multi-repo workspace
+│       ├── fullstack-query/     # Read-only knowledge exploration
 │       ├── fullstack-spike/       # Run time-boxed spikes without committing
 │       └── fullstack-impl/      # Implement across fullstack workspace
 ├── plugins/                     # Per-skill plugin wrappers (symlinks into skills/)
