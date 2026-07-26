@@ -130,12 +130,15 @@ curated summaries from previous `fullstack-impl` and `fullstack-spike` runs.
 These are the highest-density information source — one `plan.md` may already
 have the architecture analysis you need.
 
-### 3a. Find relevant documents — graphify-first
+### 3a. Find relevant documents — GATE (check this FIRST)
 
-The docs repo is a git repository just like code repos — it can have its
-own `graphify-out/` indexing all work tracking documents. Check it first.
+**Check for `<docs-dir>/graphify-out/`** — the docs repo can have its own
+knowledge graph indexing all work tracking documents.
 
-**When `<docs-dir>/graphify-out/` exists:**
+- **`graphify-out/` EXISTS** → go to § Docs graphify path below.
+- **`graphify-out/` does NOT exist** → go to § Docs manual path below.
+
+### § Docs graphify path
 
 `cd` into the docs directory and use `graphify query` to find relevant
 documents — this is far more efficient than manually scanning directory
@@ -153,7 +156,7 @@ Graphify on the docs repo indexes all text content across documents,
 so it can find matches buried deep in `progress.md` or `review.md` that
 directory-name scanning would miss.
 
-**When `<docs-dir>/graphify-out/` does NOT exist:**
+### § Docs manual path
 
 Fall back to manual scanning. List the docs directory structure:
 
@@ -253,43 +256,58 @@ After user confirmation (or "just go ahead"), proceed to Step 5.
 
 ## Step 5 — Gather Context from Repos
 
-For each repo being queried, follow this protocol (in priority order).
+For each repo being queried, follow this per-repo protocol. Execute the
+protocol to completion for one repo before moving to the next.
 
-### 5a. Read repo AGENTS.md (ALWAYS FIRST)
+### Per-repo protocol — GATE (check this FIRST, before anything else)
 
-**In every path below, read the repo's `AGENTS.md` first** if it exists.
-It contains architecture conventions, design decisions, and domain
-terminology that make subsequent queries more precise.
+**Check for `<repo>/graphify-out/`** — look for this directory at the repo
+root. Do NOT run Glob, grep, or Read on source files until you have
+determined which path to take.
 
-### 5b. Graphify path — when `graphify-out/` exists
+- **`graphify-out/` EXISTS** → go to § Graphify path below. You MUST use
+  `graphify query` BEFORE touching any source files. This is not optional.
+- **`graphify-out/` does NOT exist** → go to § Normal path below.
 
-1. `cd` into the repo directory (graphify is cwd-based)
-2. Use `graphify query "<question>"` to retrieve information. Start
+### § Graphify path
+
+When the repo has `graphify-out/`, graphify query is MANDATORY. Do NOT
+run grep or read source files directly until you have exhausted the
+knowledge graph — graphify provides faster and more accurate insights
+into code structure, relationships, and architecture while using far
+fewer tokens.
+
+1. Read the repo's **`AGENTS.md`** (if it exists) — architecture conventions,
+   design decisions, and domain terminology make graphify queries more precise.
+2. **`cd` into the repo directory** (graphify is cwd-based).
+3. **Use `graphify query "<question>"`** to retrieve information. Start
    broad, then narrow:
    ```
    graphify query "what is the overall architecture of this repo"
    graphify query "where is the authentication logic implemented"
    graphify query "how does the API routing work"
    ```
-3. **Do NOT run grep or read source files directly until you have
-   exhausted the knowledge graph.** Graphify provides faster, more
-   accurate insights into code structure and relationships while using
-   far fewer tokens.
-4. When document context is available (from Step 3), use it to form
-   targeted verification queries:
+4. When document context is available (from Step 3), use it for targeted
+   verification:
    ```
    graphify query "is there a file at <path-from-doc>? what does it do?"
    graphify query "has <module-name> been renamed or restructured?"
    ```
+5. Only AFTER exhausting graphify queries may you fall back to grep/file
+   reads for any remaining gaps.
 
-### 5c. Normal path — when `graphify-out/` does NOT exist
+### § Normal path
 
-1. Read the repo's `README.md` — tech stack, build commands, overview
-2. Use grep and file reads to find relevant code. Start with:
+When the repo does NOT have `graphify-out/`:
+
+1. Read the repo's **`AGENTS.md`** (if it exists) — architecture and
+   conventions.
+2. Read the repo's **`README.md`** — tech stack, build commands, overview.
+3. Use grep and file reads to find relevant code. Start with:
    - Key config files (`package.json`, `pyproject.toml`, `go.mod`, etc.)
    - Entry points (`src/`, `main.go`, `app/`, etc.)
    - Files matching the query topic (grep for keywords)
-3. When document context is available, use it to target specific paths
+4. When document context is available, use it to target specific paths
    rather than broad searching.
 
 ### 5d. Cross-reference between repos
