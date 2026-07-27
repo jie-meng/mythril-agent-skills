@@ -1,0 +1,41 @@
+mythril_agent_skills/skills/fullstack-spike/SKILL.md
+  s_da1b49548d131a::t_467b64312effe4 124-128
+  s_da1b49548d131a::t_310c3a63821f2f 481-483
+  s_da1b49548d131a::t_a9c314e119e5c7 461-463
+mythril_agent_skills/shared/graphify/graphify_check.py
+  s_da1b49548d131a::t_c3d1b0a36cdc3c 1-37
+mythril_agent_skills/skills/fullstack-impl/SKILL.md
+  s_da1b49548d131a::t_a5354f5a849437 747-749
+  s_da1b49548d131a::t_5d9c1fc3bc3da6 606-608
+mythril_agent_skills/skills/fullstack-init/scripts/workspace_init.py
+  s_da1b49548d131a::t_9ab3495dfb4771 278-287
+mythril_agent_skills/skills/fullstack-query/SKILL.md
+  s_da1b49548d131a::t_b518bc14eb2a7b 144-145,147-148
+  s_da1b49548d131a::t_2c243712d67596 280-284,286,288
+mythril_agent_skills/skills/fullstack-impl/scripts/graphify_check.py
+  s_da1b49548d131a::t_70c4dc8bae2f51 1-37
+mythril_agent_skills/skills/fullstack-init/scripts/graphify_check.py
+  s_da1b49548d131a::t_70c4dc8bae2f51 1-37
+mythril_agent_skills/skills/fullstack-spike/scripts/graphify_check.py
+  s_da1b49548d131a::t_70c4dc8bae2f51 1-37
+mythril_agent_skills/skills/fullstack-query/scripts/graphify_check.py
+  s_da1b49548d131a::t_70c4dc8bae2f51 1-37
+scripts/sync-shared-assets.py
+  s_da1b49548d131a::t_7434ab8a12254d 82-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "9cd7fbf8d41a3d38fee097a208434c53aef11ac8",
+  "prompts": {},
+  "sessions": {
+    "s_da1b49548d131a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_05ecb1185ffesEqyv0Js0Yj4kD",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
