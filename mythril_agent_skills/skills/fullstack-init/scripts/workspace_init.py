@@ -465,6 +465,158 @@ line and re-run before committing. Full rules live in
 """
 
 
+def parse_agents_md_sections(content: str) -> tuple[str, list[tuple[str, str]]]:
+    """Parse AGENTS.md into (h1_line, [(section_title, section_body), ...]).
+
+    section_title is the full "## Title" line.
+    section_body includes the title line and all content until the next H2.
+    """
+    lines = content.split("\n")
+    h1_line = ""
+    sections: list[tuple[str, str]] = []
+    current_title = ""
+    current_body: list[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("# ") and not current_title:
+            h1_line = line
+            continue
+        if stripped.startswith("## "):
+            if current_title:
+                sections.append((current_title, "\n".join(current_body)))
+            current_title = line
+            current_body = [line]
+        elif current_title:
+            current_body.append(line)
+
+    if current_title:
+        sections.append((current_title, "\n".join(current_body)))
+
+    return h1_line, sections
+
+
+def _merge_conventions(existing_section: str, generated_section: str) -> str:
+    """Merge Workspace Conventions sections.
+
+    Keeps all existing bullets, appends any new ones from generated that have
+    a bold title (e.g., "- **Knowledge Graph (graphify)**:") not present in
+    the existing section.
+    """
+
+    def _extract_bullet_titles(text: str) -> set[str]:
+        """Extract the first bold title from each bullet."""
+        titles: set[str] = set()
+        for line in text.split("\n"):
+            stripped = line.strip()
+            if stripped.startswith("- **"):
+                end = stripped.find("**", 4)
+                if end > 0:
+                    titles.add(stripped[3 : end + 2])
+        return titles
+
+    def _extract_bullet_blocks(text: str) -> list[str]:
+        """Split a section body into individual bullet blocks."""
+        blocks: list[str] = []
+        current: list[str] = []
+        heading_found = False
+
+        for line in text.split("\n"):
+            stripped = line.strip()
+            if stripped.startswith("## ") and not heading_found:
+                heading_found = True
+                continue
+            if not heading_found:
+                continue
+            if stripped.startswith("- "):
+                if current:
+                    blocks.append("\n".join(current))
+                current = [line]
+            elif current:
+                current.append(line)
+
+        if current:
+            blocks.append("\n".join(current))
+        return blocks
+
+    existing_titles = _extract_bullet_titles(existing_section)
+    generated_blocks = _extract_bullet_blocks(generated_section)
+
+    new_blocks: list[str] = []
+    for block in generated_blocks:
+        block_lines = block.strip().split("\n")
+        if block_lines:
+            first = block_lines[0].strip()
+            if first.startswith("- **"):
+                end = first.find("**", 4)
+                if end > 0:
+                    title = first[3 : end + 2]
+                    if title not in existing_titles:
+                        new_blocks.append(block)
+
+    if not new_blocks:
+        return existing_section
+
+    existing_lines = existing_section.rstrip().split("\n")
+    existing_lines.append("")
+    for block in new_blocks:
+        existing_lines.append(block.rstrip())
+
+    return "\n".join(existing_lines)
+
+
+def merge_agents_md(existing: str, generated: str) -> str:
+    """Incrementally merge an existing AGENTS.md with a freshly generated template.
+
+    Merge rules:
+    - Repositories section: always replace with generated (new repos may appear)
+    - Directory Structure section: always replace with generated
+    - Workspace Conventions: merge bullet points (keep existing, add new ones)
+    - New H2 sections (only in generated): insert at the expected position
+    - User-only H2 sections (only in existing): preserve (append after generated)
+    - Everything else: keep existing content (may be user-customized)
+    """
+    existing_h1, existing_sections = parse_agents_md_sections(existing)
+    generated_h1, generated_sections = parse_agents_md_sections(generated)
+
+    existing_map: dict[str, str] = {}
+    for title, body in existing_sections:
+        existing_map[title[3:]] = body
+
+    REPLACE_SECTIONS = {"Repositories", "Directory Structure"}
+    MERGE_SECTIONS = {"Workspace Conventions"}
+
+    merged: list[tuple[str, str]] = []
+    seen_keys: set[str] = set()
+
+    for gen_title, gen_body in generated_sections:
+        key = gen_title[3:]
+        seen_keys.add(key)
+
+        if key in REPLACE_SECTIONS:
+            merged.append((gen_title, gen_body))
+        elif key in MERGE_SECTIONS and key in existing_map:
+            merged.append(
+                (gen_title, _merge_conventions(existing_map[key], gen_body))
+            )
+        elif key in existing_map:
+            merged.append((gen_title, existing_map[key]))
+        else:
+            merged.append((gen_title, gen_body))
+
+    for title, body in existing_sections:
+        key = title[3:]
+        if key not in seen_keys:
+            merged.append((title, body))
+
+    result_lines = [existing_h1 or generated_h1, ""]
+    for title, body in merged:
+        result_lines.append(body.strip())
+        result_lines.append("")
+
+    return "\n".join(result_lines)
+
+
 def detect_language(text: str) -> str:
     """Detect language from text. Returns 'zh' if Chinese characters found, else 'en'."""
     for ch in text:
@@ -1040,10 +1192,13 @@ def bootstrap_workspace(
     dry_run: bool = False,
     lang: str = "en",
     github_repos: bool | None = None,
+    force: bool = False,
 ) -> dict[str, list[str]]:
     """Bootstrap or update workspace infrastructure. Return a report.
 
-    Design: every run is a full refresh. Generated files are overwritten.
+    Design: every run is a full refresh. Generated files are overwritten
+    except AGENTS.md, which is merged incrementally when it already exists
+    (--force bypasses the merge and does a full overwrite).
     Only fullstack.json, docs dir content, scripts/, and .agents/skills/
     are preserved across runs.
     """
@@ -1131,12 +1286,17 @@ def bootstrap_workspace(
         f".agents/agents/ ({', '.join(sorted(AGENT_TEMPLATES))})"
     )
 
-    # --- AGENTS.md (full refresh) ---
-    (root / "AGENTS.md").write_text(
-        generate_agents_md(project_name, repos_table, resolved_docs_dir),
-        encoding="utf-8",
-    )
-    report["updated"].append("AGENTS.md")
+    # --- AGENTS.md ---
+    agents_md_path = root / "AGENTS.md"
+    new_agents_md = generate_agents_md(project_name, repos_table, resolved_docs_dir)
+    if not force and agents_md_path.exists():
+        existing = agents_md_path.read_text(encoding="utf-8")
+        merged = merge_agents_md(existing, new_agents_md)
+        agents_md_path.write_text(merged, encoding="utf-8")
+        report["updated"].append("AGENTS.md (merged incrementally)")
+    else:
+        agents_md_path.write_text(new_agents_md, encoding="utf-8")
+        report["updated"].append("AGENTS.md")
 
     # --- README.md (full refresh) ---
     (root / "README.md").write_text(
@@ -1206,6 +1366,12 @@ def main() -> None:
         help="Mark repos as GitHub / GitHub Enterprise hosted (enables PR creation in fullstack-impl)",
     )
     parser.add_argument(
+        "--force",
+        action="store_true",
+        default=False,
+        help="Full overwrite of AGENTS.md instead of incremental merge",
+    )
+    parser.add_argument(
         "--no-github",
         action="store_true",
         default=False,
@@ -1238,6 +1404,7 @@ def main() -> None:
         dry_run=args.dry_run,
         lang=lang,
         github_repos=github_repos,
+        force=args.force,
     )
 
     if args.json_output:

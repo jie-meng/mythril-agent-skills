@@ -418,7 +418,263 @@ class TestGenerateAgentsMd:
 
 
 # ---------------------------------------------------------------------------
-# generate_docs_agents_md
+# parse_agents_md_sections
+# ---------------------------------------------------------------------------
+
+
+class TestParseAgentsMdSections:
+    """Tests for workspace_init.parse_agents_md_sections."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from workspace_init import parse_agents_md_sections
+        self.func = parse_agents_md_sections
+
+    def test_basic_structure(self):
+        content = "# Title\n\n## Section A\n\nContent A.\n\n## Section B\n\nContent B.\n"
+        h1, sections = self.func(content)
+        assert h1 == "# Title"
+        assert len(sections) == 2
+        assert sections[0][0] == "## Section A"
+        assert "Content A." in sections[0][1]
+        assert sections[1][0] == "## Section B"
+        assert "Content B." in sections[1][1]
+
+    def test_no_h2_sections(self):
+        content = "# Title\n\nJust some text.\n"
+        h1, sections = self.func(content)
+        assert h1 == "# Title"
+        assert sections == []
+
+    def test_no_h1(self):
+        content = "## Section\n\nBody.\n"
+        h1, sections = self.func(content)
+        assert h1 == ""
+        assert len(sections) == 1
+        assert sections[0][0] == "## Section"
+
+    def test_content_before_first_h2_is_discarded(self):
+        content = "# Title\n\nPreamble text.\n\n## Real Section\n\nBody.\n"
+        h1, sections = self.func(content)
+        assert h1 == "# Title"
+        assert len(sections) == 1
+        assert sections[0][0] == "## Real Section"
+
+    def test_multiline_section_bodies(self):
+        content = "# Proj\n\n## Conventions\n\n- Bullet 1\n- Bullet 2\n  - Sub\n"
+        h1, sections = self.func(content)
+        assert len(sections) == 1
+        assert "Bullet 1" in sections[0][1]
+        assert "Bullet 2" in sections[0][1]
+        assert "Sub" in sections[0][1]
+
+
+# ---------------------------------------------------------------------------
+# merge_agents_md
+# ---------------------------------------------------------------------------
+
+
+_SAMPLE_GENERATED = """\
+# MyProject
+
+## Project Overview
+
+This is a multi-repo workspace.
+
+## Repositories
+
+| # | Repository | Role | Tech Stack | Description |
+|---|-----------|------|-----------|-------------|
+| 1 | [web](./web/) | Web Frontend | TypeScript | App |
+| 2 | [api](./api/) | Backend / API | Python | API |
+
+## Workspace Conventions
+
+- **Cross-repo changes**: commit each repo independently.
+- **Knowledge Graph (graphify)**: Some repos may have a `graphify-out/` directory.
+  - **Query first**: When `graphify-out/` exists, use `graphify query`.
+
+## Work Tracking
+
+Use `docs/` for cross-repo work.
+
+## Directory Structure
+
+```
+MyProject/
+├── AGENTS.md
+├── web/
+└── api/
+```
+"""
+
+_OLD_AGENTS = """\
+# MyProject
+
+## Project Overview
+
+Our custom overview. We have a monorepo.
+
+## Repositories
+
+| Old table |
+
+## Workspace Conventions
+
+- **Cross-repo changes**: commit independently.
+- **Tests**: Always run tests before committing.
+
+## Work Tracking
+
+Custom work tracking rules.
+
+## Custom Section
+
+My custom additions.
+"""
+
+
+class TestMergeAgentsMd:
+    """Tests for workspace_init.merge_agents_md."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from workspace_init import merge_agents_md
+        self.func = merge_agents_md
+
+    def test_repos_table_replaced(self):
+        result = self.func(_OLD_AGENTS, _SAMPLE_GENERATED)
+        assert "Old table" not in result
+        assert "[web](./web/)" in result
+        assert "[api](./api/)" in result
+
+    def test_directory_structure_replaced(self):
+        result = self.func(_OLD_AGENTS, _SAMPLE_GENERATED)
+        assert "[web](./web/)" in result
+
+    def test_new_bullets_merged(self):
+        """Knowledge Graph bullet from generated should be appended."""
+        result = self.func(_OLD_AGENTS, _SAMPLE_GENERATED)
+        assert "Knowledge Graph (graphify)" in result
+        assert "Query first" in result
+
+    def test_existing_bullets_preserved(self):
+        """User-added bullet should survive merge."""
+        result = self.func(_OLD_AGENTS, _SAMPLE_GENERATED)
+        assert "Always run tests" in result
+
+    def test_existing_sections_preserved(self):
+        """Sections that exist in both keep user content."""
+        result = self.func(_OLD_AGENTS, _SAMPLE_GENERATED)
+        assert "Our custom overview. We have a monorepo." in result
+        assert "Custom work tracking rules." in result
+
+    def test_user_only_sections_preserved(self):
+        """Sections only in existing are appended."""
+        result = self.func(_OLD_AGENTS, _SAMPLE_GENERATED)
+        assert "## Custom Section" in result
+        assert "My custom additions." in result
+
+    def test_existing_h1_preserved(self):
+        """Existing H1 title is kept."""
+        existing = "# CustomTitle\n\n## Repos\n\ntable\n"
+        generated = "# GeneratedTitle\n\n## Repos\n\nnew table\n"
+        result = self.func(existing, generated)
+        assert "# CustomTitle" in result
+
+    def test_no_existing_h1_uses_generated(self):
+        existing = "## Repos\n\nold table\n"
+        generated = "# GeneratedTitle\n\n## Repos\n\nnew table\n"
+        result = self.func(existing, generated)
+        assert "# GeneratedTitle" in result
+
+    def test_preserves_user_section_order_for_known_sections(self):
+        """User-customized known sections appear at their template position."""
+        result = self.func(_OLD_AGENTS, _SAMPLE_GENERATED)
+        overview_idx = result.index("## Project Overview")
+        repos_idx = result.index("## Repositories")
+        custom_idx = result.index("## Custom Section")
+        assert overview_idx < repos_idx
+        assert repos_idx < custom_idx
+
+    def test_handles_no_h2_in_existing(self):
+        """When existing has no H2 sections, generated content is used."""
+        existing = "# JustTitle\n"
+        result = self.func(existing, _SAMPLE_GENERATED)
+        assert "## Repositories" in result
+
+    def test_handles_no_h2_in_generated(self):
+        """When generated has no H2 sections, existing is returned."""
+        generated = "# Title\n"
+        result = self.func(_OLD_AGENTS, generated)
+        assert "## Custom Section" in result
+        assert "My custom additions." in result
+
+
+# ---------------------------------------------------------------------------
+# _merge_conventions
+# ---------------------------------------------------------------------------
+
+
+class TestMergeConventions:
+    """Tests for workspace_init._merge_conventions."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from workspace_init import _merge_conventions
+        self.func = _merge_conventions
+
+    def test_appends_new_bullet(self):
+        existing = "## Workspace Conventions\n\n- **Bullet A**: description.\n"
+        generated = (
+            "## Workspace Conventions\n\n"
+            "- **Bullet A**: description.\n"
+            "- **Bullet B**: new description.\n"
+        )
+        result = self.func(existing, generated)
+        assert "**Bullet A**" in result
+        assert "**Bullet B**" in result
+
+    def test_preserves_existing_order(self):
+        existing = (
+            "## Workspace Conventions\n\n"
+            "- **B**: second.\n"
+            "- **A**: first.\n"
+        )
+        generated = (
+            "## Workspace Conventions\n\n"
+            "- **A**: first.\n"
+            "- **B**: second.\n"
+        )
+        result = self.func(existing, generated)
+        b_idx = result.index("**B**")
+        a_idx = result.index("**A**")
+        assert b_idx < a_idx
+
+    def test_no_changes_when_all_bullets_exist(self):
+        existing = "## Workspace Conventions\n\n- **A**: desc.\n- **B**: desc.\n"
+        generated = "## Workspace Conventions\n\n- **A**: desc.\n- **B**: desc.\n"
+        result = self.func(existing, generated)
+        assert result == existing
+
+    def test_matches_by_bold_title_only(self):
+        """Bullet matching is based on bold title, not full text."""
+        existing = "## Workspace Conventions\n\n- **A**: user modified this.\n"
+        generated = "## Workspace Conventions\n\n- **A**: template version.\n- **B**: new.\n"
+        result = self.func(existing, generated)
+        assert "user modified this" in result
+        assert "**B**" in result
+
+    def test_handles_multiline_bullets(self):
+        existing = "## Workspace Conventions\n\n- **A**: simple.\n"
+        generated = (
+            "## Workspace Conventions\n\n"
+            "- **A**: simple.\n"
+            "- **B**: multi\n  line bullet.\n"
+        )
+        result = self.func(existing, generated)
+        assert "**B**" in result
+        assert "line bullet" in result
 # ---------------------------------------------------------------------------
 
 
@@ -668,19 +924,57 @@ class TestBootstrapWorkspace:
         assert "[web](./web/)" in agents_md
         assert "[api](./api/)" in agents_md
 
-    def test_rerun_regenerates_agents_md(self, tmp_path: Path):
+    def test_rerun_merges_agents_md(self, tmp_path: Path):
+        """Re-run merges existing AGENTS.md, preserving user content."""
         _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
         self.func(tmp_path)
 
-        (tmp_path / "AGENTS.md").write_text("# User garbage\n")
+        # Add custom content
+        existing = (tmp_path / "AGENTS.md").read_text()
+        customized = existing + "\n## Custom Rules\n\nMy custom rules here.\n"
+        (tmp_path / "AGENTS.md").write_text(customized)
 
+        # Add a new repo and re-run
         _make_repo(tmp_path, "api", "# API\n\nService.\n")
         self.func(tmp_path)
 
         agents_md = (tmp_path / "AGENTS.md").read_text()
-        assert "User garbage" not in agents_md
-        assert "[web](./web/)" in agents_md
+        # Repos table updated (new repo)
         assert "[api](./api/)" in agents_md
+        # User's custom section preserved
+        assert "## Custom Rules" in agents_md
+        assert "My custom rules here" in agents_md
+
+    def test_force_bypasses_merge(self, tmp_path: Path):
+        """--force does a full overwrite instead of merging."""
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path)
+
+        (tmp_path / "AGENTS.md").write_text("# User garbage\n\n## Custom\n\nstuff\n")
+
+        self.func(tmp_path, force=True)
+
+        agents_md = (tmp_path / "AGENTS.md").read_text()
+        assert "User garbage" not in agents_md
+        assert "## Custom" not in agents_md
+        assert "[web](./web/)" in agents_md
+
+    def test_merge_preserves_user_section_content(self, tmp_path: Path):
+        """Sections that exist in both versions keep user's customized content."""
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path)
+
+        agents_md = (tmp_path / "AGENTS.md").read_text()
+        customized = agents_md.replace(
+            "independent git repository",
+            "independent git repository\n\n  My custom note here.",
+        )
+        (tmp_path / "AGENTS.md").write_text(customized)
+
+        self.func(tmp_path)
+
+        result = (tmp_path / "AGENTS.md").read_text()
+        assert "My custom note here" in result
 
     def test_rerun_regenerates_agent_templates(self, tmp_path: Path):
         _make_repo(tmp_path, "web", "# Web\n\nApp.\n")

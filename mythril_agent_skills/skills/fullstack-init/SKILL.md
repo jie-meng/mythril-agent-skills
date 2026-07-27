@@ -20,14 +20,14 @@ android, and other repos live as sibling directories under one root.
 On first run (or if `--force` is passed), the script regenerates all
 scaffolding files from scratch. On subsequent runs, it detects that the
 workspace has already been initialized and performs an **incremental
-update**: preserving existing content while adding any new sections or
-conventions introduced by template updates.
+update** on `AGENTS.md` — preserving existing content while adding new
+sections, updating the repos table, and merging Workspace Conventions
+bullet points introduced by template updates.
 
 | Category | First run / `--force` | Subsequent run |
 |----------|----------------------|----------------|
-| **Regenerated from scratch** | `AGENTS.md`, `README.md`, `.agents/agents/*.md` | `.agents/agents/*.md` (always fresh) |
-| **Merged incrementally** | — | `AGENTS.md` (add new sections, update repos table, preserve existing) |
-| **Regenerated from scratch** | — | `README.md` (full refresh — since it's a usage guide, not a customization target) |
+| **Generated from scratch** | `AGENTS.md`, `README.md`, `.agents/agents/*.md` | `README.md`, `.agents/agents/*.md` |
+| **Merged incrementally** | — | `AGENTS.md` (add new sections, update repos table, merge conventions, preserve user content) |
 | **Preserved** | `fullstack.json`, `<docs-dir>/`, `scripts/`, `.agents/skills/` | same |
 | **Create-only** | `<docs-dir>/` + git init, `scripts/`, `.agents/skills/` — created if missing, never touched if present | same |
 
@@ -45,37 +45,17 @@ receiving template updates (like the Knowledge Graph section) on re-runs.
 ## How the AI Agent MUST Handle Already-Initialized Workspaces
 
 When `fullstack.json` **and** `AGENTS.md` both exist in the workspace root,
-the workspace has already been initialized. The AI agent MUST do an
-**incremental update** rather than a blind overwrite:
+the workspace has already been initialized. The script automatically
+performs an **incremental merge** on AGENTS.md:
 
-1. **Save a copy** of the existing `AGENTS.md`.
-2. **Read the generated template** — the new AGENTS.md that the script
-   would produce (from `generate_agents_md()` in `workspace_init.py`).
-3. **Run the script normally** — pass all the usual flags (`--docs-dir`,
-   `--lang`, `--github`/`--no-github`). The script will:
-   - Regenerate `AGENTS.md` from scratch (full overwrite)
-   - Regenerate `README.md` and `.agents/agents/*.md` (full overwrite)
-   - Leave preserved/create-only dirs untouched
-4. **Compare the saved original with the generated AGENTS.md** and merge:
-   - **Repos table**: Update to match the generated version (new repos
-     may have been added).
-   - **New H2 sections**: If the generated version has an H2 section
-     that does NOT exist in the saved original, insert it at the matching
-     position (preserving section order from the generated version).
-   - **Workspace Conventions bullet points**: Compare the bullet points
-     in the "Workspace Conventions" section. For any bullet point in the
-     generated version that is absent from the saved original, add it
-     (the Knowledge Graph section is a current example — future template
-     updates may add more).
-   - **"Directory Structure" section**: Update to match the generated
-     version (reflects current scaffolding layout).
-   - **Everything else**: KEEP the saved original's content. Do NOT
-     overwrite H2 sections that exist in both versions — these may
-     contain project-specific customizations.
-5. **Write the merged AGENTS.md** back.
+- **Repos table**: Updated to match current repos (new repos may have been added)
+- **Workspace Conventions bullet points**: New ones from template updates are appended
+- **Directory Structure**: Updated to match current scaffolding layout
+- **New H2 sections**: Inserted if they appear in the generated template but not in the existing file
+- **User-customized content**: Preserved — sections that exist in both versions keep the user's version
 
-The result: the AGENTS.md keeps all project-specific additions while
-receiving new template sections and updated repos/workspace conventions.
+The AI agent simply runs the script — no post-hoc merge steps needed.
+To bypass merging and do a full overwrite, pass `--force`.
 
 ## Docs Directory — Independent Git Repo
 
@@ -103,7 +83,8 @@ python3 SKILL_PATH/scripts/workspace_init.py --docs-dir my-docs      # custom do
 python3 SKILL_PATH/scripts/workspace_init.py --lang zh               # Chinese README
 python3 SKILL_PATH/scripts/workspace_init.py --github                # repos are on GitHub
 python3 SKILL_PATH/scripts/workspace_init.py --no-github             # repos are NOT on GitHub
-python3 SKILL_PATH/scripts/workspace_init.py                         # re-run: incremental update
+python3 SKILL_PATH/scripts/workspace_init.py                         # re-run: incremental merge
+python3 SKILL_PATH/scripts/workspace_init.py --force                 # re-run: full overwrite
 python3 SKILL_PATH/scripts/workspace_init.py --dry-run               # preview only
 python3 SKILL_PATH/scripts/workspace_init.py --json                  # JSON output
 ```
