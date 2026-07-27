@@ -603,8 +603,9 @@ For each affected repository, in the dependency order from `plan.md`:
 3. **Check for repo-level agents** at `<repo>/.agents/agents/` — if
    the repo has specialized agents, prefer them for that repo's
    changes.
-4. **Check for `graphify-out/`** — if the repo has this directory,
-   `cd` into the repo and you MUST use
+4. **Check for `graphify-out/`** — run
+   `python3 SKILL_PATH/scripts/graphify_check.py <repo>` to check.
+   When `graphify-out/` exists, `cd` into the repo and you MUST use
    `graphify query "<question>"` to understand the codebase before
    reading individual files. Do NOT run grep or read source files
    directly until you have queried the knowledge graph. If output
@@ -743,8 +744,9 @@ noted.
 2. `git commit -m "<message>"`
 3. Update `progress.md`: what was implemented, review result, test
    results, issues encountered.
-4. If the repo has a `graphify-out/` directory, `cd` into the repo and
-   run `graphify update` to keep the knowledge graph in sync with the
+4. Run `python3 SKILL_PATH/scripts/graphify_check.py <repo>` — if the
+   repo has `graphify-out/`, `cd` into the repo and run
+   `graphify update` to keep the knowledge graph in sync with the
    committed changes.
 
 ##### 6e-vi. Forward pointer — what happens AFTER round 0

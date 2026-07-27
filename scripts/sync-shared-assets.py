@@ -79,6 +79,25 @@ def specs() -> list[SyncSpec]:
         )
     )
 
+    # --- shared/graphify/graphify_check.py → <skill>/scripts/graphify_check.py
+    graphify_consumers = (
+        "fullstack-init",
+        "fullstack-impl",
+        "fullstack-query",
+        "fullstack-spike",
+    )
+    graphify_source = SHARED_ROOT / "graphify" / "graphify_check.py"
+    out.append(
+        SyncSpec(
+            source=graphify_source,
+            targets=tuple(
+                SKILLS_ROOT / skill / "scripts" / "graphify_check.py"
+                for skill in graphify_consumers
+            ),
+            description="graphify-out check script",
+        )
+    )
+
     return out
 
 

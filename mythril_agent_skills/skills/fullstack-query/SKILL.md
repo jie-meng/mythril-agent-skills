@@ -141,10 +141,11 @@ Do NOT use document content as your answer; use it to know WHERE to look.
 ### 3a. Find relevant documents — GATE (check this FIRST)
 
 **Check for `<docs-dir>/graphify-out/`** — the docs repo can have its own
-knowledge graph indexing all work tracking documents.
+knowledge graph indexing all work tracking documents. Run
+`python3 SKILL_PATH/scripts/graphify_check.py <docs-dir>` to check.
 
-- **`graphify-out/` EXISTS** → go to § Docs graphify path below.
-- **`graphify-out/` does NOT exist** → go to § Docs manual path below.
+- **`EXISTS`** → go to § Docs graphify path below.
+- **`NOT_FOUND`** → go to § Docs manual path below.
 
 ### § Docs graphify path
 
@@ -276,13 +277,15 @@ protocol to completion for one repo before moving to the next.
 
 ### Per-repo protocol — GATE (check this FIRST, before anything else)
 
-**Check for `<repo>/graphify-out/`** — look for this directory at the repo
-root. Do NOT run Glob, grep, or Read on source files until you have
-determined which path to take.
+**Check for `<repo>/graphify-out/`** — run
+`python3 SKILL_PATH/scripts/graphify_check.py <repo>` to check. This
+script uses a direct filesystem check immune to `.gitignore` filtering
+— do NOT use Glob. Do NOT run grep or Read on source files until you
+have determined which path to take.
 
-- **`graphify-out/` EXISTS** → go to § Graphify path below. You MUST use
+- **`EXISTS`** → go to § Graphify path below. You MUST use
   `graphify query` BEFORE touching any source files. This is not optional.
-- **`graphify-out/` does NOT exist** → go to § Normal path below.
+- **`NOT_FOUND`** → go to § Normal path below.
 
 ### § Graphify path
 

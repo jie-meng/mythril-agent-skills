@@ -121,8 +121,11 @@ Read these files from the workspace root:
 ### Knowledge graph context (MANDATORY when available)
 
 For each repo in the workspace (identified from `fullstack.json`),
-check if `<repo>/graphify-out/` exists at the repo root. When a repo
-has `graphify-out/`, you MUST `cd` into that repo and use
+run `python3 SKILL_PATH/scripts/graphify_check.py <repo>` to check
+for `graphify-out/`. This script uses a direct filesystem check that
+is immune to `.gitignore` filtering — do NOT use Glob or other
+file-search tools that may silently skip ignored paths.
+When `graphify-out/` exists, you MUST `cd` into that repo and use
 `graphify query "<question>"` to understand the codebase BEFORE
 running grep or reading source files directly.
 
@@ -455,8 +458,9 @@ For each repo that will be examined or modified:
    architecture constraints.
 2. **Read `README.md`** — understand build commands, test commands, and
    environment setup.
-3. **Check for `graphify-out/`** — if the repo has this directory,
-   `cd` into the repo and you MUST use
+3. **Check for `graphify-out/`** — run
+   `python3 SKILL_PATH/scripts/graphify_check.py <repo>` to check.
+   When `graphify-out/` exists, `cd` into the repo and you MUST use
    `graphify query "<question>"` to understand the codebase before
    reading individual files. Do NOT run grep or read source files
    directly until you have queried the knowledge graph. If output
@@ -474,8 +478,9 @@ nvm use, etc.) so that temporary changes can be tested properly.
 - **Do NOT run `git add` or `git commit`** on any code repo
 - Run tests, start dev servers, check logs — whatever validates the hypothesis
 - Record each experiment and its results in `findings.md`
-- If the repo has a `graphify-out/` directory, `cd` into the repo and
-  run `graphify update` to sync the knowledge graph after making
+- Run `python3 SKILL_PATH/scripts/graphify_check.py <repo>` — if the
+  repo has `graphify-out/`, `cd` into the repo and run
+  `graphify update` to sync the knowledge graph after making
   temporary changes
 
 ### Update findings as you go
