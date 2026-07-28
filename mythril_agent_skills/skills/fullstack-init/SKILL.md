@@ -127,17 +127,46 @@ regenerated each time, so the language always reflects the latest run.
 
 ## Workspace Agents
 
-Four agents are generated in `.agents/agents/` on every run:
+Four subagents are generated in `.agents/agents/` on every run. Each file
+contains YAML frontmatter (`name`, `description`, `mode: subagent`,
+`permission`) compatible with OpenCode and Claude Code, followed by role-
+specific instructions. Tools that support native subagent discovery
+(OpenCode, Claude Code, Cursor, Copilot) receive symlinks so their
+subagent systems automatically discover these agents:
 
-| Agent | File | Role |
-|-------|------|------|
-| Planner | `planner.md` | Analyzes requirements, writes `plan.md` |
-| Developer | `developer.md` | Implements code — the only agent that writes production code |
-| Reviewer | `reviewer.md` | Reviews with falsification mindset, writes `review.md` |
-| Debugger | `debugger.md` | Root-cause analysis for fix work type |
+| Agent | File | Role | Permissions |
+|-------|------|------|-------------|
+| Planner | `planner.md` | Analyzes requirements, writes `plan.md` | read-only on code |
+| Developer | `developer.md` | Implements code — the only agent that writes production code | full access |
+| Reviewer | `reviewer.md` | Reviews with falsification mindset, writes `review.md` | read-only on code |
+| Debugger | `debugger.md` | Root-cause analysis for fix work type | full access |
 
 These are regenerated on every run. Any customization will be overwritten.
 For persistent custom agents, use `.agents/skills/` or repo-level agents.
+
+### How AI tools discover these agents
+
+On every run, the script creates relative symlinks from tool-specific
+agent directories to `.agents/agents/`:
+
+```
+.opencode/agents -> ../.agents/agents   (OpenCode subagents)
+.claude/agents   -> ../.agents/agents   (Claude Code subagents)
+.cursor/agents   -> ../.agents/agents   (Cursor subagents)
+.copilot/agents  -> ../.agents/agents   (Copilot subagents)
+```
+
+When you launch OpenCode (or Claude Code, Cursor, Copilot) from the
+workspace root, these tools automatically discover and register the
+four agents as available subagents. The main AI agent can then use
+the `task` tool (or equivalent) to delegate work:
+
+```
+task("review the staged changes", subagent_type="reviewer")
+```
+
+If a tool's agents directory already exists as a regular directory
+(user-created), the symlink is skipped to avoid overwriting user content.
 
 ### Agent delegation rules
 
@@ -154,9 +183,17 @@ project-workspace/
 ├── AGENTS.md                     # Merged incrementally on re-runs
 ├── README.md                     # Regenerated each run
 ├── fullstack.json                # Only persistent state
+├── .opencode/
+│   └── agents -> ../.agents/agents/   # OpenCode subagent symlink
+├── .claude/
+│   └── agents -> ../.agents/agents/   # Claude Code subagent symlink
+├── .cursor/
+│   └── agents -> ../.agents/agents/   # Cursor subagent symlink
+├── .copilot/
+│   └── agents -> ../.agents/agents/   # Copilot subagent symlink
 ├── .agents/
 │   ├── agents/                   # Regenerated each run
-│   │   ├── planner.md
+│   │   ├── planner.md            # + YAML frontmatter for subagent tools
 │   │   ├── developer.md
 │   │   ├── reviewer.md
 │   │   └── debugger.md

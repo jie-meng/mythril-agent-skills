@@ -419,26 +419,37 @@ complete until `STATUS=PASS`.
 
 ## Agent Coordination Model
 
-### Orchestration strategy: serial per-repo
+**See [AGENT-ORCHESTRATION.md](./AGENT-ORCHESTRATION.md)** for the full
+orchestration design — agent model, delegation protocol, context window
+strategy, repo-level agent hierarchy, and detailed sequence/flowchart
+diagrams. This section summarizes the key points.
 
-Repos are modified **one at a time, in dependency order** (upstream first,
-consumers last). This is the default, even when repos appear independent.
+### Orchestration strategy: serial per-repo with subagent delegation
 
-**Rationale (correctness > speed):**
+The main AI agent is the **orchestrator** — it manages flow, confirms
+with the user, and delegates detail work to four subagents:
+**planner**, **developer**, **reviewer**, **debugger**. Subagents
+return structured output; the orchestrator writes the files.
 
-1. **Cross-repo dependencies are the norm.** Shared types → API contracts →
-   consumers. Parallel agents can't see each other's WIP, leading to
-   contract mismatches that are expensive to fix.
-2. **Context accumulates naturally.** What was built in repo A informs
-   what needs to happen in repo B — serial flow preserves this.
-3. **Shared state conflicts.** Multiple agents writing to `progress.md`
-   concurrently creates race conditions.
-4. **Debugging is simpler.** Sequential execution gives a clean audit trail.
+Repos are modified **one at a time, in dependency order** (upstream
+first, consumers last). This is the default. For each repo, the
+orchestrator delegates to **developer** → **reviewer** in sequence.
 
-**Exception**: If the planner explicitly confirms that repos have ZERO
-shared interfaces, ZERO data model overlap, and ZERO dependency edges,
-they MAY be implemented in parallel. The planner must document this
-independence in `plan.md`.
+**Why subagent delegation instead of role-play:**
+
+1. **Context isolation** — Subagents run in separate context windows,
+   keeping the orchestrator's context clean for flow control.
+2. **Role purity** — A reviewer in a separate context CANNOT see the
+   developer's reasoning or the plan's intentions. True falsification.
+3. **Tool-native** — When the AI tool supports it (OpenCode's `task`,
+   Claude Code's Agent tool), delegation is automatic. The symlinks
+   in `.opencode/agents/` etc. make agents discoverable.
+4. **Fallback** — When the tool lacks subagent support, the agent
+   falls back to reading the agent file and role-playing.
+
+**Exception**: If the planner confirms ZERO shared interfaces, ZERO
+data model overlap, and ZERO dependency edges, repos MAY be
+implemented in parallel. The planner must document this in `plan.md`.
 
 ### Per-repo implementation loop
 
@@ -602,8 +613,8 @@ source at `mythril_agent_skills/shared/mermaid/`).
 - [x] R2 — Work type classification (feat, refactor, fix)
 - [x] R3 — Mandatory user confirmation
 - [x] R4 — Branch management with resume detection
-- [x] R5 — Four-agent coordination model
-- [x] R6 — Work tracking (plan.md, progress.md, review.md)
+- [x] R5 — Four-agent coordination model with subagent delegation
+- [x] R6 — Work tracking (analysis.md, plan.md, progress.md, review.md)
 - [x] R7 — Resume capability
 - [x] R8 — Repo-level agent delegation
 - [x] R9 — Serial per-repo orchestration with parallel exception
@@ -613,9 +624,15 @@ source at `mythril_agent_skills/shared/mermaid/`).
 - [x] R13 — Dependency-ordered implementation
 - [x] R14 — Language-aware documentation (EN/ZH based on user prompt)
 - [x] R15 — Technical analysis document (analysis.md with mermaid/table emphasis)
-- [x] R16 — Follow-up Mode for closed work items (-vN suffix, Predecessor field, Predecessor Context section, Successors back-link, backward-compat check)
-- [x] R17 — Reference Mode for reading prior work as background (read-only, no Predecessor link, free naming)
-- [x] R18 — SKILL.md size and progressive disclosure (references/ split for templates, modes, review formats)
+- [x] R16 — Follow-up Mode for closed work items
+- [x] R17 — Reference Mode for reading prior work as background
+- [x] R18 — SKILL.md size and progressive disclosure (references/ split)
+- [x] R19 — Deterministic routing via bundled scripts
+- [x] R20 — Mandatory Mode announcement (machine-readable contract)
+- [x] R21 — Pre-commit doc sync in Iteration Mode
+- [x] Agent orchestration: delegate to subagents, not role-play (v10)
+- [x] Reviewer subagent used for both per-repo and cross-repo review
+- [x] Orchestration design doc (AGENT-ORCHESTRATION.md)
 - [x] Plugin wrapper + marketplace.json entry
 - [x] Description validation under 1024 limit
 
@@ -632,7 +649,31 @@ source at `mythril_agent_skills/shared/mermaid/`).
 
 ## Changelog
 
-### 2026-05-02 — v9: Reference Mode + explicit-trigger-only routing + progressive disclosure (R17, R18)
+### 2026-07-28 — v10: Subagent orchestration (role-play → delegation)
+
+- **Problem**: Steps 5-7 instructed the AI to "read the agent file and use it"
+  (role-play), contradicting the `mode: subagent` YAML frontmatter on agent
+  definitions. Context pollution from mixing orchestration with
+  implementation details. Reviewer agent was defined but never invoked —
+  `fullstack-impl` used `code-review-staged` skill for per-repo review and
+  main agent for cross-repo review.
+- **Agent roles table fixed**: Reviewer now owns `review.md` (not Developer).
+  Orchestrator writes files from subagent output — subagents return text.
+- **Step 5 (Agent dispatch)**: Replaced "Read the agent file" with
+  "Delegate to the X subagent." Clear table showing which subagent to use
+  per work type and phase.
+- **Step 6 (Implement)**: Per-repo loop now delegates to developer subagent
+  (6b), handles output (6c), delegates to reviewer subagent for staged
+  review (6d), commits (6e). Orchestrator does NOT write code.
+- **Step 7 (Cross-repo review)**: Delegates to reviewer subagent in
+  cross-repo mode (previously: main agent did this directly).
+- **Agent definition files fixed**: Planner contradiction resolved (no
+  longer says both "write files" and "don't modify files"). All agents
+  now clarify they return output to the orchestrator, who writes files.
+- **Design doc**: New `AGENT-ORCHESTRATION.md` with sequence diagrams,
+  context window strategy, delegation protocol, and migration guide.
+- **No breaking changes**: Existing work items, branch names, file
+  structures unchanged. Only HOW agents are invoked changes.
 
 - **Problem 1**: After v8 introduced Follow-up Mode, the implicit
   scope-overlap detection was too eager — it auto-proposed Follow-up

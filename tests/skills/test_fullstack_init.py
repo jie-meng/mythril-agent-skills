@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import platform
 from pathlib import Path
 
 import pytest
@@ -724,42 +726,119 @@ class TestGenerateDocsAgentsMd:
 
 
 # ---------------------------------------------------------------------------
-# generate_agent_template
+# install_agents (replaces generate_agent_template)
 # ---------------------------------------------------------------------------
 
 
-class TestGenerateAgentTemplate:
-    """Tests for workspace_init.generate_agent_template."""
+class TestInstallAgents:
+    """Tests for workspace_init.install_agents."""
 
     @pytest.fixture(autouse=True)
     def _import(self):
-        from workspace_init import generate_agent_template, AGENT_TEMPLATES
-        self.func = generate_agent_template
-        self.templates = AGENT_TEMPLATES
+        from workspace_init import install_agents
+        self.func = install_agents
 
-    def test_all_four_agents_exist(self):
-        assert set(self.templates.keys()) == {"planner", "developer", "reviewer", "debugger"}
+    def test_copies_all_agent_files(self, tmp_path: Path):
+        names = self.func(tmp_path, "my-project")
+        assert set(names) == {"debugger", "developer", "planner", "reviewer"}
 
-    def test_project_name_substitution(self):
-        for name in self.templates:
-            result = self.func(name, "my-project")
-            assert "my-project" in result
+        for name in names:
+            path = tmp_path / ".agents" / "agents" / f"{name}.md"
+            assert path.exists(), f"Missing {name}.md"
 
-    def test_planner_is_read_only(self):
-        result = self.func("planner", "proj")
-        assert "MUST NOT" in result
+    def test_project_name_substitution(self, tmp_path: Path):
+        self.func(tmp_path, "my-workspace")
+        for name in ("planner", "developer", "reviewer", "debugger"):
+            content = (tmp_path / ".agents" / "agents" / f"{name}.md").read_text()
+            assert "my-workspace" in content, f"{name} missing project name"
+            assert "{project_name}" not in content, f"{name} has unreplaced placeholder"
 
-    def test_developer_implements(self):
-        result = self.func("developer", "proj")
-        assert "implementation" in result.lower()
+    def test_all_files_have_yaml_frontmatter(self, tmp_path: Path):
+        import yaml as _yaml_mod
+        self.func(tmp_path, "test")
+        for name in ("planner", "developer", "reviewer", "debugger"):
+            content = (tmp_path / ".agents" / "agents" / f"{name}.md").read_text()
+            assert content.startswith("---"), f"{name} missing frontmatter"
+            frontmatter = content.split("---")[1]
+            parsed = _yaml_mod.safe_load(frontmatter)
+            assert "name" in parsed, f"{name} missing name field"
+            assert "description" in parsed, f"{name} missing description field"
+            assert parsed.get("mode") == "subagent", f"{name} missing mode"
 
-    def test_reviewer_does_not_fix(self):
-        result = self.func("reviewer", "proj")
-        assert "Do not fix issues you find" in result
+    def test_planner_read_only(self, tmp_path: Path):
+        self.func(tmp_path, "proj")
+        content = (tmp_path / ".agents" / "agents" / "planner.md").read_text()
+        assert "edit: deny" in content
 
-    def test_debugger_root_cause(self):
-        result = self.func("debugger", "proj")
-        assert "root cause" in result.lower()
+    def test_developer_has_full_access(self, tmp_path: Path):
+        self.func(tmp_path, "proj")
+        content = (tmp_path / ".agents" / "agents" / "developer.md").read_text()
+        assert "edit: allow" in content
+
+    def test_reviewer_read_only(self, tmp_path: Path):
+        self.func(tmp_path, "proj")
+        content = (tmp_path / ".agents" / "agents" / "reviewer.md").read_text()
+        assert "edit: deny" in content
+
+    def test_debugger_has_full_access(self, tmp_path: Path):
+        self.func(tmp_path, "proj")
+        content = (tmp_path / ".agents" / "agents" / "debugger.md").read_text()
+        assert "edit: allow" in content
+
+    def test_developer_implements(self, tmp_path: Path):
+        self.func(tmp_path, "proj")
+        content = (tmp_path / ".agents" / "agents" / "developer.md").read_text()
+        assert "implementation" in content.lower()
+
+    def test_reviewer_does_not_fix(self, tmp_path: Path):
+        self.func(tmp_path, "proj")
+        content = (tmp_path / ".agents" / "agents" / "reviewer.md").read_text()
+        assert "Do not fix issues you find" in content
+
+    def test_debugger_root_cause(self, tmp_path: Path):
+        self.func(tmp_path, "proj")
+        content = (tmp_path / ".agents" / "agents" / "debugger.md").read_text()
+        assert "root cause" in content.lower()
+
+    def test_rerun_overwrites(self, tmp_path: Path):
+        self.func(tmp_path, "first")
+        planner = tmp_path / ".agents" / "agents" / "planner.md"
+        planner.write_text("garbage")
+
+        self.func(tmp_path, "second")
+        content = planner.read_text()
+        assert "garbage" not in content
+        assert "second" in content
+
+
+# ---------------------------------------------------------------------------
+# Agent source files
+# ---------------------------------------------------------------------------
+
+
+class TestAgentSourceFiles:
+    """Tests for the bundled agent .md files in the skill's agents/ dir."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from pathlib import Path
+        import workspace_init
+        # Resolve the agents dir the same way install_agents does
+        script_dir = Path(workspace_init.__file__).resolve().parent
+        self.agents_dir = script_dir.parent / "agents"
+
+    def test_agents_dir_exists(self):
+        assert self.agents_dir.is_dir(), f"Missing agents/ at {self.agents_dir}"
+
+    def test_four_agent_files(self):
+        files = list(self.agents_dir.glob("*.md"))
+        names = {f.stem for f in files}
+        assert names == {"planner", "developer", "reviewer", "debugger"}
+
+    def test_all_have_placeholder(self):
+        for f in self.agents_dir.glob("*.md"):
+            content = f.read_text()
+            assert "{project_name}" in content, f"{f.name} missing {{project_name}}"
 
 
 # ---------------------------------------------------------------------------
@@ -1111,3 +1190,103 @@ class TestBootstrapWorkspace:
         self.func(tmp_path)
         config = self.load_config(tmp_path)
         assert config["github_repos"] is True
+
+
+# ---------------------------------------------------------------------------
+# create_agent_symlinks
+# ---------------------------------------------------------------------------
+
+
+class TestCreateAgentSymlinks:
+    """Tests for workspace_init.create_agent_symlinks."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from workspace_init import create_agent_symlinks, ensure_directory
+        self.func = create_agent_symlinks
+        self.ensure_dir = ensure_directory
+
+    def test_creates_symlinks(self, tmp_path: Path):
+        agents_dir = tmp_path / ".agents" / "agents"
+        agents_dir.mkdir(parents=True)
+        (agents_dir / "planner.md").write_text("test")
+
+        self.func(tmp_path)
+
+        for tool in ["opencode", "claude", "cursor", "copilot"]:
+            link = tmp_path / f".{tool}" / "agents"
+            assert link.is_symlink(), f"Missing symlink for {tool}"
+            assert link.resolve() == agents_dir.resolve()
+
+    def test_existing_symlink_correct_target_is_skipped(self, tmp_path: Path):
+        agents_dir = tmp_path / ".agents" / "agents"
+        agents_dir.mkdir(parents=True)
+        (agents_dir / "planner.md").write_text("test")
+
+        self.func(tmp_path)
+        mtime_before = (tmp_path / ".opencode" / "agents").lstat().st_mtime
+
+        self.func(tmp_path)
+        mtime_after = (tmp_path / ".opencode" / "agents").lstat().st_mtime
+        assert mtime_before == mtime_after
+
+    def test_existing_directory_not_overwritten(self, tmp_path: Path):
+        agents_dir = tmp_path / ".agents" / "agents"
+        agents_dir.mkdir(parents=True)
+
+        # Create a real directory at .opencode/agents/
+        tool_agents = tmp_path / ".opencode" / "agents"
+        tool_agents.mkdir(parents=True)
+        (tool_agents / "custom.md").write_text("user content")
+
+        messages = self.func(tmp_path)
+
+        # The symlink should NOT have replaced the directory
+        assert tool_agents.is_dir()
+        assert not tool_agents.is_symlink()
+        assert (tool_agents / "custom.md").read_text() == "user content"
+        assert any("skipped" in m for m in messages)
+
+    def test_recreates_wrong_target_symlink(self, tmp_path: Path):
+        agents_dir = tmp_path / ".agents" / "agents"
+        agents_dir.mkdir(parents=True)
+
+        wrong_target = tmp_path / "somewhere-else"
+        wrong_target.mkdir()
+        link = tmp_path / ".opencode" / "agents"
+        link.parent.mkdir(parents=True)
+        link.symlink_to(wrong_target)
+
+        self.func(tmp_path)
+
+        assert link.resolve() == agents_dir.resolve()
+
+    def test_empty_workspace_noop(self, tmp_path: Path):
+        messages = self.func(tmp_path)
+        assert len(messages) == 0
+
+    def test_bootstrap_creates_symlinks(self, tmp_path: Path):
+        """Integration: bootstrap_workspace calls create_agent_symlinks."""
+        from workspace_init import bootstrap_workspace
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+
+        report = bootstrap_workspace(tmp_path)
+
+        symlink_entries = [e for e in report["updated"] if "-> .agents/agents/" in e]
+        assert len(symlink_entries) == 4
+        for tool in ["opencode", "claude", "cursor", "copilot"]:
+            link = tmp_path / f".{tool}" / "agents"
+            assert link.is_symlink()
+
+    def test_rerun_preserves_symlinks(self, tmp_path: Path):
+        """Symlinks survive re-runs (idempotent)."""
+        from workspace_init import bootstrap_workspace
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+
+        bootstrap_workspace(tmp_path)
+        bootstrap_workspace(tmp_path)
+
+        for tool in ["opencode", "claude", "cursor", "copilot"]:
+            link = tmp_path / f".{tool}" / "agents"
+            assert link.is_symlink()
+            assert link.resolve() == (tmp_path / ".agents" / "agents").resolve()

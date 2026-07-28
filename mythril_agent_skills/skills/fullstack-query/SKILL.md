@@ -432,9 +432,9 @@ Based on the findings, recommend a concrete follow-up action:
 
 | Scenario | Recommendation |
 |----------|---------------|
-| Query revealed a straightforward change | Suggest `fullstack-impl` with specific work scope |
+| Query revealed a straightforward change | Suggest `fullstack-impl` with specific work scope (planner subagent will analyze, developer will implement, reviewer will validate) |
 | Uncertainty remains, needs prototyping | Suggest `fullstack-spike` to validate assumptions |
-| Workspace setup is incomplete or outdated | Suggest re-running `fullstack-init` |
+| Workspace setup is incomplete or outdated | Suggest re-running `fullstack-init` (regenerates AGENTS.md, agents, and symlinks) |
 | Repos missing graphify would benefit from it | Suggest running `graphify` to build knowledge graphs |
 | Documents are stale and should be updated | Suggest opening a docs update work item |
 | Answer is complete, no follow-up needed | State that and stop |
