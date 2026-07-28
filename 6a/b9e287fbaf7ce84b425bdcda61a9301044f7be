@@ -1,0 +1,65 @@
+docs/fullstack/AGENT-ORCHESTRATION.md
+  s_91aefbba4e9498::t_1d7e517d313b6d 1-397
+mythril_agent_skills/skills/fullstack-query/SKILL.md
+  s_91aefbba4e9498::t_307c9230cb5921 435,437
+mythril_agent_skills/skills/fullstack-impl/SKILL.md
+  s_91aefbba4e9498::t_41d3f0845dd19f 578-615
+  s_91aefbba4e9498::t_74854ba29613fd 625-627,632,634,636-641,643-648,650,652-654
+  s_91aefbba4e9498::t_709dd9c2fdcffb 656,658-659,661-669,671,673-676,678-683,685,689-691,693,702,704-707,709-716,718,720,728-732
+  s_91aefbba4e9498::t_9ea561184be8e2 476-511
+mythril_agent_skills/skills/fullstack-init/agents/developer.md
+  s_91aefbba4e9498::t_ec10edc92e674d 48,56-59
+  s_91aefbba4e9498::t_04b44f9cd06a37 1-47,49-55
+mythril_agent_skills/skills/fullstack-spike/SKILL.md
+  s_91aefbba4e9498::t_76eb10c675d093 202,204-206,208-219
+  s_91aefbba4e9498::t_90033eb1ece1f7 511,513-518
+mythril_agent_skills/skills/fullstack-init/scripts/workspace_init.py
+  s_91aefbba4e9498::t_fc23d16ccc5e6d 1157-1158,1160
+  s_91aefbba4e9498::t_2ca5122f3e45ab 961,965-966,968-972,975-976,978-984,986,988-993,995
+  s_91aefbba4e9498::t_d3e5160cf65c63 1163-1166
+  s_91aefbba4e9498::t_75f5f8755ba8a6 1029-1031
+  s_91aefbba4e9498::t_80cb797332b1c9 998,1000,1010-1012,1014-1020,1023-1024,1026-1028,1033-1034,1036-1037,1039-1052,1054-1055,1057-1063,1065,1067
+  s_91aefbba4e9498::t_82cdcc4a783a76 999
+mythril_agent_skills/skills/fullstack-init/agents/debugger.md
+  s_91aefbba4e9498::t_19bd23076524d4 62,65,68-69,71-74
+  s_91aefbba4e9498::t_ceec5d1e8cac90 1-61,63-64,66-67,70
+tests/skills/test_fullstack_init.py
+  s_91aefbba4e9498::t_4379f7c0c146b2 729,733-734,738-739,741-743,745-747,749-828,830-831,833-836,838-841
+  s_91aefbba4e9498::t_04f613190bc2df 6-7
+  s_91aefbba4e9498::t_1a45898fcacdb5 1193-1292
+docs/fullstack/FULLSTACK-INIT.md
+  s_91aefbba4e9498::t_4ba2ddd9285ff5 206,211-212
+  s_91aefbba4e9498::t_a83f4a7febcf2c 160-169,173-176
+  s_91aefbba4e9498::t_fdc2427ca72c95 223-242
+mythril_agent_skills/skills/fullstack-init/agents/reviewer.md
+  s_91aefbba4e9498::t_9e40ee2da8a7b8 73-74,76,92-93,97-99
+  s_91aefbba4e9498::t_309274808c5e2a 1-16,30-72,75,77-91,94-96
+  s_91aefbba4e9498::t_48787782dfeef9 17-29
+mythril_agent_skills/skills/fullstack-init/SKILL.md
+  s_91aefbba4e9498::t_dcc727fe602f74 186-193,196
+  s_91aefbba4e9498::t_b929abbab90042 130-142,147-169
+  s_91aefbba4e9498::t_b1b8a984a509f5 170
+docs/fullstack/FULLSTACK-IMPL.md
+  s_91aefbba4e9498::t_d7d3e0f5c2c02b 422-452
+  s_91aefbba4e9498::t_faddc60ca0f8ab 652-676
+  s_91aefbba4e9498::t_7f5e063549c2c2 616-617,627-635
+mythril_agent_skills/skills/fullstack-init/agents/planner.md
+  s_91aefbba4e9498::t_863826c399b2aa 1-58,63-69
+  s_91aefbba4e9498::t_02632453433751 59-62,70-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "6ab9e287fbaf7ce84b425bdcda61a9301044f7be",
+  "prompts": {},
+  "sessions": {
+    "s_91aefbba4e9498": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_0576806ddffeGvpEMQba3P5mGU",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
