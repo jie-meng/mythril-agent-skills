@@ -1,0 +1,28 @@
+tests/skills/test_story_point_estimate.py
+  s_db088fb83388ca::t_40f586a299cc84 129
+  s_db088fb83388ca::t_79447dbd28da31 165
+  s_db088fb83388ca::t_5d16558abd27d0 12,18-20,38,42,47,50,54,58-62,64-65,69,72-87,91,97-128,130-164,166-173,181-183,195,212-214,225,231,242,254,265
+mythril_agent_skills/skills/story-point-estimate/SKILL.md
+  s_db088fb83388ca::t_92035019086721 324,326-327,339-342,346-349,351-356,365-399,401-402
+  s_db088fb83388ca::t_fe80186e1ac88f 413-417
+  s_db088fb83388ca::t_0cef1bee6164c1 229,231-255,265-266
+  s_db088fb83388ca::t_55d992bd7ed87e 267
+mythril_agent_skills/skills/story-point-estimate/scripts/generate_report.py
+  s_db088fb83388ca::t_cdb324848e535c 2-7,36-50,57-59,75-93,97,102,112-119,122-124,126-128,130-132,136-142,147,150,159-262,271,277,328,331,360-363,435,451-452,463-468
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "bbb179f7c046fd0549892e19cb7d2b17b3138d02",
+  "prompts": {},
+  "sessions": {
+    "s_db088fb83388ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_056b161d5ffeBWlBNkiZsoeY3N",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
