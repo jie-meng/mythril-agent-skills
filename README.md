@@ -207,6 +207,19 @@ Write, refine, and adapt blog posts through an interactive intake process. The s
 </details>
 
 <details>
+<summary><b>Project Planning</b></summary>
+<br>
+
+**[Story Point Estimate](./mythril_agent_skills/skills/story-point-estimate/)**
+
+Estimate software development effort using Fibonacci story points. Accepts any input format (text, documents, images, screenshots, PPT) and analyzes from a Tech Lead perspective, covering functional and non-functional requirements (CFR). Assigns Fibonacci points (1/2/3/5/8/13/20/40/100) with rationale, applies transparent buffer strategy, and outputs a formatted XLSX workbook with auto-sum formulas. ALWAYS asks clarifying questions — never assumes.
+
+- **Try:** Estimate this PRD: [paste or upload]
+- **Deps:** `openpyxl` (auto-installed with pip)
+
+</details>
+
+<details>
 <summary><b>Product / UX</b></summary>
 <br>
 
@@ -374,6 +387,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `android-screen-reader` | Read the current screen of a connected Android device via adb |
 | `blog-writer` | Write, refine, and adapt tech-first multilingual blog posts |
 | `user-journey` | Draft user journey maps and lo-fi wireframes via natural language — HTML/CSS workspace with map/stage/presenter views |
+| `story-point-estimate` | Estimate effort using Fibonacci story points — any input, CFR coverage, buffer strategy, XLSX output |
 | `fullstack-init` | Initialize multi-repo fullstack workspace with AI context |
 | `fullstack-query` | Read-only knowledge exploration across a fullstack workspace |
 | `fullstack-spike` | Run time-boxed spikes without committing |

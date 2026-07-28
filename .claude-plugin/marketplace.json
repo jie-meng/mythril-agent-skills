@@ -10,7 +10,7 @@
     {
       "name": "all-skills",
       "source": "./mythril_agent_skills",
-      "description": "All-in-one bundle: code review, Git/GitHub, Jira, Confluence, Figma, Glean, Excel, PDF, Markdown-to-PDF, ImageMagick, FFmpeg, Android screen reading, blog writer, user-journey map drafter, skill creator, and fullstack workspace tools",
+      "description": "All-in-one bundle: code review, Git/GitHub, Jira, Confluence, Figma, Glean, Excel, PDF, Markdown-to-PDF, ImageMagick, FFmpeg, Android screen reading, blog writer, story point estimation, user-journey map drafter, skill creator, and fullstack workspace tools",
       "version": "0.2.16",
       "author": {
         "name": "Jie Meng"
@@ -35,6 +35,7 @@
         "adb",
         "skill-creator",
         "blog-writer",
+        "story-point-estimate",
         "user-journey"
       ],
       "strict": false
@@ -374,6 +375,25 @@
         "ba",
         "pm",
         "design"
+      ],
+      "strict": false
+    },
+    {
+      "name": "story-point-estimate",
+      "source": "./plugins/story-point-estimate",
+      "description": "Estimate software development effort using Fibonacci story points — accepts any input format, decomposes from a Tech Lead perspective, covers CFR, applies buffer strategy, and outputs formatted XLSX workbook",
+      "version": "0.2.16",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "productivity",
+      "tags": [
+        "estimation",
+        "story-points",
+        "fibonacci",
+        "planning",
+        "project-management"
       ],
       "strict": false
     },
