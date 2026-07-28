@@ -207,6 +207,19 @@ Skill（技能）是一个提示词/指令包，用于教 AI 助手如何处理�
 </details>
 
 <details>
+<summary><b>项目规划</b></summary>
+<br>
+
+**[Story Point Estimate](./mythril_agent_skills/skills/story-point-estimate/)**
+
+使用斐波那契数列对软件开发工作量的估算。接受任意形式的输入（文本、文档、图片、截图、PPT），以 Tech Lead 视角分析功能与非功能需求（CFR），赋予斐波那契点数（1/2/3/5/8/13/20/40/100）并附理由，采用透明的 Buffer 策略，输出带自动求和公式的 XLSX 工作簿。不清晰的内容必追问——绝不臆断。
+
+- **示例：** 帮我估算一下这个需求 [粘贴或上传]
+- **依赖：** `openpyxl`（通过 pip 自动安装）
+
+</details>
+
+<details>
 <summary><b>产品 / UX</b></summary>
 <br>
 
@@ -348,7 +361,7 @@ skills-clean-cache --repos  # 交互式：选择要删除的仓库
 
 | 插件 | 描述 |
 |---|---|
-| `all-skills` | 全部技能包（共 20 个） |
+| `all-skills` | 全部技能包（共 21 个） |
 | `skill-creator` | 为任意 AI 平台创建/改进技能和提示词 |
 | `code-review-staged` | 暂存区代码审查 |
 | `branch-diff-review` | 本地分支差异代码审查 |
@@ -367,6 +380,7 @@ skills-clean-cache --repos  # 交互式：选择要删除的仓库
 | `android-screen-reader` | 通过 adb 读取已连接 Android 设备的当前屏幕 |
 | `blog-writer` | 撰写、润色和适配以技术为主的多语言博客 |
 | `user-journey` | 通过自然语言起草用户旅程地图与低保真线框图——HTML/CSS 工作区，Map/Stage/Presenter 三视图 |
+| `story-point-estimate` | 斐波那契点数估算——任意输入、CFR 覆盖、Buffer 策略、XLSX 输出 |
 | `fullstack-init` | 初始化多仓库全栈工作区 |
 | `fullstack-spike` | 不提交代码的技术验证 spike |
 | `fullstack-impl` | 在全栈工作区中实现功能/修复 |
@@ -608,6 +622,7 @@ mythril-agent-skills/
 │       ├── git-repo-reader/     # 克隆并阅读任意 git 仓库
 │       ├── blog-writer/         # 以技术为主的多语言博客写作
 │       ├── user-journey/        # 自然语言起草用户旅程地图与线框图
+│       ├── story-point-estimate/ # 斐波那契点数估算 — 含 CFR + Buffer + XLSX
 │       ├── fullstack-init/      # 初始化多仓库工作区
 │       ├── fullstack-spike/       # 不提交代码的技术验证 spike
 │       └── fullstack-impl/      # 跨仓库全栈实现
