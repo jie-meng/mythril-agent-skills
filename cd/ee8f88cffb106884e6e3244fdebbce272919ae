@@ -1,0 +1,36 @@
+tests/skills/test_story_point_estimate.py
+  s_db088fb83388ca::t_abd2a70ed71c76 116
+  s_db088fb83388ca::t_725f3a66205960 145,162,185
+  s_db088fb83388ca::t_42eed2ea2f03fa 1-115,117-144,146-161,163-184,186-192
+.claude-plugin/marketplace.json
+  s_db088fb83388ca::t_fb3a9b36bdb72e 13
+  s_db088fb83388ca::t_fd5f9fe7f1047a 382-399
+  s_db088fb83388ca::t_3bb2255d21b693 38
+  s_db088fb83388ca::t_bf630c930b1dda 381
+pyproject.toml
+  s_db088fb83388ca::t_efcea5737a68be 79
+AGENTS.md
+  s_db088fb83388ca::t_9ca288bc9c860b 281-282
+README.md
+  s_db088fb83388ca::t_018986852e4a75 210-221
+  s_db088fb83388ca::t_226a54ef877861 390
+  s_db088fb83388ca::t_3441145ac38da6 209
+plugins/story-point-estimate/skills/story-point-estimate
+  s_db088fb83388ca::t_05008285f5a04d 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "cdee8f88cffb106884e6e3244fdebbce272919ae",
+  "prompts": {},
+  "sessions": {
+    "s_db088fb83388ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_056b161d5ffeBWlBNkiZsoeY3N",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
