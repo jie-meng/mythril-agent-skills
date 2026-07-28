@@ -1,0 +1,25 @@
+README.zh-CN.md
+  s_db088fb83388ca::t_ed281bfc62c2be 383
+  s_db088fb83388ca::t_4c6b99c90fae4c 625
+  s_db088fb83388ca::t_bfa390d28a57c1 210-221
+  s_db088fb83388ca::t_b25cc44aac4453 364
+  s_db088fb83388ca::t_8a54d21e214dd4 209
+README.md
+  s_db088fb83388ca::t_7a5e9d7a7027f8 371
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "d1cb87193c2c59703e30ae736070a86059ec80c5",
+  "prompts": {},
+  "sessions": {
+    "s_db088fb83388ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_056b161d5ffeBWlBNkiZsoeY3N",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
