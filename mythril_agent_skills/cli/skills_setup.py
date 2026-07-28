@@ -514,7 +514,7 @@ def _curses_skills_select(
                 if entry.needs_update:
                     tags.append("update available")
                 elif entry.is_installed:
-                    tags.append("installed")
+                    tags.append("up to date")
 
                 if tags:
                     label = f"{entry.name}  ({', '.join(tags)})"
