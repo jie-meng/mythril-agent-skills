@@ -226,22 +226,44 @@ the system's maturity requirements.
 > each CFR area at different maturity levels (startup → enterprise → regulated),
 > plus common omissions and anti-patterns. Load it before assigning CFR point values.
 
-### Phase 5: Assign Fibonacci Points
+### Phase 5: Assign Fibonacci Points (Per Platform)
 
-For each story (functional and CFR), assign a Fibonacci point value. Write a brief
-rationale explaining WHY that number — what drives the effort, complexity, and
-uncertainty. This rationale is crucial: it turns the estimate from an opinion into
-an analysis that can be discussed and refined.
+For each story (functional and CFR), estimate per platform, then assign a combined
+Fibonacci point value for the story as a whole.
+
+**Step 1: Estimate per platform.** For every platform confirmed in Phase 1.5, assign a
+point value representing the work on that platform alone. This makes the estimate
+transparent and lets stakeholders see where effort concentrates.
+
+For example, a "device location tracking on map" story:
+- 设备端 (firmware): 5 points — GNSS sensor driver + data formatting
+- 后端 (backend): 3 points — location storage + trajectory API
+- Android: 3 points — map SDK + marker rendering
+- iOS: 3 points — map SDK + marker rendering
+- WEB: 0 points — not applicable
+
+**Step 2: Assign the combined story point.** The overall Fibonacci point value reflects
+the *total* effort, complexity, and uncertainty across all platforms — NOT simply the
+sum of platform points. Consider:
+
+- If platform work is independent (`Android` and `iOS` developed in parallel by different
+  devs), the combined point is roughly the max platform value, not the sum.
+- If one dev does both platforms sequentially, the combined point reflects the total effort.
+- If back-end work is a hard dependency for front-end, complexity compounds.
+
+For the example above, the combined story point might be **8** (not 14), because the two
+mobile platforms are symmetric and can be developed in parallel.
 
 Estimation principles:
 - **Triangulate**: compare the story against a reference story of known size. "This
   feels like 2x the registration flow, so 8 points."
-- **Disaggregate by layer** when helpful: frontend, backend, database, DevOps.
-  The story point is the sum, but the breakdown helps verify the total.
 - **If you're stuck between two values**, pick the higher one. Humans
   systematically underestimate.
 - **If uncertainty is high** (>50% unknown), bump up one level on the scale.
 - **If a story is >13 points**, it likely needs further decomposition.
+
+Write a rationale explaining what drives the point value — effort, complexity, and
+uncertainty drivers across which platforms.
 
 > **Reference**: `references/point-scale.md` has rich domain-specific examples for each
 > Fibonacci level across Web, Mobile, Backend, IoT, DevOps, and Data. Use it to
@@ -299,9 +321,10 @@ python3 SKILL_PATH/scripts/generate_report.py \
   --data estimate_data.json
 ```
 
-The script creates a workbook with the following structure:
+The script creates a workbook with 3–4 sheets depending on whether platforms were specified:
 
-**Sheet 1: "Estimates"** — all estimated items (functional + CFR) in one table:
+**Sheet 1: "Estimates"** — all estimated items (functional + CFR) in one table.
+**Platform columns** (one per confirmed platform) are inserted between "So that..." and "Points":
 
 | Column | Content |
 |---|---|
@@ -313,15 +336,24 @@ The script creates a workbook with the following structure:
 | Role | User role |
 | I want... | User story intent |
 | So that... | Business value |
-| Points | Fibonacci point value (**numeric, bold**) |
+| *[Platform 1]* | Points for this platform (0 if N/A) — e.g., 设备端 |
+| *[Platform 2]* | e.g., 后端 |
+| *[Platform N]* | e.g., Android, iOS, WEB |
+| Points | Combined Fibonacci point value (**numeric, bold**) |
 | Rationale | Why this point value — effort, complexity, and uncertainty drivers |
 | Uncertainty | "Low" / "Medium" / "High" |
 
-The script auto-formats the sheet: bold header row, frozen top row, auto-filter,
-column widths, number formatting for the Points column, and conditional coloring
-for the Uncertainty column.
+Each story row includes per-platform point values. Platform columns are center-aligned
+for easy scanning. A story that doesn't touch a platform gets 0.
 
-**Sheet 2: "RAID"** — risk/assumption/issue/dependency log:
+**Sheet 2: "Platform Summary"** (only when platforms are specified) — breakdown by module and platform:
+
+A structured layout with modules (Functional Stories / CFR Items / Total) as rows and
+platforms as columns. Bottom section shows each buffer line item with type, percentage,
+points, and rationale. Final row shows the recommended planning estimate. Uses bold
+formatting for totals.
+
+**Sheet 3: "RAID"** — risk/assumption/issue/dependency log:
 
 | Column | Content |
 |---|---|
@@ -330,15 +362,44 @@ for the Uncertainty column.
 | Impact | What happens if this materializes |
 | Mitigation | How to reduce or eliminate |
 
-**Sheet 3: "Summary"** — totals, breakdown, and confidence:
+**Sheet 4: "Summary"** — categorical breakdown, confidence analysis, key assumptions,
+and recommendations (same as before).
 
-This sheet contains a formatted summary block (not a data table):
-- **Scope Summary**: 2–3 sentence description of what was estimated
-- **Category Breakdown**: Functional points vs CFR points with subtotals and percentages
-- **Grand Total**: bold, formula-linked to Sheet 1
-- **Confidence Analysis**: points by uncertainty level (Low / Medium / High) with percentages
-- **Key Assumptions**: bullet list of critical assumptions made during estimation
-- **Recommendations**: next steps, risk mitigation, or suggestions for follow-up
+The script auto-formats all sheets: bold header rows, frozen top rows, auto-filters,
+column widths, number formatting, and conditional coloring for Uncertainty.
+
+**JSON data format for the script:**
+
+```json
+{
+  "platforms": ["设备端", "后端", "Android", "iOS", "WEB"],
+  "scope_summary": "2-3 sentences...",
+  "key_assumptions": ["..."],
+  "confidence": "Medium",
+  "estimates": [
+    {
+      "category": "Functional",
+      "epic": "GPS定位",
+      "area": "",
+      "story": "GNSS 定位引擎",
+      "role": "设备",
+      "want": "GPS 定位并上报",
+      "so_that": "让家长知道设备位置",
+      "points": 5,
+      "platform_points": {"设备端": 5, "后端": 0, "Android": 0, "iOS": 0, "WEB": 0},
+      "rationale": "多模 GNSS + NMEA 解析",
+      "uncertainty": "Medium"
+    }
+  ],
+  "raid": [...],
+  "buffers": [
+    {"type": "集成联调", "pct": "10%", "points": 8, "rationale": "跨端集成测试"}
+  ]
+}
+```
+
+If `platforms` is empty or missing, platform columns and the Platform Summary sheet
+are omitted (backward compatible).
 
 **After generating the XLSX**, present a quick summary to the user and offer Markdown:
 
@@ -349,9 +410,11 @@ If the user says yes, generate a Markdown file with the same content. The Markdo
 a secondary artifact — the XLSX is the authoritative deliverable.
 
 **Workbook generation tips:**
-- Ensure the Points column uses SUM formulas on the Summary sheet so the user can adjust
-  individual estimates and see totals update automatically
-- Use openpyxl directly if the bundled script doesn't fit a special format need
+- Always include `platforms` in the JSON data — it is populated from Phase 1.5
+- Each estimate MUST have `platform_points` matching all keys in `platforms`; use 0 for
+  platforms the story doesn't touch
+- The `points` field is the combined Fibonacci estimate for the whole story (not the sum of platform points)
+- Include `buffers` in the JSON data for the Platform Summary sheet
 - Save to the current working directory unless the user specifies a different path
 - Never overwrite an existing file without asking; use a unique timestamp suffix
 

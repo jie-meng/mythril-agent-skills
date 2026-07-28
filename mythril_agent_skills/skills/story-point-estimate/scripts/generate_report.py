@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Generate a formatted XLSX estimation workbook from JSON data."""
+"""Generate a formatted XLSX estimation workbook from JSON data.
+
+Supports dynamic per-platform columns: when the JSON includes a "platforms"
+array, the Estimates sheet gains one column per platform between "So that..."
+and "Points", and an extra "Platform Summary" sheet is created.
+"""
 
 from __future__ import annotations
 
@@ -15,7 +20,6 @@ from openpyxl.utils import get_column_letter
 
 HEADER_FONT = Font(bold=True, size=11, color="FFFFFF")
 HEADER_FILL = PatternFill(start_color="2F5496", end_color="2F5496", fill_type="solid")
-SECTION_FILL = PatternFill(start_color="D6E4F0", end_color="D6E4F0", fill_type="solid")
 TOTAL_FONT = Font(bold=True, size=12)
 THIN_BORDER = Border(
     left=Side(style="thin"),
@@ -29,13 +33,30 @@ UNCERTAINTY_COLORS = {
     "High": "FFC7CE",
 }
 
+_BASE_HEADERS = [
+    "#",
+    "Category",
+    "Epic",
+    "Area",
+    "Story",
+    "Role",
+    "I want...",
+    "So that...",
+]
+_POINTS_COL = "Points"
+_RATIONALE_COL = "Rationale"
+_UNCERTAINTY_COL = "Uncertainty"
+# platform columns are inserted between _BASE_HEADERS and _POINTS_COL
+
 
 def _style_header(ws, num_cols: int) -> None:
     for col in range(1, num_cols + 1):
         cell = ws.cell(row=1, column=col)
         cell.font = HEADER_FONT
         cell.fill = HEADER_FILL
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.alignment = Alignment(
+            horizontal="center", vertical="center", wrap_text=True
+        )
         cell.border = THIN_BORDER
 
 
@@ -51,28 +72,34 @@ def _auto_width(ws, max_width: int = 50) -> None:
             ws.column_dimensions[col_letter].width = min(max(lengths) + 3, max_width)
 
 
-def _build_estimates_sheet(wb: Workbook, estimates: list[dict]) -> None:
+def _col_idx_for(field_name: str, platforms: list[str]) -> int:
+    """Return 1-based column index for a named field."""
+    mapping = {h: idx for idx, h in enumerate(field_order(platforms), 1)}
+    return mapping[field_name]
+
+
+def field_order(platforms: list[str]) -> list[str]:
+    """Full header list for the Estimates sheet, with platforms inserted."""
+    headers = list(_BASE_HEADERS)
+    headers.extend(platforms)
+    headers.append(_POINTS_COL)
+    headers.append(_RATIONALE_COL)
+    headers.append(_UNCERTAINTY_COL)
+    return headers
+
+
+def _build_estimates_sheet(
+    wb: Workbook, estimates: list[dict], platforms: list[str]
+) -> None:
     ws = wb.active
     ws.title = "Estimates"
 
-    headers = [
-        "#",
-        "Category",
-        "Epic",
-        "Area",
-        "Story",
-        "Role",
-        "I want...",
-        "So that...",
-        "Points",
-        "Rationale",
-        "Uncertainty",
-    ]
+    headers = field_order(platforms)
     ws.append(headers)
     _style_header(ws, len(headers))
 
     for i, est in enumerate(estimates, 1):
-        row = [
+        row_data = [
             i,
             est.get("category", ""),
             est.get("epic", ""),
@@ -81,39 +108,156 @@ def _build_estimates_sheet(wb: Workbook, estimates: list[dict]) -> None:
             est.get("role", ""),
             est.get("want", ""),
             est.get("so_that", ""),
-            est.get("points", 0),
-            est.get("rationale", ""),
-            est.get("uncertainty", ""),
         ]
-        ws.append(row)
+        pp = est.get("platform_points", {})
+        for plat in platforms:
+            row_data.append(pp.get(plat, 0))
+        row_data.append(est.get("points", 0))
+        row_data.append(est.get("rationale", ""))
+        row_data.append(est.get("uncertainty", ""))
+
+        ws.append(row_data)
         row_num = i + 1
 
-        for col in range(1, len(headers) + 1):
-            ws.cell(row=row_num, column=col).border = THIN_BORDER
-            ws.cell(row=row_num, column=col).alignment = Alignment(
-                vertical="top", wrap_text=True
-            )
+        points_col = _col_idx_for(_POINTS_COL, platforms)
+        unc_col = _col_idx_for(_UNCERTAINTY_COL, platforms)
 
-        # Bold points column
-        ws.cell(row=row_num, column=9).font = Font(bold=True, size=11)
-        ws.cell(row=row_num, column=9).alignment = Alignment(
+        for col in range(1, len(headers) + 1):
+            cell = ws.cell(row=row_num, column=col)
+            cell.border = THIN_BORDER
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+
+        # Bold Points column
+        ws.cell(row=row_num, column=points_col).font = Font(bold=True, size=11)
+        ws.cell(row=row_num, column=points_col).alignment = Alignment(
             horizontal="center", vertical="top"
         )
+
+        # Center-align platform columns
+        for j, _ in enumerate(platforms, 1):
+            plat_col = _col_idx_for(platforms[j - 1], platforms)
+            ws.cell(row=row_num, column=plat_col).alignment = Alignment(
+                horizontal="center", vertical="top"
+            )
 
         # Color uncertainty column
         uncertainty = est.get("uncertainty", "")
         fill_color = UNCERTAINTY_COLORS.get(uncertainty)
         if fill_color:
-            ws.cell(row=row_num, column=11).fill = PatternFill(
+            ws.cell(row=row_num, column=unc_col).fill = PatternFill(
                 start_color=fill_color, end_color=fill_color, fill_type="solid"
             )
-            ws.cell(row=row_num, column=11).alignment = Alignment(
+            ws.cell(row=row_num, column=unc_col).alignment = Alignment(
                 horizontal="center", vertical="top"
             )
 
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = ws.dimensions
     _auto_width(ws)
+
+
+def _build_platform_summary(
+    wb: Workbook,
+    estimates: list[dict],
+    platforms: list[str],
+    functional_total: int,
+    cfr_total: int,
+    grand_total: int,
+    buffers: list[dict],
+) -> None:
+    ws = wb.create_sheet("Platform Summary")
+
+    # --- Per-platform totals ---
+    row = 1
+    ws.cell(row=row, column=1, value="Module").font = Font(
+        bold=True, size=11, color="2F5496"
+    )
+    for j, plat in enumerate(platforms, 2):
+        ws.cell(row=row, column=j, value=plat).font = Font(
+            bold=True, size=11, color="2F5496"
+        )
+    total_col = len(platforms) + 2
+    ws.cell(row=row, column=total_col, value="Subtotal (SP)").font = Font(
+        bold=True, size=11, color="2F5496"
+    )
+    for col in range(1, total_col + 1):
+        ws.cell(row=row, column=col).fill = HEADER_FILL
+        ws.cell(row=row, column=col).font = HEADER_FONT
+        ws.cell(row=row, column=col).border = THIN_BORDER
+        ws.cell(row=row, column=col).alignment = Alignment(horizontal="center")
+
+    row = 2
+
+    def _row_data(label: str, estimate_filter, is_total: bool = False):
+        nonlocal row
+        subset = [e for e in estimates if estimate_filter(e)]
+        vals = []
+        row_subtotal = 0
+        for plat in platforms:
+            plat_sum = sum(e.get("platform_points", {}).get(plat, 0) for e in subset)
+            vals.append(plat_sum)
+            row_subtotal += plat_sum
+        ws.cell(row=row, column=1, value=label).border = THIN_BORDER
+        ws.cell(row=row, column=1).font = Font(bold=True)
+        for j, v in enumerate(vals, 2):
+            c = ws.cell(row=row, column=j, value=v if v else ("—" if not is_total else v))
+            c.border = THIN_BORDER
+            c.alignment = Alignment(horizontal="center")
+        st = ws.cell(row=row, column=total_col, value=row_subtotal)
+        st.border = THIN_BORDER
+        st.alignment = Alignment(horizontal="center")
+        if is_total:
+            st.font = TOTAL_FONT
+        else:
+            st.font = Font(bold=True)
+        row += 1
+        return row_subtotal
+
+    func_sub = _row_data("Functional Stories", lambda e: e.get("category") == "Functional")
+    cfr_sub = _row_data("CFR Items", lambda e: e.get("category") == "CFR")
+    func_cfr_total = func_sub + cfr_sub
+    _row_data("Functional + CFR Total", lambda _: True, is_total=True)
+
+    row += 1
+    if buffers:
+        buf_total = 0
+        for buf in buffers:
+            pts = buf.get("points", 0)
+            label = f"Buffer: {buf.get('type', '')}  ({buf.get('pct', '')})"
+            ws.cell(row=row, column=1, value=label).border = THIN_BORDER
+            ws.cell(row=row, column=1).font = Font(bold=True)
+            bc = ws.cell(row=row, column=total_col, value=pts)
+            bc.border = THIN_BORDER
+            bc.alignment = Alignment(horizontal="center")
+            bc.font = Font(bold=True)
+            buf_total += pts
+            row += 1
+            # Add rationale on the next line
+            if buf.get("rationale"):
+                ws.cell(row=row, column=1, value=f"     {buf['rationale']}").font = Font(
+                    italic=True, size=10, color="666666"
+                )
+                row += 1
+
+        ws.cell(row=row, column=1, value="Buffer Total").border = THIN_BORDER
+        ws.cell(row=row, column=1).font = TOTAL_FONT
+        bt = ws.cell(row=row, column=total_col, value=buf_total)
+        bt.border = THIN_BORDER
+        bt.alignment = Alignment(horizontal="center")
+        bt.font = TOTAL_FONT
+        row += 1
+
+    row += 1
+    ws.cell(row=row, column=1, value="Recommended Planning Estimate").border = THIN_BORDER
+    ws.cell(row=row, column=1).font = TOTAL_FONT
+    total_with_buffer = func_cfr_total + sum(b.get("points", 0) for b in buffers)
+    rpe = ws.cell(row=row, column=total_col, value=total_with_buffer)
+    rpe.border = THIN_BORDER
+    rpe.alignment = Alignment(horizontal="center")
+    rpe.font = TOTAL_FONT
+
+    ws.column_dimensions["A"].width = 28
+    _auto_width(ws, max_width=30)
 
 
 def _build_raid_sheet(wb: Workbook, raid: list[dict]) -> None:
@@ -124,21 +268,19 @@ def _build_raid_sheet(wb: Workbook, raid: list[dict]) -> None:
     _style_header(ws, len(headers))
 
     for i, item in enumerate(raid, 1):
-        row = [
+        row_data = [
             item.get("type", ""),
             item.get("item", ""),
             item.get("impact", ""),
             item.get("mitigation", ""),
         ]
-        ws.append(row)
+        ws.append(row_data)
         row_num = i + 1
         for col in range(1, len(headers) + 1):
             ws.cell(row=row_num, column=col).border = THIN_BORDER
             ws.cell(row=row_num, column=col).alignment = Alignment(
                 vertical="top", wrap_text=True
             )
-
-        # Bold type column
         ws.cell(row=row_num, column=1).font = Font(bold=True)
         ws.cell(row=row_num, column=1).alignment = Alignment(
             horizontal="center", vertical="top"
@@ -158,7 +300,6 @@ def _build_summary_sheet(
 ) -> None:
     ws = wb.create_sheet("Summary")
 
-    # --- Scope Summary ---
     row = 1
     ws.cell(row=row, column=1, value="Scope Summary").font = Font(
         bold=True, size=14, color="2F5496"
@@ -175,7 +316,6 @@ def _build_summary_sheet(
         bold=True, size=14, color="2F5496"
     )
     row += 1
-
     cat_headers = ["Category", "Total Points", "%"]
     for ci, h in enumerate(cat_headers, 1):
         cell = ws.cell(row=row, column=ci, value=h)
@@ -185,11 +325,10 @@ def _build_summary_sheet(
         cell.alignment = Alignment(horizontal="center")
 
     row += 1
-    categories = [
+    for cat_name, cat_pts in [
         ("Functional Stories", functional_total),
         ("Non-Functional (CFR)", cfr_total),
-    ]
-    for cat_name, cat_pts in categories:
+    ]:
         ws.cell(row=row, column=1, value=cat_name).border = THIN_BORDER
         ws.cell(row=row, column=1).font = Font(bold=True)
         pt_cell = ws.cell(row=row, column=2, value=cat_pts)
@@ -202,7 +341,6 @@ def _build_summary_sheet(
         pct_cell.alignment = Alignment(horizontal="center")
         row += 1
 
-    # Grand total
     ws.cell(row=row, column=1, value="Grand Total").border = THIN_BORDER
     ws.cell(row=row, column=1).font = TOTAL_FONT
     gt_cell = ws.cell(row=row, column=2, value=grand_total)
@@ -219,11 +357,11 @@ def _build_summary_sheet(
         bold=True, size=14, color="2F5496"
     )
     row += 1
-    ws.cell(row=row, column=1, value=f"Overall Confidence: {data.get('confidence', 'N/A')}").font = Font(
-        bold=True, size=11
-    )
+    ws.cell(
+        row=row, column=1,
+        value=f"Overall Confidence: {data.get('confidence', 'N/A')}",
+    ).font = Font(bold=True, size=11)
 
-    # Breakdown by uncertainty level
     row += 1
     unc_headers = ["Uncertainty Level", "Points", "% of Total"]
     for ci, h in enumerate(unc_headers, 1):
@@ -294,9 +432,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Generate a formatted XLSX estimation workbook."
     )
-    parser.add_argument(
-        "--output", "-o", required=True, help="Output XLSX file path"
-    )
+    parser.add_argument("--output", "-o", required=True, help="Output XLSX file path")
     parser.add_argument(
         "--data", "-d", required=True, help="JSON data file with estimation data"
     )
@@ -312,6 +448,8 @@ def main() -> None:
 
     estimates: list[dict] = data.get("estimates", [])
     raid: list[dict] = data.get("raid", [])
+    platforms: list[str] = data.get("platforms", [])
+    buffers: list[dict] = data.get("buffers", [])
 
     functional_total = sum(
         e.get("points", 0) for e in estimates if e.get("category") == "Functional"
@@ -322,7 +460,12 @@ def main() -> None:
     grand_total = functional_total + cfr_total
 
     wb = Workbook()
-    _build_estimates_sheet(wb, estimates)
+    _build_estimates_sheet(wb, estimates, platforms)
+    if platforms:
+        _build_platform_summary(
+            wb, estimates, platforms,
+            functional_total, cfr_total, grand_total, buffers,
+        )
     _build_raid_sheet(wb, raid)
     _build_summary_sheet(wb, data, functional_total, cfr_total, grand_total)
 
