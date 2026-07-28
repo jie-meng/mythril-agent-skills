@@ -473,21 +473,42 @@ self-contained.
 | Simple (single repo, clear scope) | 3-4 sections: current state, requirements, chosen approach |
 | Complex (multi-repo, architectural) | Full template: diagrams, options, trade-offs, risk matrix |
 
-### Agent dispatch — analysis before planning
+### Agent dispatch — delegate, don't role-play
 
-| Work type | Analysis agent | Analysis focus |
-|-----------|---------------|----------------|
-| `feat/` | Planner | Requirements flow, architecture design, tech trade-offs |
-| `refactor/` | Planner | Current-state analysis, target architecture, migration path |
-| `fix/` | Debugger | Root-cause analysis, reproduction, fix strategy |
+The workspace has four subagents defined in `.agents/agents/`. **Use your tool's
+native subagent mechanism** to delegate work to them. If your tool supports
+task/spawn/Agent tools, use those. Only fall back to reading the agent files
+and role-playing when your tool has no subagent system.
 
-Sequence:
+| Work type | Analysis | Planning | Implementation | Review |
+|-----------|----------|----------|----------------|--------|
+| `feat/` | Delegate to **planner** | Delegate to **planner** | Delegate to **developer** | Delegate to **reviewer** |
+| `refactor/` | Delegate to **planner** | Delegate to **planner** | Delegate to **developer** | Delegate to **reviewer** |
+| `fix/` | Delegate to **debugger** | Delegate to **planner** (from debugger's analysis) | Delegate to **developer** | Delegate to **reviewer** |
 
-1. **Read the agent file** — `.agents/agents/planner.md` (feat/refactor)
-   or `.agents/agents/debugger.md` (fix).
-2. **Write `analysis.md`** — the analysis agent writes the technical
-   thinking using the appropriate template.
-3. **Then write `plan.md`** — informed by the analysis.
+**Sequence for feat/refactor:**
+
+1. Delegate to **planner** — provide the gathered context (Jira, Confluence,
+   spike docs, workspace AGENTS.md). Planner returns the analysis and plan.
+2. Write the planner's output into `analysis.md` and `plan.md` in the work
+   directory. Run Mermaid Compatibility Gate on any diagrams.
+3. Write `progress.md` (initial status) and `review.md` (header) yourself.
+
+**Sequence for fix:**
+
+1. Delegate to **debugger** — provide error logs, reproduction steps, affected
+   repo context. Debugger returns root cause analysis.
+2. Write debugger's analysis into `analysis.md`. Run Mermaid gate.
+3. Delegate to **planner** — provide debugger's analysis. Planner returns the
+   fix plan across affected repos.
+4. Write `plan.md`, `progress.md`, `review.md` header.
+
+**Why delegate instead of role-play:**
+- Subagents run in separate context windows — keeps the main agent's context
+  clean for orchestration and user communication.
+- Subagents can use different models (faster/cheaper for simple analysis).
+- Parallel execution is possible when repos are truly independent.
+- The audit trail is clearer — each agent's output is a discrete artifact.
 
 ### Templates and Mermaid Compatibility Gate
 
@@ -554,41 +575,44 @@ where small fixes accumulate without anyone re-reading the analysis
 
 ## Step 6 — Implement
 
-### Orchestration model — serial per-repo
+### Orchestration model — serial per-repo with subagent delegation
 
-Implementation follows a **serial per-repo** strategy: repos are
-modified one at a time, in the dependency order from `plan.md`. This
-is the default — even when the work seems parallelizable.
+You are the **orchestrator**. Your job is to manage the high-level flow,
+confirm decisions with the user, and delegate detail work to subagents.
+Do NOT try to "become" the developer or reviewer — delegate to them.
 
-Why serial:
+Implementation follows **serial per-repo** order from `plan.md`. For each
+repo, delegate to the **developer** subagent, then to the **reviewer**
+subagent. This is the default — even when repos appear independent.
 
-1. Cross-repo dependencies are the norm (shared types → API →
-   consumers). Parallel agents can't see each other's WIP, leading
-   to contract mismatches.
-2. The developer accumulates cross-repo context naturally — what was
-   built in repo A informs what needs to happen in repo B.
-3. Shared docs (`progress.md`) can't be safely written concurrently.
-4. Debugging failures is simpler with a clean sequential audit trail.
+**Why serial:**
+1. Cross-repo dependencies are the norm (shared types → API → consumers).
+2. Context accumulates — repo A's implementation informs repo B's.
+3. Serial audit trail is cleaner for debugging failures.
 
-**Exception — truly independent repos**: If the planner explicitly
-confirms ZERO shared interfaces, ZERO data model overlap, and ZERO
-dependency edges, repos MAY be implemented in parallel via sub-agents.
-The planner must document this independence in `plan.md`. When in
-doubt, default to serial.
+**Exception — truly independent repos**: If the planner confirms ZERO shared
+interfaces and ZERO dependency edges, repos MAY be delegated in parallel.
+The planner must document this in `plan.md`. When in doubt, default to serial.
 
-### Agent roles
+### Agent roles and boundaries
 
-| Agent | Writes | Reads | Never touches |
-|-------|--------|-------|---------------|
-| Planner | `analysis.md` (feat/refactor), `plan.md` | everything | source code, `review.md` |
-| Debugger | `analysis.md` (fix) | everything | `plan.md`, `review.md` |
-| Developer | source code, `progress.md`, `review.md` (append review output) | `analysis.md`, `plan.md` | — |
-| `code-review-staged` (skill) | (output consumed by developer) | staged diff, repo context | — |
+| Agent | Owns | Must NOT touch | Invoked by |
+|-------|------|----------------|------------|
+| **planner** | `analysis.md` content, `plan.md` content | Source code files | Orchestrator (you) |
+| **developer** | Production code, test files, env setup | `review.md` | Orchestrator (you) |
+| **reviewer** | Review findings (per-repo + cross-repo) | Source code files | Orchestrator (you) |
+| **debugger** | `analysis.md` content (fix type), minimal code fixes | `plan.md` | Orchestrator (you) |
+| **orchestrator (you)** | `progress.md`, `review.md` (append agent output), PRs, user communication | — | The user |
 
-**Agent hierarchy**: workspace agents (`.agents/agents/`) handle
-cross-repo coordination; repo-level agents (`<repo>/.agents/agents/`)
-handle repo-internal concerns. When both exist, repo-level agents
-take priority for that repo's code.
+**Key rules:**
+- Only the **orchestrator writes files** from subagent output. Subagents
+  return structured results; you write them to the work directory.
+- The **reviewer is invoked for BOTH** per-repo review (Step 6e) and
+  cross-repo review (Step 7). No more siloed review — one reviewer, two modes.
+- The **developer** handles implementation + validation per repo and
+  returns results. You don't write code in the main agent.
+- If a repo has its own `.agents/agents/` (repo-level agents), prefer them
+  for that repo's concerns — pass them the same context and delegate.
 
 ### Per-repo implementation loop
 
@@ -598,180 +622,75 @@ For each affected repository, in the dependency order from `plan.md`:
 
 1. **Read `AGENTS.md`** (if it exists) — coding style, commit format,
    architecture constraints. MANDATORY to follow.
-2. **Read `README.md`** — build / test / lint commands, environment
-   setup.
-3. **Check for repo-level agents** at `<repo>/.agents/agents/` — if
-   the repo has specialized agents, prefer them for that repo's
-   changes.
+2. **Read `README.md`** — build / test / lint commands, environment setup.
+3. **Check for repo-level agents** at `<repo>/.agents/agents/` — if the
+   repo has specialized agents, prefer them for that repo's changes.
 4. **Check for `graphify-out/`** — run
    `python3 SKILL_PATH/scripts/graphify_check.py <repo>` to check.
    When `graphify-out/` exists, `cd` into the repo and you MUST use
    `graphify query "<question>"` to understand the codebase before
-   reading individual files. Do NOT run grep or read source files
-   directly until you have queried the knowledge graph. If output
-   shows `TRUNCATED`, raise the budget (`--budget 8000`) or narrow
-   the query before proceeding. The knowledge graph provides faster
-   and more accurate insights into code structure, relationships,
-   and architecture.
+   reading individual files.
 
-#### 6b. Set up repo environment
+#### 6b. Delegate to developer subagent
 
-Activate the repo's required environment before running any commands:
+Provide the developer subagent with:
+- `plan.md` — the implementation plan
+- `analysis.md` — technical context
+- The repo's `AGENTS.md` and `README.md`
+- The repo's branch name and dependency order context
+- Any graphify query results
 
-| Indicator | Action |
-|-----------|--------|
-| `venv/`, `.venv/`, or `requirements.txt` / `pyproject.toml` with Python deps | Activate: `source <repo>/.venv/bin/activate` (create if documented but missing) |
-| `.nvmrc` or `.node-version` | `nvm use` in the repo directory |
-| `Gemfile` | `bundle install` if needed |
-| `go.mod` | Go modules — typically no setup |
-| Dockerfile / docker-compose | Follow README for containerized dev |
+The developer subagent will:
+1. Set up the repo environment (venv, nvm, etc.)
+2. Implement the changes following repo conventions
+3. Run lint → type-check → tests → build
+4. Stage all changes (`git add .`)
+5. Return: summary of changes, test results, recommended commit message
 
-ALWAYS check the repo's documented setup. If you can't determine how,
-ask.
+#### 6c. Handle developer output
 
-#### 6c. Implement changes
+1. If tests fail → send back to developer with failure details until passing
+2. If implementation complete → write the summary to `progress.md`
+3. Proceed to staged review
 
-- Follow the repo's coding conventions strictly (from
-  `AGENTS.md`/`README.md`)
-- Be consistent with existing patterns
-- If the repo has a specific commit message format, follow it
+#### 6d. Per-repo staged review — delegate to reviewer subagent
 
-#### 6d. Validate changes
+After the developer has staged changes in a repo, delegate to the **reviewer**
+subagent for per-repo staged review:
 
-Run all validation in this order:
+1. Provide the reviewer with: `plan.md`, `analysis.md`, `progress.md`,
+   and the staged diff (`git diff --cached` in the repo).
+2. The reviewer returns findings in P0/P1/P2 format with a verdict
+   (PASS / PASS_WITH_RISKS / NEEDS_FIXES / FAIL).
+3. You append the reviewer's output to `review.md`.
+4. **If NEEDS_FIXES**: send the P0/P1 items back to the developer subagent.
+   Developer fixes → re-validates (lint/test/build) → stages (`git add .`).
+   Then invoke reviewer again. Max 3 rounds total.
+5. **If PASS**: proceed to commit.
 
-1. **Lint / format** — if a linter is configured (eslint, ruff, black,
-   prettier, etc.), run and fix issues
-2. **Type check** — if type checking is used (mypy, pyright, tsc),
-   run and fix issues
-3. **Tests** — find the test command (e.g. `pytest`, `npm test`,
-   `go test ./...`), run in the correct environment:
-   - If tests fail caused by your changes → fix
-   - If existing tests need updating due to intentional behavior
-     changes → update
-   - Pre-existing failures unrelated to your changes → note in
-     `progress.md`, do not try to fix
-   - Re-run until passing
-4. **Build** — verify any build step succeeds
-
-Do NOT skip validation. If a repo has tests, you MUST run them. If
-tests fail due to your changes, you MUST fix them before moving to
-the next repo.
-
-#### 6e. Stage, review, and commit (per-repo staged review loop)
-
-After validation passes, each repo goes through a **staged review
-loop** before committing. This uses the `code-review-staged` skill
-to perform a thorough, context-aware review of the staged diff —
-catching issues before they become commits.
-
-Why review before commit (not after):
-
-1. Staged changes are the exact "candidate commit" — reviewing here
-   prevents bad code from entering git history.
-2. `code-review-staged` gathers rich context that a post-commit branch
-   diff review cannot match.
-3. Fix cycles are cleaner — just edit files and re-stage, no amend.
-
-**Flow per repo:**
-
-```
-Implement → Validate (lint/test/build) → git add . → code-review-staged
-                                                          │
-                                          ┌───────────────┴───────────────┐
-                                     Has P0/P1                      No P0/P1
-                                          │                               │
-                                  Fix code → git add .              Commit with
-                                          │                      recommended message
-                                  code-review-staged
-                                     (round N+1)
-                                          │
-                                   max 3 rounds
-```
-
-##### 6e-i. Stage all changes
+#### 6e. Commit per repo
 
 ```bash
 cd <repo-dir>
-git add .
+git commit -m "<message>"
 ```
 
-Do NOT commit yet. The staged changes are the review input.
+- Use the commit message from the developer subagent's summary. If the
+  repo has its own convention (from `AGENTS.md`), reconcile — repo
+  convention wins.
+- Update `progress.md` with the commit summary and review verdict.
+- Run `python3 SKILL_PATH/scripts/graphify_check.py <repo>` — if
+  `graphify-out/` exists, `cd` into the repo and run `graphify update`.
 
-##### 6e-ii. Invoke `code-review-staged`
-
-Trigger the `code-review-staged` skill. It will:
-
-1. Run `git diff --cached` to collect the staged diff
-2. Gather repo context (project structure, config files, full file
-   contents, related files)
-3. Produce a structured review with: Change Overview, Code Quality,
-   Major Issues and Risks, Incremental Suggestions, and a Recommended
-   Commit Message
-
-##### 6e-iii. Evaluate and record to `review.md`
-
-Map the output to a verdict (PASS / NEEDS_FIXES) and append the round
-to `review.md` using the template in
-[`references/review-formats.md`](references/review-formats.md).
-
-##### 6e-iv. Fix cycle (max 3 rounds)
-
-If `NEEDS_FIXES`:
-
-1. Fix only P0/P1 issues — do NOT refactor unrelated code or chase
-   P2 suggestions during fix rounds.
-2. Re-validate (lint/test/build).
-3. `git add .`
-4. Invoke `code-review-staged` again on the new staged diff.
-5. Append the new round to `review.md`.
-6. Repeat until `PASS` or 3 rounds exhausted.
-
-After 3 rounds: if P0/P1 issues remain, record as **residual** in
-`review.md` and `progress.md`, then proceed to commit. Flag in the
-final summary.
-
-**Convergence principle**: each round should have FEWER findings
-than the previous. If a round introduces MORE new issues than it
-fixes, the developer is over-editing — stop and commit with residuals
-noted.
-
-##### 6e-v. Commit
-
-1. Use the **recommended commit message** from the last
-   `code-review-staged` output. If the repo has its own convention
-   (from `AGENTS.md`), reconcile — repo convention wins.
-2. `git commit -m "<message>"`
-3. Update `progress.md`: what was implemented, review result, test
-   results, issues encountered.
-4. Run `python3 SKILL_PATH/scripts/graphify_check.py <repo>` — if the
-   repo has `graphify-out/`, `cd` into the repo and run
-   `graphify update` to keep the knowledge graph in sync with the
-   committed changes.
-
-##### 6e-vi. Forward pointer — what happens AFTER round 0
-
-The staged-review-then-commit loop above is the discipline for
-**round 0** — the initial implementation. After Step 9 finalizes
-round 0, every follow-up edit driven by user feedback, error logs,
-manual test results, or reviewer comments MUST run through the
-**same** stage → review → fix → commit loop, augmented with a
-per-round doc-sync checklist and an Iteration Log row in
-`progress.md`.
-
-Read [`references/iteration-mode.md`](references/iteration-mode.md)
-for the full round-N protocol. Do NOT downgrade the discipline just
-because the change is small or the user did not say "fullstack impl"
-again.
+Proceed to the next repo, or to Step 7 if all repos are done.
 
 ## Step 7 — Cross-Repo Consistency Review (multi-repo only)
 
-Skip this step for single-repo work. For multi-repo, this verifies
-that changes across repos are consistent with each other — separate
-from per-repo staged review (Step 6e), which focuses on code quality
-within a single repo.
+Skip this step for single-repo work. For multi-repo, delegate to the
+**reviewer** subagent in cross-repo mode to verify changes are consistent
+across all affected repos.
 
-### 7a. Collect cross-repo diffs
+### 7a. Collect cross-repo context
 
 For each affected repo:
 
@@ -780,29 +699,25 @@ cd <repo-dir>
 git diff <default-branch>...<feature-branch>
 ```
 
-### 7b. Cross-repo consistency checks
+### 7b. Delegate to reviewer subagent (cross-repo mode)
 
-Verify across ALL affected repos:
+Provide the reviewer with:
+- `plan.md`, `analysis.md`, `progress.md` — full work context
+- Cross-repo diffs from all affected repos
+- For Follow-up Mode: the predecessor's shipped contracts
 
-- **API contracts**: request/response shapes match between producer
-  and consumer
-- **Shared types**: type definitions in shared-lib match usage in
-  consumers
-- **Environment variables**: any new env vars are documented in all
-  affected repos
-- **Database migrations**: schema changes are compatible across
-  services
-- **Error contracts**: error codes/messages are consistent across
-  boundaries
-- **Version compatibility**: dependency version bumps are aligned
+The reviewer checks:
+- **API contracts**: request/response shapes match between producer and consumer
+- **Shared types**: type definitions in shared-lib match usage in consumers
+- **Environment variables**: new env vars documented in all affected repos
+- **Database migrations**: schema changes compatible across services
+- **Error contracts**: error codes/messages consistent across boundaries
+- **Version compatibility**: dependency version bumps aligned
+- **Backward-compat** (Follow-up Mode): no breaking changes vs predecessor
 
-For **Follow-up Mode**, also verify backward-compatibility against
-the predecessor's shipped contracts. See
-[`followup-mode.md`](references/followup-mode.md#backward-compatibility-gate-cross-repo-review-addendum).
+### 7c. Write cross-repo findings
 
-### 7c. Write cross-repo findings to `review.md`
-
-Append a cross-repo review section using the template in
+Append the reviewer's output to `review.md` using the template in
 [`references/review-formats.md`](references/review-formats.md). Even
 if no issues are found, write a `PASS` confirmation documenting what
 was checked.
@@ -810,13 +725,11 @@ was checked.
 ### 7d. Fix cross-repo issues
 
 If P0/P1 cross-repo issues are found:
-
-1. Fix the upstream repo first, then downstream.
-2. For each repo that needs fixes, go through the staged review loop
-   again (Step 6e-i through 6e-v).
-3. Re-run the cross-repo check.
-4. Max 2 fix rounds for cross-repo issues — if issues persist, record
-   as residual.
+1. Fix upstream repo first, then downstream.
+2. For each repo needing fixes, go through the developer → reviewer loop
+   again (Steps 6b through 6e).
+3. Re-run cross-repo review.
+4. Max 2 fix rounds — if issues persist, record as residual.
 
 ## Step 8 — Create Pull Requests (only when github_repos=true)
 

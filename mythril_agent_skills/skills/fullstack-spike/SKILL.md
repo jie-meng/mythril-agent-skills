@@ -199,13 +199,24 @@ Derive from the spike topic. Use lowercase-hyphenated format:
 - "Can we use OAuth2 PKCE?" → `oauth2-pkce-feasibility`
 - "试试 WebSocket 替换轮询" → `websocket-replace-polling`
 
-### Agent dispatch — analysis
+### Agent dispatch — delegate, don't role-play
 
-Read the Planner agent file from `.agents/agents/planner.md` and use it
-to write the technical analysis. The analysis for a spike focuses
-more on **feasibility** and **unknowns** than on implementation planning.
+The workspace has subagents in `.agents/agents/`. **Use your tool's native
+subagent mechanism** to delegate — don't read the agent file and pretend
+to be it.
 
-### analysis.md template
+- **Planner** (read-only): Delegate to write the technical analysis. Provide
+  the spike scope, workspace context, and affected repos. Planner returns
+  the analysis content; you write it to `analysis.md`.
+- **Reviewer** (read-only): Delegate to evaluate the spike at Step 6. Provide
+  the success criteria, findings, and evidence. Reviewer returns the verdict;
+  you write it to `verdict.md`.
+
+The spike's temporary code changes are done directly by the orchestrator
+(you), since the spike is experimental — no commits, no branches. But the
+analysis and verdict are delegated to specialist subagents for quality.
+
+### analysis.md content
 
 **English:**
 
@@ -497,15 +508,14 @@ After each significant experiment:
 After the spike is complete, perform a review of the findings and
 write the verdict.
 
-### 6a. Review the spike
+### 6a. Review the spike — delegate to reviewer
 
-Read `.agents/agents/reviewer.md` and use the Reviewer perspective to
-evaluate the spike:
-
-- Were the success criteria met?
-- Is the evidence sufficient to draw a conclusion?
-- Are there gaps or untested scenarios?
-- What risks were discovered?
+Delegate to the **reviewer** subagent to evaluate the spike:
+- Provide the success criteria from `analysis.md`
+- Provide the experiment records and evidence from `findings.md`
+- The reviewer evaluates: Were criteria met? Is evidence sufficient?
+  Are there gaps? What risks were discovered?
+- The reviewer returns a verdict (FEASIBLE / NOT_FEASIBLE / NEEDS_MORE_RESEARCH)
 
 ### 6b. Write verdict.md
 

@@ -157,12 +157,23 @@ may customize documentation conventions).
 
 ### Agent quality
 
-Agents are based on the opencode agent patterns (planner.md, verifier.md,
-debugger.md) but adapted for cross-repo fullstack context. Key principles:
+Agents are defined as standalone `.md` files in `fullstack-init/agents/`
+— the script copies them to the workspace, it never generates content.
+Each file contains YAML frontmatter compatible with OpenCode and Claude
+Code subagent systems, plus role-specific instructions.
+
+**See [AGENT-ORCHESTRATION.md](./AGENT-ORCHESTRATION.md)** for the full
+orchestration model — how these agents are used by `fullstack-impl`,
+`fullstack-spike`, and `fullstack-query`.
+
+Key principles:
 
 - **Role purity**: reviewer never fixes code; planner never writes code
 - **Falsification mindset**: reviewer assumes "this might be wrong"
-- **Practical framing**: each agent's "How you think" section guides behavior
+- **Delegation over role-play**: the main agent delegates to subagents
+  rather than reading agent files and impersonating them
+- **Symlink integration**: `.opencode/agents/`, `.claude/agents/`, etc.
+  symlink to `.agents/agents/` so tools auto-discover subagents
 - **Cross-repo awareness**: all agents understand multi-repo boundaries
 
 ## Key Functions
@@ -192,11 +203,13 @@ debugger.md) but adapted for cross-repo fullstack context. Key principles:
 - [x] R3 — User-configurable docs dir with legacy migration
 - [x] R4 — Repo analysis (tech stack, role, description)
 - [x] R5 — Stdlib-only (zero dependencies)
-- [x] R6 — Four agent templates (planner, developer, reviewer, debugger)
+- [x] R6 — Four agent subagent definitions (planner, developer, reviewer, debugger) as standalone .md files
 - [x] R7 — Work tracking (feat/, refactor/, fix/)
 - [x] R8 — Docs as independent git repo
 - [x] R9 — No workspace-level git (AI agent compatibility)
 - [x] R10 — Language-aware README with usage guide (EN/ZH)
+- [x] R11 — Multi-tool subagent symlinks (.opencode, .claude, .cursor, .copilot)
+- [x] Agent definitions with YAML frontmatter for native subagent discovery
 - [x] Plugin wrappers + marketplace.json entries
 - [x] Description validation under 1024 limit
 
@@ -207,7 +220,26 @@ debugger.md) but adapted for cross-repo fullstack context. Key principles:
 
 ## Changelog
 
-### 2026-04-18 — v6: Language-aware README with usage guide
+### 2026-07-28 — v7: Agent files as bundled assets + multi-tool symlinks
+
+- **Breaking (internal)**: Agent definitions moved from Python strings in
+  `workspace_init.py` to standalone `.md` files in `fullstack-init/agents/`.
+  `install_agents()` copies these files to the workspace — the script is now
+  a file copy, not a template generator. This eliminates LLM influence on
+  agent content.
+- **YAML frontmatter**: Each agent file now has OpenCode/Claude-Code-compatible
+  frontmatter (`name`, `description`, `mode: subagent`, `permission`).
+  Tools with native subagent discovery automatically detect these agents.
+- **Multi-tool symlinks**: On every run, creates relative symlinks so multiple
+  AI tools discover the same agents: `.opencode/agents -> .agents/agents/`,
+  `.claude/agents -> .agents/agents/`, `.cursor/agents -> .agents/agents/`,
+  `.copilot/agents -> .agents/agents/`.
+- **Agent quality**: Rewritten based on reference agents from toolscripts.
+  Each agent now has clearer "How you think", "How you work", "What you
+  should NOT do", and "Output" sections. Planner contradiction resolved.
+- **Orchestration**: Agents now designed for subagent delegation (not
+  role-play). Return structured output to orchestrator, not write files
+  directly. See `docs/fullstack/AGENT-ORCHESTRATION.md`.
 
 - README.md is no longer a one-liner — it contains a full usage guide
   covering workspace initialization, feature development, resuming
