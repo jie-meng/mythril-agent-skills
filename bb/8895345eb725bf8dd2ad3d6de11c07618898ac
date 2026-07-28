@@ -1,0 +1,37 @@
+mythril_agent_skills/skills/story-point-estimate/references/cfr-guide.md
+  s_db088fb83388ca::t_81e72460410986 1-274
+mythril_agent_skills/skills/story-point-estimate/references/estimation-patterns.md
+  s_db088fb83388ca::t_8936afb658c8ed 1-341
+mythril_agent_skills/skills/story-point-estimate/SKILL.md
+  s_db088fb83388ca::t_02b61d406c3972 290-292
+  s_db088fb83388ca::t_607eeba08a1936 225-228
+  s_db088fb83388ca::t_5453f62f763f06 203-205
+  s_db088fb83388ca::t_7043dceff07136 252-288
+  s_db088fb83388ca::t_a90e349fca6979 246-250
+  s_db088fb83388ca::t_219fff861ae035 404,406-417
+  s_db088fb83388ca::t_8e31bab586b13d 177-180
+  s_db088fb83388ca::t_a0d36f6d531afa 13-14
+  s_db088fb83388ca::t_7bcf84ab17ff4c 293-294,296-299,301-356
+  s_db088fb83388ca::t_d15da3408e9752 81-129
+  s_db088fb83388ca::t_800ee3c976c9b8 1-12,15-80,130-176,181-202,206-224,229-245,251,289,295,300,357-403,405,418-454
+mythril_agent_skills/skills/story-point-estimate/scripts/generate_report.py
+  s_db088fb83388ca::t_0deeee599929fd 1-335
+mythril_agent_skills/skills/story-point-estimate/references/point-scale.md
+  s_db088fb83388ca::t_8034d0c36054a3 1-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "bb8895345eb725bf8dd2ad3d6de11c07618898ac",
+  "prompts": {},
+  "sessions": {
+    "s_db088fb83388ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_056b161d5ffeBWlBNkiZsoeY3N",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
