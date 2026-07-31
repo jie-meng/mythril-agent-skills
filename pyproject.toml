@@ -13,7 +13,7 @@ dependencies = []
 authors = [
     {name = "Jie Meng"},
 ]
-keywords = ["ai", "skills", "coding-assistant", "claude", "cursor", "copilot", "codex", "gemini"]
+keywords = ["ai", "skills", "coding-assistant", "claude", "cursor", "copilot", "codex", "gemini", "codebuddy"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console :: Curses",

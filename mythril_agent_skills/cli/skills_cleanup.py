@@ -27,6 +27,7 @@ TOOLS: list[tuple[str, str, str]] = [
     ("Gemini CLI", ".gemini", "skills"),
     ("Qwen CLI", ".qwen", "skills"),
     ("Opencode", ".config/opencode", "skills"),
+    ("CodeBuddy", ".codebuddy", "skills"),
     ("Grok CLI", ".grok", "skills"),
     ("OpenClaw", ".openclaw", "skills"),
     ("Hermes", ".hermes", "skills"),

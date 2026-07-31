@@ -4,7 +4,7 @@
   <img src="docs/assets/banner.webp" width="500" alt="mythril-agent-skills">
 </p>
 
-面向多智能体 AI 编程助手的统一技能管理系统。本工具包（以 Python 包形式分发）提供一套精选的可复用技能集合，以及用于在 Github Copilot、Claude Code、Cursor、Codex、Gemini CLI、OpenClaw、Hermes 等工具之间安装、配置和维护技能的集中式 CLI 命令。
+面向多智能体 AI 编程助手的统一技能管理系统。本工具包（以 Python 包形式分发）提供一套精选的可复用技能集合，以及用于在 Github Copilot、Claude Code、Cursor、Codex、Gemini CLI、OpenClaw、Hermes、CodeBuddy 等工具之间安装、配置和维护技能的集中式 CLI 命令。
 
 [English](./README.md) | 中文
 
@@ -555,6 +555,7 @@ skills-setup
 | 8 | Grok CLI | `~/.grok/skills/` |
 | 9 | OpenClaw | `~/.openclaw/skills/` |
 | 10 | Hermes | `~/.hermes/skills/` |
+| 11 | CodeBuddy | `~/.codebuddy/skills/` |
 
 ### 卸载已安装的技能
 
