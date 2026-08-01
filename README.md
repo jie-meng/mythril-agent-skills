@@ -131,6 +131,13 @@ Use Glean CLI (`glean`) for enterprise knowledge search, AI chat, and full API o
 - **Try:** glean search "vacation policy"
 - **Deps:** `glean` CLI
 
+**[GLM Vision Fallback](./mythril_agent_skills/skills/glm-vision-fallback/)**
+
+Vision fallback for AI models that cannot process images — analyze screenshots and images via the free GLM-4.6V-Flash API (strong OCR / text extraction). Strictly a last-resort: use only when the main model fails to see an image.
+
+- **Try:** 当前模型不支持图片输入（附截图）
+- **Deps:** `ZAI_API_KEY` / `GLM_API_KEY`
+
 </details>
 
 <details>
@@ -368,7 +375,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 
 | Plugin | Description |
 |---|---|
-| `all-skills` | All-in-one bundle (all 21 skills) |
+| `all-skills` | All-in-one bundle (all 26 skills) |
 | `skill-creator` | Create and improve skills/prompts for any AI platform |
 | `code-review-staged` | Code review for git staged changes |
 | `branch-diff-review` | Code review for local branch differences |

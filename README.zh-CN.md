@@ -131,6 +131,13 @@ Skill（技能）是一个提示词/指令包，用于教 AI 助手如何处理�
 - **示例：** glean search "请假政策"
 - **依赖：** `glean` CLI
 
+**[GLM 视觉回退](./mythril_agent_skills/skills/glm-vision-fallback/)**
+
+不支持图片输入的 AI 模型的视觉回退方案 —— 通过免费的 GLM-4.6V-Flash API 分析截图和图片（OCR / 文字提取能力强）。严格作为最后手段：仅在主模型无法识图时使用。
+
+- **示例：** 当前模型不支持图片输入（附截图）
+- **依赖：** `ZAI_API_KEY` / `GLM_API_KEY`
+
 </details>
 
 <details>
@@ -361,7 +368,7 @@ skills-clean-cache --repos  # 交互式：选择要删除的仓库
 
 | 插件 | 描述 |
 |---|---|
-| `all-skills` | 全部技能包（共 21 个） |
+| `all-skills` | 全部技能包（共 26 个） |
 | `skill-creator` | 为任意 AI 平台创建/改进技能和提示词 |
 | `code-review-staged` | 暂存区代码审查 |
 | `branch-diff-review` | 本地分支差异代码审查 |

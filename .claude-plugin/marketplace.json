@@ -10,7 +10,7 @@
     {
       "name": "all-skills",
       "source": "./mythril_agent_skills",
-      "description": "All-in-one bundle: code review, Git/GitHub, Jira, Confluence, Figma, Glean, Excel, PDF, Markdown-to-PDF, ImageMagick, FFmpeg, Android screen reading, blog writer, story point estimation, user-journey map drafter, skill creator, and fullstack workspace tools",
+      "description": "All-in-one bundle: code review, Git/GitHub, Jira, Confluence, Figma, Glean, Excel, PDF, Markdown-to-PDF, ImageMagick, FFmpeg, Android screen reading, GLM vision fallback, blog writer, story point estimation, user-journey map drafter, skill creator, and fullstack workspace tools",
       "version": "0.2.17",
       "author": {
         "name": "Jie Meng"
@@ -29,6 +29,7 @@
         "excel",
         "pdf",
         "md-to-pdf",
+        "glm-vision-fallback",
         "imagemagick",
         "ffmpeg",
         "android",
