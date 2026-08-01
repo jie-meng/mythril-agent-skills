@@ -1,0 +1,43 @@
+AGENTS.md
+  s_78b7fc576f4fd4::t_ff16926feb09fb 277
+mythril_agent_skills/skills/glm-vision-fallback/SKILL.md
+  s_78b7fc576f4fd4::t_afded8b1329f6d 9-12
+  s_78b7fc576f4fd4::t_efd7b86466e51f 85-87,93-95,104,107-114,116-117
+  s_78b7fc576f4fd4::t_c2cfcb6da2b06f 1-8,13-48,53-84,88-92,96-103,106,118-121
+  s_78b7fc576f4fd4::t_ed4aa6ab58c059 49-52
+  s_78b7fc576f4fd4::t_611880711cb78d 105
+  s_78b7fc576f4fd4::t_b47a83b7811b02 115
+README.zh-CN.md
+  s_78b7fc576f4fd4::t_75e27f3ef6a659 371
+  s_78b7fc576f4fd4::t_893465d46be3f6 134-140
+README.md
+  s_78b7fc576f4fd4::t_be0a4a23f31acc 134-140
+  s_78b7fc576f4fd4::t_617b4a58da7177 378
+.claude-plugin/marketplace.json
+  s_78b7fc576f4fd4::t_a212a1fe5b1f15 13
+  s_78b7fc576f4fd4::t_67bd7aed2c9650 32
+mythril_agent_skills/skills/glm-vision-fallback/scripts/vision_fallback.py
+  s_78b7fc576f4fd4::t_74ef99b9cd1080 160-190
+  s_78b7fc576f4fd4::t_47604692d86d19 1-14,16-20,22-23,31-121,123-127,140,143,149-159,191-204,214-216,218-223,225-240
+  s_78b7fc576f4fd4::t_d1fca662cca372 128-139,141-142,144-148
+  s_78b7fc576f4fd4::t_12d7b5e7e59c09 205-213,217,224
+  s_78b7fc576f4fd4::t_fb2dac434afc7b 15
+  s_78b7fc576f4fd4::t_fba202a56eb926 21,24-30
+  s_78b7fc576f4fd4::t_005f37b44f7092 122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "bde0ffc78d5f273e372a0e1d9c8920198ee6b253",
+  "prompts": {},
+  "sessions": {
+    "s_78b7fc576f4fd4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_04537c09dffeBLxt0B2cNIFjFz",
+        "model": "deepseek-v4-flash-free"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
