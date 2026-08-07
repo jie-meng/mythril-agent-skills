@@ -25,6 +25,7 @@ PYPROJECT = PROJECT_ROOT / "pyproject.toml"
 INIT_FILE = PROJECT_ROOT / "mythril_agent_skills" / "__init__.py"
 MARKETPLACE = PROJECT_ROOT / ".claude-plugin" / "marketplace.json"
 DIST_DIR = PROJECT_ROOT / "dist"
+BUILD_DIR = PROJECT_ROOT / "build"
 
 GREEN = "\033[0;32m"
 YELLOW = "\033[1;33m"
@@ -92,10 +93,20 @@ def _check_git_clean() -> bool:
 
 
 def _clean_dist() -> None:
-    """Remove old build artifacts."""
-    if DIST_DIR.exists():
-        shutil.rmtree(DIST_DIR)
-        print(f"  Cleaned {DIST_DIR}")
+    """Remove old build artifacts.
+
+    Clears build/, *.egg-info/ and dist/ so that `python -m build` regenerates
+    the wheel from the current source tree instead of reusing a stale build/
+    cache that may contain removed skills (e.g. old fullstack-* directories).
+    """
+    for path in (BUILD_DIR, DIST_DIR):
+        if path.exists():
+            shutil.rmtree(path)
+            print(f"  Cleaned {path}")
+    for egg_info in PROJECT_ROOT.glob("*.egg-info"):
+        if egg_info.is_dir():
+            shutil.rmtree(egg_info)
+            print(f"  Cleaned {egg_info}")
 
 
 def _build() -> None:
