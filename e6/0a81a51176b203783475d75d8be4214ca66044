@@ -1,0 +1,32 @@
+AGENTS.md
+  h_e0538e51a4c5ef 283,427,476-478
+README.md
+  h_e0538e51a4c5ef 248,253,260,262,264,267,269,272-278,281-287,413-417,659-663,705-706
+README.zh-CN.md
+  h_e0538e51a4c5ef 248,253,255,257,260,262-269,272-278,281-287,413-417,660-664
+docs/DEVELOPMENT.md
+  h_e0538e51a4c5ef 7-8
+docs/fullstack/AGENT-ORCHESTRATION.md
+  h_e0538e51a4c5ef 79-85,105
+docs/fullstack/README.md
+  h_e0538e51a4c5ef 1,3-5,7-9,11-32,34-36,38-39,41-42,44-74
+docs/fullstack/REFACTOR-PLAN.md
+  h_e0538e51a4c5ef 1-380
+docs/fullstack/concepts.md
+  h_e0538e51a4c5ef 1,3-5,7-22,26-36,39-64,66,68-71,73-74,76-78,80-83,85-91,93,95-99,101,103-106,108,110,112-118,120-122,124,126-131,133-150,152,154,156-160,162-163,165,167,169-170,172-175,177,179-181,183-184,186,188,190-195,197,199,201-210,212,214,216-218
+docs/fullstack/overview.md
+  h_e0538e51a4c5ef 1-83
+docs/fullstack/workflows.md
+  h_e0538e51a4c5ef 1-128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "e60a81a51176b203783475d75d8be4214ca66044",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
