@@ -1,0 +1,14 @@
+scripts/publish.py
+  h_e0538e51a4c5ef 28,96-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "3ac571733c786dc3bd1433a6c68408f86b70653f",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
