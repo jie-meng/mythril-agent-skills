@@ -19,6 +19,10 @@ from pathlib import Path
 
 IS_WINDOWS = platform.system() == "Windows"
 
+CLI_DIR = Path(__file__).resolve().parent
+PACKAGE_DIR = CLI_DIR.parent
+BUILTIN_SKILLS_DIR = PACKAGE_DIR / "skills"
+
 TOOLS: list[tuple[str, str, str]] = [
     ("Copilot CLI", ".copilot", "skills"),
     ("Claude Code", ".claude", "skills"),
@@ -92,9 +96,10 @@ NC = "\033[0m"
 class SkillEntry:
     """A selectable skill under a tool group."""
 
-    def __init__(self, name: str, path: Path) -> None:
+    def __init__(self, name: str, path: Path, is_builtin: bool = False) -> None:
         self.name = name
         self.path = path
+        self.is_builtin = is_builtin
         self.selected = False
 
 
@@ -107,11 +112,20 @@ class ToolGroup:
         self.skills_dir = skills_dir
         self.skills: list[SkillEntry] = []
 
-    def scan(self) -> None:
-        """Populate skills list from the filesystem."""
+    def scan(self, builtin_names: set[str]) -> None:
+        """Populate skills list from the filesystem.
+
+        Each skill is marked is_builtin=True when its name matches a
+        bundled skill from this package, so the UI can list bundled and
+        third-party skills as separate sections.
+        """
         self.skills = sorted(
             (
-                SkillEntry(p.name, p)
+                SkillEntry(
+                    p.name,
+                    p,
+                    is_builtin=p.name in builtin_names,
+                )
                 for p in self.skills_dir.iterdir()
                 if p.is_dir() and not p.name.startswith(".")
             ),
@@ -122,15 +136,27 @@ class ToolGroup:
 # --- Scanning ---
 
 
+def get_builtin_skill_names() -> set[str]:
+    """Return the set of skill names bundled with this package."""
+    if not BUILTIN_SKILLS_DIR.is_dir():
+        return set()
+    return {
+        p.name
+        for p in BUILTIN_SKILLS_DIR.iterdir()
+        if p.is_dir() and not p.name.startswith(".")
+    }
+
+
 def scan_installed_tools() -> list[ToolGroup]:
     """Return tool groups that exist and contain at least one skill."""
+    builtin_names = get_builtin_skill_names()
     groups: list[ToolGroup] = []
     for label, config_dir, skills_subpath in TOOLS:
         skills_dir = Path.home() / config_dir / skills_subpath
         if not skills_dir.is_dir():
             continue
         group = ToolGroup(label, config_dir, skills_dir)
-        group.scan()
+        group.scan(builtin_names)
         if group.skills:
             groups.append(group)
     return groups
@@ -141,18 +167,32 @@ def scan_installed_tools() -> list[ToolGroup]:
 
 def _build_rows(
     groups: list[ToolGroup],
-) -> list[tuple[str, ToolGroup | None, SkillEntry | None]]:
+) -> list[tuple[str, str, ToolGroup | None, SkillEntry | None]]:
     """Build a flat list of display rows from the tree structure.
 
-    Each row is (display_text, group_or_none, skill_or_none).
-    - Tool header rows:  (text, group, None)    — not selectable
-    - Skill rows:        (text, group, skill)   — selectable
+    Each row is (kind, text, group_or_none, skill_or_none).
+    Kinds:
+    - "tool":    tool header row     (not selectable)
+    - "section": section header row  (not selectable) — Builtin / Other
+    - "skill":   selectable skill row
+
+    Within each tool, skills are split into two sections mirroring the
+    skills-setup UI: bundled skills first, then third-party skills.
     """
-    rows: list[tuple[str, ToolGroup | None, SkillEntry | None]] = []
+    rows: list[tuple[str, str, ToolGroup | None, SkillEntry | None]] = []
     for group in groups:
-        rows.append((group.label, group, None))
-        for skill in group.skills:
-            rows.append((skill.name, group, skill))
+        rows.append(("tool", group.label, group, None))
+        builtin = [s for s in group.skills if s.is_builtin]
+        other = [s for s in group.skills if not s.is_builtin]
+
+        if builtin:
+            rows.append(("section", f"  Builtin Skills ({len(builtin)})", group, None))
+            for skill in builtin:
+                rows.append(("skill", skill.name, group, skill))
+        if other:
+            rows.append(("section", f"  Other Skills ({len(other)})", group, None))
+            for skill in other:
+                rows.append(("skill", skill.name, group, skill))
     return rows
 
 
@@ -167,6 +207,7 @@ def curses_tree_select(
     curses.init_pair(2, curses.COLOR_RED, -1)
     curses.init_pair(3, curses.COLOR_YELLOW, -1)
     curses.init_pair(4, curses.COLOR_GREEN, -1)
+    curses.init_pair(5, curses.COLOR_MAGENTA, -1)
 
     rows = _build_rows(groups)
     cursor = 0
@@ -176,8 +217,8 @@ def curses_tree_select(
     # cursor == 0 means the all-toggle; cursor >= 1 means rows[cursor - 1]
     total_items = 1 + len(rows)
 
-    def is_header(row_idx: int) -> bool:
-        return rows[row_idx][2] is None
+    def is_selectable(row_idx: int) -> bool:
+        return rows[row_idx][0] == "skill"
 
     def all_skills() -> list[SkillEntry]:
         return [s for g in groups for s in g.skills]
@@ -189,23 +230,17 @@ def curses_tree_select(
         return len(all_skills())
 
     def _next_selectable(pos: int, direction: int) -> int:
-        """Find next selectable position (skip headers)."""
+        """Find next selectable position (skip headers and sections)."""
         pos = (pos + direction) % total_items
         attempts = 0
         while attempts < total_items:
             if pos == 0:
                 return pos
-            if not is_header(pos - 1):
+            if is_selectable(pos - 1):
                 return pos
             pos = (pos + direction) % total_items
             attempts += 1
         return pos
-
-    # Start cursor on first selectable row
-    if cursor == 0:
-        pass
-    else:
-        cursor = _next_selectable(0, 1)
 
     def draw() -> None:
         nonlocal scroll_offset
@@ -223,10 +258,9 @@ def curses_tree_select(
         visible_lines = max_y - content_start - 2  # room for footer
 
         # All-toggle row + separator + data rows
-        all_rows_count = 1 + 1 + len(rows)  # toggle + sep + rows
+        all_rows_count = 1 + 1 + len(rows)
 
         # Adjust scroll so cursor is visible
-        # Map cursor to visual line index
         if cursor == 0:
             visual_cursor = 0
         else:
@@ -262,12 +296,12 @@ def curses_tree_select(
         line += 1
 
         # --- Tree rows ---
-        for row_idx, (text, group, skill) in enumerate(rows):
+        for row_idx, (kind, text, group, skill) in enumerate(rows):
             if line >= scroll_offset and (line < scroll_offset + visible_lines):
                 screen_row = content_start + (line - scroll_offset)
                 item_cursor = row_idx + 1  # +1 because 0 is all-toggle
 
-                if skill is None:
+                if kind == "tool":
                     # Tool header — not selectable
                     group_sel = sum(1 for s in group.skills if s.selected)
                     group_total = len(group.skills)
@@ -282,6 +316,17 @@ def curses_tree_select(
                             0,
                             header,
                             curses.A_BOLD | curses.color_pair(1),
+                        )
+                    except curses.error:
+                        pass
+                elif kind == "section":
+                    # Section header — not selectable
+                    try:
+                        stdscr.addstr(
+                            screen_row,
+                            0,
+                            text,
+                            curses.A_BOLD | curses.color_pair(5),
                         )
                     except curses.error:
                         pass
@@ -337,7 +382,7 @@ def curses_tree_select(
                     s.selected = new_val
             else:
                 row_idx = cursor - 1
-                _, _, skill = rows[row_idx]
+                _, _, _, skill = rows[row_idx]
                 if skill is not None:
                     skill.selected = not skill.selected
         elif key == ord("a"):
