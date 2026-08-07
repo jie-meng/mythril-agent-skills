@@ -1,0 +1,16 @@
+mythril_agent_skills/cli/skills_cleanup.py
+  h_e0538e51a4c5ef 22-25,99,102,115-121,124-128,139-149,152,159,170,173-180,182,184-195,210,220-221,233,239,261,299,304,322-332,385
+tests/test_skills_cleanup.py
+  h_e0538e51a4c5ef 1-154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "323f26f77a3f1596c5cc6e30509f3a9c9ccca942",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
