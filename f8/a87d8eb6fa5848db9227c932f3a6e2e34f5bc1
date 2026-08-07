@@ -1,0 +1,70 @@
+.claude-plugin/marketplace.json
+  h_e0538e51a4c5ef 420-422,433,439-441,452-453,458-460,471,475-511
+mythril_agent_skills/shared/mermaid/MERMAID-RULES.md
+  h_e0538e51a4c5ef 218-219
+mythril_agent_skills/skills/code-review-staged/references/commit-format.md
+  h_e0538e51a4c5ef 194
+mythril_agent_skills/skills/fullstack-apply/SKILL.md
+  h_e0538e51a4c5ef 2,4-11,13-17,21,23-38,42,46-47,49-50,55-58,64-71,88,92,105-106,113-121,125,132-135,137,139,141-148,150-153,155-157,159,161-162,165,174,177-178,180,188,190-192,196-202,227,229-231,242-244,259-260,263-264,270,283,299,305,307-308,310-312,316-318,321,335,337,343,352,357-358,367,369,372-374,376,381,385,387,389-390,397,400,403,407-408,414-418,465,481,487-488,491-497,503,505-506,508-511,515,518-527,534-537,539,549,559-597,601-607,613-617,619-620,623-624,632-635,638-649
+mythril_agent_skills/skills/fullstack-apply/references/MERMAID-RULES.md
+  h_e0538e51a4c5ef 218-219
+mythril_agent_skills/skills/fullstack-apply/references/document-templates.md
+  h_e0538e51a4c5ef 11-12,15,22,24-28,35,45-53,89,99-106,136,138-139,141-142,148-153,181-182,212-213,216,218-222,569-578,589-597,649-655,658-660,665-666
+mythril_agent_skills/skills/fullstack-apply/references/review-formats.md
+  h_e0538e51a4c5ef 189-191
+mythril_agent_skills/skills/fullstack-apply/scripts/check_workspace.py
+  h_e0538e51a4c5ef 5-7,9-11
+mythril_agent_skills/skills/fullstack-archive/SKILL.md
+  h_e0538e51a4c5ef 1-182
+mythril_agent_skills/skills/fullstack-archive/scripts/check_workspace.py
+  h_e0538e51a4c5ef 1-96
+mythril_agent_skills/skills/fullstack-archive/scripts/graphify_check.py
+  h_e0538e51a4c5ef 1-37
+mythril_agent_skills/skills/fullstack-docs-migration/SKILL.md
+  h_e0538e51a4c5ef 1-219
+mythril_agent_skills/skills/fullstack-docs-migration/scripts/migrate_scan.py
+  h_e0538e51a4c5ef 1-240
+mythril_agent_skills/skills/fullstack-explore/SKILL.md
+  h_e0538e51a4c5ef 2,6,10-11,21,48,174-183,189-190,206,208,433-435,445,447,449-466
+mythril_agent_skills/skills/fullstack-init/SKILL.md
+  h_e0538e51a4c5ef 101,204-208
+mythril_agent_skills/skills/fullstack-init/agents/planner.md
+  h_e0538e51a4c5ef 53-55
+mythril_agent_skills/skills/fullstack-init/scripts/workspace_init.py
+  h_e0538e51a4c5ef 295,299-304,311-313,317-318,417,423-425,428,455-459,664-671,673-674,677-678,682-684,688,694,699,703,706-721,734-736,749-753,760-761,764-768,771-773,810,812,815-816,819-829,833,839,843,847,850-865,877,891-895,902,905-909,912-913,954-956,960-962,966-969,975-978,982-983,990-994,1169-1173,1287,1299
+mythril_agent_skills/skills/fullstack-propose/SKILL.md
+  h_e0538e51a4c5ef 2,4-13,17,19-21,23,25,27-43,45,47-76,78,80-85,87,89-90,92-97,99,101-102,105,108-109,113-114,120-122,126,128-133,135,137,139-141,143,145-151,153,155-159,161,163-167,169,171-173,181,185-186,189,191-193,195-196,198-202,205-206,208,210,213-217,220,222-226,228,230-234,236,238-239,241-244,246-260,264,270,289,294,296-303,305,307,312,314-316,318-321,323-326,329-332,334-336,339-341,343,350-351,353,355-358,360-367,369-370,372,374-376,379-381,383-386,388,391,393-394,396-400,405-406,408-418
+mythril_agent_skills/skills/fullstack-propose/references/MERMAID-RULES.md
+  h_e0538e51a4c5ef 218-219
+mythril_agent_skills/skills/fullstack-propose/references/document-templates.md
+  h_e0538e51a4c5ef 1-671
+mythril_agent_skills/skills/fullstack-propose/scripts/check_workspace.py
+  h_e0538e51a4c5ef 1-96
+mythril_agent_skills/skills/user-journey/references/MERMAID-RULES.md
+  h_e0538e51a4c5ef 218-219
+plugins/fullstack-apply/skills/fullstack-apply
+  h_e0538e51a4c5ef 1
+plugins/fullstack-archive/skills/fullstack-archive
+  h_e0538e51a4c5ef 1
+plugins/fullstack-docs-migration/skills/fullstack-docs-migration
+  h_e0538e51a4c5ef 1
+plugins/fullstack-explore/skills/fullstack-explore
+  h_e0538e51a4c5ef 1
+plugins/fullstack-propose/skills/fullstack-propose
+  h_e0538e51a4c5ef 1
+pyproject.toml
+  h_e0538e51a4c5ef 76-78
+scripts/sync-shared-assets.py
+  h_e0538e51a4c5ef 56,85-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "f8a87d8eb6fa5848db9227c932f3a6e2e34f5bc1",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
