@@ -1,0 +1,18 @@
+tests/skills/test_fullstack_apply.py
+  h_e0538e51a4c5ef 1-1016
+tests/skills/test_fullstack_docs_migration.py
+  h_e0538e51a4c5ef 1-312
+tests/skills/test_fullstack_init.py
+  h_e0538e51a4c5ef 705,945-946,951-952,995-998
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "2c6a6078d429e86cc65722f519b6efa0891b7e68",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
