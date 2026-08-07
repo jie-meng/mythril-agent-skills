@@ -702,7 +702,7 @@ class TestGenerateDocsAgentsMd:
 
     def test_work_tracking_table(self):
         result = self.func("central-docs")
-        for keyword in ("feat/", "refactor/", "fix/", "spike/"):
+        for keyword in ("changes/feat/", "changes/refactor/", "changes/fix/", "changes/archive/"):
             assert keyword in result
 
     def test_mermaid_compatibility_note_present(self):
@@ -942,12 +942,14 @@ class TestGenerateReadme:
     def test_contains_init_instructions_en(self):
         result = self.func("proj", "docs", lang="en")
         assert "fullstack-init" in result
-        assert "fullstack-impl" in result
+        assert "fullstack-apply" in result
+        assert "fullstack-archive" in result
 
     def test_contains_init_instructions_zh(self):
         result = self.func("proj", "docs", lang="zh")
         assert "fullstack-init" in result
-        assert "fullstack-impl" in result
+        assert "fullstack-apply" in result
+        assert "fullstack-archive" in result
 
     def test_contains_resume_section_en(self):
         result = self.func("proj", "docs", lang="en")
@@ -990,9 +992,10 @@ class TestBootstrapWorkspace:
         assert (tmp_path / "fullstack.json").exists()
         assert (tmp_path / "central-docs" / ".git").exists()
         assert (tmp_path / "central-docs" / "AGENTS.md").exists()
-        assert (tmp_path / "central-docs" / "feat").is_dir()
-        assert (tmp_path / "central-docs" / "refactor").is_dir()
-        assert (tmp_path / "central-docs" / "fix").is_dir()
+        assert (tmp_path / "central-docs" / "changes" / "feat").is_dir()
+        assert (tmp_path / "central-docs" / "changes" / "refactor").is_dir()
+        assert (tmp_path / "central-docs" / "changes" / "fix").is_dir()
+        assert (tmp_path / "central-docs" / "changes" / "archive").is_dir()
         assert (tmp_path / ".agents" / "skills").is_dir()
         assert (tmp_path / "scripts").is_dir()
 
