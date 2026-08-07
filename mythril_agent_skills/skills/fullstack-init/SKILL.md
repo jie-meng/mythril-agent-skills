@@ -98,7 +98,7 @@ python3 SKILL_PATH/scripts/workspace_init.py --json                  # JSON outp
 3. **Otherwise, ask the user** (MANDATORY — do NOT silently use the default):
    > Are these repositories hosted on GitHub or GitHub Enterprise? (yes/no)
    >
-   > If yes, `fullstack-impl` will be able to create Pull Requests
+   > If yes, `fullstack-apply` will be able to create Pull Requests
    > automatically after implementation and review are done.
 
    This includes GitHub Enterprise with custom domains (e.g., `git.company.com`).
@@ -201,10 +201,11 @@ project-workspace/
 ├── central-docs/                 # Independent git repo (preserved)
 │   ├── .git/
 │   ├── AGENTS.md
-│   ├── feat/
-│   ├── refactor/
-│   ├── fix/
-│   └── spike/
+│   ├── changes/
+│   │   ├── feat/                 # Active feature work
+│   │   ├── refactor/             # Active refactor work
+│   │   ├── fix/                  # Active fix work
+│   │   └── archive/              # Completed work (YYYY-MM-DD-<type>-<name>/)
 ├── scripts/                      # Preserved (user content)
 ├── web/                          # Independent repo
 ├── api/                          # Independent repo

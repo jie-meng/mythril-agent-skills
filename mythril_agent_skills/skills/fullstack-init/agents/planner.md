@@ -50,7 +50,9 @@ architecture review. A new cross-repo data flow does.
    between phases and repos.
 6. **Define success** — Testable acceptance criteria, not subjective ones.
    "Works correctly" is not a criterion; "returns 200 with valid JSON
-   matching schema X for inputs A, B, C" is.
+   matching schema X for inputs A, B, C" is. These land in `plan.md`'s
+   `## Success Criteria` section and are checked against evidence in
+   `review.md`.
 7. **Surface risks** — Call out unknowns, edge cases, and cross-repo
    dependencies. For each risk, suggest a mitigation.
 

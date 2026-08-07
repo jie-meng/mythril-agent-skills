@@ -1,14 +1,14 @@
 ---
-name: fullstack-query
+name: fullstack-explore
 description: |
   Read-only knowledge exploration across a multi-repo fullstack workspace
   — answer architecture questions, locate implementations, explain
-  cross-repo relationships, and suggest next steps. No branches, no
+  cross-repo relationships, and recommend next steps. No branches, no
   commits, no file modifications. Information is gathered in order of
   token efficiency: workspace documents (human summaries) → graphify
   knowledge graphs (structured queries) → direct file reading (raw code).
-  Trigger: "fullstack query", "fullstack explore", "全栈查询",
-  "全栈探索", "工作区查询", "workspace query"; ALSO when the user asks
+  Trigger: "fullstack explore", "fullstack query", "全栈探索",
+  "全栈查询", "工作区查询", "workspace query"; ALSO when the user asks
   discovery questions inside a fullstack workspace — "what does this
   workspace do", "这个工作区是做什么的", "which repo handles X",
   "哪个仓库负责X", "explain the architecture", "讲解架构",
@@ -18,7 +18,7 @@ description: |
 license: Apache-2.0
 ---
 
-# Fullstack Query
+# Fullstack Explore
 
 Explore and understand a multi-repo fullstack workspace initialized by
 `fullstack-init`. This skill is **read-only** — it gathers information,
@@ -45,7 +45,7 @@ This skill ONLY:
 **Documents and graphify tell you WHERE to look. Source code tells you
 WHAT the answer is.**
 
-Documents (from `fullstack-impl`/`fullstack-spike`) may be stale or
+Documents (from `fullstack-propose`/`fullstack-apply`) may be stale or
 incomplete. Graphify indexes may be out of date. Both are accelerators
 to find relevant code efficiently — they are NOT substitutes for reading
 the actual source files.
@@ -171,23 +171,23 @@ Fall back to manual scanning. List the docs directory structure:
 
 ```
 <docs-dir>/
-├── feat/<name>/        ← implementation work
-│   ├── analysis.md     ← problem analysis, affected repos, constraints
-│   ├── plan.md         ← implementation strategy, dependency order
-│   ├── progress.md     ← what was done, iteration logs, test results
-│   └── review.md       ← code review results, cross-repo consistency
-├── refactor/<name>/    ← same structure as feat/
-├── fix/<name>/         ← same structure as feat/
-├── spike/<name>/       ← spike work
-│   ├── analysis.md     ← technical hypothesis, scope
-│   ├── findings.md     ← experiments and results
-│   └── verdict.md      ← feasibility conclusion, recommendations
-└── AGENTS.md           ← doc directory conventions
+├── changes/
+│   ├── feat/<name>/        ← implementation work
+│   │   ├── analysis.md     ← problem analysis, affected repos, constraints
+│   │   ├── plan.md         ← implementation strategy, dependency order
+│   │   ├── progress.md     ← what was done, iteration logs, test results
+│   │   └── review.md       ← code review results, cross-repo consistency
+│   ├── refactor/<name>/    ← same structure as feat/
+│   ├── fix/<name>/         ← same structure as feat/
+│   └── archive/            ← completed work (YYYY-MM-DD-<type>-<name>/)
+└── AGENTS.md               ← doc directory conventions
 ```
 
 Match work item directories against the query:
 - **Directory name**: does `<name>` contain keywords from the query?
 - **Jira key**: does the query reference a specific ticket (e.g. `PROJ-123`)?
+- **Archive**: completed work lives under `changes/archive/` — scan it for
+  historical context, not just active `changes/<type>/` directories.
 
 ### 3b. For each matching document — check relevance, not full read
 
@@ -203,11 +203,9 @@ Prioritize these high-signal sections:
 | Document | Priority sections |
 |----------|------------------|
 | `analysis.md` | Problem statement, Affected repos, Constraints |
-| `plan.md` | Affected repos table, Implementation strategy, Architecture decisions |
+| `plan.md` | Affected repos table, Implementation strategy, Success Criteria |
 | `progress.md` | Round summaries, "What was implemented", Key file changes |
-| `review.md` | Cross-repo consistency findings (skip per-file review blocks) |
-| `findings.md` (spike) | Experiment results, Observations |
-| `verdict.md` (spike) | Conclusion, Recommendations |
+| `review.md` | Evidence table, Cross-repo consistency findings (skip per-file review blocks) |
 
 ### 3c. Assess document coverage
 
@@ -432,8 +430,9 @@ Based on the findings, recommend a concrete follow-up action:
 
 | Scenario | Recommendation |
 |----------|---------------|
-| Query revealed a straightforward change | Suggest `fullstack-impl` with specific work scope (planner subagent will analyze, developer will implement, reviewer will validate) |
-| Uncertainty remains, needs prototyping | Suggest `fullstack-spike` to validate assumptions |
+| Query revealed a straightforward change | Suggest `fullstack-propose` with specific work scope (planner subagent will analyze, developer will implement, reviewer will validate) |
+| Uncertainty remains, needs prototyping | Suggest `fullstack-propose` (deep mode) to validate assumptions |
+| Work is done, needs closing | Suggest `fullstack-archive` |
 | Workspace setup is incomplete or outdated | Suggest re-running `fullstack-init` (regenerates AGENTS.md, agents, and symlinks) |
 | Repos missing graphify would benefit from it | Suggest running `graphify` to build knowledge graphs |
 | Documents are stale and should be updated | Suggest opening a docs update work item |
@@ -443,11 +442,28 @@ Always give a concrete next step, not a vague suggestion:
 
 > **Recommended next step**: The payment flow involves changes to both
 > `web` (checkout UI) and `api` (payment processing). This is a good
-> candidate for `fullstack-impl`:
+> candidate for `fullstack-propose`:
 > ```
-> fullstack implement "Add Apple Pay to checkout"
+> fullstack propose "Add Apple Pay to checkout"
 > ```
-> This would create a `feat/add-apple-pay` work item covering both repos.
+> This would create a `changes/feat/add-apple-pay` work item covering both repos.
+
+## Optional — Capturing Discovery (Only If Asked)
+
+This skill is read-only by default. **If the user explicitly asks** to
+capture what you found (e.g. "record this", "write this down", "沉淀一下",
+"存下来"), you MAY create a draft `analysis.md` in the docs repo as a
+starting point for a future `fullstack-propose`:
+
+- Target: `<docs-dir>/changes/<type>/<work-name>/analysis.md` (choose the
+  type from the findings; use `fullstack-propose` conventions)
+- Content: Objective, Current State, Findings — **discovery only, no
+  implementation plan**
+- Do NOT create branches, commits, or other files. Do NOT modify any
+  project code.
+
+This is capturing thinking, not implementing — it keeps the boundary of
+"read-only exploration" intact while preserving valuable findings.
 
 ## Repos Outside the Workspace
 

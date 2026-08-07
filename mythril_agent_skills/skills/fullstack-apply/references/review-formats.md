@@ -186,7 +186,9 @@ extra bullet under `Checks Performed`:
 The check verifies that any field, endpoint, schema, or shared type the
 predecessor introduced remains compatible — or, if breaking, the change
 is an explicit goal of this follow-up and is documented in
-`analysis.md`'s Design Options. See [`followup-mode.md`](followup-mode.md).
+`analysis.md`'s Design Options. The predecessor is the work item
+referenced under `**Predecessor**:` in `plan.md` (a successor work item,
+`<name>-vN`).
 
 ---
 

@@ -417,9 +417,9 @@
       "strict": false
     },
     {
-      "name": "fullstack-query",
-      "source": "./plugins/fullstack-query",
-      "description": "Read-only knowledge exploration across a multi-repo fullstack workspace — answer architecture questions, locate implementations, and suggest next steps using graphify knowledge graphs",
+      "name": "fullstack-explore",
+      "source": "./plugins/fullstack-explore",
+      "description": "Read-only knowledge exploration across a multi-repo fullstack workspace — answer architecture questions, locate implementations, and recommend next steps using graphify knowledge graphs",
       "version": "0.2.17",
       "author": {
         "name": "Jie Meng"
@@ -430,15 +430,15 @@
         "workspace",
         "fullstack",
         "multi-repo",
-        "query",
+        "explore",
         "exploration"
       ],
       "strict": false
     },
     {
-      "name": "fullstack-spike",
-      "source": "./plugins/fullstack-spike",
-      "description": "Run time-boxed spikes across a multi-repo fullstack workspace — prototype, validate, and estimate without creating branches or committing code",
+      "name": "fullstack-propose",
+      "source": "./plugins/fullstack-propose",
+      "description": "Propose a new work item across a multi-repo fullstack workspace — plan the approach, validate unknowns with a spike when needed, and write the work-tracking documents",
       "version": "0.2.17",
       "author": {
         "name": "Jie Meng"
@@ -449,15 +449,15 @@
         "workspace",
         "fullstack",
         "multi-repo",
-        "spike",
-        "prototype"
+        "propose",
+        "planning"
       ],
       "strict": false
     },
     {
-      "name": "fullstack-impl",
-      "source": "./plugins/fullstack-impl",
-      "description": "Implement features across a multi-repo fullstack workspace with context gathering, planning, dev/review agents, and progress tracking",
+      "name": "fullstack-apply",
+      "source": "./plugins/fullstack-apply",
+      "description": "Implement a planned work item across a multi-repo fullstack workspace — implement per repo in dependency order, run staged and cross-repo reviews against Success Criteria, and create PRs",
       "version": "0.2.17",
       "author": {
         "name": "Jie Meng"
@@ -468,7 +468,45 @@
         "workspace",
         "fullstack",
         "multi-repo",
+        "apply",
         "implementation"
+      ],
+      "strict": false
+    },
+    {
+      "name": "fullstack-archive",
+      "source": "./plugins/fullstack-archive",
+      "description": "Archive a completed work item by moving its directory into the archive with a date and type prefix — the archive is the work item's done state",
+      "version": "0.2.17",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "development",
+      "tags": [
+        "workspace",
+        "fullstack",
+        "multi-repo",
+        "archive",
+        "lifecycle"
+      ],
+      "strict": false
+    },
+    {
+      "name": "fullstack-docs-migration",
+      "source": "./plugins/fullstack-docs-migration",
+      "description": "Migrate a legacy fullstack docs repo to the new changes/ structure — reorganize work directories, merge spikes, archive completed work, and write a migration report",
+      "version": "0.2.17",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "development",
+      "tags": [
+        "workspace",
+        "fullstack",
+        "migration",
+        "docs"
       ],
       "strict": false
     }

@@ -292,32 +292,30 @@ This is a multi-repo fullstack workspace. Every subdirectory — including
 ## Work Tracking
 
 When starting any cross-repo work, create a work directory under
-`{docs_dir}/` in the appropriate category:
+`{docs_dir}/changes/` in the appropriate category:
 
 | Category | Directory | Branch prefix | Use for |
 |----------|-----------|--------------|---------|
-| Feature | `{docs_dir}/feat/<name>/` | `feat/` | New features, capabilities |
-| Refactor | `{docs_dir}/refactor/<name>/` | `refactor/` | Code restructuring, tech debt |
-| Fix | `{docs_dir}/fix/<name>/` | `fix/` | Bug fixes, issue resolution |
-| Spike | `{docs_dir}/spike/<name>/` | _(none)_ | Time-boxed prototyping, technical validation, PoCs |
+| Feature | `{docs_dir}/changes/feat/<name>/` | `feat/` | New features, capabilities |
+| Refactor | `{docs_dir}/changes/refactor/<name>/` | `refactor/` | Code restructuring, tech debt |
+| Fix | `{docs_dir}/changes/fix/<name>/` | `fix/` | Bug fixes, issue resolution |
+
+Completed work items are archived by moving them under
+`{docs_dir}/changes/archive/YYYY-MM-DD-<type>-<name>/`.
 
 Each work directory contains:
 
 ```
 <category>/<work-name>/
 ├── analysis.md        # Technical analysis (architecture, root cause, design options)
-├── plan.md            # Implementation plan (repos involved, tasks, approach)
-├── progress.md        # Current status, completed steps, blockers
-└── review.md          # Review findings and fix history (append-only)
-
-spike/<work-name>/
-├── analysis.md        # Technical analysis and feasibility
-├── findings.md        # Experiment records and observations
-└── verdict.md         # Conclusion and recommendation
+├── plan.md            # Implementation plan (repos, tasks, Success Criteria)
+├── progress.md        # Dated change log (status, completed steps, blockers)
+└── review.md          # Review findings, Evidence table, verdict
 ```
 
 Work directories are **never deleted** — they serve as project history.
-The `{docs_dir}/` repo does NOT use feature branches — all work tracking
+Archived work lives under `{docs_dir}/changes/archive/`. The
+`{docs_dir}/` repo does NOT use feature branches — all work tracking
 docs are committed directly to its main branch.
 
 ## Branch Naming Convention
@@ -416,18 +414,18 @@ plugins) ship Mermaid 10.2.3 or earlier. Newer syntax causes
 ### Validate before declaring a doc done
 
 Run the bundled `mermaid_lint.py` script (shipped with the
-`fullstack-impl`, `fullstack-spike`, and `user-journey` skills — same
+`fullstack-propose`, `fullstack-apply`, and `user-journey` skills — same
 file in each) on any Markdown file containing Mermaid blocks BEFORE
 declaring the document done. It is a static linter that catches the
 common 10.2.3 incompatibilities (unquoted edge labels, unquoted
 subgraph titles, `@{{ shape: ... }}` syntax, beta diagram types,
 literal `\\n` in labels, bare `<br>`) without requiring a JS
-toolchain. The `fullstack-impl` skill runs it automatically after
-writing `analysis.md` / `plan.md`; for any other Markdown file you
-author by hand, invoke it manually:
+toolchain. The `fullstack-propose` / `fullstack-apply` skills run it
+automatically after writing `analysis.md` / `plan.md`; for any other
+Markdown file you author by hand, invoke it manually:
 
 ```bash
-python3 ~/.<agent>/skills/fullstack-impl/scripts/mermaid_lint.py \\
+python3 ~/.<agent>/skills/fullstack-propose/scripts/mermaid_lint.py \\
     path/to/file.md
 ```
 
@@ -454,10 +452,11 @@ line and re-run before committing. Full rules live in
 ├── scripts/           # Workspace-level automation scripts (preserved)
 ├── {docs_dir + "/":<23s}# Shared docs (independent git repo, preserved)
 │   ├── AGENTS.md
-│   ├── feat/
-│   ├── refactor/
-│   ├── fix/
-│   └── spike/
+│   ├── changes/
+│   │   ├── feat/
+│   │   ├── refactor/
+│   │   ├── fix/
+│   │   └── archive/
 ├── web/               # ← Independent git repo (example)
 ├── api/               # ← Independent git repo (example)
 └── ios/               # ← Independent git repo (example)
@@ -662,45 +661,64 @@ sets up the shared documentation directory (`{docs_dir}/`).
 Re-running is safe — it refreshes generated files while preserving your
 docs, scripts, and custom skills.
 
-### Investigate before implementing
+### Explore before implementing
 
-Use `fullstack-spike` to run a time-boxed spike without committing:
+Use `fullstack-explore` to understand the codebase read-only:
 
 ```
-> Investigate whether OAuth2 PKCE works with our auth flow
-> 调研一下 WebSocket 能不能替换轮询
+> How does authentication work across repos?
+> Which repo handles payments?
+```
+
+Use `fullstack-propose` to plan work — and validate unknowns first if
+needed:
+
+```
+> Plan OAuth2 PKCE support (Jira: PROJ-123)
+> Investigate whether WebSocket can replace polling, then plan it
 > Can we migrate from REST to GraphQL?
 ```
 
-The skill makes temporary code changes (no branches, no commits) and outputs
-analysis, findings, and a verdict. If the verdict is positive, hand off to
-`fullstack-impl` for formal implementation.
+The propose skill creates a work plan under `{docs_dir}/changes/`. If
+there are unknowns, its deep mode makes temporary code changes (no
+branches, no commits) and records the verdict in the same work directory.
 
 ### Implement a feature / refactor / fix
 
-Use `fullstack-impl` to start cross-repo work:
+Use `fullstack-apply` to implement a planned work item across repos:
 
 ```
 > Implement the dark mode feature (Jira: PROJ-123)
 > Refactor the authentication module across all services
 > Fix the login crash on empty password
-> Implement oauth2-pkce based on the investigation
+> Implement oauth2-pkce based on the plan
 ```
 
 You can include links to Jira tickets, Confluence pages, GitHub issues, or
 Figma designs — the skill will gather context from all of them before
-planning.
+implementing.
 
 The skill will:
 
-1. Gather context from linked resources
+1. Read the plan from `{docs_dir}/changes/<type>/<name>/`
 2. Identify affected repos and propose branches
 3. Ask for your confirmation
-4. Create a work plan in `{docs_dir}/`
-5. Implement changes repo by repo (in dependency order)
-6. Run tests and linting in each repo
-7. Review changes for cross-repo consistency
-8. Create Pull Requests for each repo (if repos are on GitHub)
+4. Implement changes repo by repo (in dependency order)
+5. Run tests and linting in each repo
+6. Review changes against the plan's Success Criteria
+7. Create Pull Requests for each repo (if repos are on GitHub)
+
+### Archive completed work
+
+When a work item is done, use `fullstack-archive`:
+
+```
+> Archive the dark mode feature
+> 归档登录崩溃修复
+```
+
+The skill moves the work directory into
+`{docs_dir}/changes/archive/YYYY-MM-DD-<type>-<name>/`.
 
 ### Resume previous work
 
@@ -713,8 +731,9 @@ continue:
 > Check the docs and keep going
 ```
 
-The skill reads `{docs_dir}/` for existing plans and progress, detects
-which branches are already checked out, and picks up where it left off.
+The skill reads `{docs_dir}/changes/` for existing plans and progress,
+detects which branches are already checked out, and picks up where it
+left off.
 
 ## Workspace Structure
 
@@ -727,29 +746,30 @@ which branches are already checked out, and picks up where it left off.
 │   ├── agents/        # Workspace-level AI agents (regenerated)
 │   └── skills/        # Custom skills (preserved across runs)
 ├── {docs_dir + "/":<23s}# Shared docs — independent git repo
-│   ├── feat/          #   Feature work tracking
-│   ├── refactor/      #   Refactor work tracking
-│   ├── fix/           #   Fix work tracking
-│   └── spike/         #   Spike work tracking
+│   ├── changes/
+│   │   ├── feat/      #   Feature work tracking
+│   │   ├── refactor/  #   Refactor work tracking
+│   │   ├── fix/       #   Fix work tracking
+│   │   └── archive/   #   Completed work
 ├── scripts/           # Workspace-level scripts (preserved)
 └── <repos...>/        # Your git repositories
 ```
 
 ## Work Tracking
 
-Every cross-repo work item gets its own directory under `{docs_dir}/`:
+Every cross-repo work item gets its own directory under
+`{docs_dir}/changes/<type>/`:
 
 ```
-{docs_dir}/<type>/<work-name>/
-├── plan.md            # What to do, which repos, in what order
-├── progress.md        # What's done, what's in progress, blockers
-└── review.md          # Review findings and fix history
-
-{docs_dir}/spike/<work-name>/
-├── analysis.md        # Technical analysis and feasibility
-├── findings.md        # Experiment records and observations
-└── verdict.md         # Conclusion and recommendation
+{docs_dir}/changes/<type>/<work-name>/
+├── analysis.md        # Technical analysis (why and how)
+├── plan.md            # What to do, which repos, Success Criteria
+├── progress.md        # Dated change log (done, in progress, blockers)
+└── review.md          # Review findings, Evidence table, verdict
 ```
+
+Completed work is archived under
+`{docs_dir}/changes/archive/YYYY-MM-DD-<type>-<name>/`.
 
 These are never deleted — they serve as project history.
 
@@ -787,43 +807,62 @@ fullstack 技能管理的多仓库全栈工作区。
 
 重复运行是安全的——会刷新生成的文件，但保留你的文档、脚本和自定义技能。
 
-### 先调研再实现
+### 先探索再规划
 
-使用 `fullstack-spike` 做有时限的技术验证（spike），不创建分支、不提交：
+使用 `fullstack-explore` 只读探索代码库：
 
 ```
-> 调研一下 OAuth2 PKCE 能不能用在我们的鉴权流程里
-> 试试 WebSocket 能不能替换轮询
-> 先研究一下 REST 迁移 GraphQL 的可行性
+> 认证是怎么跨仓库工作的？
+> 哪个仓库负责支付逻辑？
 ```
 
-该技能只做临时代码改动（不开分支、不提交），输出分析、调研发现和结论。
-如果结论可行，可以交给 `fullstack-impl` 正式实现。
+使用 `fullstack-propose` 规划工作——如有未知项可先验证：
+
+```
+> 规划 OAuth2 PKCE 支持（Jira: PROJ-123）
+> 调研 WebSocket 能否替换轮询，然后做规划
+> 先研究 REST 迁移 GraphQL 的可行性
+```
+
+propose 会在 `{docs_dir}/changes/` 下创建工作计划。如果有未知项，
+其深度模式会做临时代码改动（不开分支、不提交），并把结论记录在
+同一个工作目录中。
 
 ### 开发新功能 / 重构 / 修复 Bug
 
-使用 `fullstack-impl` 开始跨仓库开发：
+使用 `fullstack-apply` 实现已规划的工作项：
 
 ```
 > 实现暗色模式功能（Jira: PROJ-123）
 > 重构所有服务的鉴权模块
 > 修复空密码登录崩溃问题
-> 基于调研结果实现 oauth2-pkce
+> 基于方案实现 oauth2-pkce
 ```
 
 你可以在消息中附带 Jira 卡片、Confluence 页面、GitHub Issue 或 Figma 设计
-链接——技能会在规划之前自动采集所有相关上下文。
+链接——技能会在实现之前自动采集所有相关上下文。
 
 技能会按以下步骤执行：
 
-1. 从链接资源中采集上下文
+1. 读取 `{docs_dir}/changes/<type>/<name>/` 中的方案
 2. 识别受影响的仓库并提议分支名
 3. 等你确认
-4. 在 `{docs_dir}/` 中创建工作计划
-5. 按依赖顺序逐仓库实现变更
-6. 在每个仓库中运行测试和代码检查
-7. 跨仓库一致性审查
-8. 为每个仓库创建 Pull Request（仓库在 GitHub 上时）
+4. 按依赖顺序逐仓库实现变更
+5. 在每个仓库中运行测试和代码检查
+6. 对照方案的 Success Criteria 审查
+7. 为每个仓库创建 Pull Request（仓库在 GitHub 上时）
+
+### 归档已完成的工作
+
+工作项完成后，使用 `fullstack-archive`：
+
+```
+> 归档暗色模式功能
+> Archive the login crash fix
+```
+
+技能会把工作目录移动到
+`{docs_dir}/changes/archive/YYYY-MM-DD-<type>-<name>/`。
 
 ### 继续上一次的工作
 
@@ -835,7 +874,7 @@ fullstack 技能管理的多仓库全栈工作区。
 > 看看文档，接着之前的进度继续
 ```
 
-技能会读取 `{docs_dir}/` 中已有的计划和进度，检测各仓库当前分支，
+技能会读取 `{docs_dir}/changes/` 中已有的计划和进度，检测各仓库当前分支，
 从中断处继续。
 
 ## 工作区结构
@@ -849,29 +888,28 @@ fullstack 技能管理的多仓库全栈工作区。
 │   ├── agents/        # 工作区级 AI agent（自动生成）
 │   └── skills/        # 自定义技能（跨运行保留）
 ├── {docs_dir + "/":<23s}# 共享文档 — 独立 git 仓库
-│   ├── feat/          #   功能开发跟踪
-│   ├── refactor/      #   重构跟踪
-│   ├── fix/           #   Bug 修复跟踪
-│   └── spike/         #   Spike 跟踪
+│   ├── changes/
+│   │   ├── feat/      #   功能开发跟踪
+│   │   ├── refactor/  #   重构跟踪
+│   │   ├── fix/       #   Bug 修复跟踪
+│   │   └── archive/   #   已完成归档
 ├── scripts/           # 工作区级脚本（跨运行保留）
 └── <repos...>/        # 你的各个 git 子仓库
 ```
 
 ## 工作跟踪
 
-每个跨仓库工作项在 `{docs_dir}/` 下都有自己的目录：
+每个跨仓库工作项在 `{docs_dir}/changes/<type>/` 下都有自己的目录：
 
 ```
-{docs_dir}/<type>/<work-name>/
-├── plan.md            # 做什么、涉及哪些仓库、按什么顺序
-├── progress.md        # 已完成、进行中、阻塞项
-└── review.md          # 审查发现和修复记录
-
-{docs_dir}/spike/<work-name>/
-├── analysis.md        # 技术分析和可行性
-├── findings.md        # 实验记录和观察
-└── verdict.md         # 结论和建议
+{docs_dir}/changes/<type>/<work-name>/
+├── analysis.md        # 技术分析（为什么和怎么做）
+├── plan.md            # 做什么、涉及哪些仓库、Success Criteria
+├── progress.md        # 日期变更记录（已完成、进行中、阻塞项）
+└── review.md          # 审查发现、证据核验表、结论
 ```
+
+已完成的工作归档到 `{docs_dir}/changes/archive/YYYY-MM-DD-<type>-<name>/`。
 
 这些目录不会被删除——它们是项目的实施历史记录。
 
@@ -913,43 +951,47 @@ version control, separate from the workspace-level git repo.
   as `A -->|"step (x)"| B`. See the workspace root `AGENTS.md` →
   *Documentation Diagrams (Mermaid Compatibility)* section for the
   full allowed/avoid list and safety rules, and run the bundled
-  `mermaid_lint.py` (shipped with `fullstack-impl`, `fullstack-spike`,
-  and `user-journey`) against any Markdown file with Mermaid blocks
-  before committing.
+  `mermaid_lint.py` (shipped with `fullstack-propose`,
+  `fullstack-apply`, and `user-journey`) against any Markdown file with
+  Mermaid blocks before committing.
 
 ## Work Tracking
 
-The `feat/`, `refactor/`, `fix/`, and `spike/` directories contain
-per-work-item documentation created by the fullstack skills:
+The `changes/feat/`, `changes/refactor/`, and `changes/fix/`
+directories contain per-work-item documentation created by the fullstack
+skills. Completed work is archived under `changes/archive/`:
 
 | Directory | Branch prefix | Use for |
 |-----------|--------------|---------|
-| `feat/` | `feat/` | New features and capabilities |
-| `refactor/` | `refactor/` | Code restructuring, tech debt |
-| `fix/` | `fix/` | Bug fixes, issue resolution |
-| `spike/` | _(none)_ | Time-boxed prototyping, technical validation, PoCs |
+| `changes/feat/` | `feat/` | New features and capabilities |
+| `changes/refactor/` | `refactor/` | Code restructuring, tech debt |
+| `changes/fix/` | `fix/` | Bug fixes, issue resolution |
+| `changes/archive/` | _(none)_ | Completed work, `YYYY-MM-DD-<type>-<name>/` |
 
 Each work item gets its own subdirectory:
 
 ```
 <category>/<work-name>/
-├── plan.md       # Implementation plan
-├── progress.md   # Current status and completed steps
-└── review.md     # Review findings (append-only)
+├── analysis.md   # Technical analysis (why and how)
+├── plan.md       # Requirements, Success Criteria, implementation plan
+├── progress.md   # Dated change log
+└── review.md     # Review findings, Evidence table, verdict (append-only)
 ```
 
 These directories are **never deleted** — they form the project's
-implementation history. Do not modify docs created by other work items.
+implementation history. Archived work stays in `changes/archive/`. Do
+not modify docs created by other work items.
 
 ## Structure
 
 ```
 {docs_dir}/
 ├── AGENTS.md          # This file
-├── feat/              # Feature work tracking
-├── refactor/          # Refactor work tracking
-├── fix/               # Fix work tracking
-├── spike/            # Spike work tracking
+├── changes/           # Work tracking
+│   ├── feat/          #   Feature work tracking
+│   ├── refactor/      #   Refactor work tracking
+│   ├── fix/           #   Fix work tracking
+│   └── archive/       #   Completed work (YYYY-MM-DD-<type>-<name>/)
 ├── architecture.md    # System-wide architecture overview (example)
 ├── api-contracts/     # Shared API schemas, contracts (example)
 └── onboarding/        # New-member onboarding guides (example)
@@ -1124,10 +1166,11 @@ def bootstrap_workspace(
     for dirname, desc in [
         (".agents/skills", "workspace-level skills"),
         (resolved_docs_dir, "shared documentation (independent repo)"),
-        (f"{resolved_docs_dir}/feat", "feature work tracking"),
-        (f"{resolved_docs_dir}/refactor", "refactor work tracking"),
-        (f"{resolved_docs_dir}/fix", "fix work tracking"),
-        (f"{resolved_docs_dir}/spike", "spike work tracking"),
+        (f"{resolved_docs_dir}/changes", "work tracking container"),
+        (f"{resolved_docs_dir}/changes/feat", "feature work tracking"),
+        (f"{resolved_docs_dir}/changes/refactor", "refactor work tracking"),
+        (f"{resolved_docs_dir}/changes/fix", "fix work tracking"),
+        (f"{resolved_docs_dir}/changes/archive", "archived work"),
         ("scripts", "workspace-level scripts"),
     ]:
         if ensure_directory(root / dirname):
@@ -1241,7 +1284,7 @@ def main() -> None:
         "--github",
         action="store_true",
         default=None,
-        help="Mark repos as GitHub / GitHub Enterprise hosted (enables PR creation in fullstack-impl)",
+        help="Mark repos as GitHub / GitHub Enterprise hosted (enables PR creation in fullstack-apply)",
     )
     parser.add_argument(
         "--force",
@@ -1253,7 +1296,7 @@ def main() -> None:
         "--no-github",
         action="store_true",
         default=False,
-        help="Mark repos as NOT GitHub hosted (disables PR creation in fullstack-impl)",
+        help="Mark repos as NOT GitHub hosted (disables PR creation in fullstack-apply)",
     )
     parser.add_argument(
         "--json",

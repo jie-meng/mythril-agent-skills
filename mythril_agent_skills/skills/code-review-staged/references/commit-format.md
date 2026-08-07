@@ -191,7 +191,7 @@ Examples:
 ## Cross-repo consistency (multi-repo work items)
 
 When the same feature ships across multiple repos as part of a single
-work item (e.g. `fullstack-impl`), every affected repo should use the
+work item (e.g. `fullstack-apply`), every affected repo should use the
 **same scope** so the commits are easy to correlate by `git log
 --grep` or PR search:
 

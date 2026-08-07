@@ -215,8 +215,8 @@ that exists:
 ~/.hermes/skills/<skill>/scripts/mermaid_lint.py
 ```
 
-(Replace `<skill>` with the active skill name — `fullstack-impl`,
-`fullstack-spike`, or `user-journey`.)
+(Replace `<skill>` with the active skill name — `fullstack-propose`,
+`fullstack-apply`, or `user-journey`.)
 
 If none exist, fall back to manual review of the diagram against the
 rules above and document the gap.
