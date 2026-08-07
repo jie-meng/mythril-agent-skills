@@ -76,7 +76,13 @@ The orchestrator also handles:
 - Branch management across repos
 - PR creation (when `github_repos=true`)
 - Updating `progress.md` and the `review.md` header
-- Mode routing (Fresh / Reference / Iteration / Follow-up / Resume)
+
+> **Note**: The legacy Fresh / Reference / Iteration / Follow-up / Resume
+> mode router was removed in the explore/propose/apply/archive refactor.
+> Routing now lives in the skill boundary itself: `fullstack-propose`
+> plans, `fullstack-apply` implements, `fullstack-archive` closes. The
+> orchestrator's job within a skill is flow control and delegation — not
+> mode selection.
 
 ---
 
@@ -96,7 +102,7 @@ sequenceDiagram
     User->>Orch: Implement feature X (+ Jira, Figma links)
     Orch->>Orch: Run check_workspace.py<br/>Announce Workspace contract
     Orch->>Orch: Gather context from linked resources<br/>Read AGENTS.md, fullstack.json
-    Orch->>Orch: Run route_check.py<br/>Announce Mode
+    Orch->>Orch: Read work directory from propose<br/>(analysis.md, plan.md, progress.md, review.md)
 
     Note over Orch: Step 5 — Create work plan
 

@@ -4,6 +4,8 @@ This guide is for contributors and developers working on the `mythril-agent-skil
 
 For full coding conventions, naming rules, and architectural decisions, see [AGENTS.md](../AGENTS.md).
 
+For the fullstack skill family design (lifecycle, work directory, archive), see [docs/fullstack/README.md](./fullstack/README.md).
+
 ## Dev Environment Setup
 
 ```bash

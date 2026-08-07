@@ -245,24 +245,45 @@ Skill（技能）是一个提示词/指令包，用于教 AI 助手如何处理�
 
 **[Fullstack Init](./mythril_agent_skills/skills/fullstack-init/)**
 
-初始化或更新多仓库全栈工作区，统一 AI 上下文。创建带有自动生成仓库表的 AGENTS.md、独立 git 仓库的文档目录、四个工作区 Agent（planner/dev/reviewer/debugger）以及工作跟踪目录（feat/refactor/fix）。
+初始化或更新多仓库全栈工作区，统一 AI 上下文。创建带有自动生成仓库表的 AGENTS.md、独立 git 仓库的文档目录、四个工作区 Agent（planner/dev/reviewer/debugger）以及 changes/ 工作跟踪结构。
 
 - **示例：** 初始化全栈工作区
 - **依赖：** `git` CLI
 
-**[Fullstack Spike](./mythril_agent_skills/skills/fullstack-spike/)**
+**[Fullstack Explore](./mythril_agent_skills/skills/fullstack-explore/)**
 
-在多仓库全栈工作区中做有时限的技术验证（spike）——写一次性代码来验证技术假设、降低不确定性或估算工作量。不创建分支、不提交代码。输出分析、实验发现和结论。如果可行，交给 `fullstack-impl` 正式实现。
+在多仓库全栈工作区中做只读知识探索。回答架构问题、定位实现、解释跨仓库关系。有 graphify 知识图谱时自动使用，查询更省 token。
 
-- **示例：** 做个 spike 试试能不能迁移到 GraphQL
+- **示例：** 哪个仓库负责用户认证？
 - **依赖：** 工作区需先通过 `fullstack-init` 初始化
 
-**[Fullstack Impl](./mythril_agent_skills/skills/fullstack-impl/)**
+**[Fullstack Propose](./mythril_agent_skills/skills/fullstack-propose/)**
 
-在多仓库全栈工作区中实现功能、重构和修复。从 Jira/Confluence/GitHub/Figma 链接收集上下文，创建分支，委派给工作区 Agent，在文档仓库中跟踪进度。可以基于之前的 spike 结果实现。
+在多仓库全栈工作区中规划新工作项。设计方案并写出工作跟踪文档（analysis/plan/progress/review + Success Criteria）。深度模式先做有时限的 spike 验证未知项——实验和结论留在同一个工作目录里，交给 apply 时无需重写。
+
+- **示例：** 规划 OAuth2 PKCE 支持；spike 试试能不能迁移到 GraphQL
+- **依赖：** 工作区需先通过 `fullstack-init` 初始化
+
+**[Fullstack Apply](./mythril_agent_skills/skills/fullstack-apply/)**
+
+在多仓库全栈工作区中实现已规划的工作项。按依赖顺序逐仓库实现，委派给工作区 Agent，对照方案的 Success Criteria 审查，创建 PR，并收尾工作跟踪文档。
 
 - **示例：** 帮我在工作区里做这个 Jira 卡
+- **依赖：** 工作区需先通过 `fullstack-init` 初始化；先由 `fullstack-propose` 规划
+
+**[Fullstack Archive](./mythril_agent_skills/skills/fullstack-archive/)**
+
+把已完成的工作项目录移动到 `changes/archive/YYYY-MM-DD-<type>-<name>/`。归档这个动作本身就是"完成"状态——无需维护任何 Status 字段。
+
+- **示例：** 归档暗色模式功能
 - **依赖：** 工作区需先通过 `fullstack-init` 初始化
+
+**[Fullstack Docs Migration](./mythril_agent_skills/skills/fullstack-docs-migration/)**
+
+把旧版 fullstack 文档仓库（顶层 feat/fix/refactor/spike 结构 + Status 字段）迁移到新的 changes/ 结构。整理工作目录、把 spike 并入对应实现目录、归档已完成工作、输出迁移报告。只需要提供文档仓库路径。
+
+- **示例：** 迁移 path/to/docs 这个文档仓库
+- **依赖：** 旧版 fullstack 初始化的文档仓库
 
 </details>
 
@@ -389,8 +410,11 @@ skills-clean-cache --repos  # 交互式：选择要删除的仓库
 | `user-journey` | 通过自然语言起草用户旅程地图与低保真线框图——HTML/CSS 工作区，Map/Stage/Presenter 三视图 |
 | `story-point-estimate` | 斐波那契点数估算——任意输入、CFR 覆盖、Buffer 策略、XLSX 输出 |
 | `fullstack-init` | 初始化多仓库全栈工作区 |
-| `fullstack-spike` | 不提交代码的技术验证 spike |
-| `fullstack-impl` | 在全栈工作区中实现功能/修复 |
+| `fullstack-explore` | 全栈工作区只读知识探索 |
+| `fullstack-propose` | 规划工作项 + Success Criteria；先验证未知项（spike） |
+| `fullstack-apply` | 在全栈工作区中实现已规划的工作项 |
+| `fullstack-archive` | 把已完成工作项归档到 changes/archive/ |
+| `fullstack-docs-migration` | 把旧版文档仓库迁移到 changes/ 结构 |
 
 </details>
 
@@ -633,8 +657,11 @@ mythril-agent-skills/
 │       ├── user-journey/        # 自然语言起草用户旅程地图与线框图
 │       ├── story-point-estimate/ # 斐波那契点数估算 — 含 CFR + Buffer + XLSX
 │       ├── fullstack-init/      # 初始化多仓库工作区
-│       ├── fullstack-spike/       # 不提交代码的技术验证 spike
-│       └── fullstack-impl/      # 跨仓库全栈实现
+│       ├── fullstack-explore/   # 只读知识探索
+│       ├── fullstack-propose/   # 规划工作项 + 验证未知项
+│       ├── fullstack-apply/     # 实现已规划的工作项
+│       ├── fullstack-archive/   # 归档已完成工作项
+│       └── fullstack-docs-migration/  # 迁移旧版文档仓库
 ├── plugins/                     # 单技能插件包装器（symlink 指向 skills/）
 ├── scripts/                     # 开发脚本及向后兼容包装器
 │   ├── sync-upstream.py         # Fork 上游同步工具

@@ -280,7 +280,7 @@ Skills appear in multiple listings: the README "Available Skills" table, the `sk
 | 6 | **Media Processing** | Standalone CLI tools for media files | imagemagick, ffmpeg |
 | 7 | **Content** | Content creation and writing tools | blog-writer |
 | 8 | **Project Planning** | Estimation, scoping, and planning tools | story-point-estimate |
-| 9 | **Fullstack Workspace** | Multi-repo workspace scaffolding and cross-repo implementation | fullstack-init, fullstack-spike, fullstack-impl |
+| 9 | **Fullstack Workspace** | Multi-repo workspace scaffolding, lifecycle, and cross-repo implementation | fullstack-init, fullstack-explore, fullstack-propose, fullstack-apply, fullstack-archive, fullstack-docs-migration |
 
 **Within each category**, order by dependency complexity — no deps first, then CLI deps, then API credential deps:
 - No external dependencies → CLI tool dependency (`git`) → Platform CLI dependency (`gh`) → API token dependency
@@ -424,7 +424,7 @@ This rules out the "import from a sibling skill" or "import from a top-level pac
 
 ### Design rule: single source, bundled copies
 
-Some assets are inherently shared across multiple skills (e.g. mermaid rules + linter are needed by `user-journey`, `fullstack-impl`, and `fullstack-spike`). For those, the repo uses one canonical source plus byte-identical bundled copies inside each consumer skill:
+Some assets are inherently shared across multiple skills (e.g. mermaid rules + linter are needed by `user-journey`, `fullstack-apply`, and `fullstack-propose`; the graphify check is needed by all fullstack lifecycle skills). For those, the repo uses one canonical source plus byte-identical bundled copies inside each consumer skill:
 
 | Layer | Path | Edited by | Travels with install? |
 |---|---|---|---|
@@ -473,8 +473,9 @@ NEVER hand-edit a bundled copy directly — your changes will be lost on the nex
 
 | Asset | Canonical | Consumed by |
 |---|---|---|
-| `mermaid_lint.py` | `shared/mermaid/mermaid_lint.py` | `fullstack-impl`, `fullstack-spike`, `user-journey` |
-| `MERMAID-RULES.md` | `shared/mermaid/MERMAID-RULES.md` | `fullstack-impl`, `fullstack-spike`, `user-journey` |
+| `mermaid_lint.py` | `shared/mermaid/mermaid_lint.py` | `fullstack-apply`, `fullstack-propose`, `user-journey` |
+| `MERMAID-RULES.md` | `shared/mermaid/MERMAID-RULES.md` | `fullstack-apply`, `fullstack-propose`, `user-journey` |
+| `graphify_check.py` | `shared/graphify/graphify_check.py` | `fullstack-init`, `fullstack-explore`, `fullstack-propose`, `fullstack-apply` |
 
 Note this is a different pattern from the `git-repo-reader` shared cache (above): the cache is **runtime** shared state on the user's machine, while shared assets are **build-time** duplicated files inside the repo. Both keep installed skills fully self-contained.
 

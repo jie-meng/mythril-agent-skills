@@ -245,31 +245,45 @@ Draft user journey maps and lo-fi wireframes for PMs/BAs via natural language. G
 
 **[Fullstack Init](./mythril_agent_skills/skills/fullstack-init/)**
 
-Initialize or update a multi-repo fullstack workspace with unified AI context. Creates AGENTS.md with auto-generated repo table, docs dir (as independent git repo), four workspace agents (planner/dev/reviewer/debugger), and work tracking dirs (feat/refactor/fix).
+Initialize or update a multi-repo fullstack workspace with unified AI context. Creates AGENTS.md with auto-generated repo table, docs dir (as independent git repo), four workspace agents (planner/dev/reviewer/debugger), and the changes/ work tracking structure.
 
 - **Try:** Initialize this fullstack workspace
 - **Deps:** `git` CLI
 
-**[Fullstack Query](./mythril_agent_skills/skills/fullstack-query/)**
+**[Fullstack Explore](./mythril_agent_skills/skills/fullstack-explore/)**
 
 Read-only knowledge exploration across a multi-repo fullstack workspace. Answer architecture questions, locate implementations, and explain cross-repo relationships. Uses graphify knowledge graphs when available for token-efficient querying.
 
 - **Try:** Which repo handles user authentication?
 - **Deps:** Workspace initialized by `fullstack-init`
 
-**[Fullstack Spike](./mythril_agent_skills/skills/fullstack-spike/)**
+**[Fullstack Propose](./mythril_agent_skills/skills/fullstack-propose/)**
 
-Run a time-boxed spike across a multi-repo fullstack workspace — write throwaway code to validate a technical hypothesis, reduce uncertainty, or estimate effort. No branches, no commits. Outputs analysis, findings, and a verdict. If feasible, hand off to `fullstack-impl` for formal implementation.
+Propose a new work item across a multi-repo fullstack workspace. Plans the approach and writes the work-tracking documents (analysis/plan/progress/review with Success Criteria). Deep mode runs a time-boxed spike to validate unknowns first — experiments and verdict live in the same work directory, so nothing is rewritten on handoff to apply.
 
-- **Try:** Spike whether we can migrate to GraphQL
+- **Try:** Plan OAuth2 PKCE support; spike whether we can migrate to GraphQL
 - **Deps:** Workspace initialized by `fullstack-init`
 
-**[Fullstack Impl](./mythril_agent_skills/skills/fullstack-impl/)**
+**[Fullstack Apply](./mythril_agent_skills/skills/fullstack-apply/)**
 
-Implement features, refactors, and fixes across a multi-repo fullstack workspace. Gathers context from Jira/Confluence/GitHub/Figma, creates branches, delegates to workspace agents, and tracks progress in docs repo. Can build on prior spike results.
+Implement a planned work item across a multi-repo fullstack workspace. Implements per repo in dependency order, delegates to workspace agents, reviews against the plan's Success Criteria, creates PRs, and finalizes the work-tracking documents.
 
 - **Try:** Implement this Jira ticket across the workspace
+- **Deps:** Workspace initialized by `fullstack-init`; a plan from `fullstack-propose`
+
+**[Fullstack Archive](./mythril_agent_skills/skills/fullstack-archive/)**
+
+Archive a completed work item by moving its directory into `changes/archive/YYYY-MM-DD-<type>-<name>/`. The archive move IS the done state — no Status fields to maintain.
+
+- **Try:** Archive the dark mode feature
 - **Deps:** Workspace initialized by `fullstack-init`
+
+**[Fullstack Docs Migration](./mythril_agent_skills/skills/fullstack-docs-migration/)**
+
+Migrate a legacy fullstack docs repo (old feat/fix/refactor/spike structure with Status fields) to the new changes/ structure. Reorganizes work directories, merges spikes into implementation counterparts, archives completed work, and writes a migration report. Provide the docs repo path to start.
+
+- **Try:** Migrate the docs repo at path/to/docs
+- **Deps:** A docs repo initialized by an older fullstack version
 
 </details>
 
@@ -396,9 +410,11 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `user-journey` | Draft user journey maps and lo-fi wireframes via natural language — HTML/CSS workspace with map/stage/presenter views |
 | `story-point-estimate` | Estimate effort using Fibonacci story points — any input, CFR coverage, buffer strategy, XLSX output |
 | `fullstack-init` | Initialize multi-repo fullstack workspace with AI context |
-| `fullstack-query` | Read-only knowledge exploration across a fullstack workspace |
-| `fullstack-spike` | Run time-boxed spikes without committing |
-| `fullstack-impl` | Implement features/fixes across a fullstack workspace |
+| `fullstack-explore` | Read-only knowledge exploration across a fullstack workspace |
+| `fullstack-propose` | Plan a work item with Success Criteria; validate unknowns (spike) |
+| `fullstack-apply` | Implement a planned work item across a fullstack workspace |
+| `fullstack-archive` | Archive completed work items into changes/archive/ |
+| `fullstack-docs-migration` | Migrate a legacy docs repo to the changes/ structure |
 
 </details>
 
@@ -640,9 +656,11 @@ mythril-agent-skills/
 │       ├── blog-writer/         # Tech-first multilingual blog writing
 │       ├── user-journey/        # User journey maps & lo-fi wireframes via natural language
 │       ├── fullstack-init/      # Initialize multi-repo workspace
-│       ├── fullstack-query/     # Read-only knowledge exploration
-│       ├── fullstack-spike/       # Run time-boxed spikes without committing
-│       └── fullstack-impl/      # Implement across fullstack workspace
+│       ├── fullstack-explore/   # Read-only knowledge exploration
+│       ├── fullstack-propose/   # Plan a work item + validate unknowns
+│       ├── fullstack-apply/     # Implement a planned work item
+│       ├── fullstack-archive/   # Archive completed work items
+│       └── fullstack-docs-migration/  # Migrate legacy docs repos
 ├── plugins/                     # Per-skill plugin wrappers (symlinks into skills/)
 ├── scripts/                     # Dev scripts & backward-compatible wrappers
 │   ├── sync-upstream.py         # Fork upstream sync tool
@@ -683,5 +701,7 @@ mythril_agent_skills/skills/skill-name/
 For dev environment setup, running tests, adding new skills, and contribution guidelines, see **[docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md)**.
 
 For full coding conventions and architectural decisions, see **[AGENTS.md](./AGENTS.md)**.
+
+For the fullstack skill family (init/explore/propose/apply/archive), see the **[Fullstack Documentation](./docs/fullstack/README.md)**.
 
 ---
