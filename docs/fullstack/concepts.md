@@ -176,9 +176,13 @@ changes/archive/…-dark-mode/        # predecessor (already archived)
 
 The successor links back to the predecessor via:
 
-- `**Source**` / predecessor reference in `analysis.md`
-- a `## Successors` table appended to the predecessor's `progress.md`
-  **before** it was archived
+- `**Source**` / predecessor reference in `analysis.md` — always written
+- optionally, a `## Successors` table appended to the predecessor's
+  `progress.md` **before** it was archived — only possible when the
+  successor is already known while the predecessor is still active;
+  since successors are normally planned after archiving, this back-link
+  is best-effort and often absent (discovery relies on directory
+  location and the `-vN` naming convention instead)
 
 Archived items are never reopened. `-vN` chains can grow; that is
 expected — each directory is a complete, self-contained record.

@@ -213,13 +213,20 @@ narrative that ties changes to decisions.
 - <做了什么、为什么、结果如何>
 ```
 
-### Successor back-link — `## Successors` table
+### Successor back-link — `## Successors` table (optional)
 
-When a successor work item (`<name>-vN`) is planned from an archived
-predecessor, the predecessor's `progress.md` gains a `## Successors`
-(English) or `## 后续工作` (Chinese) section appended at the very end
-BEFORE the predecessor is archived. This preserves the forward link
-for future sessions.
+The forward link is what always carries the chain forward: the
+successor's `**Source**` / `**Predecessor**` points at the archived
+predecessor and is written for every successor.
+
+A reverse `## Successors` (English) / `## 后续工作` (Chinese) table can
+**additionally** be appended to the predecessor's `progress.md` — but
+only if the successor is already known while the predecessor is still
+active, i.e. **before** it is archived. Because a successor is normally
+planned only *after* archiving, this back-link is best-effort and often
+absent. That is fine: archive is final and archived directories are
+never edited; discovery relies on the `-vN` naming convention plus the
+forward link instead.
 
 ---
 
