@@ -1,0 +1,967 @@
+{
+  ".claude-plugin/marketplace.json": {
+    "mtime": 1786084258.317683,
+    "ast_hash": "5291a9c12e69760c467c6c204921e485",
+    "semantic_hash": ""
+  },
+  ".sync-upstream.json": {
+    "mtime": 1774052638.3627837,
+    "ast_hash": "a84c50fbfae82f8c1cec471a94c12b55",
+    "semantic_hash": "a84c50fbfae82f8c1cec471a94c12b55"
+  },
+  "mythril_agent_skills/__init__.py": {
+    "mtime": 1785505561.3826902,
+    "ast_hash": "76fd53db26c6d257033b0ba60421856a",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/cli/__init__.py": {
+    "mtime": 1773905846.8529704,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "mythril_agent_skills/cli/skills_check.py": {
+    "mtime": 1783072566.918811,
+    "ast_hash": "5fe32ea18cfc180e6e2095898fced822",
+    "semantic_hash": "5fe32ea18cfc180e6e2095898fced822"
+  },
+  "mythril_agent_skills/cli/skills_clean_cache.py": {
+    "mtime": 1774052638.3679738,
+    "ast_hash": "85246eb3bf1987132967d1ae7aaf0c96",
+    "semantic_hash": "85246eb3bf1987132967d1ae7aaf0c96"
+  },
+  "mythril_agent_skills/cli/skills_cleanup.py": {
+    "mtime": 1786088683.56318,
+    "ast_hash": "62de2a30b17a40439182dccf9090f692",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/cli/skills_setup.py": {
+    "mtime": 1785660518.3356004,
+    "ast_hash": "489a431f41636ce213b14fa532b0cdb8",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/shared/__init__.py": {
+    "mtime": 1779854300.5969374,
+    "ast_hash": "83d25872be89caa77a8c2df018103168",
+    "semantic_hash": "83d25872be89caa77a8c2df018103168"
+  },
+  "mythril_agent_skills/shared/mermaid/__init__.py": {
+    "mtime": 1779854300.9447258,
+    "ast_hash": "466fe1eb998c1a0b700120dbf265b5ee",
+    "semantic_hash": "466fe1eb998c1a0b700120dbf265b5ee"
+  },
+  "mythril_agent_skills/shared/mermaid/mermaid_lint.py": {
+    "mtime": 1779854781.5273285,
+    "ast_hash": "df3edaeceb57acc8be80d1945c3f86b1",
+    "semantic_hash": "df3edaeceb57acc8be80d1945c3f86b1"
+  },
+  "mythril_agent_skills/skills/confluence/scripts/confluence_api.py": {
+    "mtime": 1785074898.2186701,
+    "ast_hash": "85c2e4240b216b87e21dec8e4e72b144",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/excel/scripts/excel_ops.py": {
+    "mtime": 1783010585.153915,
+    "ast_hash": "e9f4ba802a28f3e7e3d1612bd50fcd69",
+    "semantic_hash": "e9f4ba802a28f3e7e3d1612bd50fcd69"
+  },
+  "mythril_agent_skills/skills/figma/scripts/figma_export.py": {
+    "mtime": 1774052638.372115,
+    "ast_hash": "0d466fdfc73fe687ecda9dddde6aae7e",
+    "semantic_hash": "0d466fdfc73fe687ecda9dddde6aae7e"
+  },
+  "mythril_agent_skills/skills/figma/scripts/figma_fetch.py": {
+    "mtime": 1774052638.372391,
+    "ast_hash": "d8eaa293be228f4b0be8736ddc103b13",
+    "semantic_hash": "d8eaa293be228f4b0be8736ddc103b13"
+  },
+  "mythril_agent_skills/skills/fullstack-init/scripts/workspace_init.py": {
+    "mtime": 1786084180.7561092,
+    "ast_hash": "782cf036e1f16ae5da5829120945945b",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/git-repo-reader/scripts/repo_manager.py": {
+    "mtime": 1774052638.374488,
+    "ast_hash": "68401a60c5f8b375f02ab0c3c4c29bf8",
+    "semantic_hash": "68401a60c5f8b375f02ab0c3c4c29bf8"
+  },
+  "mythril_agent_skills/skills/github-code-review-pr/scripts/path_select.py": {
+    "mtime": 1774056985.7197387,
+    "ast_hash": "1d66b99756e22dd654f5b03ea5a7f3a9",
+    "semantic_hash": "1d66b99756e22dd654f5b03ea5a7f3a9"
+  },
+  "mythril_agent_skills/skills/github-code-review-pr/scripts/repo_cache_lookup.py": {
+    "mtime": 1774052638.37673,
+    "ast_hash": "fab46d653e53f6ff3f229cc322db0eae",
+    "semantic_hash": "fab46d653e53f6ff3f229cc322db0eae"
+  },
+  "mythril_agent_skills/skills/github-code-review-pr/scripts/repo_manager.py": {
+    "mtime": 1774052638.377074,
+    "ast_hash": "68401a60c5f8b375f02ab0c3c4c29bf8",
+    "semantic_hash": "68401a60c5f8b375f02ab0c3c4c29bf8"
+  },
+  "mythril_agent_skills/skills/github-code-review-pr/scripts/review_output_gate.py": {
+    "mtime": 1774271539.416698,
+    "ast_hash": "0c0e74e6e9d9189aa3d107a2feb8a492",
+    "semantic_hash": "0c0e74e6e9d9189aa3d107a2feb8a492"
+  },
+  "mythril_agent_skills/skills/github-code-review-pr/scripts/review_runner.py": {
+    "mtime": 1774276716.0267947,
+    "ast_hash": "53a52da95a9146752a8219815d3f1afa",
+    "semantic_hash": "53a52da95a9146752a8219815d3f1afa"
+  },
+  "mythril_agent_skills/skills/github-code-review-pr/scripts/review_template_builder.py": {
+    "mtime": 1774052638.378304,
+    "ast_hash": "043d82d97c11bab1b83438f099a2da7b",
+    "semantic_hash": "043d82d97c11bab1b83438f099a2da7b"
+  },
+  "mythril_agent_skills/skills/github-pr-create/scripts/detect_pr_template.py": {
+    "mtime": 1776871719.450481,
+    "ast_hash": "37a639700f3dd4a02d273e0b31b1660e",
+    "semantic_hash": "37a639700f3dd4a02d273e0b31b1660e"
+  },
+  "mythril_agent_skills/skills/jira/scripts/jira_api.py": {
+    "mtime": 1785074914.6178102,
+    "ast_hash": "6ccecb4023ac13ec0105939bc5d39f10",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/md-to-pdf/scripts/md_to_pdf.py": {
+    "mtime": 1783010585.1554782,
+    "ast_hash": "695ccec703d890183d552f787bda6e98",
+    "semantic_hash": "695ccec703d890183d552f787bda6e98"
+  },
+  "mythril_agent_skills/skills/pdf/scripts/pdf_ops.py": {
+    "mtime": 1783010585.156659,
+    "ast_hash": "b8339dd4f96d00fab874c4ec95caef13",
+    "semantic_hash": "b8339dd4f96d00fab874c4ec95caef13"
+  },
+  "mythril_agent_skills/skills/skill-creator/eval-viewer/generate_review.py": {
+    "mtime": 1773905846.8616734,
+    "ast_hash": "d7f883f3d3596e62618faecf298c4f5f",
+    "semantic_hash": "d7f883f3d3596e62618faecf298c4f5f"
+  },
+  "mythril_agent_skills/skills/skill-creator/scripts/__init__.py": {
+    "mtime": 1773905846.8624268,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "mythril_agent_skills/skills/skill-creator/scripts/aggregate_benchmark.py": {
+    "mtime": 1773905846.8627324,
+    "ast_hash": "5c2dfb44a0a33c588e9e9f3df60a3537",
+    "semantic_hash": "5c2dfb44a0a33c588e9e9f3df60a3537"
+  },
+  "mythril_agent_skills/skills/skill-creator/scripts/generate_report.py": {
+    "mtime": 1773905846.862978,
+    "ast_hash": "09607615aed355c104f9c4f6dec7c9aa",
+    "semantic_hash": "09607615aed355c104f9c4f6dec7c9aa"
+  },
+  "mythril_agent_skills/skills/skill-creator/scripts/improve_description.py": {
+    "mtime": 1773905846.863229,
+    "ast_hash": "4f8ea83c6911e21bacc8c67115315d99",
+    "semantic_hash": "4f8ea83c6911e21bacc8c67115315d99"
+  },
+  "mythril_agent_skills/skills/skill-creator/scripts/package_skill.py": {
+    "mtime": 1773905846.8635345,
+    "ast_hash": "ba8744b000bd7d7ffcb5c85113113f0e",
+    "semantic_hash": "ba8744b000bd7d7ffcb5c85113113f0e"
+  },
+  "mythril_agent_skills/skills/skill-creator/scripts/quick_validate.py": {
+    "mtime": 1773905846.8636734,
+    "ast_hash": "8247be9cfc7938843f586b6509a64641",
+    "semantic_hash": "8247be9cfc7938843f586b6509a64641"
+  },
+  "mythril_agent_skills/skills/skill-creator/scripts/run_eval.py": {
+    "mtime": 1773905846.8638978,
+    "ast_hash": "75269360a221e48f79425605de5e5cb6",
+    "semantic_hash": "75269360a221e48f79425605de5e5cb6"
+  },
+  "mythril_agent_skills/skills/skill-creator/scripts/run_loop.py": {
+    "mtime": 1774052638.3806186,
+    "ast_hash": "0ff4f065de548ab9f90bc022e1db95c5",
+    "semantic_hash": "0ff4f065de548ab9f90bc022e1db95c5"
+  },
+  "mythril_agent_skills/skills/skill-creator/scripts/utils.py": {
+    "mtime": 1773905846.864202,
+    "ast_hash": "6cf213a77cbadc39febbaf9ee57fac10",
+    "semantic_hash": "6cf213a77cbadc39febbaf9ee57fac10"
+  },
+  "mythril_agent_skills/skills/user-journey/scripts/init_workspace.py": {
+    "mtime": 1779894334.3605628,
+    "ast_hash": "2143cd6279ace391bed684e1980640fd",
+    "semantic_hash": "2143cd6279ace391bed684e1980640fd"
+  },
+  "mythril_agent_skills/skills/user-journey/scripts/mermaid_lint.py": {
+    "mtime": 1779854785.9446423,
+    "ast_hash": "df3edaeceb57acc8be80d1945c3f86b1",
+    "semantic_hash": "df3edaeceb57acc8be80d1945c3f86b1"
+  },
+  "mythril_agent_skills/skills/user-journey/scripts/sync_index_html.py": {
+    "mtime": 1779943158.482037,
+    "ast_hash": "7137ed8bb978fc7f0f9fa83078fabf2e",
+    "semantic_hash": "7137ed8bb978fc7f0f9fa83078fabf2e"
+  },
+  "mythril_agent_skills/skills/user-journey/scripts/validate_screens.py": {
+    "mtime": 1779933084.4207802,
+    "ast_hash": "714549bc8caf2c49cbdd005f7050bab6",
+    "semantic_hash": "714549bc8caf2c49cbdd005f7050bab6"
+  },
+  "mythril_agent_skills/skills/user-journey/scripts/validate_sync.py": {
+    "mtime": 1779943197.3268776,
+    "ast_hash": "07fbfb968e88e635f2e0403f6356e4d1",
+    "semantic_hash": "07fbfb968e88e635f2e0403f6356e4d1"
+  },
+  "mythril_agent_skills/skills/user-journey/templates/workspace/assets/arrows.js": {
+    "mtime": 1779932975.841678,
+    "ast_hash": "6ae246d5883993d2db6941e24130028b",
+    "semantic_hash": "6ae246d5883993d2db6941e24130028b"
+  },
+  "mythril_agent_skills/skills/user-journey/templates/workspace/assets/canvas.js": {
+    "mtime": 1779899149.7598426,
+    "ast_hash": "2335d1e2370d39e6c2ee49f5ed197742",
+    "semantic_hash": "2335d1e2370d39e6c2ee49f5ed197742"
+  },
+  "mythril_agent_skills/skills/user-journey/templates/workspace/assets/minimap.js": {
+    "mtime": 1779899107.7265859,
+    "ast_hash": "22529a8e6065dd07ad6d62808c7a8396",
+    "semantic_hash": "22529a8e6065dd07ad6d62808c7a8396"
+  },
+  "mythril_agent_skills/skills/user-journey/templates/workspace/assets/prototype.js": {
+    "mtime": 1779933112.1558514,
+    "ast_hash": "fc6f5746e63a132b9ea7f3c18733a878",
+    "semantic_hash": "fc6f5746e63a132b9ea7f3c18733a878"
+  },
+  "mythril_agent_skills/skills/user-journey/templates/workspace/assets/render.js": {
+    "mtime": 1779943560.9759133,
+    "ast_hash": "256eda1d049bedf870b15b4896ebf912",
+    "semantic_hash": "256eda1d049bedf870b15b4896ebf912"
+  },
+  "mythril_agent_skills/skills/user-journey/templates/workspace/assets/sidebar.js": {
+    "mtime": 1779898976.5226622,
+    "ast_hash": "b493f3cf85a4a5f5b82898bab52a8654",
+    "semantic_hash": "b493f3cf85a4a5f5b82898bab52a8654"
+  },
+  "mythril_agent_skills/skills/user-journey/templates/workspace/assets/view.js": {
+    "mtime": 1779898938.132253,
+    "ast_hash": "0a625242c9f980723f6b5ef851990d1f",
+    "semantic_hash": "0a625242c9f980723f6b5ef851990d1f"
+  },
+  "mythril_agent_skills/skills/user-journey/templates/workspace/assets/wireframe.js": {
+    "mtime": 1779898865.7607899,
+    "ast_hash": "8702520583f6d5e2725af2abd2cf22b0",
+    "semantic_hash": "8702520583f6d5e2725af2abd2cf22b0"
+  },
+  "mythril_agent_skills/skills/user-journey/templates/workspace/preview.py": {
+    "mtime": 1779852679.8736227,
+    "ast_hash": "25ac165f203cd1b73e2e56ef47f755b0",
+    "semantic_hash": "25ac165f203cd1b73e2e56ef47f755b0"
+  },
+  "mythril_agent_skills/skills/word/scripts/word_ops.py": {
+    "mtime": 1783010585.1580527,
+    "ast_hash": "e48c43facce536537ba2df75fe017480",
+    "semantic_hash": "e48c43facce536537ba2df75fe017480"
+  },
+  "pyproject.toml": {
+    "mtime": 1786084286.375732,
+    "ast_hash": "f9191534c28443e9dfa9b5d4b578a7a7",
+    "semantic_hash": ""
+  },
+  "scripts/bump-version.py": {
+    "mtime": 1774092848.6001093,
+    "ast_hash": "568e6fa36e0351dc57db38737002609c",
+    "semantic_hash": "568e6fa36e0351dc57db38737002609c"
+  },
+  "scripts/init-fork.py": {
+    "mtime": 1774052638.3813024,
+    "ast_hash": "07ef6dc3f5a68bb72918ec9484431835",
+    "semantic_hash": "07ef6dc3f5a68bb72918ec9484431835"
+  },
+  "scripts/publish.py": {
+    "mtime": 1786089150.4000797,
+    "ast_hash": "bb7cb5c48a76dd3b091b854b6576117a",
+    "semantic_hash": ""
+  },
+  "scripts/skills-check.py": {
+    "mtime": 1773905846.8649044,
+    "ast_hash": "e5af8e8533ac2667f49c2b23fe1d1fb1",
+    "semantic_hash": "e5af8e8533ac2667f49c2b23fe1d1fb1"
+  },
+  "scripts/skills-clean-cache.py": {
+    "mtime": 1774052638.3814347,
+    "ast_hash": "2828a3d9b79ab4dbbcde7cfbc6ced7e6",
+    "semantic_hash": "2828a3d9b79ab4dbbcde7cfbc6ced7e6"
+  },
+  "scripts/skills-cleanup.py": {
+    "mtime": 1773905846.8651147,
+    "ast_hash": "5bd0ced8ca93bb94ab39893fdcec1e38",
+    "semantic_hash": "5bd0ced8ca93bb94ab39893fdcec1e38"
+  },
+  "scripts/skills-setup.py": {
+    "mtime": 1773905846.8652208,
+    "ast_hash": "47caff2297c961caf7d002d6c7ada5d2",
+    "semantic_hash": "47caff2297c961caf7d002d6c7ada5d2"
+  },
+  "scripts/sync-shared-assets.py": {
+    "mtime": 1786084275.4156818,
+    "ast_hash": "7cab2c139fe4029fe35fa7a2437d2b27",
+    "semantic_hash": ""
+  },
+  "scripts/sync-upstream.py": {
+    "mtime": 1774052638.3816626,
+    "ast_hash": "ea90bfe4b603a046db1c3d2e50ab8a38",
+    "semantic_hash": "ea90bfe4b603a046db1c3d2e50ab8a38"
+  },
+  "scripts/validate-skill-descriptions.py": {
+    "mtime": 1774089009.3282337,
+    "ast_hash": "267a721de2563b9ca90c1be411d7137f",
+    "semantic_hash": "267a721de2563b9ca90c1be411d7137f"
+  },
+  "tests/__init__.py": {
+    "mtime": 1774069978.7712543,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "tests/conftest.py": {
+    "mtime": 1774069983.5577261,
+    "ast_hash": "ad13abb69419c08596b29471dfd9186f",
+    "semantic_hash": "ad13abb69419c08596b29471dfd9186f"
+  },
+  "tests/skills/__init__.py": {
+    "mtime": 1774069979.2709293,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "tests/skills/test_confluence.py": {
+    "mtime": 1774659719.8467183,
+    "ast_hash": "f62eef083658e46a8fc309e283ab73f3",
+    "semantic_hash": "f62eef083658e46a8fc309e283ab73f3"
+  },
+  "tests/skills/test_excel.py": {
+    "mtime": 1774577642.002099,
+    "ast_hash": "78fd17eb5569681ee4ff68c219e89b17",
+    "semantic_hash": "78fd17eb5569681ee4ff68c219e89b17"
+  },
+  "tests/skills/test_figma.py": {
+    "mtime": 1774070083.2591944,
+    "ast_hash": "ba8e6b45c2a3b19d2b8c228ecf548557",
+    "semantic_hash": "ba8e6b45c2a3b19d2b8c228ecf548557"
+  },
+  "tests/skills/test_fullstack_init.py": {
+    "mtime": 1786084738.3421867,
+    "ast_hash": "b558ed2506cee1999f3409e23dc5210e",
+    "semantic_hash": ""
+  },
+  "tests/skills/test_git_repo_reader.py": {
+    "mtime": 1774070051.6011763,
+    "ast_hash": "8e0b9cadedc9501acac97a43c734977e",
+    "semantic_hash": "8e0b9cadedc9501acac97a43c734977e"
+  },
+  "tests/skills/test_github_code_review_pr.py": {
+    "mtime": 1774271604.310991,
+    "ast_hash": "5f89a0f60e052aef5c2772d1ec21d564",
+    "semantic_hash": "5f89a0f60e052aef5c2772d1ec21d564"
+  },
+  "tests/skills/test_github_pr_create.py": {
+    "mtime": 1776871719.4538786,
+    "ast_hash": "8415a55af78df1f3777d87c4391b5f41",
+    "semantic_hash": "8415a55af78df1f3777d87c4391b5f41"
+  },
+  "tests/skills/test_jira.py": {
+    "mtime": 1774659719.846899,
+    "ast_hash": "197cb6943b91a21a84a6586d54975b2b",
+    "semantic_hash": "197cb6943b91a21a84a6586d54975b2b"
+  },
+  "tests/skills/test_md_to_pdf.py": {
+    "mtime": 1775184161.641393,
+    "ast_hash": "6358e20dbe390c570eb5bc0b3468c8f0",
+    "semantic_hash": "6358e20dbe390c570eb5bc0b3468c8f0"
+  },
+  "tests/skills/test_pdf.py": {
+    "mtime": 1774788942.5151906,
+    "ast_hash": "d8e6fc1736b182d7300d4b738bf9d663",
+    "semantic_hash": "d8e6fc1736b182d7300d4b738bf9d663"
+  },
+  "tests/skills/test_skill_creator.py": {
+    "mtime": 1774070118.4239745,
+    "ast_hash": "7ba642ee3ad8a2d97217799bc3f3e7ea",
+    "semantic_hash": "7ba642ee3ad8a2d97217799bc3f3e7ea"
+  },
+  "tests/skills/test_user_journey.py": {
+    "mtime": 1779943653.5003035,
+    "ast_hash": "a2b8975cf1065b40f2bad255acd1c5ea",
+    "semantic_hash": "a2b8975cf1065b40f2bad255acd1c5ea"
+  },
+  "tests/skills/test_word.py": {
+    "mtime": 1780040708.2245483,
+    "ast_hash": "2a5d490fde37d61c89cad8d7bf18f058",
+    "semantic_hash": "2a5d490fde37d61c89cad8d7bf18f058"
+  },
+  "tests/test_shared_assets_sync.py": {
+    "mtime": 1779854697.9515147,
+    "ast_hash": "368620dda0c6429ad96a14f7a3c6f76c",
+    "semantic_hash": "368620dda0c6429ad96a14f7a3c6f76c"
+  },
+  "AGENTS.md": {
+    "mtime": 1786083579.8188221,
+    "ast_hash": "54653d74fac6851b07ca50dd6570c3ce",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1786084355.009244,
+    "ast_hash": "0d1a7b3309abb870917161d91e5bb5af",
+    "semantic_hash": ""
+  },
+  "README.zh-CN.md": {
+    "mtime": 1786084469.4440753,
+    "ast_hash": "72fc837c244d42b58e56a9c0412c4481",
+    "semantic_hash": ""
+  },
+  "docs/CACHE.md": {
+    "mtime": 1774052638.3647275,
+    "ast_hash": "dc8538a74e82344f6589c8ce10f93000",
+    "semantic_hash": "dc8538a74e82344f6589c8ce10f93000"
+  },
+  "docs/DEVELOPMENT.md": {
+    "mtime": 1786083606.6443684,
+    "ast_hash": "f7bc867dbc63758da09bcc0033a0b48b",
+    "semantic_hash": ""
+  },
+  "docs/FORK-SYNC.md": {
+    "mtime": 1774052638.3653076,
+    "ast_hash": "121724c5596db1492e835c39f0d6411f",
+    "semantic_hash": "121724c5596db1492e835c39f0d6411f"
+  },
+  "docs/INSTALLATION.md": {
+    "mtime": 1775102068.5095816,
+    "ast_hash": "974d9db3234f2b28f1dd8cfaaf07d95f",
+    "semantic_hash": "974d9db3234f2b28f1dd8cfaaf07d95f"
+  },
+  "docs/PUBLISHING.md": {
+    "mtime": 1774092890.7632012,
+    "ast_hash": "b42303d8e13056d4be8d71876149c162",
+    "semantic_hash": "b42303d8e13056d4be8d71876149c162"
+  },
+  "mythril_agent_skills/shared/mermaid/MERMAID-RULES.md": {
+    "mtime": 1786084295.8838267,
+    "ast_hash": "a84237ca893e18dcf8fc77d03a920b56",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/android-screen-reader/SKILL.md": {
+    "mtime": 1778822417.8870008,
+    "ast_hash": "b486f3d77a59eb29ec5a1ebe02d9b497",
+    "semantic_hash": "b486f3d77a59eb29ec5a1ebe02d9b497"
+  },
+  "mythril_agent_skills/skills/blog-writer/README.md": {
+    "mtime": 1774092296.7581654,
+    "ast_hash": "1a82ca302fcd7b8ed8b8bf99ac240a02",
+    "semantic_hash": "1a82ca302fcd7b8ed8b8bf99ac240a02"
+  },
+  "mythril_agent_skills/skills/blog-writer/SKILL.md": {
+    "mtime": 1774150180.469832,
+    "ast_hash": "2a3a4b55c85ed28a9deb0311ba6798ab",
+    "semantic_hash": "2a3a4b55c85ed28a9deb0311ba6798ab"
+  },
+  "mythril_agent_skills/skills/branch-diff-review/SKILL.md": {
+    "mtime": 1774052638.3693898,
+    "ast_hash": "faf9ddb50455cb723b3814e2effd23ae",
+    "semantic_hash": "faf9ddb50455cb723b3814e2effd23ae"
+  },
+  "mythril_agent_skills/skills/code-review-staged/SKILL.md": {
+    "mtime": 1777715898.0428326,
+    "ast_hash": "9c4de29362eebb3e0a38e12296778ebd",
+    "semantic_hash": "9c4de29362eebb3e0a38e12296778ebd"
+  },
+  "mythril_agent_skills/skills/code-review-staged/references/commit-format.md": {
+    "mtime": 1786084306.0748165,
+    "ast_hash": "9c853b58063353fe36762ebd5ffadff4",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/confluence/API_REFERENCE.md": {
+    "mtime": 1785074929.4266703,
+    "ast_hash": "7ee07f2e549dbd3839efc25958f74f45",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/confluence/README.md": {
+    "mtime": 1774659719.8446002,
+    "ast_hash": "4d94fda5d4e34ac5ec2eb83660799474",
+    "semantic_hash": "4d94fda5d4e34ac5ec2eb83660799474"
+  },
+  "mythril_agent_skills/skills/confluence/SKILL.md": {
+    "mtime": 1785074923.3472755,
+    "ast_hash": "f9156d9391e1a6f6cf5cbff805bb41a7",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/excel/README.md": {
+    "mtime": 1774578000.970873,
+    "ast_hash": "74bb5ee28e4a7a696b99d4bea6d3d739",
+    "semantic_hash": "74bb5ee28e4a7a696b99d4bea6d3d739"
+  },
+  "mythril_agent_skills/skills/excel/SKILL.md": {
+    "mtime": 1783010585.1533208,
+    "ast_hash": "0de6e2d34c8b1b9d73f90679f8684adc",
+    "semantic_hash": "0de6e2d34c8b1b9d73f90679f8684adc"
+  },
+  "mythril_agent_skills/skills/ffmpeg/SKILL.md": {
+    "mtime": 1774052638.3704557,
+    "ast_hash": "30d1bf49232352693a68fc75d59093af",
+    "semantic_hash": "30d1bf49232352693a68fc75d59093af"
+  },
+  "mythril_agent_skills/skills/figma/API_REFERENCE.md": {
+    "mtime": 1774052638.3707361,
+    "ast_hash": "77b5f59e7902bc00713d915e67d186e2",
+    "semantic_hash": "77b5f59e7902bc00713d915e67d186e2"
+  },
+  "mythril_agent_skills/skills/figma/README.md": {
+    "mtime": 1774052638.3712873,
+    "ast_hash": "b8385a8e3c0d84b1ed53c481b1dbf99a",
+    "semantic_hash": "b8385a8e3c0d84b1ed53c481b1dbf99a"
+  },
+  "mythril_agent_skills/skills/figma/SKILL.md": {
+    "mtime": 1774071679.9589248,
+    "ast_hash": "e4bb9efb882ab45b01ee904836b7e36f",
+    "semantic_hash": "e4bb9efb882ab45b01ee904836b7e36f"
+  },
+  "mythril_agent_skills/skills/fullstack-init/SKILL.md": {
+    "mtime": 1786084197.5608718,
+    "ast_hash": "40f906cc2be3524f802bbccb535d2873",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/gh-operations/README.md": {
+    "mtime": 1774252787.3405676,
+    "ast_hash": "626203c18093641d1813d774e670962f",
+    "semantic_hash": "626203c18093641d1813d774e670962f"
+  },
+  "mythril_agent_skills/skills/gh-operations/SKILL.md": {
+    "mtime": 1774321011.566403,
+    "ast_hash": "2e1d1dd945a7c43c91796d49fc19d6dc",
+    "semantic_hash": "2e1d1dd945a7c43c91796d49fc19d6dc"
+  },
+  "mythril_agent_skills/skills/git-repo-reader/SKILL.md": {
+    "mtime": 1774052638.3739562,
+    "ast_hash": "cbce96a4d809f73b53c1f886ca75d502",
+    "semantic_hash": "cbce96a4d809f73b53c1f886ca75d502"
+  },
+  "mythril_agent_skills/skills/github-code-review-pr/README.md": {
+    "mtime": 1774263281.8791566,
+    "ast_hash": "aa7fb05c6628ae56639083309767d36c",
+    "semantic_hash": "aa7fb05c6628ae56639083309767d36c"
+  },
+  "mythril_agent_skills/skills/github-code-review-pr/SKILL.md": {
+    "mtime": 1774276745.0877779,
+    "ast_hash": "3691ebcb28e891b84359a916493e3a75",
+    "semantic_hash": "3691ebcb28e891b84359a916493e3a75"
+  },
+  "mythril_agent_skills/skills/github-pr-create/SKILL.md": {
+    "mtime": 1777715918.8353245,
+    "ast_hash": "4daed241a513005ca0cac7e1528d0948",
+    "semantic_hash": "4daed241a513005ca0cac7e1528d0948"
+  },
+  "mythril_agent_skills/skills/glean/README.md": {
+    "mtime": 1774534641.3391936,
+    "ast_hash": "e326d3be19ebaed7cdae721f4dc181b6",
+    "semantic_hash": "e326d3be19ebaed7cdae721f4dc181b6"
+  },
+  "mythril_agent_skills/skills/glean/SKILL.md": {
+    "mtime": 1774534630.472417,
+    "ast_hash": "5a1e39dfa9816b8e2c126552c992a1ea",
+    "semantic_hash": "5a1e39dfa9816b8e2c126552c992a1ea"
+  },
+  "mythril_agent_skills/skills/imagemagick/SKILL.md": {
+    "mtime": 1774052638.378556,
+    "ast_hash": "4f61b29b025f66599ac45e4195f53246",
+    "semantic_hash": "4f61b29b025f66599ac45e4195f53246"
+  },
+  "mythril_agent_skills/skills/jira/ACLI.md": {
+    "mtime": 1783331779.1934671,
+    "ast_hash": "13a489a797d067862d9e6d2f8bc528fa",
+    "semantic_hash": "13a489a797d067862d9e6d2f8bc528fa"
+  },
+  "mythril_agent_skills/skills/jira/API_REFERENCE.md": {
+    "mtime": 1785074943.1211832,
+    "ast_hash": "2ffe96b6688db0beceb45c82550b1e1f",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/jira/PYTHON.md": {
+    "mtime": 1785074937.815263,
+    "ast_hash": "6adbfd05ebfd565cf11e2e6eeb7e8cbb",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/jira/README.md": {
+    "mtime": 1774659719.8456597,
+    "ast_hash": "f5e2e8bdfa4dc91b3562a0e91442eedd",
+    "semantic_hash": "f5e2e8bdfa4dc91b3562a0e91442eedd"
+  },
+  "mythril_agent_skills/skills/jira/SKILL.md": {
+    "mtime": 1783331810.6278763,
+    "ast_hash": "0964b0b28e76d308db68a35fdbc4013b",
+    "semantic_hash": "0964b0b28e76d308db68a35fdbc4013b"
+  },
+  "mythril_agent_skills/skills/md-to-pdf/SKILL.md": {
+    "mtime": 1783010585.1547096,
+    "ast_hash": "2a3b3595902659fc65f81e3c2e2d8091",
+    "semantic_hash": "2a3b3595902659fc65f81e3c2e2d8091"
+  },
+  "mythril_agent_skills/skills/pdf/README.md": {
+    "mtime": 1774788666.3717163,
+    "ast_hash": "d959fc351cc29b1e0d19d32536fad953",
+    "semantic_hash": "d959fc351cc29b1e0d19d32536fad953"
+  },
+  "mythril_agent_skills/skills/pdf/SKILL.md": {
+    "mtime": 1783010585.1561432,
+    "ast_hash": "200d3b85feeb561cf53d54ae54cc88b6",
+    "semantic_hash": "200d3b85feeb561cf53d54ae54cc88b6"
+  },
+  "mythril_agent_skills/skills/skill-creator/LICENSE.txt": {
+    "mtime": 1773905846.86001,
+    "ast_hash": "175792518e4ac015ab6696d16c4f607e",
+    "semantic_hash": "175792518e4ac015ab6696d16c4f607e"
+  },
+  "mythril_agent_skills/skills/skill-creator/SKILL.md": {
+    "mtime": 1774052638.3801353,
+    "ast_hash": "d806da0d6f2da292009826a420cbfa27",
+    "semantic_hash": "d806da0d6f2da292009826a420cbfa27"
+  },
+  "mythril_agent_skills/skills/skill-creator/agents/analyzer.md": {
+    "mtime": 1773905846.86053,
+    "ast_hash": "b78964a8d55ff0e038d657a9cb79f46a",
+    "semantic_hash": "b78964a8d55ff0e038d657a9cb79f46a"
+  },
+  "mythril_agent_skills/skills/skill-creator/agents/comparator.md": {
+    "mtime": 1773905846.8608463,
+    "ast_hash": "1b3e8695c8a40d1ad7af30b622190c99",
+    "semantic_hash": "1b3e8695c8a40d1ad7af30b622190c99"
+  },
+  "mythril_agent_skills/skills/skill-creator/agents/grader.md": {
+    "mtime": 1773905846.861039,
+    "ast_hash": "c8913119223249181559ec9cf9a5e8c6",
+    "semantic_hash": "c8913119223249181559ec9cf9a5e8c6"
+  },
+  "mythril_agent_skills/skills/skill-creator/assets/eval_review.html": {
+    "mtime": 1773905846.861389,
+    "ast_hash": "215a74d6269d72e8ffd254cedc1e0b0a",
+    "semantic_hash": "215a74d6269d72e8ffd254cedc1e0b0a"
+  },
+  "mythril_agent_skills/skills/skill-creator/eval-viewer/viewer.html": {
+    "mtime": 1773905846.861844,
+    "ast_hash": "bef0b26fd04ee3a25344b7ae361a5bd1",
+    "semantic_hash": "bef0b26fd04ee3a25344b7ae361a5bd1"
+  },
+  "mythril_agent_skills/skills/skill-creator/references/schemas.md": {
+    "mtime": 1773905846.862304,
+    "ast_hash": "466f2adac472716df6867541ff75c462",
+    "semantic_hash": "466f2adac472716df6867541ff75c462"
+  },
+  "mythril_agent_skills/skills/user-journey/README.md": {
+    "mtime": 1779853528.0949025,
+    "ast_hash": "a0c5358a690ae75112c2e1dba7953650",
+    "semantic_hash": "a0c5358a690ae75112c2e1dba7953650"
+  },
+  "mythril_agent_skills/skills/user-journey/SKILL.md": {
+    "mtime": 1779943330.1929383,
+    "ast_hash": "e6c5717adea525c5ccfa1dc93071cbcb",
+    "semantic_hash": "e6c5717adea525c5ccfa1dc93071cbcb"
+  },
+  "mythril_agent_skills/skills/user-journey/references/MERMAID-RULES.md": {
+    "mtime": 1786084641.1590536,
+    "ast_hash": "a84237ca893e18dcf8fc77d03a920b56",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/user-journey/references/PRESENTING.md": {
+    "mtime": 1779899726.0758052,
+    "ast_hash": "3ab8b8b2771023a65b30a1996843d5a8",
+    "semantic_hash": "3ab8b8b2771023a65b30a1996843d5a8"
+  },
+  "mythril_agent_skills/skills/user-journey/references/SCHEMA.md": {
+    "mtime": 1779933069.9556727,
+    "ast_hash": "54c682dd95c299f446d69617eaaa6f0f",
+    "semantic_hash": "54c682dd95c299f446d69617eaaa6f0f"
+  },
+  "mythril_agent_skills/skills/user-journey/references/SCREENS-RULES.md": {
+    "mtime": 1779933029.1963356,
+    "ast_hash": "8601e10f9e07a02221c0cebde8cc9697",
+    "semantic_hash": "8601e10f9e07a02221c0cebde8cc9697"
+  },
+  "mythril_agent_skills/skills/user-journey/references/SYNC-RULES.md": {
+    "mtime": 1779892278.7743862,
+    "ast_hash": "b2f9fd50d5fe5de827aca0ff93f718ce",
+    "semantic_hash": "b2f9fd50d5fe5de827aca0ff93f718ce"
+  },
+  "mythril_agent_skills/skills/user-journey/references/WIREFRAMES.md": {
+    "mtime": 1779943599.8526564,
+    "ast_hash": "587572621336af9fc5cd315d37874168",
+    "semantic_hash": "587572621336af9fc5cd315d37874168"
+  },
+  "mythril_agent_skills/skills/user-journey/templates/design-styles/corporate-clean.md": {
+    "mtime": 1779933263.7533944,
+    "ast_hash": "bb760b480977f96c511c90c76b030ac9",
+    "semantic_hash": "bb760b480977f96c511c90c76b030ac9"
+  },
+  "mythril_agent_skills/skills/user-journey/templates/design-styles/dark-engineering.md": {
+    "mtime": 1779933286.7335374,
+    "ast_hash": "e5ed8dbe4b2efe32ec0f1b6f0354537b",
+    "semantic_hash": "e5ed8dbe4b2efe32ec0f1b6f0354537b"
+  },
+  "mythril_agent_skills/skills/user-journey/templates/design-styles/editorial-mono.md": {
+    "mtime": 1779933297.8683245,
+    "ast_hash": "4250ef6534015e3eddde841cef07de57",
+    "semantic_hash": "4250ef6534015e3eddde841cef07de57"
+  },
+  "mythril_agent_skills/skills/user-journey/templates/design-styles/playful-pastel.md": {
+    "mtime": 1779933275.6635466,
+    "ast_hash": "d9fdeac6b0ce08e410fdb12a3c28d93f",
+    "semantic_hash": "d9fdeac6b0ce08e410fdb12a3c28d93f"
+  },
+  "mythril_agent_skills/skills/user-journey/templates/workspace/JOURNEY.md": {
+    "mtime": 1779943353.0793917,
+    "ast_hash": "69b8cbc52c626251fbebda1091c4e323",
+    "semantic_hash": "69b8cbc52c626251fbebda1091c4e323"
+  },
+  "mythril_agent_skills/skills/user-journey/templates/workspace/README.md": {
+    "mtime": 1779943407.630415,
+    "ast_hash": "ea09f3c88270b28baf015ca30d33c055",
+    "semantic_hash": "ea09f3c88270b28baf015ca30d33c055"
+  },
+  "mythril_agent_skills/skills/user-journey/templates/workspace/index.html": {
+    "mtime": 1779899156.3935752,
+    "ast_hash": "5113b8c3a1a5d4b0ae1bf5b4caf0df2d",
+    "semantic_hash": "5113b8c3a1a5d4b0ae1bf5b4caf0df2d"
+  },
+  "mythril_agent_skills/skills/word/SKILL.md": {
+    "mtime": 1783010585.1573932,
+    "ast_hash": "6005446d0b04af2a7ab43a44e8a41bfa",
+    "semantic_hash": "6005446d0b04af2a7ab43a44e8a41bfa"
+  },
+  "docs/assets/banner.webp": {
+    "mtime": 1774052638.3663259,
+    "ast_hash": "c1126d97165fee374ab27f349a897264",
+    "semantic_hash": "c1126d97165fee374ab27f349a897264"
+  },
+  "docs/assets/cc-plugin-usage.webp": {
+    "mtime": 1774083220.8246512,
+    "ast_hash": "b76fc9946b9023a94b97c38e0760ff23",
+    "semantic_hash": "b76fc9946b9023a94b97c38e0760ff23"
+  },
+  "mythril_agent_skills/shared/graphify/graphify_check.py": {
+    "mtime": 1785116157.3820736,
+    "ast_hash": "52e7dc5992b903ac8492266ebb3dfa3f",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-apply/scripts/check_github_repos.py": {
+    "mtime": 1777707514.40737,
+    "ast_hash": "333087c65b66c799783f90f159b35b34",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-apply/scripts/check_workspace.py": {
+    "mtime": 1786083887.413699,
+    "ast_hash": "bc7d1666f5f41e892e4213c196b8dea0",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-apply/scripts/graphify_check.py": {
+    "mtime": 1785116172.2758687,
+    "ast_hash": "52e7dc5992b903ac8492266ebb3dfa3f",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-apply/scripts/mermaid_lint.py": {
+    "mtime": 1779854785.9442875,
+    "ast_hash": "df3edaeceb57acc8be80d1945c3f86b1",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-archive/scripts/check_workspace.py": {
+    "mtime": 1786083964.440388,
+    "ast_hash": "bc7d1666f5f41e892e4213c196b8dea0",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-archive/scripts/graphify_check.py": {
+    "mtime": 1786083964.444362,
+    "ast_hash": "52e7dc5992b903ac8492266ebb3dfa3f",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-docs-migration/scripts/migrate_scan.py": {
+    "mtime": 1786084594.928399,
+    "ast_hash": "64a2f2e4ad0e145da2f816245051db7a",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-explore/scripts/graphify_check.py": {
+    "mtime": 1785116172.2762794,
+    "ast_hash": "52e7dc5992b903ac8492266ebb3dfa3f",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-init/scripts/graphify_check.py": {
+    "mtime": 1785116172.275644,
+    "ast_hash": "52e7dc5992b903ac8492266ebb3dfa3f",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-propose/scripts/check_workspace.py": {
+    "mtime": 1786083835.1362424,
+    "ast_hash": "bc7d1666f5f41e892e4213c196b8dea0",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-propose/scripts/graphify_check.py": {
+    "mtime": 1785116172.276505,
+    "ast_hash": "52e7dc5992b903ac8492266ebb3dfa3f",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-propose/scripts/mermaid_lint.py": {
+    "mtime": 1779854785.94448,
+    "ast_hash": "df3edaeceb57acc8be80d1945c3f86b1",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/glm-vision-fallback/scripts/vision_fallback.py": {
+    "mtime": 1785546866.9275084,
+    "ast_hash": "75d0c9c92fff7c35f33d7afe3acedd2f",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/story-point-estimate/scripts/generate_report.py": {
+    "mtime": 1785255485.1565497,
+    "ast_hash": "3b4bbb26803abaf344916a0c2e12eabb",
+    "semantic_hash": ""
+  },
+  "tests/skills/test_fullstack_apply.py": {
+    "mtime": 1786084567.7475965,
+    "ast_hash": "30f38fe8fb8e943c90806fe430ea96ea",
+    "semantic_hash": ""
+  },
+  "tests/skills/test_fullstack_docs_migration.py": {
+    "mtime": 1786084683.39003,
+    "ast_hash": "5a7f31b9d35da7f01a8afd75ae4f9fcb",
+    "semantic_hash": ""
+  },
+  "tests/skills/test_story_point_estimate.py": {
+    "mtime": 1785255566.9477553,
+    "ast_hash": "b5962ce81960391ecf36aa2c367b7789",
+    "semantic_hash": ""
+  },
+  "tests/test_skills_setup.py": {
+    "mtime": 1785109923.435382,
+    "ast_hash": "00bf308dad21fd40c0389b5593554db7",
+    "semantic_hash": ""
+  },
+  "docs/fullstack/AGENT-ORCHESTRATION.md": {
+    "mtime": 1786083559.8403754,
+    "ast_hash": "eb9abfcf169e5083308d7cca8071567b",
+    "semantic_hash": ""
+  },
+  "docs/fullstack/README.md": {
+    "mtime": 1786083498.9831815,
+    "ast_hash": "8655dcb78da6f0b016308d8a903dbfdf",
+    "semantic_hash": ""
+  },
+  "docs/fullstack/REFACTOR-PLAN.md": {
+    "mtime": 1786088243.7754579,
+    "ast_hash": "d051b1bf94f9136ba0c5658b3bd5b1d9",
+    "semantic_hash": ""
+  },
+  "docs/fullstack/concepts.md": {
+    "mtime": 1786195193.193708,
+    "ast_hash": "88eb51235b5f42d289c703322d69252a",
+    "semantic_hash": ""
+  },
+  "docs/fullstack/overview.md": {
+    "mtime": 1786083509.1031919,
+    "ast_hash": "171bb8e9f6efcf397a535c6dad955bfe",
+    "semantic_hash": ""
+  },
+  "docs/fullstack/workflows.md": {
+    "mtime": 1786083539.8226771,
+    "ast_hash": "8460eae929d417ac0d7d395f9c4784d0",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-apply/SKILL.md": {
+    "mtime": 1786083929.791255,
+    "ast_hash": "1d4a595ff57367daf18e2d9559239fee",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-apply/references/MERMAID-RULES.md": {
+    "mtime": 1786084641.158543,
+    "ast_hash": "a84237ca893e18dcf8fc77d03a920b56",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-apply/references/document-templates.md": {
+    "mtime": 1786195193.1843293,
+    "ast_hash": "16dd77fb2b2d60a07b5079ff52a41255",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-apply/references/review-formats.md": {
+    "mtime": 1786083878.1806326,
+    "ast_hash": "4f77e6163dcb8f94d3777ff86a1567eb",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-archive/SKILL.md": {
+    "mtime": 1786084792.76521,
+    "ast_hash": "493ae971a4c670c35678505f620cde18",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-docs-migration/SKILL.md": {
+    "mtime": 1786083997.0686896,
+    "ast_hash": "c3792062ca2e4329ad13399a7dc02eeb",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-explore/SKILL.md": {
+    "mtime": 1786083648.0805118,
+    "ast_hash": "592fa9541fb32872ed1742eb6804a0b5",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-init/agents/debugger.md": {
+    "mtime": 1785248042.504374,
+    "ast_hash": "2fe17400257d14c8a8a5430ab4a6dc0c",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-init/agents/developer.md": {
+    "mtime": 1785248042.504726,
+    "ast_hash": "eb28d9a3134b24c84da552ff88360462",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-init/agents/planner.md": {
+    "mtime": 1786084210.778364,
+    "ast_hash": "e0b40d3ba8007ff3e4e7325c6b5b9271",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-init/agents/reviewer.md": {
+    "mtime": 1785248042.5053086,
+    "ast_hash": "011a64bf88b590d58096597141495182",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-propose/SKILL.md": {
+    "mtime": 1786083760.9090626,
+    "ast_hash": "a2e0a2b69307472343a69a8d361771ef",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-propose/references/MERMAID-RULES.md": {
+    "mtime": 1786084641.1588857,
+    "ast_hash": "a84237ca893e18dcf8fc77d03a920b56",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/fullstack-propose/references/document-templates.md": {
+    "mtime": 1786195193.1722994,
+    "ast_hash": "16dd77fb2b2d60a07b5079ff52a41255",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/glm-vision-fallback/SKILL.md": {
+    "mtime": 1785546941.0170548,
+    "ast_hash": "68b4aea2aebe11aaecb88915812288d6",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/story-point-estimate/SKILL.md": {
+    "mtime": 1785255532.901778,
+    "ast_hash": "3e5d265041632a712fd2aefbbd6bb97a",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/story-point-estimate/references/cfr-guide.md": {
+    "mtime": 1785252640.2716267,
+    "ast_hash": "21cedd3379a1c5f1dd4241a29e6cfdda",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/story-point-estimate/references/estimation-patterns.md": {
+    "mtime": 1785252713.7766623,
+    "ast_hash": "6a7e194cb8278a07dda6e512233eb60b",
+    "semantic_hash": ""
+  },
+  "mythril_agent_skills/skills/story-point-estimate/references/point-scale.md": {
+    "mtime": 1785252563.437806,
+    "ast_hash": "130f9cf2a0d8d0c300a99d8dc240067a",
+    "semantic_hash": ""
+  },
+  "tests/test_skills_cleanup.py": {
+    "mtime": 1786088731.931362,
+    "ast_hash": "42ee1e6852f8f2d8325726d370cd7848",
+    "semantic_hash": ""
+  }
+}
