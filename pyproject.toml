@@ -79,6 +79,7 @@ extraPaths = [
     "mythril_agent_skills/skills/fullstack-init/scripts",
     "mythril_agent_skills/skills/user-journey/scripts",
     "mythril_agent_skills/skills/story-point-estimate/scripts",
+    "mythril_agent_skills/skills/image-reference/scripts",
 ]
 
 [tool.setuptools.packages.find]

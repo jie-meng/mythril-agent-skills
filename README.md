@@ -211,6 +211,13 @@ Write, refine, and adapt blog posts through an interactive intake process. The s
 - **Try:** Write a blog post about my open-source project
 - **Deps:** —
 
+**[Image Reference](./mythril_agent_skills/skills/image-reference/)**
+
+Reference a specific image in a Markdown document — copy it into a `<doc-stem>.assets/` directory next to the doc and insert the link, mirroring the nvim paste-image workflow. Derives clean content-based slug filenames (e.g. `mobile-arch.png`) when the source name is messy or missing.
+
+- **Try:** 把这个图加进文档 / Put this image in the doc
+- **Deps:** —
+
 </details>
 
 <details>
@@ -389,7 +396,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 
 | Plugin | Description |
 |---|---|
-| `all-skills` | All-in-one bundle (all 26 skills) |
+| `all-skills` | All-in-one bundle (all 29 skills) |
 | `skill-creator` | Create and improve skills/prompts for any AI platform |
 | `code-review-staged` | Code review for git staged changes |
 | `branch-diff-review` | Code review for local branch differences |
@@ -407,6 +414,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `ffmpeg` | Video and audio processing via FFmpeg CLI |
 | `android-screen-reader` | Read the current screen of a connected Android device via adb |
 | `blog-writer` | Write, refine, and adapt tech-first multilingual blog posts |
+| `image-reference` | Reference a specific image in a Markdown document — `<doc-stem>.assets/` + content-based slug names |
 | `user-journey` | Draft user journey maps and lo-fi wireframes via natural language — HTML/CSS workspace with map/stage/presenter views |
 | `story-point-estimate` | Estimate effort using Fibonacci story points — any input, CFR coverage, buffer strategy, XLSX output |
 | `fullstack-init` | Initialize multi-repo fullstack workspace with AI context |
@@ -539,6 +547,7 @@ Up/Down move | Space toggle | a all/none | Enter confirm | q quit
   [x]  blog-writer
   [x]  code-review-staged
   [x]  figma
+  [x]  image-reference
   ...
   Local Skills (2)  [my-skills/]
   [x]  my-custom-skill
@@ -654,6 +663,7 @@ mythril-agent-skills/
 │       ├── code-review-staged/  # Structured code reviews
 │       ├── git-repo-reader/     # Clone and read any git repo
 │       ├── blog-writer/         # Tech-first multilingual blog writing
+│       ├── image-reference/     # Reference images in docs via <stem>.assets/
 │       ├── user-journey/        # User journey maps & lo-fi wireframes via natural language
 │       ├── fullstack-init/      # Initialize multi-repo workspace
 │       ├── fullstack-explore/   # Read-only knowledge exploration

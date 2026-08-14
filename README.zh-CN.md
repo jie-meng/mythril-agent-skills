@@ -211,6 +211,13 @@ Skill（技能）是一个提示词/指令包，用于教 AI 助手如何处理�
 - **示例：** 帮我写一篇关于这个开源项目的博客
 - **依赖：** —
 
+**[Image Reference](./mythril_agent_skills/skills/image-reference/)**
+
+在 Markdown 文档中引用指定图片——将图片复制到文档同路径下的 `<文档名>.assets/` 目录并插入引用链接，复刻 nvim 的粘贴图片工作流。当来源文件名缺失或杂乱时，会根据图片内容自动生成简洁的 slug 文件名（如 `mobile-arch.png`）。
+
+- **示例：** 把这个图加进文档 / Put this image in the doc
+- **依赖：** —
+
 </details>
 
 <details>
@@ -407,6 +414,7 @@ skills-clean-cache --repos  # 交互式：选择要删除的仓库
 | `ffmpeg` | 通过 FFmpeg CLI 处理视频和音频 |
 | `android-screen-reader` | 通过 adb 读取已连接 Android 设备的当前屏幕 |
 | `blog-writer` | 撰写、润色和适配以技术为主的多语言博客 |
+| `image-reference` | 在 Markdown 文档中引用指定图片——`<文档名>.assets/` + 基于内容的 slug 命名 |
 | `user-journey` | 通过自然语言起草用户旅程地图与低保真线框图——HTML/CSS 工作区，Map/Stage/Presenter 三视图 |
 | `story-point-estimate` | 斐波那契点数估算——任意输入、CFR 覆盖、Buffer 策略、XLSX 输出 |
 | `fullstack-init` | 初始化多仓库全栈工作区 |
@@ -539,6 +547,7 @@ Up/Down move | Space toggle | a all/none | Enter confirm | q quit
   [x]  blog-writer
   [x]  code-review-staged
   [x]  figma
+  [x]  image-reference
   ...
   Local Skills (2)  [my-skills/]
   [x]  my-custom-skill
@@ -654,6 +663,7 @@ mythril-agent-skills/
 │       ├── code-review-staged/  # 结构化代码审查
 │       ├── git-repo-reader/     # 克隆并阅读任意 git 仓库
 │       ├── blog-writer/         # 以技术为主的多语言博客写作
+│       ├── image-reference/     # 在文档中引用图片（<文档名>.assets/）
 │       ├── user-journey/        # 自然语言起草用户旅程地图与线框图
 │       ├── story-point-estimate/ # 斐波那契点数估算 — 含 CFR + Buffer + XLSX
 │       ├── fullstack-init/      # 初始化多仓库工作区

@@ -10,7 +10,7 @@
     {
       "name": "all-skills",
       "source": "./mythril_agent_skills",
-      "description": "All-in-one bundle: code review, Git/GitHub, Jira, Confluence, Figma, Glean, Excel, PDF, Markdown-to-PDF, ImageMagick, FFmpeg, Android screen reading, GLM vision fallback, blog writer, story point estimation, user-journey map drafter, skill creator, and fullstack workspace tools",
+      "description": "All-in-one bundle: code review, Git/GitHub, Jira, Confluence, Figma, Glean, Excel, PDF, Markdown-to-PDF, ImageMagick, FFmpeg, Android screen reading, GLM vision fallback, blog writer, story point estimation, image reference, user-journey map drafter, skill creator, and fullstack workspace tools",
       "version": "0.3.0",
       "author": {
         "name": "Jie Meng"
@@ -36,6 +36,7 @@
         "adb",
         "skill-creator",
         "blog-writer",
+        "image-reference",
         "story-point-estimate",
         "user-journey"
       ],
@@ -356,6 +357,24 @@
         "writing",
         "technical",
         "multilingual"
+      ],
+      "strict": false
+    },
+    {
+      "name": "image-reference",
+      "source": "./plugins/image-reference",
+      "description": "Reference a specific image in a Markdown document — copies it into a <doc-stem>.assets/ directory next to the doc and inserts the link, mirroring the nvim paste-image workflow with content-based slug filenames",
+      "version": "0.3.0",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "productivity",
+      "tags": [
+        "image",
+        "markdown",
+        "assets",
+        "documentation"
       ],
       "strict": false
     },
