@@ -52,6 +52,7 @@ TOOLS: list[tuple[str, str, str]] = [
     ("Grok CLI", ".grok", "skills"),
     ("OpenClaw", ".openclaw", "skills"),
     ("Hermes", ".hermes", "skills"),
+    ("DeepSeek Harness", ".agents", "skills"),
 ]
 
 

@@ -152,6 +152,9 @@ All config directories are relative to the user home directory (`~` on macOS/Lin
 | 9 | OpenClaw | `~/.openclaw/` | `~/.openclaw/skills/` |
 | 10 | Hermes | `~/.hermes/` | `~/.hermes/skills/` |
 | 11 | Cline | `~/.cline/` | `~/.cline/skills/` |
+| 12 | DeepSeek Harness | `~/.agents/` | `~/.agents/skills/` |
+
+`~/.agents/skills/` is the cross-tool shared Agent Skills convention directory (agentskills.io) — read by DeepSeek Harness (`dsh`), DeepSeek Deep Code, Pi, OpenClaw, Cline, Kimi Code CLI, Warp, Zed, and others. Skills installed there are visible to every compliant tool.
 
 ---
 
