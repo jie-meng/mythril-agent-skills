@@ -1,0 +1,24 @@
+mythril_agent_skills/cli/skills_cleanup.py
+  s_7b16220ba4ee66::t_60d078ce2c058b 35
+  s_7b16220ba4ee66::t_13e7b25624a143 39
+mythril_agent_skills/cli/skills_setup.py
+  s_7b16220ba4ee66::t_c46b52be1e6e5a 55
+AGENTS.md
+  s_7b16220ba4ee66::t_7f34ec775bebb9 155-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "a12e4ab73e96fa411718977b3c23dcdcb77e78dc",
+  "prompts": {},
+  "sessions": {
+    "s_7b16220ba4ee66": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ffc3e7f7effeYTBVDcSCMe5UHJ",
+        "model": "deepseek-v4-flash-free"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
