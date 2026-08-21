@@ -36,7 +36,7 @@ TOOLS: list[tuple[str, str, str]] = [
     ("Grok CLI", ".grok", "skills"),
     ("OpenClaw", ".openclaw", "skills"),
     ("Hermes", ".hermes", "skills"),
-    ("DeepSeek Harness", ".agents", "skills"),
+    ("Pi/DSH", ".agents", "skills"),
 ]
 
 
@@ -433,8 +433,10 @@ def main() -> None:
         sys.exit(0)
 
     # Step 1: Select tools to scan (default: all selected)
+    max_label_len = max(len(g.label) for g in groups)
     tool_items = [
-        f"{g.label}  ~/{g.config_dir}/skills/  ({len(g.skills)} skills)" for g in groups
+        f"{g.label:<{max_label_len}}  ~/{g.config_dir}  ({len(g.skills)} skills)"
+        for g in groups
     ]
     tool_indices = curses.wrapper(
         _curses_tool_select,

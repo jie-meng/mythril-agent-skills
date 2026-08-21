@@ -52,7 +52,7 @@ TOOLS: list[tuple[str, str, str]] = [
     ("Grok CLI", ".grok", "skills"),
     ("OpenClaw", ".openclaw", "skills"),
     ("Hermes", ".hermes", "skills"),
-    ("DeepSeek Harness", ".agents", "skills"),
+    ("Pi/DSH", ".agents", "skills"),
 ]
 
 
@@ -345,7 +345,7 @@ def curses_multi_select(
         for i, item in enumerate(items):
             is_disabled = i in disabled
             if is_disabled:
-                marker = "[-]"
+                marker = "[ ]"
                 attr = curses.A_DIM
                 color = 0
             else:
@@ -584,8 +584,10 @@ def _detect_uninstalled_tools() -> set[int]:
 def select_tools_interactive() -> list[int] | None:
     """Launch curses UI to select AI tools. Returns selected indices or None."""
     uninstalled = _detect_uninstalled_tools()
+    max_name_len = max(len(t[0]) for t in TOOLS)
     items = [
-        f"{t[0]}  (not installed)" if i in uninstalled else t[0]
+        f"{t[0]:<{max_name_len}}  ~/{t[1]}"
+        + ("  (not installed)" if i in uninstalled else "")
         for i, t in enumerate(TOOLS)
     ]
     return curses.wrapper(
