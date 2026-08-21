@@ -583,6 +583,7 @@ concrete proof:
 |-------------------|--------|----------|
 | Criterion 1 | ✅ Pass | <test result / PR link / screenshot> |
 | Criterion 2 | ❌ Fail | <what disproved it> |
+| Criterion 3 | ⚠️ Skipped | <tests not run — no harness or no documented run command> |
 ```
 
 ### Chinese
@@ -602,6 +603,7 @@ concrete proof:
 |---------|------|------|
 | 标准 1 | ✅ 通过 | <测试结果 / PR 链接 / 截图> |
 | 标准 2 | ❌ 未通过 | <反证依据> |
+| 标准 3 | ⚠️ 跳过 | <测试未运行 — 无框架或无已记录的运行命令> |
 ```
 
 The per-round review section format and cross-repo review format are

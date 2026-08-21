@@ -279,6 +279,23 @@ For each affected repository, in the dependency order from `plan.md`:
    When `graphify-out/` exists, `cd` into the repo and you MUST use
    `graphify query "<question>"` to understand the codebase before
    reading individual files.
+5. **Determine the repo's test harness** — language-agnostic, based on
+   evidence in the repo. Identification order:
+   1. **README.md / AGENTS.md** — if either documents how to run tests
+      (`pytest` / `go test` / `npm test` / `cargo test` / `mix test` /
+      `dotnet test` / `bundle exec rspec` / …), that is the test
+      command. When both files exist, `AGENTS.md` wins over `README.md`.
+   2. **Directory structure** — if neither file documents a test
+      command, look for a conventional test layout for the repo's actual
+      stack (e.g. `test*/`, `spec/`, `__tests__/`, `tests/`, `*_test.*`,
+      `*.spec.*`). A conventional layout implies tests exist — but their
+      run command still comes from step 1; if it is not documented
+      anywhere, treat the repo as having tests **that can't be run
+      reliably**, and record that.
+   3. **No evidence** — neither file mentions tests and no conventional
+      test layout exists → classify the repo as **no-test**. You will
+      not fabricate a test harness, but the flow MUST state this
+      explicitly so untested code is never treated as verified.
 
 #### 4b. Delegate to developer subagent
 
@@ -292,15 +309,36 @@ Provide the developer subagent with:
 The developer subagent will:
 1. Set up the repo environment (venv, nvm, etc.)
 2. Implement the changes following repo conventions
-3. Run lint → type-check → tests → build
+3. Run lint → type-check → tests → build, **limited to what the repo
+   supports.** If a test command is documented, run it and report what
+   ran and whether it passed. If the repo has a conventional test layout
+   but no documented run command, do NOT guess a command — return
+   `tests: unknown (no run command documented)`. Only when the repo has
+   no tests at all, return `tests: none`. Never invent or run a guessed
+   test command.
 4. Stage all changes (`git add .`)
-5. Return: summary of changes, test results, recommended commit message
+5. Return: summary of changes, test run result (`tests: passed` /
+   `tests: failed` / `tests: unknown` / `tests: none`), and a
+   recommended commit message
 
 #### 4c. Handle developer output
 
-1. If tests fail → send back to developer with failure details until passing
-2. If implementation complete → write the summary to `progress.md`
-3. Proceed to staged review
+1. **Tests ran and passed** → record the result in `progress.md`.
+2. **Tests ran and failed** → send back to the developer with the
+   failure details until passing. Do not skip to the next repo with
+   broken tests (see Error Handling below).
+3. **Tests exist but no run command documented** (developer returned
+   `tests: unknown`) → record an explicit `tests: unknown (no run
+   command in <repo> README/AGENTS)` note in `progress.md`, and flag it
+   in the review so the gap is visible — these tests weren't executed.
+   Mention the gap to the user in the final report and offer to add the
+   test run command to the repo's `AGENTS.md` — but never edit any repo
+   document yourself without the user's explicit approval.
+4. **No tests at all** (developer returned `tests: none`) → record an
+   explicit `tests: none (<repo> has no test harness)` note in the
+   `progress.md` entry. Untested code must never pass silently.
+5. If implementation complete → write the summary to `progress.md`.
+6. Proceed to staged review.
 
 #### 4d. Per-repo staged review — delegate to reviewer subagent
 
@@ -495,6 +533,13 @@ evidence in the `review.md` Evidence table) or explicitly waived with a
 documented reason. This is the pre-agreed definition of done — do not
 finalize with unmet criteria silently dropped.
 
+Evidence is one of `✅ Pass` / `❌ Fail` / `⚠️ Skipped`. Where a criterion
+can be proven only by a test run but the tests were not run — no test
+harness in the repo, or a test layout exists but no run command is
+documented — mark it `⚠️ Skipped (no verified test run in <repo>)` —
+never `✅ Pass`. Untested is unproven; record the gap explicitly rather
+than claiming a result.
+
 ### Four-file consistency gate (MANDATORY)
 
 Verify all four documents exist and are internally consistent:
@@ -568,6 +613,67 @@ After review passes (and PRs created in Step 6 if applicable):
    The work item is complete. Tell me "archive it" when you're ready
    to move it into changes/archive/ (fullstack-archive).
    ```
+
+## Step 8 — Lessons Learned (optional, value-gated)
+
+The four work-tracking documents already record **what happened**. This
+step exists to convert a genuinely new, transferable insight into the
+docs repo's knowledge so a future session does not rediscover it the
+hard way. It is optional and value-gated — most work items produce no
+lesson, so a deliberate skip is the correct default, never a default of
+"fill a template". Write a lesson when any of these is true:
+
+1. **Non-obvious trap / gotcha** that cost real implementation or review
+   time — a library quirk, an ordering or dependency constraint the plan
+   did not surface, a silent failure mode.
+2. **Cross-repo / cross-tool constraint** that will affect similar
+   future work — an env var required by two repos, a build step, a
+   migration ordering, a service boundary invariant.
+3. **A design decision whose rationale is non-obvious** — one that took
+   deep analysis or a falsified hypothesis to reach. If the reasoning is
+   already self-evident in `analysis.md`, do not duplicate it.
+4. **A recurring mistake corrected** — a bug you misdiagnosed at least
+   once, so the correction (and how to recognize the symptom early) is
+   worth preserving.
+
+Skip (the default) when the lesson is really just the work item itself —
+that belongs in `progress.md` / `review.md`, not in a knowledge doc — or
+when the topic is already recorded elsewhere in the docs repo: update
+that existing doc, don't create a duplicate.
+
+### Where to put it — follow the docs repo's own structure
+
+Do NOT impose a fixed lessons directory or a generic name like
+`lessons-learned/`. First explore the docs repo's existing knowledge
+layout (the directories beside `changes/`, e.g. `docs/` organized by
+domain / architecture / platform). Find where this work's insight
+naturally belongs — the doc for the component, the architecture or
+platform section, the topic folder it extends. Write the lesson there
+following that area's existing convention: append a `## <Title>`
+subsection, add to an existing topic file, or create a domain file if
+none exists.
+
+Only when no existing place fits, create a directory named for the
+lesson's own subject — the topic the insight actually covers, not a
+generic bucket. Choose a concise lowercase-hyphenated name (the repo's
+naming convention) that a future reader would search for, e.g.
+`docs/<subject>/<subject>.md`. Write the lesson there, short: what you
+learned, why it matters, and the guard to apply. Reuse the same file or
+directory for later lessons on the same subject rather than inventing a
+new name.
+
+When in doubt, ask the user where the lesson belongs before creating a
+new directory — do not guess a location the team then has to relocate.
+
+### Record the outcome
+
+- **If you wrote a lesson**, append one bullet to the final entry in
+  `progress.md`: `- Captured insight to <relative path> — <summary>`
+- **If you deliberately skipped**, record nothing. The absence is the
+  correct, intentional outcome and needs no justification entry.
+
+Commit the docs repo (with any captured insight) in the same Step 7
+finalization commit.
 
 ## After Finalization — Follow-up Edits
 
