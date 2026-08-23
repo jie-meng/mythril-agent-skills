@@ -1,0 +1,58 @@
+AGENTS.md
+  s_4e60b38a9ffb57::t_f8ac87bbc8b635 286
+  s_4e60b38a9ffb57::t_1139d7a171785d 479-481
+tests/skills/test_fullstack_brief.py
+  s_4e60b38a9ffb57::t_f559f064ed29d2 1-155
+pyproject.toml
+  s_4e60b38a9ffb57::t_df6e3f971fee51 77
+mythril_agent_skills/skills/fullstack-brief/SKILL.md
+  s_4e60b38a9ffb57::t_30ec0a054b21be 152-154
+  s_4e60b38a9ffb57::t_c7d6e0e065682a 1-9,14-151
+  s_4e60b38a9ffb57::t_cd3b04ad445ad5 10-13
+  s_4e60b38a9ffb57::t_9bd5eed4bfdbe3 155-288
+mythril_agent_skills/skills/fullstack-brief/scripts/mermaid_lint.py
+  s_4e60b38a9ffb57::t_8a14596c44a5f9 1-470
+mythril_agent_skills/skills/fullstack-brief/scripts/detect_scope.py
+  s_4e60b38a9ffb57::t_f4f599d1e7dcdf 78-79
+  s_4e60b38a9ffb57::t_f0f259b5defe74 1-9,14-77,80-88,92-97,99-111
+  s_4e60b38a9ffb57::t_36fedf0750422e 10-13
+  s_4e60b38a9ffb57::t_67204c29ab20b2 89-91,98
+docs/fullstack/README.md
+  s_4e60b38a9ffb57::t_92f659351ffec9 34-38
+  s_4e60b38a9ffb57::t_766937c8fc886e 4-5
+mythril_agent_skills/skills/fullstack-brief/README.md
+  s_4e60b38a9ffb57::t_cdb7a230918e7d 1-55
+.claude-plugin/marketplace.json
+  s_4e60b38a9ffb57::t_8488193d065baa 458-475
+  s_4e60b38a9ffb57::t_b3b0a57490ce3c 457
+mythril_agent_skills/skills/fullstack-brief/scripts/graphify_check.py
+  s_4e60b38a9ffb57::t_8a14596c44a5f9 1-37
+mythril_agent_skills/skills/fullstack-brief/references/MERMAID-RULES.md
+  s_4e60b38a9ffb57::t_8a14596c44a5f9 1-222
+README.md
+  s_4e60b38a9ffb57::t_e4afdbdb742572 678
+  s_4e60b38a9ffb57::t_83988e359e5099 406
+  s_4e60b38a9ffb57::t_7c42c33f85c462 429
+  s_4e60b38a9ffb57::t_b377e38c4cf85a 267-273
+scripts/sync-shared-assets.py
+  s_4e60b38a9ffb57::t_b690b575fcafa3 56-61
+  s_4e60b38a9ffb57::t_d950a1338fe80a 94
+plugins/fullstack-brief/skills/fullstack-brief
+  s_4e60b38a9ffb57::t_b40c9fe641eb0b 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "9d01ab9fb1340e86b511554f7eafaa2ac84cf76f",
+  "prompts": {},
+  "sessions": {
+    "s_4e60b38a9ffb57": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_fd3d814d1ffeSEK0po7XZklMQe",
+        "model": "x-preview-f-free"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
