@@ -53,7 +53,12 @@ def specs() -> list[SyncSpec]:
     out: list[SyncSpec] = []
 
     # --- shared/mermaid/mermaid_lint.py → <skill>/scripts/mermaid_lint.py
-    mermaid_consumers = ("fullstack-apply", "fullstack-propose", "user-journey")
+    mermaid_consumers = (
+        "fullstack-apply",
+        "fullstack-propose",
+        "fullstack-brief",
+        "user-journey",
+    )
     lint_source = SHARED_ROOT / "mermaid" / "mermaid_lint.py"
     out.append(
         SyncSpec(
@@ -86,6 +91,7 @@ def specs() -> list[SyncSpec]:
         "fullstack-explore",
         "fullstack-propose",
         "fullstack-archive",
+        "fullstack-brief",
     )
     graphify_source = SHARED_ROOT / "graphify" / "graphify_check.py"
     out.append(

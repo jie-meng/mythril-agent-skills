@@ -1,8 +1,8 @@
 # Fullstack Skills — Documentation
 
 Documentation home for the **fullstack skill family**: `fullstack-init`,
-`fullstack-explore`, `fullstack-propose`, `fullstack-apply`,
-`fullstack-archive`, and `fullstack-docs-migration`.
+`fullstack-explore`, `fullstack-brief`, `fullstack-propose`,
+`fullstack-apply`, `fullstack-archive`, and `fullstack-docs-migration`.
 
 The fullstack family gives AI coding assistants a structured workflow for
 multi-repo development: initialize a workspace, explore the codebase,
@@ -30,6 +30,11 @@ to plan your first work item.
 
 **I want to understand an existing codebase.** Use `fullstack-explore` —
 read-only exploration across all repos. See [Workflows](workflows.md#explore).
+
+**I want to continue a discussion in a web AI session.** Use
+`fullstack-brief` — it exports the workspace or single-repo context into one
+self-contained, AI-optimized Markdown brief you can paste into ChatGPT,
+Claude.ai, Gemini, etc., saving local CLI tokens.
 
 **I have an idea but it's not fully thought through.** Use
 `fullstack-propose` — it plans the work, and can run a spike (deep mode)

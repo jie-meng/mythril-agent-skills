@@ -264,6 +264,13 @@ Read-only knowledge exploration across a multi-repo fullstack workspace. Answer 
 - **Try:** Which repo handles user authentication?
 - **Deps:** Workspace initialized by `fullstack-init`
 
+**[Fullstack Brief](./mythril_agent_skills/skills/fullstack-brief/)**
+
+Export the complete context of a workspace or single repo into ONE self-contained, AI-optimized Markdown brief — paste it into a web AI session (ChatGPT, Claude.ai, Gemini) and continue solution discussions there without paying local CLI tokens. Mermaid diagrams allowed; no local file/image references; mandatory secret redaction; destination confirmed before writing.
+
+- **Try:** Export a context brief so I can discuss this on ChatGPT
+- **Deps:** A git repo or a workspace initialized by `fullstack-init`
+
 **[Fullstack Propose](./mythril_agent_skills/skills/fullstack-propose/)**
 
 Propose a new work item across a multi-repo fullstack workspace. Plans the approach and writes the work-tracking documents (analysis/plan/progress/review with Success Criteria). Deep mode runs a time-boxed spike to validate unknowns first — experiments and verdict live in the same work directory, so nothing is rewritten on handoff to apply.
@@ -396,7 +403,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 
 | Plugin | Description |
 |---|---|
-| `all-skills` | All-in-one bundle (all 29 skills) |
+| `all-skills` | All-in-one bundle (all 30 skills) |
 | `skill-creator` | Create and improve skills/prompts for any AI platform |
 | `code-review-staged` | Code review for git staged changes |
 | `branch-diff-review` | Code review for local branch differences |
@@ -419,6 +426,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `story-point-estimate` | Estimate effort using Fibonacci story points — any input, CFR coverage, buffer strategy, XLSX output |
 | `fullstack-init` | Initialize multi-repo fullstack workspace with AI context |
 | `fullstack-explore` | Read-only knowledge exploration across a fullstack workspace |
+| `fullstack-brief` | Export workspace/repo context into one AI-optimized brief for web AI sessions |
 | `fullstack-propose` | Plan a work item with Success Criteria; validate unknowns (spike) |
 | `fullstack-apply` | Implement a planned work item across a fullstack workspace |
 | `fullstack-archive` | Archive completed work items into changes/archive/ |
@@ -667,6 +675,7 @@ mythril-agent-skills/
 │       ├── user-journey/        # User journey maps & lo-fi wireframes via natural language
 │       ├── fullstack-init/      # Initialize multi-repo workspace
 │       ├── fullstack-explore/   # Read-only knowledge exploration
+│       ├── fullstack-brief/     # Export context brief for web AI sessions
 │       ├── fullstack-propose/   # Plan a work item + validate unknowns
 │       ├── fullstack-apply/     # Implement a planned work item
 │       ├── fullstack-archive/   # Archive completed work items

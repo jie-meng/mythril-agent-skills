@@ -455,6 +455,25 @@
       "strict": false
     },
     {
+      "name": "fullstack-brief",
+      "source": "./plugins/fullstack-brief",
+      "description": "Export the full context of a fullstack workspace or single repo into one self-contained, AI-optimized Markdown brief for pasting into web AI sessions — with secret redaction and user-confirmed destination",
+      "version": "0.3.0",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "development",
+      "tags": [
+        "workspace",
+        "fullstack",
+        "context",
+        "brief",
+        "handoff"
+      ],
+      "strict": false
+    },
+    {
       "name": "fullstack-propose",
       "source": "./plugins/fullstack-propose",
       "description": "Propose a new work item across a multi-repo fullstack workspace — plan the approach, validate unknowns with a spike when needed, and write the work-tracking documents",
