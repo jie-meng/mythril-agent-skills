@@ -1,16 +1,17 @@
 ---
 name: fullstack-brief
 description: |
-  Export the complete context of a multi-repo fullstack workspace or a single
-  repo into ONE self-contained, AI-optimized Markdown brief. Purpose: paste it
-  into a web AI (ChatGPT, Claude.ai, Gemini) and continue architecture/design
-  discussions without the local CLI agent, saving local tokens. Pure text:
-  no local file or image references (paths appear as inline code text),
-  mermaid diagrams and internet links allowed. Two modes: workspace mode
-  writes into the docs repo docs directory, single-repo mode writes into
-  the repo docs directory (created if missing); destination path and
-  filename MUST be confirmed with the user before writing. Includes
-  mandatory secret-redaction rules.
+  Export the complete context of a multi-repo fullstack workspace, a single
+  repo, or any user-specified directory into ONE self-contained, AI-optimized
+  Markdown brief. Purpose: paste it into a web AI (ChatGPT, Claude.ai, Gemini)
+  and continue architecture/design discussions without the local CLI agent,
+  saving local tokens. Pure text: no local file or image references (paths
+  appear as inline code text), mermaid diagrams and internet links allowed.
+  Modes: workspace (writes into the docs repo docs directory), single-repo
+  (writes into the repo docs directory), or explicit — when the user names
+  a directory or subject, the user's instruction wins over auto-detection.
+  Destination path and filename MUST be confirmed with the user before
+  writing. Includes mandatory secret-redaction rules.
   Trigger: "fullstack brief", "context brief", "context handoff",
   "export context", "generate context doc", "brief me on this codebase",
   "导出上下文", "上下文简报", "生成简报", "上下文交接", "项目简报",
@@ -20,8 +21,9 @@ license: Apache-2.0
 
 # Fullstack Brief
 
-Export the knowledge of a multi-repo fullstack workspace (or a single repo)
-into **one self-contained Markdown brief** whose reader is another AI, not a
+Export the knowledge of a multi-repo fullstack workspace, a single repo, or a
+user-specified directory into **one self-contained Markdown brief** whose
+reader is another AI, not a
 human. The user pastes this file into a web AI session (ChatGPT, Claude.ai,
 Gemini, ...) and continues solution discussions there — instead of paying
 local CLI agent tokens for every message.
@@ -72,7 +74,26 @@ The output file will be pasted into THIRD-PARTY web services. Therefore:
    (Step 3), remind the user the file is meant to be pasted into
    third-party web AI services.
 
-## Step 0 — Scope Detection (MANDATORY SCRIPT CALL)
+## Step 0 — Determine Scope: User Override Wins, Then Auto-Detect
+
+### User override wins (honor the user first)
+
+If the prompt names an explicit scope, the user decides — never let
+auto-detection override the user's instruction:
+
+- **User names a specific directory** (absolute or workspace-relative path):
+  that directory IS the scope root. Run `detect_scope.py <dir>` to classify it:
+  - `SCOPE=workspace` → workspace mode rooted at the user's directory.
+  - `SCOPE=repo` → single-repo mode rooted there.
+  - `SCOPE=none` → explicit-directory mode: brief that folder as-is (a git
+    repo is NOT required). The user's directory becomes the scope.
+- **User names specific subjects/modules** ("只总结支付模块", "只讲订单
+  服务", "summarize only the auth service") → those subjects are the mandatory
+  Topic Focus AND the set of repos/modules to read; do not widen to the whole
+  default workspace.
+- **Default — no explicit scope** → run the auto-detection below.
+
+### Auto-detection (MANDATORY SCRIPT CALL)
 
 Run `detect_scope.py` the same way other fullstack skills run their gate
 scripts:
@@ -113,15 +134,17 @@ Decision logic:
 - `SCOPE=workspace` → workspace mode. If `DOCS_DIR` is empty (corrupt
   config), ask the user for the docs directory name before Step 3.
 - `SCOPE=repo` → single-repo mode.
-- `SCOPE=none` → STOP and tell the user: run this skill inside a git
-  repository, or at a workspace root initialized by `fullstack-init`.
+- `SCOPE=none` → if the user explicitly requested this scope, proceed in
+  explicit-directory mode (see "User override wins"). Otherwise STOP and tell
+  the user: run this skill on a git repo, or at a workspace root initialized
+  by `fullstack-init`.
 
 ### Announce the Scope contract (MANDATORY OUTPUT)
 
 After detection, output EXACTLY this line before continuing:
 
 ```
-Scope: <workspace|repo> | root=<ROOT> | docs_dir=<DOCS_DIR|->
+Scope: <workspace|repo|dir> | root=<ROOT> | docs_dir=<DOCS_DIR|->
 ```
 
 Use English regardless of conversation language — machine-readable marker.
@@ -182,6 +205,15 @@ Same as above minus cross-repo parts; the repo IS the scope. Detect
 monorepo layouts naturally (workspaces/packages dirs) and describe them as
 internal modules.
 
+### Explicit-directory mode
+
+The user-named directory IS the scope, repo or not. Apply the single-repo
+chain to it: enumerate its top-level entries (subdirs, key files) into the
+Module Map, read each submodule's entry points, and describe structure
+honestly — no framework jargon if none is present. If the folder sits inside
+a workspace, skip workspace-only sections (docs-dir changes, work items,
+cross-repo map) unless the user asked for them.
+
 ### Verification budget
 
 Read enough source to back every architecture claim with at least one real
@@ -193,10 +225,11 @@ the brief instead of guessing.
 Use this template. Section sizes adapt to depth; keep heading numbering.
 
 ```markdown
-# <Workspace or Repo Name> — Context Brief
+# <Workspace, Repo, or Directory Name> — Context Brief
 
 > Snapshot generated YYYY-MM-DD by fullstack-brief for use in an external
-> AI session. Scope: N repos @ <sha short> ... | single repo @ <sha>.
+> AI session. Scope: N repos @ <sha short> | single repo @ <sha> | explicit
+> dir <path>.
 > Self-contained: paths are quoted text, not live links. Code has evolved
 > since this snapshot — verify critical details against the repo when it matters.
 
@@ -215,7 +248,8 @@ Prose + ONE mermaid `graph TD/LR` of major components and boundaries
 
 ## 3. Repositories & Responsibilities
 | Repo | Role | Stack & versions | Key entry points |
-(For single-repo mode: "Module Map" with top-level modules instead.)
+(For single-repo or explicit-directory mode: "Module Map" with top-level
+entries instead.)
 
 ## 4. Key Flows
 2-4 mermaid `sequenceDiagram`/`flowchart` for the most important flows,
@@ -259,6 +293,9 @@ Propose the destination BEFORE writing anything:
   `<workspace-root>/<DOCS_DIR>/docs/<filename>.md`
 - Single-repo mode default: `<repo-root>/docs/<filename>.md`
   (create `docs/` if missing)
+- Explicit-directory mode default:
+  `<explicit-dir>/docs/<filename>.md` (create `docs/` if missing; when
+  unsure, ask the user for a destination)
 - Filename default: `context-brief-YYYY-MM-DD.md`, or
   `brief-<topic>-YYYY-MM-DD.md` when a topic was given
   (lowercase-hyphenated English).

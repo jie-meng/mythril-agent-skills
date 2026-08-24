@@ -266,7 +266,7 @@ Read-only knowledge exploration across a multi-repo fullstack workspace. Answer 
 
 **[Fullstack Brief](./mythril_agent_skills/skills/fullstack-brief/)**
 
-Export the complete context of a workspace or single repo into ONE self-contained, AI-optimized Markdown brief — paste it into a web AI session (ChatGPT, Claude.ai, Gemini) and continue solution discussions there without paying local CLI tokens. Mermaid diagrams allowed; no local file/image references; mandatory secret redaction; destination confirmed before writing.
+Export the complete context of a workspace, single repo, or user-specified directory into ONE self-contained, AI-optimized Markdown brief — paste it into a web AI session (ChatGPT, Claude.ai, Gemini) and continue solution discussions there without paying local CLI tokens. Mermaid diagrams allowed; no local file/image references; mandatory secret redaction; destination confirmed before writing. If you name a directory or subject, that wins over auto-detection.
 
 - **Try:** Export a context brief so I can discuss this on ChatGPT
 - **Deps:** A git repo or a workspace initialized by `fullstack-init`
@@ -426,7 +426,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `story-point-estimate` | Estimate effort using Fibonacci story points — any input, CFR coverage, buffer strategy, XLSX output |
 | `fullstack-init` | Initialize multi-repo fullstack workspace with AI context |
 | `fullstack-explore` | Read-only knowledge exploration across a fullstack workspace |
-| `fullstack-brief` | Export workspace/repo context into one AI-optimized brief for web AI sessions |
+| `fullstack-brief` | Export workspace/repo/user-specified directory context into one AI-optimized brief for web AI sessions |
 | `fullstack-propose` | Plan a work item with Success Criteria; validate unknowns (spike) |
 | `fullstack-apply` | Implement a planned work item across a fullstack workspace |
 | `fullstack-archive` | Archive completed work items into changes/archive/ |

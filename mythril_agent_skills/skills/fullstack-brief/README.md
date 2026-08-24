@@ -1,7 +1,8 @@
 # fullstack-brief
 
-Export the complete context of a multi-repo fullstack workspace (or a single
-repo) into **one self-contained, AI-optimized Markdown brief**.
+Export the complete context of a multi-repo fullstack workspace, a single
+repo, or any user-specified directory into **one self-contained, AI-optimized
+Markdown brief**.
 
 ## Why
 
@@ -33,6 +34,7 @@ secret-redaction pass runs before anything is written.
 |------|-----------|-----------------|
 | Workspace | `fullstack.json` + `AGENTS.md` + `.agents/` | `<docs-dir>/docs/<name>.md` |
 | Single repo | `.git` present, no workspace markers | `<repo>/docs/<name>.md` |
+| Explicit dir | user names a directory/subject (wins over detection) | `<dir>/docs/<name>.md` |
 
 The destination path and filename are always confirmed with the user before
 writing. Depth (`quick` / `standard` / `deep`) controls size budget;
@@ -47,6 +49,7 @@ Trigger phrases: "fullstack brief", "export context", "context handoff",
 fullstack brief                          # standard depth, whole scope
 fullstack brief 深入 支付模块             # deep, focused on payments
 quick context brief for this repo        # quick, single repo
+brief ./backend besides payments auth    # explicit directory scope (user's pick wins)
 ```
 
 ## Requirements

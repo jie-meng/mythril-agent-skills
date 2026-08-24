@@ -457,7 +457,7 @@
     {
       "name": "fullstack-brief",
       "source": "./plugins/fullstack-brief",
-      "description": "Export the full context of a fullstack workspace or single repo into one self-contained, AI-optimized Markdown brief for pasting into web AI sessions — with secret redaction and user-confirmed destination",
+      "description": "Export the full context of a fullstack workspace, single repo, or user-named directory into one self-contained, AI-optimized Markdown brief for pasting into web AI sessions — user-specified scope wins over auto-detection, with secret redaction and user-confirmed destination",
       "version": "0.3.0",
       "author": {
         "name": "Jie Meng"
