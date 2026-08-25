@@ -1,0 +1,21 @@
+README.zh-CN.md
+  s_d1ab3ea2c294ad::t_d425f73fafa160 7,600
+README.md
+  s_d1ab3ea2c294ad::t_5242ad1219d176 9,608
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "ff1fdf865623754b3a591b851ff180c177bf71e6",
+  "prompts": {},
+  "sessions": {
+    "s_d1ab3ea2c294ad": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0369f-f4ac-73ea-b5c4-9b5a21953b7e",
+        "model": "hy3-free"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
