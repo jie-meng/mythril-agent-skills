@@ -1,0 +1,22 @@
+AGENTS.md
+  h_e0538e51a4c5ef 5,153-156
+README.md
+  h_e0538e51a4c5ef 9,605-609
+README.zh-CN.md
+  h_e0538e51a4c5ef 7,597-601
+mythril_agent_skills/cli/skills_cleanup.py
+  h_e0538e51a4c5ef 38
+mythril_agent_skills/cli/skills_setup.py
+  h_e0538e51a4c5ef 54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "1f309e5ccf236f29e6d4f1e02e979e5562f0dc2b",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
