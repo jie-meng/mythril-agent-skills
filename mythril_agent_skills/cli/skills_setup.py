@@ -51,6 +51,7 @@ TOOLS: list[tuple[str, str, str]] = [
     ("Cline", ".cline", "skills"),
     ("Grok CLI", ".grok", "skills"),
     ("OpenClaw", ".openclaw", "skills"),
+    ("OpenSquilla", ".opensquilla", "skills"),
     ("Hermes", ".hermes", "skills"),
     ("Pi/DSH", ".agents", "skills"),
 ]

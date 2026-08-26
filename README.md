@@ -6,7 +6,7 @@
 
 English | [中文](./README.zh-CN.md)
 
-A unified skill management system for multi-agent AI coding assistants. This toolkit (distributed as a Python package) provides a curated collection of reusable skills plus centralized CLI commands to install, configure, and maintain them across Github Copilot, Claude Code, Cursor, Codex, Gemini CLI, Cline, OpenClaw, Hermes, CodeBuddy, and Pi/DSH (DeepSeek Harness).
+A unified skill management system for multi-agent AI coding assistants. This toolkit (distributed as a Python package) provides a curated collection of reusable skills plus centralized CLI commands to install, configure, and maintain them across Github Copilot, Claude Code, Cursor, Codex, Gemini CLI, Cline, OpenClaw, OpenSquilla, Hermes, CodeBuddy, and Pi/DSH (DeepSeek Harness).
 
 ## What is a Skill?
 
@@ -602,10 +602,11 @@ All config directories are relative to the user home directory (`~` on macOS/Lin
 | 7 | Opencode | `~/.config/opencode/skills/` |
 | 8 | Grok CLI | `~/.grok/skills/` |
 | 9 | OpenClaw | `~/.openclaw/skills/` |
-| 10 | Hermes | `~/.hermes/skills/` |
-| 11 | CodeBuddy | `~/.codebuddy/skills/` |
-| 12 | Cline | `~/.cline/skills/` |
-| 13 | Pi/DSH | `~/.agents/skills/` |
+| 10 | OpenSquilla | `~/.opensquilla/skills/` |
+| 11 | Hermes | `~/.hermes/skills/` |
+| 12 | CodeBuddy | `~/.codebuddy/skills/` |
+| 13 | Cline | `~/.cline/skills/` |
+| 14 | Pi/DSH | `~/.agents/skills/` |
 
 ### Cleanup installed skills
 

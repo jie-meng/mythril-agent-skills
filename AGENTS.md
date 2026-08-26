@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**mythril-agent-skills** is a pip-installable package of reusable skills for AI coding assistants (Github Copilot, Claude Code, Cursor, Codex, Gemini CLI, Qwen CLI, Opencode, Cline, Grok CLI, OpenClaw, Hermes). Each skill is a self-contained directory with a `SKILL.md` that defines its metadata, triggering description, and instructions.
+**mythril-agent-skills** is a pip-installable package of reusable skills for AI coding assistants (Github Copilot, Claude Code, Cursor, Codex, Gemini CLI, Qwen CLI, Opencode, Cline, Grok CLI, OpenClaw, OpenSquilla, Hermes). Each skill is a self-contained directory with a `SKILL.md` that defines its metadata, triggering description, and instructions.
 
 Tech Stack:
 - **Primary Language**: Python 3.10+
@@ -150,9 +150,10 @@ All config directories are relative to the user home directory (`~` on macOS/Lin
 | 7 | Opencode | `~/.config/opencode/` | `~/.config/opencode/skills/` |
 | 8 | Grok CLI | `~/.grok/` | `~/.grok/skills/` |
 | 9 | OpenClaw | `~/.openclaw/` | `~/.openclaw/skills/` |
-| 10 | Hermes | `~/.hermes/` | `~/.hermes/skills/` |
-| 11 | Cline | `~/.cline/` | `~/.cline/skills/` |
-| 12 | Pi / DeepSeek Harness | `~/.agents/` | `~/.agents/skills/` |
+| 10 | OpenSquilla | `~/.opensquilla/` | `~/.opensquilla/skills/` |
+| 11 | Hermes | `~/.hermes/` | `~/.hermes/skills/` |
+| 12 | Cline | `~/.cline/` | `~/.cline/skills/` |
+| 13 | Pi / DeepSeek Harness | `~/.agents/` | `~/.agents/skills/` |
 
 `~/.agents/skills/` is the cross-tool shared Agent Skills convention directory (agentskills.io) — read by DeepSeek Harness (`dsh`), DeepSeek Deep Code, Pi, OpenClaw, Cline, Kimi Code CLI, Warp, Zed, and others. Skills installed there are visible to every compliant tool.
 
