@@ -1,0 +1,30 @@
+mythril_agent_skills/shared/waves/compute_waves.py
+  h_e0538e51a4c5ef 1-318
+mythril_agent_skills/skills/fullstack-apply/SKILL.md
+  h_e0538e51a4c5ef 5-12,36-42,231,237,239-244,246-278,292-294,296-297,302-315,317-398,400-438,441-442,444,446-452,454-455,469-484,488-493,531-537,583-585,809-810,834-836,841-843,849-851,877-890
+mythril_agent_skills/skills/fullstack-apply/references/document-templates.md
+  h_e0538e51a4c5ef 64-69,121-124
+mythril_agent_skills/skills/fullstack-apply/scripts/compute_waves.py
+  h_e0538e51a4c5ef 1-318
+mythril_agent_skills/skills/fullstack-propose/SKILL.md
+  h_e0538e51a4c5ef 250-268,391-415,430-431,462-465
+mythril_agent_skills/skills/fullstack-propose/references/document-templates.md
+  h_e0538e51a4c5ef 64-69,121-124
+mythril_agent_skills/skills/fullstack-propose/scripts/compute_waves.py
+  h_e0538e51a4c5ef 1-318
+scripts/sync-shared-assets.py
+  h_e0538e51a4c5ef 108-127
+tests/test_compute_waves.py
+  h_e0538e51a4c5ef 1-243
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "f440ddc88ee0a8b813d4e9d6c63c86de77d99c5a",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
