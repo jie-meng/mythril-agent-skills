@@ -2,13 +2,14 @@
 name: fullstack-apply
 description: |
   Implement a planned work item across a multi-repo fullstack workspace —
-  implement per repo in dependency order, run staged and cross-repo
-  reviews against the plan's Success Criteria, create PRs, and finalize
-  the four work-tracking documents. Input is a work directory produced
-  by fullstack-propose; no planning happens here. Stays sticky on an
-  active work item: follow-up edits driven by user feedback, error
-  logs, manual testing, or bug reports run the same review loop even
-  when the user does not re-mention the skill.
+  implement repos in dependency-order waves (independent repos are
+  developed, reviewed, and committed in parallel; dependents wait), run
+  staged and cross-repo reviews against the plan's Success Criteria,
+  create PRs, and finalize the four work-tracking documents. Input is
+  a work directory produced by fullstack-propose; no planning happens
+  here. Stays sticky on an active work item: follow-up edits driven by
+  user feedback, error logs, manual testing, or bug reports run the
+  same review loop even when the user does not re-mention the skill.
   Trigger: "fullstack implement", "fullstack develop", "fullstack impl",
   "全栈实现", "全栈开发", "全栈 impl", "implement this plan",
   "实现这个方案"; ALSO on follow-up edit/fix in an active work dir —
@@ -32,10 +33,13 @@ created by `fullstack-propose`:
 └── review.md     # review findings + Evidence table
 ```
 
-This skill implements the plan, repo by repo in dependency order,
-reviews the changes against the plan's Success Criteria, opens PRs, and
-finalizes the documents. It does NOT plan — if no work directory
-exists for the request, tell the user to run `fullstack-propose` first.
+This skill implements the plan in dependency-order waves — repos with
+no mutual dependencies run their develop → review → commit cycles in
+parallel, while dependent repos wait for upstream commits. It then
+reviews the changes against the plan's Success Criteria (a single
+cross-repo review after the final wave), opens PRs, and finalizes the
+documents. It does NOT plan — if no work directory exists for the
+request, tell the user to run `fullstack-propose` first.
 
 ## How this skill is organized
 
@@ -224,24 +228,54 @@ The `<docs-dir>/` repo is an independent git repo for work tracking
 docs. All work tracking documents are committed directly to its main
 branch. Do NOT create feature branches in the docs repo.
 
-## Step 4 — Implement (serial per-repo with subagent delegation)
+## Step 4 — Implement (dependency-wave parallel delegation)
 
 You are the **orchestrator**. Manage the high-level flow, confirm
 decisions with the user, and delegate detail work to subagents. Do NOT
 try to "become" the developer or reviewer — delegate to them.
 
-Implementation follows **serial per-repo** order from `plan.md`. For each
-repo, delegate to the **developer** subagent, then to the **reviewer**
-subagent. This is the default — even when repos appear independent.
+### The wave model
 
-**Why serial:**
-1. Cross-repo dependencies are the norm (shared types → API → consumers).
-2. Context accumulates — repo A's implementation informs repo B's.
-3. Serial audit trail is cleaner for debugging failures.
+Implementation is organized into **waves** computed from the plan's
+`Affected Repositories` table (`Depends On` column). Repos in the same
+wave share no dependency edges; each runs its full
+develop → review → commit cycle **in parallel** with its wave
+siblings. A wave is a barrier: the next wave starts only when every
+repo in the current wave has committed.
 
-**Exception — truly independent repos**: If the planner confirmed ZERO
-shared interfaces and ZERO dependency edges in `plan.md`, repos MAY be
-delegated in parallel. When in doubt, default to serial.
+```text
+plan DAG:   shared-lib ← api ← web
+                        api ← android
+
+Wave 1:  shared-lib                (no deps)
+             │ commit + gate
+Wave 2:  api                       (deps committed)
+             │ commit + gate
+Wave 3:  web ∥ android             (mutually independent → parallel)
+             │ all committed
+Step 5:  ONE cross-repo review     (the single global barrier)
+```
+
+**Why waves instead of strict serial:** dependency order is respected
+where it exists (downstream compilation/tests need upstream code), but
+repos the planner already analyzed as independent stop paying each
+other's latency. The plan's `Depends On` column IS the parallelization
+decision — made at planning time, honored mechanically here.
+
+**Quality invariants that do NOT change with parallelism** (parallelism
+changes *when* work happens, never *whether* checks happen):
+
+1. Every repo still gets staged review before its own commit.
+2. Downstream work never sees unverified upstream code — the wave gate
+   releases dependents only after upstream commits.
+3. The cross-repo consistency review (Step 5) still sees ALL repos'
+   final diffs together, once, after everything is done.
+4. Success Criteria gate, Mermaid gate, four-file consistency: untouched.
+
+**Degeneration property:** a fully-chained plan produces waves of size
+1 → behavior identical to serial implementation. Wave width = degree of
+parallelism; there is no case where the wave model is less safe than
+serial, only faster when width > 1.
 
 ### Agent roles and boundaries
 
@@ -255,108 +289,170 @@ delegated in parallel. When in doubt, default to serial.
 
 **Key rules:**
 - Only the **orchestrator writes files** from subagent output. Subagents
-  return structured results; you write them to the work directory.
+  return structured results; you write them to the work directory. This
+  single-writer rule is what makes parallel delegation safe — parallel
+  developers never share mutable state.
 - The **reviewer is invoked for BOTH** per-repo review and cross-repo
-  review. One reviewer, two modes.
+  review. One reviewer role, two modes; per-repo reviewers run as
+  separate parallel instances.
 - The **developer** handles implementation + validation per repo and
   returns results. You don't write code in the main agent.
 - If a repo has its own `.agents/agents/` (repo-level agents), prefer
   them for that repo's concerns — pass them the same context and delegate.
+- **One repo, one agent at a time.** Never delegate two agents into the
+  same repository concurrently — even a read-only reviewer overlapping a
+  developer risks racing git index state./repos are the unit of isolation.
 
-### Per-repo implementation loop
+### Wave computation — MANDATORY SCRIPT CALL
 
-For each affected repository, in the dependency order from `plan.md`:
+Do NOT layer repos by eyeballing the table — transitive dependencies and
+cycles are silent failure modes when judged by eye. Immediately after
+Step 3's branch confirmation, run `compute_waves.py` from this skill's
+bundled `scripts/` directory on the work directory:
 
-#### 4a. Read repo conventions
+```bash
+python3 SKILL_PATH/scripts/compute_waves.py <docs-dir>/changes/<type>/<work-name>
+```
 
-1. **Read `AGENTS.md`** (if it exists) — coding style, commit format,
-   architecture constraints. MANDATORY to follow.
-2. **Read `README.md`** — build / test / lint commands, environment setup.
-3. **Check for repo-level agents** at `<repo>/.agents/agents/` — if the
-   repo has specialized agents, prefer them for that repo's changes.
-4. **Check for `graphify-out/`** — run
-   `python3 SKILL_PATH/scripts/graphify_check.py <repo>` to check.
-   When `graphify-out/` exists, `cd` into the repo and you MUST use
-   `graphify query "<question>"` to understand the codebase before
-   reading individual files.
-5. **Determine the repo's test harness** — language-agnostic, based on
-   evidence in the repo. Identification order:
-   1. **README.md / AGENTS.md** — if either documents how to run tests
-      (`pytest` / `go test` / `npm test` / `cargo test` / `mix test` /
-      `dotnet test` / `bundle exec rspec` / …), that is the test
-      command. When both files exist, `AGENTS.md` wins over `README.md`.
-   2. **Directory structure** — if neither file documents a test
-      command, look for a conventional test layout for the repo's actual
-      stack (e.g. `test*/`, `spec/`, `__tests__/`, `tests/`, `*_test.*`,
-      `*.spec.*`). A conventional layout implies tests exist — but their
-      run command still comes from step 1; if it is not documented
-      anywhere, treat the repo as having tests **that can't be run
-      reliably**, and record that.
-   3. **No evidence** — neither file mentions tests and no conventional
-      test layout exists → classify the repo as **no-test**. You will
-      not fabricate a test harness, but the flow MUST state this
-      explicitly so untested code is never treated as verified.
+Output is machine-readable:
 
-#### 4b. Delegate to developer subagent
+| Output | Meaning | Action |
+|--------|---------|--------|
+| `REPOS=<n>` / `WAVES=<k>` / `WAVE_i=a,b` | Layered plan | Announce waves to the user, then implement per wave |
+| `ERROR_NO_REPOS_TABLE=…` | plan.md missing/broken repositories table | STOP — send back to fullstack-propose |
+| `CYCLE_REPOS=a,b,…` | Dependency cycle in the plan | STOP — cycles cannot be ordered; replan via fullstack-propose |
+| `ERROR_UNKNOWN_DEP=repo: ghost` | Depends On references a repo not in the table | STOP — incomplete table; fix the plan first |
+| `ERROR_DUPLICATE_REPO=x` / `ERROR_SELF_DEPENDENCY=x` | Malformed rows | STOP — fix the plan first |
 
-Provide the developer subagent with:
-- `plan.md` — the implementation plan
-- `analysis.md` — technical context
-- The repo's `AGENTS.md` and `README.md`
-- The repo's branch name and dependency order context
-- Any graphify query results
+Any `ERROR_*` or `CYCLE_REPOS` output is a hard stop: the plan's DAG is
+the contract every later step trusts. Re-run fullstack-propose for that
+work item before applying. Do NOT hand-patch the ordering yourself.
 
-The developer subagent will:
-1. Set up the repo environment (venv, nvm, etc.)
-2. Implement the changes following repo conventions
-3. Run lint → type-check → tests → build, **limited to what the repo
+Announce the computed waves to the user together with the Step 2
+confirmation, e.g.:
+
+```
+Wave plan (from plan.md dependency table):
+  Wave 1: shared-lib
+  Wave 2: api                (waits for shared-lib commit)
+  Wave 3: web ∥ android      (parallel — no mutual deps)
+```
+
+### Per-wave implementation loop
+
+For each wave, in order (`WAVE_1`, then `WAVE_2`, …):
+
+#### 4a. Assemble self-contained per-repo briefs
+
+Before delegating, build one **brief per repo** so each developer
+subagent can work without asking you follow-up questions. Each brief is
+a slice of the plan, not the whole thing:
+
+- The repo's row from the `Affected Repositories` table + its tasks
+  from `plan.md`
+- The Success Criteria that THIS repo's evidence will prove
+- The relevant sections of `analysis.md` (design decisions, contracts,
+  target architecture)
+- For consumers: the **frozen contract** from `analysis.md` for every
+  upstream interface it integrates with (field names, types, error
+  codes). Frozen means downstream code targets exactly these names —
+  not whatever upstream happened to write on the day.
+- The repo's branch name and its wave position ("wave N of k")
+- Work-dir path and where progress/review updates go (return them —
+  you, the orchestrator, write the files)
+
+Do NOT paste the whole four documents into every brief — parallel
+developers duplicate context cheaply, and unfocused briefs are how
+parallel agents drift out of scope.
+
+#### 4b. Delegate developer subagents — all repos of a wave in parallel
+
+In ONE turn, delegate every repo of the current wave to its developer
+subagent (they own disjoint repositories — there is nothing to race
+on). If the host runs delegates serially despite the single-turn fan
+out, they still run in wave order — correctness is unaffected; only
+wall-clock time changes.
+
+Each developer subagent MUST, inside its own repo:
+
+1. **Read repo conventions first**: `AGENTS.md` (coding style, commit
+   format, architecture constraints — MANDATORY), then `README.md`
+   (build / test / lint commands). When both document tests,
+   `AGENTS.md` wins over `README.md`.
+2. **Check for repo-level agents** at `<repo>/.agents/agents/` — if the
+   repo has specialized agents, defer internal details to them.
+3. **Check for `graphify-out/`** — run
+   `python3 SKILL_PATH/scripts/graphify_check.py <repo>`. When present,
+   the developer MUST use `graphify query "<question>"` to understand
+   the codebase before reading individual files.
+4. **Determine the repo's test harness** — language-agnostic:
+   1. **README.md / AGENTS.md** documents how to run tests (`pytest` /
+      `go test` / `npm test` / `cargo test` / `mix test` / `dotnet
+      test` / `bundle exec rspec` / …) → that is the command.
+   2. Conventional test layout exists (`test*/`, `spec/`,
+      `__tests__/`, `tests/`, `*_test.*`, `*.spec.*`) but no documented
+      command → tests exist but can't be run reliably; record that.
+   3. No evidence at all → classify **no-test**.
+5. Set up the repo environment (venv, nvm, etc.)
+6. Implement the changes following repo conventions and the brief.
+7. Run lint → type-check → tests → build, **limited to what the repo
    supports.** If a test command is documented, run it and report what
-   ran and whether it passed. If the repo has a conventional test layout
-   but no documented run command, do NOT guess a command — return
-   `tests: unknown (no run command documented)`. Only when the repo has
-   no tests at all, return `tests: none`. Never invent or run a guessed
-   test command.
-4. Stage all changes (`git add .`)
-5. Return: summary of changes, test run result (`tests: passed` /
-   `tests: failed` / `tests: unknown` / `tests: none`), and a
-   recommended commit message
+   ran and whether it passed. Never invent or run a guessed test
+   command — see 4c for reporting codes.
+8. Do NOT start long-running dev servers or listen on ports — parallel
+   siblings would collide.
+9. Stage all changes (`git add .`)
+10. Return: summary of changes, test result code (`tests: passed` /
+    `tests: failed` / `tests: unknown (no run command documented)` /
+    `tests: none`), any deviation from the frozen contract it observed
+    upstream, and a recommended commit message
 
-#### 4c. Handle developer output
+#### 4c. Handle developer output — failure isolation
 
-1. **Tests ran and passed** → record the result in `progress.md`.
-2. **Tests ran and failed** → send back to the developer with the
-   failure details until passing. Do not skip to the next repo with
-   broken tests (see Error Handling below).
-3. **Tests exist but no run command documented** (developer returned
-   `tests: unknown`) → record an explicit `tests: unknown (no run
-   command in <repo> README/AGENTS)` note in `progress.md`, and flag it
-   in the review so the gap is visible — these tests weren't executed.
-   Mention the gap to the user in the final report and offer to add the
-   test run command to the repo's `AGENTS.md` — but never edit any repo
-   document yourself without the user's explicit approval.
-4. **No tests at all** (developer returned `tests: none`) → record an
-   explicit `tests: none (<repo> has no test harness)` note in the
-   `progress.md` entry. Untested code must never pass silently.
-5. If implementation complete → write the summary to `progress.md`.
-6. Proceed to staged review.
+Handle each repo's output as it returns; never block healthy siblings
+on a broken one:
 
-#### 4d. Per-repo staged review — delegate to reviewer subagent
+1. **Tests ran and passed** → record in `progress.md`, proceed to 4d.
+2. **Tests ran and failed** → send THAT repo back to ITS developer
+   with the failure details until passing. The fix loop is scoped to
+   the failing repo; other repos of the wave continue untouched. A red
+   repo does NOT release its dependents (see the wave gate in 4e).
+3. **Tests exist but no run command documented** (`tests: unknown`) →
+   record an explicit `tests: unknown (no run command in <repo>
+   README/AGENTS)` note in `progress.md`, flag it in review so the gap
+   is visible — these tests weren't executed. Mention the gap in the
+   final report and offer to add the test run command to the repo's
+   `AGENTS.md` — but never edit any repo document yourself without the
+   user's explicit approval.
+4. **No tests at all** (`tests: none`) → record an explicit
+   `tests: none (<repo> has no test harness)` note in `progress.md`.
+   Untested code must never pass silently.
+5. Write each completed summary to `progress.md`, then proceed to
+   staged review for that repo.
 
-After the developer has staged changes in a repo, delegate to the
-**reviewer** subagent for per-repo staged review:
+#### 4d. Per-repo staged review — delegate to a reviewer subagent per repo
+
+As soon as a developer has staged changes in a repo, delegate to a
+**reviewer** subagent for that repo's staged review — reviewers of
+different repos run as parallel instances and never wait for each
+other:
 
 1. Provide the reviewer with: `plan.md` (especially Success Criteria),
-   `analysis.md`, `progress.md`, and the staged diff
-   (`git diff --cached` in the repo).
+   `analysis.md`, `progress.md`, the same frozen-contract sections from
+   4a, and the staged diff (`git diff --cached` in the repo).
 2. The reviewer returns findings in P0/P1/P2 format with a verdict
-   (PASS / PASS_WITH_RISKS / NEEDS_FIXES / FAIL).
+   (PASS / PASS_WITH_RISKS / NEEDS_FIXES / FAIL), scoped to its repo.
 3. You append the reviewer's output to `review.md`.
-4. **If NEEDS_FIXES**: send the P0/P1 items back to the developer
-   subagent. Developer fixes → re-validates (lint/test/build) → stages
-   (`git add .`). Then invoke reviewer again. Max 3 rounds total.
-5. **If PASS**: proceed to commit.
+4. **If NEEDS_FIXES**: send the P0/P1 items back to THAT repo's
+   developer subagent. Developer fixes → re-validates (lint/test/build)
+   → stages (`git add .`). Then invoke its reviewer again. Max 3 rounds
+   total, tracked per repo.
+5. **If PASS**: proceed to commit for that repo.
 
-#### 4e. Commit per repo
+#### 4e. Commit per repo, then the wave gate
+
+Commit each repo individually as it passes review (do not hold a green
+repo hostage to a red sibling):
 
 ```bash
 cd <repo-dir>
@@ -370,13 +466,31 @@ git commit -m "<message>"
 - Run `python3 SKILL_PATH/scripts/graphify_check.py <repo>` — if
   `graphify-out/` exists, `cd` into the repo and run `graphify update`.
 
-Proceed to the next repo, or to Step 5 if all repos are done.
+**Wave gate — before releasing wave N+1**, verify ALL of the following.
+This is where the harness refuses downstream work on unproven upstream
+code:
+
+1. Every repo of wave N is committed (not merely staged or "done"
+   according to an agent's say-so).
+2. Any frozen contract items belonging to wave-N repos were compared
+   against what was actually implemented: if upstream drifted from the
+   contract (renamed field, changed type, different error code), fix
+   upstream NOW via its dev→review loop, or freeze the actual shape as
+   an explicit contract amendment recorded in `analysis.md` — do NOT
+   let downstream guess which one applies.
+3. Downstream briefs are refreshed with any amended contracts before
+   their developers start.
+
+After the final wave's gate passes → proceed to Step 5.
 
 ## Step 5 — Cross-Repo Consistency Review (multi-repo only)
 
-Skip this step for single-repo work. For multi-repo, delegate to the
-**reviewer** subagent in cross-repo mode to verify changes are consistent
-across all affected repos.
+Skip this step for single-repo work. For multi-repo, this is **the one
+global barrier** of the whole implementation: after the final wave's
+gate, delegate to the **reviewer** subagent in cross-repo mode to
+verify changes are consistent across all affected repos. Per-repo
+staged reviews (4d) never substitute for it — each saw only its own
+diff; integration defects live between diffs.
 
 ### 5a. Collect cross-repo context
 
@@ -414,10 +528,13 @@ checked.
 ### 5d. Fix cross-repo issues
 
 If P0/P1 cross-repo issues are found:
-1. Fix upstream repo first, then downstream.
-2. For each repo needing fixes, go through the developer → reviewer loop
-   again (Steps 4b through 4e).
-3. Re-run cross-repo review.
+1. Fix upstream repo first, then downstream (topological order — the
+   wave plan from Step 4 is the order).
+2. For each repo needing fixes, go through its scoped developer →
+   reviewer loop again (Steps 4b through 4e). Fixes to MUTUALLY
+   INDEPENDENT repos may fan out in parallel, exactly like a normal
+   wave.
+3. Re-run the cross-repo review after all fix repos pass.
 4. Max 2 fix rounds — if issues persist, record as residual.
 
 ## Step 6 — Create Pull Requests (only when github_repos=true)
@@ -463,7 +580,9 @@ line, and apply the table above.
 
 ### Per-repo PR creation
 
-For each affected code repo (in dependency order):
+PR creation is per-repo with no cross-repo interaction — create the PRs
+for all affected repos in parallel (or sequentially when the host
+runs one command at a time). For each repo:
 
 1. `cd` into the repo directory
 2. Push the branch if not already pushed: `git push -u origin HEAD`
@@ -687,7 +806,8 @@ directory:
 
 1. Read the four documents to understand current state.
 2. Determine which repos/files are affected.
-3. For each repo: developer → reviewer loop (Steps 4b–4e).
+3. Re-run `compute_waves.py` on the affected repos, then run the same
+   wave loop: parallel developer → reviewer cycles (Steps 4a–4e).
 4. Update `progress.md` (new dated entry) and `review.md` (new review
    round) after each edit.
 5. Update `plan.md` Success Criteria if scope genuinely changed (with
@@ -711,19 +831,24 @@ When the user references an existing work directory:
 3. Verify branches still exist in the affected repos.
 4. If repos are already on the correct branch, skip checkout.
 5. Re-enter from the last incomplete step recorded in `progress.md`.
+   Waves still apply on resume: recompute waves with `compute_waves.py`
+   and resume per wave — a partially completed wave reruns only its
+   unfinished repos.
 
 ## Error Handling
 
 - **Test failures**: Fix test failures caused by your changes before
-  moving to the next repo. Re-run tests in the correct environment
-  (venv, nvm, etc.) until they pass. Do not skip to the next repo with
-  broken tests.
+  committing that repo (scoped dev→review loop, 4c). Never commit a red
+  repo, and never release its dependents — but do not block sibling
+  repos of the same wave from finishing their own cycles.
 - **Environment issues**: If a venv is missing, node version is wrong,
   or dependencies can't be installed, check the repo's README for setup
   instructions. If setup fails, note in `progress.md` and ask.
 - **Cross-repo contract mismatch**: If a downstream repo's tests fail
   because an upstream repo's API changed unexpectedly, go back and fix
-  the upstream repo first, then re-validate downstream.
+  the upstream repo first, then re-validate downstream. Prevent this
+  class of bug upstream of apply by freezing contracts in the plan
+  (fullstack-propose) and at every wave gate (4e).
 - **Pre-existing failures**: Document pre-existing failures in
   `progress.md` but do not block on them.
 - **Unexpected blockers**: Update `progress.md` with details and ask the
@@ -749,6 +874,20 @@ When the user references an existing work directory:
 - The four documents and Success Criteria gate are mandatory — do not
   finalize with unmet criteria silently dropped.
 - Only the orchestrator writes files from subagent output.
+- Waves come from the script, not from judgment: always derive wave
+  order via `compute_waves.py`; on any structural error (cycle,
+  unknown/duplicate/self dependency) STOP and send the work item back
+  to fullstack-propose instead of hand-ordering.
+- Parallelism only between repos with no dependency path between them;
+  a dependent repo starts strictly after its upstream commits pass the
+  wave gate. One repo is never worked by two agents concurrently.
+- Every repo keeps its own staged review before commit, regardless of
+  parallelism; a red repo never releases its dependents but also never
+  blocks independent siblings.
+- The cross-repo consistency review runs ONCE over all repos' final
+  diffs — per-repo reviews do not substitute for it.
+- Subagents must not start long-running servers or occupy ports during
+  parallel waves.
 - The docs repo does NOT use feature branches.
 - Never reopen an archived work directory; successors are new `-vN`
   work items via `fullstack-propose`.

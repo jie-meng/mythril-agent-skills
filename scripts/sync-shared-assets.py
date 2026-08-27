@@ -105,6 +105,26 @@ def specs() -> list[SyncSpec]:
         )
     )
 
+    # --- shared/waves/compute_waves.py → <skill>/scripts/compute_waves.py
+    # Canonical dependency-wave calculator for the fullstack family:
+    # apply layers repos into parallel waves; propose validates the
+    # plan's DAG at authoring time.
+    waves_consumers = (
+        "fullstack-apply",
+        "fullstack-propose",
+    )
+    waves_source = SHARED_ROOT / "waves" / "compute_waves.py"
+    out.append(
+        SyncSpec(
+            source=waves_source,
+            targets=tuple(
+                SKILLS_ROOT / skill / "scripts" / "compute_waves.py"
+                for skill in waves_consumers
+            ),
+            description="dependency-wave calculator script",
+        )
+    )
+
     return out
 
 

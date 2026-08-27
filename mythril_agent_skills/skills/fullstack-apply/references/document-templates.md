@@ -61,7 +61,12 @@ B, C" is. Each criterion is checked against evidence in review.md.>
 
 Repos MUST be listed in dependency order: upstream first (shared libs,
 data models), then services (api, backend), then consumers (web, ios,
-android). The implementation phase follows this exact order.
+android). fullstack-apply derives its parallel implementation waves
+from this table — repos sharing no dependency edge are developed and
+committed concurrently. Every interface a downstream repo consumes
+MUST be frozen in analysis.md (exact field names, types, error codes):
+parallel developers write against the frozen contract, not against
+upstream code that may not exist yet.
 
 ## Implementation Plan
 
@@ -113,7 +118,10 @@ android). The implementation phase follows this exact order.
 | 3 | android | feat/MOBILE-301/Dark-Mode-Toggle | 添加切换页面 | shared-lib, api | P1 |
 
 仓库必须按依赖顺序列出：上游优先（共享库、数据模型），然后是服务层
-（api、backend），最后是消费者（web、ios、android）。实现阶段严格按此顺序。
+（api、backend），最后是消费者（web、ios、android）。fullstack-apply
+依据本表推导并行波次——无依赖边交叉的仓库会同时开发与提交。所有被下
+游消费的跨仓接口必须在 analysis.md 中冻结（精确字段名、类型、错误码）：
+并行开发者以冻结契约为准，而非可能尚未实现的上游代码。
 
 ## 实现计划
 

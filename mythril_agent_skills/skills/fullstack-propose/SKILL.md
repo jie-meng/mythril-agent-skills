@@ -247,6 +247,25 @@ The planner must include testable **Success Criteria** in `plan.md` —
 not subjective ones. "Works correctly" is not a criterion; "returns 200
 with valid JSON matching schema X for inputs A, B, C" is.
 
+**Freeze cross-repo contracts (MANDATORY for multi-repo plans).** The
+`Depends On` column of the repositories table is a promise consumed by
+two later steps:
+
+1. `fullstack-apply` derives its parallel execution waves from it —
+   repos that share no dependency edge are developed, reviewed, and
+   committed concurrently.
+2. Downstream developers write code against the interfaces you freeze
+   here — while their upstream is still being implemented in parallel.
+
+Therefore, every interface that crosses a dependency edge MUST be
+frozen in `analysis.md` under explicit contract entries: endpoint /
+function signatures with exact field names and types, error codes,
+shared type definitions, env-var names, and migration ordering. A
+downstream repo's brief cites these as immutable unless `analysis.md`
+amends them. Parallel implementation without frozen contracts produces
+integration drift discovered only at final review — do not leave the
+interface names to be improvised during apply.
+
 Then write `progress.md` (initial state) and `review.md` (header)
 yourself. Follow the templates in
 [`references/document-templates.md`](references/document-templates.md).
@@ -369,6 +388,31 @@ bundled `scripts/` directory.)
 If `STATUS=FAIL`, read each `ERROR:` line, apply the suggested fix,
 save, and re-run until `STATUS=PASS`. Do NOT proceed with `STATUS=FAIL`.
 
+### Dependency DAG Gate (MANDATORY for multi-repo plans)
+
+After writing `plan.md` for a multi-repo work item, run
+`compute_waves.py` from this skill's bundled `scripts/` directory on
+the work directory:
+
+```bash
+python3 SKILL_PATH/scripts/compute_waves.py <docs-dir>/changes/<type>/<work-name>
+```
+
+This validates the repositories table exactly as `fullstack-apply`
+will later consume it — before implementation starts, not after:
+
+- `REPOS/WAVES/WAVE_i=…` → PASS. Record the wave summary in `plan.md`
+  under the repositories table (one line: "Parallel waves:
+  W1(a,b) → W2(c)") so reviewers see the intended grouping.
+- `ERROR_NO_REPOS_TABLE` / `ERROR_DUPLICATE_REPO` /
+  `ERROR_SELF_DEPENDENCY` / `ERROR_UNKNOWN_DEP` → fix the table, re-run.
+- `CYCLE_REPOS=a,b,…` → repos depend on each other in a circle; apply
+  cannot order them. Break the cycle by restructuring dependencies or
+  splitting the work item, then update `analysis.md` and `plan.md`
+  accordingly.
+
+Do NOT finalize the plan with a failing DAG gate.
+
 ## Step 5 — Report the Plan
 
 1. **Commit the work directory to the docs repo** (the ONLY repo that
@@ -383,6 +427,8 @@ Mode: standard | deep (spike)
 - Requirements: <summary>
 - Success Criteria: <N criteria>
 - Repos: <list>
+- Parallel waves: W1(<repos>) → W2(<repos>) → …
+- Contracts frozen in analysis.md: <list or "single-repo — none">
 - Design: <one-line summary of chosen option>
 
 Next: tell me to "implement this" to run fullstack-apply.
@@ -413,6 +459,10 @@ When invoked with a reference to an existing un-archived work item
 - No branches, no commits to code repos, no PRs.
 - The four documents are mandatory — a missing `analysis.md` is a failure.
 - Success Criteria must be testable and specific, not subjective.
+- Multi-repo plans MUST freeze cross-repo contracts in `analysis.md`
+  and pass the Dependency DAG Gate before reporting the plan — apply
+  derives parallel waves from this table, so a malformed dependency is
+  an implementation-time failure you were asked to prevent.
 - Deep mode's output IS the work directory — never create a separate
   spike directory and never rewrite analysis on handoff.
 - Mermaid gate must PASS before finalizing.
