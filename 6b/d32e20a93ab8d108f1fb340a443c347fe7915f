@@ -1,0 +1,30 @@
+docs/fullstack/AGENT-ORCHESTRATION.md
+  h_e0538e51a4c5ef 43-45,51,54-55,57,63-64,66-78,247,409-432
+docs/fullstack/concepts.md
+  h_e0538e51a4c5ef 105
+mythril_agent_skills/skills/fullstack-apply/SKILL.md
+  h_e0538e51a4c5ef 285,287,449-453,812-817,853-857
+mythril_agent_skills/skills/fullstack-init/SKILL.md
+  h_e0538e51a4c5ef 139-142,177-181
+mythril_agent_skills/skills/fullstack-init/agents/debugger.md
+  h_e0538e51a4c5ef 3,16-29,49-59,71-93,96-98,113,115,118-121
+mythril_agent_skills/skills/fullstack-init/agents/developer.md
+  h_e0538e51a4c5ef 3,10-12,23-25,40-44,54-55,65-68
+mythril_agent_skills/skills/fullstack-init/agents/planner.md
+  h_e0538e51a4c5ef 3,63-67
+mythril_agent_skills/skills/fullstack-init/agents/reviewer.md
+  h_e0538e51a4c5ef 3
+tests/skills/test_fullstack_init.py
+  h_e0538e51a4c5ef 783,787
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "6bd32e20a93ab8d108f1fb340a443c347fe7915f",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
