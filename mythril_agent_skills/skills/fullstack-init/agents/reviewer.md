@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Independent validation specialist for {project_name} workspace. Verifies correctness of code changes, checks cross-repo consistency, and writes review.md findings. Read-only — never modifies source code. Use proactively before merge or marking work complete.
+description: Independent validation specialist for {project_name} workspace. Verifies correctness of code changes, checks cross-repo consistency, and returns findings for the orchestrator to append to review.md. Read-only — never modifies source code. Use proactively before merge or marking work complete.
 mode: subagent
 permission:
   edit: deny

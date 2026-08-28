@@ -282,9 +282,9 @@ serial, only faster when width > 1.
 | Agent | Owns | Must NOT touch | Invoked by |
 |-------|------|----------------|------------|
 | **planner** | `analysis.md` content, `plan.md` content | Source code files | Orchestrator (you) |
-| **developer** | Production code, test files, env setup | `review.md` | Orchestrator (you) |
+| **developer** | Production code, test files, env setup | `review.md`, `progress.md` | Orchestrator (you) |
 | **reviewer** | Review findings (per-repo + cross-repo) | Source code files | Orchestrator (you) |
-| **debugger** | `analysis.md` content (fix type), minimal code fixes | `plan.md` | Orchestrator (you) |
+| **debugger** | Root-cause analysis + fix spec (fix-type plans, and escalation for non-obvious failures); temporary debug instrumentation | `plan.md`, commits | Orchestrator (you) |
 | **orchestrator (you)** | `progress.md`, `review.md` (append agent output), PRs, user communication | — | The user |
 
 **Key rules:**
@@ -446,7 +446,11 @@ other:
 4. **If NEEDS_FIXES**: send the P0/P1 items back to THAT repo's
    developer subagent. Developer fixes → re-validates (lint/test/build)
    → stages (`git add .`). Then invoke its reviewer again. Max 3 rounds
-   total, tracked per repo.
+   total, tracked per repo. If the same P0/P1 survives one developer
+   fix round, or its cause is not evident from the diff, delegate to
+   the **debugger** subagent for that repo first (root cause + fix
+   spec, scoped-edit rules) and route its findings through the same
+   developer → reviewer loop.
 5. **If PASS**: proceed to commit for that repo.
 
 #### 4e. Commit per repo, then the wave gate
@@ -805,7 +809,12 @@ When the user gives any feedback / fix / log on the same work item
 directory:
 
 1. Read the four documents to understand current state.
-2. Determine which repos/files are affected.
+2. Determine which repos/files are affected. If the reported problem is
+   a failure whose cause is not obvious (misleading symptoms, suspected
+   cross-repo boundary, no identifiable introducing change), delegate
+   to the **debugger** subagent for root-cause analysis first and fold
+   its findings into the briefs. Obvious, change-caused failures go
+   straight into the wave loop.
 3. Re-run `compute_waves.py` on the affected repos, then run the same
    wave loop: parallel developer → reviewer cycles (Steps 4a–4e).
 4. Update `progress.md` (new dated entry) and `review.md` (new review
@@ -841,6 +850,11 @@ When the user references an existing work directory:
   committing that repo (scoped dev→review loop, 4c). Never commit a red
   repo, and never release its dependents — but do not block sibling
   repos of the same wave from finishing their own cycles.
+- **Non-obvious failures**: when a failure's cause is not evident —
+  symptoms contradict the diff, a cross-repo boundary is suspected, or
+  a developer fix round did not make the tests pass — delegate the
+  **debugger** subagent for root cause before another developer round.
+  Do not "try and see".
 - **Environment issues**: If a venv is missing, node version is wrong,
   or dependencies can't be installed, check the repo's README for setup
   instructions. If setup fails, note in `progress.md` and ask.

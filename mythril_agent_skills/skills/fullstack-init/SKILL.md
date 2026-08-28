@@ -136,10 +136,10 @@ subagent systems automatically discover these agents:
 
 | Agent | File | Role | Permissions |
 |-------|------|------|-------------|
-| Planner | `planner.md` | Analyzes requirements, writes `plan.md` | read-only on code |
-| Developer | `developer.md` | Implements code — the only agent that writes production code | full access |
-| Reviewer | `reviewer.md` | Reviews with falsification mindset, writes `review.md` | read-only on code |
-| Debugger | `debugger.md` | Root-cause analysis for fix work type | full access |
+| Planner | `planner.md` | Analyzes requirements and architecture, returns content for `analysis.md`/`plan.md` | read-only on code |
+| Developer | `developer.md` | Implements code — the only agent that writes production code; stages changes, orchestrator commits | full access |
+| Reviewer | `reviewer.md` | Reviews with falsification mindset, returns findings for `review.md` | read-only on code |
+| Debugger | `debugger.md` | Root-cause analysis for fix work type; temporary debug edits allowed, never commits | scoped debug edits |
 
 These are regenerated on every run. Any customization will be overwritten.
 For persistent custom agents, use `.agents/skills/` or repo-level agents.
@@ -174,7 +174,11 @@ If a tool's agents directory already exists as a regular directory
 - If a repo has its own `.agents/agents/`, workspace agents **defer to
   repo-level agents** for that repo's internal concerns
 - Reviewer is **read-only on source code** — fixes are done by Developer
-- Debugger is invoked for `fix/` type work items
+- Debugger debugs hands-on with **temporary, uncommitted**
+  instrumentation and returns root-cause analysis + a fix spec; it
+  never commits — Developer implements and ships the fix
+- Debugger is invoked for `fix/` type work items (propose) and as
+  escalation for non-obvious failures during apply
 
 ## Typical Workspace Layout
 

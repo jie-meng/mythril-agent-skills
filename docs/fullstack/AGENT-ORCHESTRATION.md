@@ -40,28 +40,42 @@ delegating detail work, and aggregating results.
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        ORCHESTRATOR (main agent)                    │
 │  Manages flow, confirms with user, delegates, writes docs from      │
-│  subagent output. NEVER writes code or performs reviews directly.   │
+│  subagent output. NEVER writes code or performs reviews directly    │
+│  (sole exception: temporary, uncommitted spike changes during       │
+│  fullstack-propose deep mode).                                      │
 └──────┬──────────────┬────────────────┬──────────────────────────────┘
        │              │                │
        ▼              ▼                ▼
 ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────────────┐
 │   PLANNER   │ │  DEVELOPER  │ │  REVIEWER   │ │      DEBUGGER       │
-│  read-only  │ │  full access│ │  read-only  │ │    full access      │
+│  read-only  │ │  full access│ │  read-only  │ │    scoped edits     │
 │             │ │             │ │             │ │                     │
 │ analysis.md │ │ source code │ │ review.md   │ │ analysis.md (fix)   │
-│ plan.md     │ │ test files  │ │ findings    │ │ minimal code fixes  │
-│             │ │ env setup   │ │             │ │                     │
+│ plan.md     │ │ test files  │ │ findings    │ │ root cause, fix spec│
+│             │ │             │ │             │ │                     │
 │ MUST NOT:   │ │ MUST NOT:   │ │ MUST NOT:   │ │ MUST NOT:           │
-│ source code │ │ review.md   │ │ source code │ │ plan.md, refactors  │
+│ source code │ │ review.md   │ │ source code │ │ plan.md, commits    │
 └─────────────┘ └─────────────┘ └─────────────┘ └─────────────────────┘
 ```
 
 | Agent | Permission | Primary output | Boundary |
 |-------|-----------|---------------|----------|
-| **Planner** | `edit: deny`, `bash: allow` | `analysis.md` content, `plan.md` content | Never reads source code. Analyzes requirements and architecture only. |
-| **Developer** | `edit: allow`, `bash: allow` | Production code, tests, config | Never touches `review.md`. Implements and validates per repo. |
+| **Planner** | `edit: deny`, `bash: allow` | `analysis.md` content, `plan.md` content | Reads source code only to verify the contracts it freezes. Analyzes requirements and architecture. |
+| **Developer** | `edit: allow`, `bash: allow` | Production code, tests, config (staged — orchestrator commits) | Never touches `review.md` or `progress.md`. Implements and validates per repo. |
 | **Reviewer** | `edit: deny`, `bash: allow` | Review findings (P0/P1/P2 + verdict) | Never touches source code. Two modes: per-repo staged, cross-repo. |
-| **Debugger** | `edit: allow`, `bash: allow` | Root cause analysis, minimal fixes | Never touches `plan.md`. Focused debugging only. |
+| **Debugger** | `edit: allow`, `bash: allow` | Root-cause analysis, fix spec, temporary debug instrumentation | Never commits; never touches `plan.md` or the tracking docs. At most one uncommitted candidate fix left in the tree; Developer implements and ships. |
+
+> **Enforcement note**: the `permission` block in each agent's
+> frontmatter is OpenCode-native and is enforced there. Claude Code,
+> Cursor, and Copilot ignore these keys — for those tools the read-only
+> boundaries (planner, reviewer) and the debugger's no-commit rule are
+> enforced by the agent instructions only. Note that `bash: allow`
+> means file mutation via shell is never blocked by `edit: deny` — the
+> permission block shapes tool access, while the instructions define
+> the actual contract. Do NOT add a `tools:` frontmatter key to these
+> files to tighten this: the two tool families expect different types
+> for that key (Claude Code: comma-separated string; OpenCode: object),
+> and OpenCode hard-fails agent loading on a string value.
 
 ### The orchestrator's role
 
@@ -230,7 +244,7 @@ writes all output to files. This ensures:
 | **Planner** | Problem framing, affected repos, recommended approach, phased plan, acceptance criteria, risks |
 | **Developer** | Summary of changes per file, test results, recommended commit message, issues encountered |
 | **Reviewer** | P0/P1/P2 findings with file/line evidence, verdict, recommendations |
-| **Debugger** | What's broken, reproduction steps, root cause with evidence, minimal fix, validation results |
+| **Debugger** | What's broken, reproduction steps, root cause with evidence, recommended minimal fix, validation results, tree state (clean, or the single uncommitted candidate fix) |
 
 ---
 
@@ -391,6 +405,30 @@ Existing work items continue to work with the new orchestration model.
 ---
 
 ## Changelog
+
+### 2026-08-28 — v1.1: Align agent templates with the single-writer model
+
+- `developer.md`: no longer commits or edits `progress.md` — stages
+  changes and returns a summary + recommended commit message; the
+  orchestrator commits and writes the tracking documents
+- `debugger.md`: scoped-edit role — may add temporary debug
+  instrumentation and leave at most one uncommitted candidate fix;
+  never commits, never touches the tracking docs; the fix itself is
+  routed to Developer for formalization and review
+- developer / debugger identity: "only agent that writes production
+  code" reworded to the real invariant — the only agent whose changes
+  are committed and shipped
+- debugger trigger upgraded from a work-type label to a condition:
+  propose fix items always, plus apply escalation for non-obvious
+  failures (misleading symptoms, suspected cross-repo boundary, or a
+  failed developer fix round)
+- planner / reviewer / debugger descriptions: "writes X.md" replaced
+  with "returns content for the orchestrator to write"
+- `planner.md`: source-code boundary relaxed to "read only to verify
+  frozen contracts"
+- Synced agent model table and diagram; documented permission-
+  enforcement scope per tool (and why a `tools:` frontmatter key must
+  not be added)
 
 ### 2026-07-28 — v1: Initial orchestration design
 

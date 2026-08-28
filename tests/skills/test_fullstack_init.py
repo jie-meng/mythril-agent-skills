@@ -780,10 +780,11 @@ class TestInstallAgents:
         content = (tmp_path / ".agents" / "agents" / "reviewer.md").read_text()
         assert "edit: deny" in content
 
-    def test_debugger_has_full_access(self, tmp_path: Path):
+    def test_debugger_scoped_edits(self, tmp_path: Path):
         self.func(tmp_path, "proj")
         content = (tmp_path / ".agents" / "agents" / "debugger.md").read_text()
         assert "edit: allow" in content
+        assert "Never commit" in content
 
     def test_developer_implements(self, tmp_path: Path):
         self.func(tmp_path, "proj")

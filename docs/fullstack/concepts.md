@@ -102,7 +102,7 @@ yours.**
 
 `feat/`, `refactor/`, `fix/` remain separate because they carry real
 semantic weight: the `analysis.md` template differs between a fix
-(Debugger writes root-cause analysis) and a feat (Planner writes design
+(Debugger returns root-cause analysis) and a feat (Planner returns design
 options). They are not cosmetic categories.
 
 ---
