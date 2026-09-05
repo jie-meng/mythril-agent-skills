@@ -1,0 +1,20 @@
+mythril_agent_skills/cli/skills_check.py
+  h_e0538e51a4c5ef 996,1011,1082-1086,1091-1094
+mythril_agent_skills/cli/skills_clean_cache.py
+  h_e0538e51a4c5ef 197,244,326-330,335-338
+mythril_agent_skills/cli/skills_cleanup.py
+  h_e0538e51a4c5ef 218,249-254,261,383-387,392-395,501,516,587-591,596-599
+mythril_agent_skills/cli/skills_setup.py
+  h_e0538e51a4c5ef 307,323-329,341,419-423,428-431,509,525-530,542,646-650,655-658
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "89cf70c28717a34a029c85ef5543a7f7c7b6cf0c",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
