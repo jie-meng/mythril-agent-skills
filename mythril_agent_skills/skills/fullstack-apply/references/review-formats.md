@@ -101,6 +101,62 @@ touched each repo across the entire lifetime of the work item is
 traceable to the exact review round that approved it, and the recorded
 hashes always match what is actually in the git log.
 
+### Repos without version control
+
+A repo with no git metadata cannot produce commits, so its per-repo
+review section has no `### Commits` table. Replace it with a
+`### Changed files` / `### 改动文件` section. For such a repo this list
+is the ONLY durable record of what changed — there is no diff and no
+commit history to inspect later — so it must be exact and
+self-sufficient.
+
+### English
+
+```markdown
+### Changed files (no version control)
+
+| File (relative to repo root) | What changed |
+|------------------------------|--------------|
+| `src/ui/SettingRobot.cs` | Added unbind confirmation state machine (4 outcome paths); OnDestroy now unregisters the disconnect listener; added `UnbindTimeoutSeconds` constant |
+| `src/net/ShortRangeManager.cs` | Added `BleWriteCommand` overload with completion callback; pause/resume of the status polling loop in `RequestStop`/`RequestReadBleStatus` |
+| `assets/strings/en.json` | Added `UNBIND_SEND_FAILED`, `UNBIND_NOT_COMPLETED` keys |
+```
+
+### Chinese
+
+```markdown
+### 改动文件（无版本控制）
+
+| 文件（相对仓库根目录） | 改动说明 |
+|----------------------|---------|
+| `Assets/Scripts/UI/SettingRobot.cs` | 新增解绑确认状态机（4 条结果路径）；OnDestroy 注销 disconnect 监听；新增常量 `UnbindTimeoutSeconds` |
+| `Assets/Scripts/Net/ShortRangeManager.cs` | 新增带完成回调的 `BleWriteCommand` 重载；`RequestStop`/`RequestReadBleStatus` 中暂停/恢复状态轮询 |
+| `Assets/Localization/StringTable_en-US.asset` | 新增本地化键 `UNBIND_SEND_FAILED`、`UNBIND_NOT_COMPLETED` |
+```
+
+Rules:
+
+- **One row per file** — never merge several files into one row and
+  never compress the list into flowing prose ("A（…）、B（…）、C（…）"
+  style is forbidden). Every file the round created or modified gets
+  its own row: code, tests, docs, assets, localization tables alike.
+- **Path is relative to the repo root** (`Assets/Scripts/X.cs`) — not
+  an absolute machine path, not a bare file name. The team uses these
+  paths to locate and hand-commit the changes.
+- **The description must let a reader who cannot run `git diff`
+  understand the change**: what was added / modified / removed, and
+  the key functions, states, keys, or constants involved. Vague label
+  stacks ("状态机 + 生命周期清理 + 常量") are not enough.
+- **Verify the list before recording it** — against the developer's
+  report and the filesystem (e.g. modification times). A file listed
+  but not actually changed, or changed but missing, misleads the team
+  when they commit this repo by hand. If an error is discovered after
+  the round is recorded, correct it with a dated errata note in the
+  same section — never silently rewrite a recorded round.
+- Note in the section (or the repo heading) that the repo has no
+  version control, whether the review was an orchestrator
+  self-review, and that the team must commit the changes by hand.
+
 ---
 
 ### Verdict mapping

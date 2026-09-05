@@ -228,6 +228,33 @@ The `<docs-dir>/` repo is an independent git repo for work tracking
 docs. All work tracking documents are committed directly to its main
 branch. Do NOT create feature branches in the docs repo.
 
+### Repos without version control
+
+If a repo has no git metadata (`git rev-parse --git-dir` fails), it
+cannot support branches, staging, commits, or diffs. Handle it as
+follows for the WHOLE run — do not improvise per step:
+
+- Skip branch creation (this step), staging (`git add .`), commit
+  (4e), PR creation (Step 6), and branch push (Step 7). The repo
+  still gets its developer → review loop and its wave position.
+- The developer cannot stage, so it MUST return the exact list of
+  every file it created or modified, each with a path relative to the
+  repo root — that list replaces the staged diff in every later step.
+- Review (4d) runs over that file list — the reviewer reads the named
+  files instead of a diff. If reviewer delegation is impossible, the
+  orchestrator may self-review, and the review section must say so
+  explicitly ("orchestrator self-review").
+- In `review.md`, its per-repo section records a `### Changed files`
+  / `### 改动文件` list INSTEAD of `### Commits` — one row per file,
+  repo-relative path, concrete per-file change description (template
+  and rules in
+  [`references/review-formats.md`](references/review-formats.md)).
+  Without git there is no diff and no commit history to inspect
+  later, so this list is the only durable change record the team has
+  when they commit the repo by hand.
+- State in `progress.md` and the final report that the team must
+  commit these changes themselves.
+
 ## Step 4 — Implement (dependency-wave parallel delegation)
 
 You are the **orchestrator**. Manage the high-level flow, confirm
@@ -401,7 +428,9 @@ Each developer subagent MUST, inside its own repo:
    command — see 4c for reporting codes.
 8. Do NOT start long-running dev servers or listen on ports — parallel
    siblings would collide.
-9. Stage all changes (`git add .`)
+9. Stage all changes (`git add .`). A repo without version control
+   cannot stage — it records the changed-file list instead (see Step
+   3 "Repos without version control") and returns it in the summary.
 10. Return: summary of changes, test result code (`tests: passed` /
     `tests: failed` / `tests: unknown (no run command documented)` /
     `tests: none`), any deviation from the frozen contract it observed
@@ -439,7 +468,9 @@ other:
 
 1. Provide the reviewer with: `plan.md` (especially Success Criteria),
    `analysis.md`, `progress.md`, the same frozen-contract sections from
-   4a, and the staged diff (`git diff --cached` in the repo).
+   4a, and the staged diff (`git diff --cached` in the repo) — for a
+   repo without version control, the changed-file list from 4b instead
+   (see Step 3 "Repos without version control").
 2. The reviewer returns findings in P0/P1/P2 format with a verdict
    (PASS / PASS_WITH_RISKS / NEEDS_FIXES / FAIL), scoped to its repo.
 3. You append the reviewer's output to `review.md`.
@@ -466,6 +497,10 @@ git commit -m "<message>"
 - Use the commit message from the developer subagent's summary. If the
   repo has its own convention (from `AGENTS.md`), reconcile — repo
   convention wins.
+- A repo without version control has nothing to commit — its
+  `### Changed files` section in `review.md` is the change record
+  (Step 3). Skip the commit; note in `progress.md` that the team
+  commits by hand.
 - Update `progress.md` with the commit summary and review verdict.
 - Run `python3 SKILL_PATH/scripts/graphify_check.py <repo>` — if
   `graphify-out/` exists, `cd` into the repo and run `graphify update`.
@@ -504,6 +539,10 @@ For each affected repo:
 cd <repo-dir>
 git diff <default-branch>...<feature-branch>
 ```
+
+For a repo without version control, there is no diff — provide its
+`### Changed files` list from `review.md` plus direct reads of the
+named files instead (see Step 3 "Repos without version control").
 
 ### 5b. Delegate to reviewer subagent (cross-repo mode)
 
@@ -699,7 +738,8 @@ After review passes (and PRs created in Step 6 if applicable):
    git push -u origin HEAD
    ```
 
-   (If Step 6 already pushed, this is a no-op.)
+   (If Step 6 already pushed, this is a no-op. Skip repos without
+   version control — see Step 3.)
 6. **Commit** the docs repo with all tracking doc updates.
 7. **Report to user** — the report format depends on the `github_repos`
    value announced at the top of the session:
@@ -898,6 +938,10 @@ When the user references an existing work directory:
 - Every repo keeps its own staged review before commit, regardless of
   parallelism; a red repo never releases its dependents but also never
   blocks independent siblings.
+- A repo without version control gets a `### Changed files` record in
+  `review.md` — one row per file, repo-relative path, concrete per-file
+  change description — never a compressed prose list. That list is the
+  team's only change record for a repo they must commit by hand.
 - The cross-repo consistency review runs ONCE over all repos' final
   diffs — per-repo reviews do not substitute for it.
 - Subagents must not start long-running servers or occupy ports during
