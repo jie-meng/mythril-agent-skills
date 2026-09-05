@@ -992,46 +992,79 @@ def curses_multi_select(
 
     selected = list(preselected) if preselected else [True] * len(items)
     cursor = 0
+    scroll_offset = 0
     all_item = "Select All / Deselect All"
     total_items = 1 + len(items)
 
     def draw() -> None:
+        nonlocal scroll_offset
         stdscr.clear()
+        max_y, max_x = stdscr.getmaxyx()
         stdscr.addstr(0, 0, title, curses.A_BOLD)
-        hint = "Up/Down move | Space toggle | a all/none | Enter confirm | q quit"
-        stdscr.addstr(1, 0, hint, curses.color_pair(3))
 
-        row = 3
+        content_start = 3
+        # Visual rows: 0 = all-toggle, 1 = separator, 2.. = items.
+        total_rows = 2 + len(items)
+        visible_lines = max(1, max_y - content_start - 1)  # last row: footer
+
+        hint = "Up/Down move | Space toggle | a all/none | Enter confirm | q quit"
+        if total_rows > visible_lines:
+            hint += " | list scrolls"
+        try:
+            stdscr.addstr(1, 0, hint, curses.color_pair(3))
+        except curses.error:
+            pass
+
+        # Adjust scroll so the cursor line stays inside the viewport.
+        visual_cursor = 0 if cursor == 0 else 2 + (cursor - 1)
+        if visual_cursor < scroll_offset:
+            scroll_offset = visual_cursor
+        elif visual_cursor >= scroll_offset + visible_lines:
+            scroll_offset = visual_cursor - visible_lines + 1
+        scroll_offset = max(0, min(scroll_offset, total_rows - visible_lines))
+
+        def _row(line: int) -> int | None:
+            """Screen row for a visual line, or None if outside the viewport."""
+            if scroll_offset <= line < scroll_offset + visible_lines:
+                return content_start + (line - scroll_offset)
+            return None
+
         all_selected = all(selected)
         marker = "[x]" if all_selected else "[ ]"
         attr = curses.A_REVERSE if cursor == 0 else 0
-        try:
-            stdscr.addstr(
-                row, 0, f"  {marker}  {all_item}", attr | curses.color_pair(1)
-            )
-        except curses.error:
-            pass
+        screen_row = _row(0)
+        if screen_row is not None:
+            try:
+                stdscr.addstr(
+                    screen_row, 0, f"  {marker}  {all_item}", attr | curses.color_pair(1)
+                )
+            except curses.error:
+                pass
 
-        row += 1
-        try:
-            stdscr.addstr(row, 0, "  " + "-" * 36, curses.color_pair(1))
-        except curses.error:
-            pass
+        screen_row = _row(1)
+        if screen_row is not None:
+            try:
+                stdscr.addstr(screen_row, 0, "  " + "-" * 36, curses.color_pair(1))
+            except curses.error:
+                pass
 
-        row += 1
         for i, item in enumerate(items):
+            screen_row = _row(2 + i)
+            if screen_row is None:
+                continue
             marker = "[x]" if selected[i] else "[ ]"
             attr = curses.A_REVERSE if cursor == i + 1 else 0
             color = curses.color_pair(2) if selected[i] else 0
             try:
-                stdscr.addstr(row + i, 0, f"  {marker}  {item}", attr | color)
+                stdscr.addstr(screen_row, 0, f"  {marker}  {item}", attr | color)
             except curses.error:
                 pass
 
         count = sum(selected)
+        footer_row = min(content_start + visible_lines, max_y - 1)
         try:
             stdscr.addstr(
-                row + len(items) + 1,
+                footer_row,
                 0,
                 f"  {count}/{len(items)} selected",
                 curses.color_pair(3),
