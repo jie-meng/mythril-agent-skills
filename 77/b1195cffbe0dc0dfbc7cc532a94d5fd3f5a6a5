@@ -1,0 +1,16 @@
+mythril_agent_skills/skills/fullstack-apply/SKILL.md
+  h_e0538e51a4c5ef 231-257,431-433,471-473,500-503,543-546,741-742,941-944
+mythril_agent_skills/skills/fullstack-apply/references/review-formats.md
+  h_e0538e51a4c5ef 104-159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "77b1195cffbe0dc0dfbc7cc532a94d5fd3f5a6a5",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
