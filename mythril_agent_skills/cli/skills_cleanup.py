@@ -215,6 +215,7 @@ def curses_tree_select(
     rows = _build_rows(groups)
     cursor = 0
     scroll_offset = 0
+    pending_g = False
 
     # "Select All / Deselect All" is a virtual row at index -1 (drawn at top)
     # cursor == 0 means the all-toggle; cursor >= 1 means rows[cursor - 1]
@@ -245,13 +246,19 @@ def curses_tree_select(
             attempts += 1
         return pos
 
+    def _last_selectable() -> int:
+        candidate = total_items - 1
+        while candidate > 0 and not is_selectable(candidate - 1):
+            candidate -= 1
+        return candidate
+
     def draw() -> None:
         nonlocal scroll_offset
         stdscr.clear()
         max_y, max_x = stdscr.getmaxyx()
 
         stdscr.addstr(0, 0, "Select skills to remove:", curses.A_BOLD)
-        hint = "Up/Down move | Space toggle | a all/none | Enter confirm | q quit"
+        hint = "Up/Down move | Space toggle | a all/none | gg/G top/bottom | Enter confirm | q quit"
         try:
             stdscr.addstr(1, 0, hint, curses.color_pair(3))
         except curses.error:
@@ -373,10 +380,19 @@ def curses_tree_select(
         draw()
         key = stdscr.getch()
 
+        if pending_g:
+            pending_g = False
+            if key == ord("g"):
+                cursor = 0
+                continue
         if key == curses.KEY_UP or key == ord("k"):
             cursor = _next_selectable(cursor, -1)
         elif key == curses.KEY_DOWN or key == ord("j"):
             cursor = _next_selectable(cursor, 1)
+        elif key == ord("g"):
+            pending_g = True
+        elif key == ord("G"):
+            cursor = _last_selectable()
         elif key == ord(" "):
             if cursor == 0:
                 skills = all_skills()
@@ -482,6 +498,7 @@ def _curses_tool_select(
     selected = [False] * len(items)
     cursor = 0
     scroll_offset = 0
+    pending_g = False
     all_item = "Select All / Deselect All"
     total_items = 1 + len(items)
 
@@ -496,7 +513,7 @@ def _curses_tool_select(
         total_rows = 2 + len(items)
         visible_lines = max(1, max_y - content_start - 1)  # last row: footer
 
-        hint = "Up/Down move | Space toggle | a all/none | Enter confirm | q quit"
+        hint = "Up/Down move | Space toggle | a all/none | gg/G top/bottom | Enter confirm | q quit"
         if total_rows > visible_lines:
             hint += " | list scrolls"
         try:
@@ -567,10 +584,19 @@ def _curses_tool_select(
         draw()
         key = stdscr.getch()
 
+        if pending_g:
+            pending_g = False
+            if key == ord("g"):
+                cursor = 0
+                continue
         if key == curses.KEY_UP or key == ord("k"):
             cursor = (cursor - 1) % total_items
         elif key == curses.KEY_DOWN or key == ord("j"):
             cursor = (cursor + 1) % total_items
+        elif key == ord("g"):
+            pending_g = True
+        elif key == ord("G"):
+            cursor = total_items - 1
         elif key == ord(" "):
             if cursor == 0:
                 new_val = not all(selected)

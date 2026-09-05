@@ -993,6 +993,7 @@ def curses_multi_select(
     selected = list(preselected) if preselected else [True] * len(items)
     cursor = 0
     scroll_offset = 0
+    pending_g = False
     all_item = "Select All / Deselect All"
     total_items = 1 + len(items)
 
@@ -1007,7 +1008,7 @@ def curses_multi_select(
         total_rows = 2 + len(items)
         visible_lines = max(1, max_y - content_start - 1)  # last row: footer
 
-        hint = "Up/Down move | Space toggle | a all/none | Enter confirm | q quit"
+        hint = "Up/Down move | Space toggle | a all/none | gg/G top/bottom | Enter confirm | q quit"
         if total_rows > visible_lines:
             hint += " | list scrolls"
         try:
@@ -1078,10 +1079,19 @@ def curses_multi_select(
         draw()
         key = stdscr.getch()
 
+        if pending_g:
+            pending_g = False
+            if key == ord("g"):
+                cursor = 0
+                continue
         if key == curses.KEY_UP or key == ord("k"):
             cursor = (cursor - 1) % total_items
         elif key == curses.KEY_DOWN or key == ord("j"):
             cursor = (cursor + 1) % total_items
+        elif key == ord("g"):
+            pending_g = True
+        elif key == ord("G"):
+            cursor = total_items - 1
         elif key == ord(" "):
             if cursor == 0:
                 new_val = not all(selected)

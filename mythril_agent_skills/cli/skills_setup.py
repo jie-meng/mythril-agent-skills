@@ -304,6 +304,7 @@ def curses_multi_select(
 
     cursor = 0
     scroll_offset = 0
+    pending_g = False
     all_item = "Select All / Deselect All"
     total_items = 1 + len(items)
     enabled_count = len(items) - len(disabled)
@@ -319,6 +320,13 @@ def curses_multi_select(
             attempts += 1
         return 0
 
+    def _last_enabled() -> int:
+        """Last non-disabled position (0 = all-toggle fallback)."""
+        candidate = total_items - 1
+        while candidate > 0 and candidate - 1 in disabled:
+            candidate -= 1
+        return candidate
+
     def draw() -> None:
         nonlocal scroll_offset
         stdscr.clear()
@@ -330,7 +338,7 @@ def curses_multi_select(
         total_rows = 2 + len(items)
         visible_lines = max(1, max_y - content_start - 1)  # last row: footer
 
-        hint = "Up/Down move | Space toggle | a all/none | Enter confirm | q quit"
+        hint = "Up/Down move | Space toggle | a all/none | gg/G top/bottom | Enter confirm | q quit"
         if total_rows > visible_lines:
             hint += " | list scrolls"
         try:
@@ -408,10 +416,19 @@ def curses_multi_select(
         draw()
         key = stdscr.getch()
 
+        if pending_g:
+            pending_g = False
+            if key == ord("g"):
+                cursor = 0
+                continue
         if key == curses.KEY_UP or key == ord("k"):
             cursor = _next_enabled(cursor, -1)
         elif key == curses.KEY_DOWN or key == ord("j"):
             cursor = _next_enabled(cursor, 1)
+        elif key == ord("g"):
+            pending_g = True
+        elif key == ord("G"):
+            cursor = _last_enabled()
         elif key == ord(" "):
             if cursor == 0:
                 enabled_sel = [s for i, s in enumerate(selected) if i not in disabled]
@@ -489,6 +506,7 @@ def _curses_skills_select(
     total_positions = 1 + len(rows)
     cursor = 0
     scroll_offset = 0
+    pending_g = False
 
     def _is_selectable(pos: int) -> bool:
         if pos == 0:
@@ -504,6 +522,12 @@ def _curses_skills_select(
             candidate = (candidate + d) % total_positions
         return 0
 
+    def _last_selectable() -> int:
+        candidate = total_positions - 1
+        while candidate > 0 and not _is_selectable(candidate):
+            candidate -= 1
+        return candidate
+
     def draw() -> None:
         nonlocal scroll_offset
         stdscr.clear()
@@ -515,7 +539,7 @@ def _curses_skills_select(
         total_rows = 2 + len(rows)
         visible_lines = max(1, max_y - content_start - 1)  # last row: footer
 
-        hint = "Up/Down move | Space toggle | a all/none | Enter confirm | q quit"
+        hint = "Up/Down move | Space toggle | a all/none | gg/G top/bottom | Enter confirm | q quit"
         if total_rows > visible_lines:
             hint += " | list scrolls"
         try:
@@ -619,10 +643,19 @@ def _curses_skills_select(
         draw()
         key = stdscr.getch()
 
+        if pending_g:
+            pending_g = False
+            if key == ord("g"):
+                cursor = 0
+                continue
         if key in (curses.KEY_UP, ord("k")):
             cursor = _next(cursor, -1)
         elif key in (curses.KEY_DOWN, ord("j")):
             cursor = _next(cursor, 1)
+        elif key == ord("g"):
+            pending_g = True
+        elif key == ord("G"):
+            cursor = _last_selectable()
         elif key == ord(" "):
             if cursor == 0:
                 new_val = not all(selected)

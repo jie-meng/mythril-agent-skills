@@ -194,6 +194,7 @@ def _curses_repo_select(
 
     cursor = 0
     scroll_offset = 0
+    pending_g = False
     total_items = 1 + len(repos)
 
     # Fixed header lines (not scrollable):
@@ -240,7 +241,7 @@ def _curses_repo_select(
             )
         except curses.error:
             pass
-        hint = "Up/Down move | Space toggle | a all/none | Enter confirm | q quit"
+        hint = "Up/Down move | Space toggle | a all/none | gg/G top/bottom | Enter confirm | q quit"
         try:
             stdscr.addstr(4, 0, f"  {hint}", curses.color_pair(3))
         except curses.error:
@@ -322,10 +323,19 @@ def _curses_repo_select(
         draw()
         key = stdscr.getch()
 
+        if pending_g:
+            pending_g = False
+            if key == ord("g"):
+                cursor = 0
+                continue
         if key == curses.KEY_UP or key == ord("k"):
             cursor = _next_selectable(cursor, -1)
         elif key == curses.KEY_DOWN or key == ord("j"):
             cursor = _next_selectable(cursor, 1)
+        elif key == ord("g"):
+            pending_g = True
+        elif key == ord("G"):
+            cursor = total_items - 1
         elif key == ord(" "):
             if cursor == 0:
                 new_val = not all(r.selected for r in repos)
