@@ -5,6 +5,7 @@ Updates:
   - pyproject.toml          (version = "x.y.z")
   - mythril_agent_skills/__init__.py (__version__ = "x.y.z")
   - .claude-plugin/marketplace.json  (all "version" fields)
+  - derived marketplaces    (regenerated via scripts/sync-marketplaces.py)
 
 Usage:
     python3 scripts/bump-version.py 0.3.0
@@ -15,10 +16,12 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 PYPROJECT = PROJECT_ROOT / "pyproject.toml"
 INIT_FILE = PROJECT_ROOT / "mythril_agent_skills" / "__init__.py"
 MARKETPLACE = PROJECT_ROOT / ".claude-plugin" / "marketplace.json"
@@ -118,6 +121,22 @@ def _update_marketplace(new_version: str) -> int:
     return count
 
 
+def _sync_derived_marketplaces() -> None:
+    """Regenerate the WorkBuddy/CodeBuddy catalogs from the canonical one.
+
+    Keeps ``.workbuddy-plugin/marketplace.json`` in step with the version
+    bump just applied to ``.claude-plugin/marketplace.json``.
+    """
+    script = SCRIPTS_DIR / "sync-marketplaces.py"
+    if not script.is_file():
+        print(f"  {YELLOW}Warning: {script.name} not found, skipping.{NC}")
+        return
+    result = subprocess.run([sys.executable, str(script)], check=False)
+    if result.returncode != 0:
+        print(f"{RED}Error: failed to regenerate derived marketplaces{NC}")
+        sys.exit(1)
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         _show_current()
@@ -158,6 +177,8 @@ def main() -> None:
             f"  {GREEN}Updated{NC} .claude-plugin/marketplace.json"
             f" ({plugin_count} plugins)"
         )
+
+    _sync_derived_marketplaces()
 
     # Verify consistency
     print(f"\n{BOLD}Verification:{NC}")

@@ -6,7 +6,7 @@
 
 English | [中文](./README.zh-CN.md)
 
-A unified skill management system for multi-agent AI coding assistants. This toolkit (distributed as a Python package) provides a curated collection of reusable skills plus centralized CLI commands to install, configure, and maintain them across Github Copilot, Claude Code, Cursor, Codex, Gemini CLI, Cline, OpenClaw, OpenSquilla, Hermes, CodeBuddy, and Pi/DSH (DeepSeek Harness).
+A unified skill management system for multi-agent AI coding assistants. This toolkit (distributed as a Python package) provides a curated collection of reusable skills plus centralized CLI commands to install, configure, and maintain them across Github Copilot, Claude Code, Cursor, Codex, Gemini CLI, Cline, OpenClaw, OpenSquilla, Hermes, CodeBuddy, WorkBuddy AI, and Pi/DSH (DeepSeek Harness).
 
 ## What is a Skill?
 
@@ -456,6 +456,39 @@ To remove the marketplace entirely (also uninstalls all its plugins):
 
 </details>
 
+<details>
+<summary>Option B2: WorkBuddy AI / CodeBuddy Code plugin marketplace</summary>
+
+[WorkBuddy AI](https://www.workbuddy.cn/) and CodeBuddy Code use the same plugin-marketplace format as Claude Code, but scan a `.workbuddy-plugin/` (or `.codebuddy-plugin/`) directory instead of `.claude-plugin/`. This repository ships both catalogs:
+
+| Catalog | Used by |
+|---|---|
+| `.claude-plugin/marketplace.json` | Claude Code (canonical, hand-edited) |
+| `.workbuddy-plugin/marketplace.json` | WorkBuddy AI, CodeBuddy Code (generated) |
+
+The WorkBuddy catalog is generated from the canonical one by `scripts/sync-marketplaces.py` — a test (`tests/test_marketplace_sync.py`) fails if the two ever drift, so you never have to maintain both by hand.
+
+Add the marketplace (use the path to your local clone, or `owner/repo` if you pushed it to GitHub):
+
+```bash
+/plugin marketplace add /path/to/mythril-agent-skills
+```
+
+Install all skills, or a single skill:
+
+```bash
+/plugin install all-skills@mythril-agent-skills
+/plugin install figma@mythril-agent-skills
+```
+
+Run `/reload-plugins` after installing to load the new skills without restarting.
+
+You can also add the marketplace from the WorkBuddy AI plugin manager UI, which offers the same add / update / remove operations.
+
+> **Note:** Like Option B, this installs skills as a plugin — the CLI commands (`skills-setup`, `skills-cleanup`, `skills-check`, `skills-clean-cache`) are not included. To install skills directly into `~/.workbuddy-ai/skills/` instead, use Option A (`skills-setup` supports WorkBuddy AI as a target tool).
+
+</details>
+
 Or customize your own skills:
 
 <details>
@@ -605,8 +638,9 @@ All config directories are relative to the user home directory (`~` on macOS/Lin
 | 10 | OpenSquilla | `~/.opensquilla/skills/` |
 | 11 | Hermes | `~/.hermes/skills/` |
 | 12 | CodeBuddy | `~/.codebuddy/skills/` |
-| 13 | Cline | `~/.cline/skills/` |
-| 14 | Pi/DSH | `~/.agents/skills/` |
+| 13 | WorkBuddy AI | `~/.workbuddy-ai/skills/` |
+| 14 | Cline | `~/.cline/skills/` |
+| 15 | Pi/DSH | `~/.agents/skills/` |
 
 ### Cleanup installed skills
 
@@ -654,6 +688,8 @@ cp -r mythril_agent_skills/skills/skill-name ./your-project/.claude/skills/
 mythril-agent-skills/
 ├── .claude-plugin/              # Claude Code plugin marketplace
 │   └── marketplace.json         # Plugin catalog for /plugin install
+├── .workbuddy-plugin/           # WorkBuddy AI / CodeBuddy Code marketplace
+│   └── marketplace.json         # Generated from .claude-plugin/ (sync script)
 ├── mythril_agent_skills/        # Python package (also the all-in-one plugin)
 │   ├── cli/                     # CLI entry points
 │   │   ├── skills_setup.py      # Interactive installer
@@ -685,6 +721,7 @@ mythril-agent-skills/
 ├── plugins/                     # Per-skill plugin wrappers (symlinks into skills/)
 ├── scripts/                     # Dev scripts & backward-compatible wrappers
 │   ├── sync-upstream.py         # Fork upstream sync tool
+│   ├── sync-marketplaces.py     # Regenerate the WorkBuddy/CodeBuddy catalogs
 │   └── init-fork.py             # One-time fork initializer (detach + git re-init)
 ├── tests/                       # Unit tests for skill scripts
 │   └── skills/                  # One test file per skill

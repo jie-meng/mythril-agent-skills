@@ -247,6 +247,15 @@ def main() -> None:
 
     print(f"  Version: {GREEN}{init_ver}{NC}")
 
+    # Derived catalogs (WorkBuddy / CodeBuddy) must match the canonical one
+    sync_script = PROJECT_ROOT / "scripts" / "sync-marketplaces.py"
+    if sync_script.is_file():
+        result = subprocess.run(
+            [sys.executable, str(sync_script), "--check"], check=False
+        )
+        if result.returncode != 0:
+            sys.exit(1)
+
     # Pre-flight
     if not _check_git_clean():
         print("Aborted.")

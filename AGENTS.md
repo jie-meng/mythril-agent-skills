@@ -19,6 +19,8 @@ Tech Stack:
 mythril-agent-skills/
 ├── .claude-plugin/              # Claude Code plugin marketplace
 │   └── marketplace.json         # Plugin catalog for /plugin install
+├── .workbuddy-plugin/           # WorkBuddy AI / CodeBuddy Code marketplace
+│   └── marketplace.json         # Generated from .claude-plugin/
 ├── mythril_agent_skills/        # Python package (also the all-in-one plugin)
 │   ├── __init__.py
 │   ├── cli/                     # CLI entry points
@@ -152,16 +154,23 @@ All config directories are relative to the user home directory (`~` on macOS/Lin
 | 9 | OpenClaw | `~/.openclaw/` | `~/.openclaw/skills/` |
 | 10 | OpenSquilla | `~/.opensquilla/` | `~/.opensquilla/skills/` |
 | 11 | Hermes | `~/.hermes/` | `~/.hermes/skills/` |
-| 12 | Cline | `~/.cline/` | `~/.cline/skills/` |
-| 13 | Pi / DeepSeek Harness | `~/.agents/` | `~/.agents/skills/` |
+| 12 | CodeBuddy | `~/.codebuddy/` | `~/.codebuddy/skills/` |
+| 13 | WorkBuddy AI | `~/.workbuddy-ai/` | `~/.workbuddy-ai/skills/` |
+| 14 | Cline | `~/.cline/` | `~/.cline/skills/` |
+| 15 | Pi / DeepSeek Harness | `~/.agents/` | `~/.agents/skills/` |
 
 `~/.agents/skills/` is the cross-tool shared Agent Skills convention directory (agentskills.io) — read by DeepSeek Harness (`dsh`), DeepSeek Deep Code, Pi, OpenClaw, Cline, Kimi Code CLI, Warp, Zed, and others. Skills installed there are visible to every compliant tool.
+
+> **WorkBuddy AI**: the desktop app injects `CODEBUDDY_CONFIG_DIR=~/.workbuddy-ai` when it
+> launches its bundled CodeBuddy engine, so the user-level skills directory resolves to
+> `~/.workbuddy-ai/skills/` (project-level skills live in `<project>/.workbuddy-ai/skills/`).
+> The same config directory also holds `settings.json` (hooks) and `plugins/`.
 
 ---
 
 ## Claude Code Plugin Marketplace
 
-This repository doubles as a [Claude Code plugin marketplace](https://code.claude.com/docs/en/plugin-marketplaces). The catalog at `.claude-plugin/marketplace.json` exposes all bundled skills as a single installable plugin.
+This repository doubles as a [Claude Code plugin marketplace](https://code.claude.com/docs/en/plugin-marketplaces). The catalog at `.claude-plugin/marketplace.json` exposes all bundled skills as a single installable plugin. WorkBuddy AI and CodeBuddy Code read the *same* catalog format from `.workbuddy-plugin/marketplace.json`.
 
 ### Architecture
 
@@ -169,11 +178,24 @@ This repository doubles as a [Claude Code plugin marketplace](https://code.claud
 - **Per-skill plugins** (`figma`, `jira`, etc.): source `./plugins/<name>` — each is a thin wrapper with a symlink `skills/<name>` → `../../../mythril_agent_skills/skills/<name>`
 - All plugins use `strict: false` — no `plugin.json` needed; marketplace entry is the full definition
 
+### Derived catalogs (WorkBuddy AI / CodeBuddy Code)
+
+Claude Code scans `.claude-plugin/`; WorkBuddy AI and CodeBuddy Code scan
+`.workbuddy-plugin/` / `.codebuddy-plugin/`. To avoid maintaining a second
+catalog by hand, `.workbuddy-plugin/marketplace.json` is **generated**:
+
+- `scripts/sync-marketplaces.py` copies the canonical catalog verbatim and drops the Claude-only `$schema` key
+- `scripts/sync-marketplaces.py --check` verifies it has not drifted (exit 1 on drift)
+- `tests/test_marketplace_sync.py` fails CI on drift
+- `scripts/bump-version.py` and `scripts/publish.py` run the sync/check automatically
+
+**Never hand-edit `.workbuddy-plugin/marketplace.json`** — edit `.claude-plugin/marketplace.json` (the canonical source) and run the sync script.
+
 ### Versioning
 
 All plugins share a **single unified version** — the same semver string as the pip package. Per-skill plugins are symlink wrappers with no independent code, so independent versions would have no meaning.
 
-Use `python3 scripts/bump-version.py <version>` to update all three files (`pyproject.toml`, `__init__.py`, `marketplace.json`) at once. The publish script (`scripts/publish.py`) checks all three sources for consistency before uploading.
+Use `python3 scripts/bump-version.py <version>` to update all three files (`pyproject.toml`, `__init__.py`, `marketplace.json`) at once — it also regenerates the derived `.workbuddy-plugin/` catalog. The publish script (`scripts/publish.py`) checks all three sources for consistency, plus derived-catalog drift, before uploading.
 
 ### Adding a new skill to the marketplace
 
@@ -190,6 +212,10 @@ When adding a new skill directory under `mythril_agent_skills/skills/<name>/`:
 /plugin install all-skills@mythril-agent-skills          # all skills
 /plugin install figma@mythril-agent-skills               # single skill
 ```
+
+WorkBuddy AI / CodeBuddy Code use the same commands — point them at the same
+repository (or a local clone); they pick up `.workbuddy-plugin/marketplace.json`
+automatically. Run `/reload-plugins` after installing.
 
 ---
 
