@@ -129,9 +129,9 @@ regenerated each time, so the language always reflects the latest run.
 
 Five subagents are generated in `.agents/agents/` on every run. Each file
 contains YAML frontmatter (`name`, `description`, `mode: subagent`,
-`permission`) compatible with OpenCode and Claude Code, followed by role-
-specific instructions. Tools that support native subagent discovery
-(OpenCode, Claude Code, Cursor, Copilot) receive symlinks so their
+`permission` with the `edit` policy only) compatible with OpenCode and
+Claude Code, followed by role-specific instructions. Tools that support
+native subagent discovery (OpenCode, Claude Code, Cursor, Copilot, pi) receive symlinks so their
 subagent systems automatically discover these agents:
 
 | Agent | File | Role | Permissions |
@@ -157,7 +157,10 @@ agent directories to `.agents/agents/`:
 .copilot/agents  -> ../.agents/agents   (Copilot subagents)
 ```
 
-When you launch OpenCode (or Claude Code, Cursor, Copilot) from the
+pi (pi-subagents) reads `.agents/agents/` directly — no symlink needed, and
+its call shape is `subagent({ agent: "code-reviewer", task: "..." })`.
+
+When you launch OpenCode (or Claude Code, Cursor, Copilot, pi) from the
 workspace root, these tools automatically discover and register the
 five agents as available subagents. The main AI agent can then use
 the `task` tool (or equivalent) to delegate work:
@@ -165,6 +168,13 @@ the `task` tool (or equivalent) to delegate work:
 ```
 task("review the staged changes", subagent_type="code-reviewer")
 ```
+
+**One portability rule for these files**: declare only the `edit`
+permission. A `bash` key is OpenCode-only and pi-subagents *rejects* the
+whole agent file when it appears (`permissions.bash is unsupported; ...
+leaves bash policy to pi-guard`) — the agent then silently does not exist,
+while the skills keep instructing delegation to it. Shell policy is
+owned by the host tool.
 
 If a tool's agents directory already exists as a regular directory
 (user-created), the symlink is skipped to avoid overwriting user content.

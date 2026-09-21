@@ -920,6 +920,14 @@ class TestAgentSourceFiles:
             content = f.read_text()
             assert "{project_name}" in content, f"{f.name} missing {{project_name}}"
 
+    def test_no_agent_declares_a_bash_permission(self):
+        # pi-subagents rejects the whole agent file when a `bash` key is
+        # present, which silently removes the agent from that tool while the
+        # skills keep delegating to it. Only `edit` is portable.
+        for f in self.agents_dir.glob("*.md"):
+            frontmatter = f.read_text().split("---")[1]
+            assert "bash" not in frontmatter, f"{f.name} declares a bash policy"
+
 
 # ---------------------------------------------------------------------------
 # format_report

@@ -471,6 +471,9 @@ other:
    4a, and the staged diff (`git diff --cached` in the repo) — for a
    repo without version control, the changed-file list from 4b instead
    (see Step 3 "Repos without version control").
+   If the tool cannot load the `code-reviewer` subagent, delegate to any
+   fresh-context read-only subagent with the agent file as its brief; if
+   even that is impossible, review it yourself but say so in `review.md`.
 2. The code-reviewer returns findings in P0/P1/P2 format with a verdict
    (PASS / PASS_WITH_RISKS / NEEDS_FIXES / FAIL), scoped to its repo.
 3. You append the code-reviewer's output to `review.md` — below the
@@ -690,7 +693,8 @@ staged reviews (Step 4d). For multi-repo work, also verify the
 cross-repo review (Step 5) has a verdict. If either is missing,
 **STOP** and complete the review.
 
-A `## Plan Review — Round <N>` verdict (written by `fullstack-propose`)
+A plan-review verdict (`## Plan Review — Round <N>` / `## 方案审查 — 第 <N> 轮`,
+written by `fullstack-propose`)
 does NOT satisfy this gate — it predates the code. The gate needs a
 verdict grounded in a repo diff or a changed-file list.
 

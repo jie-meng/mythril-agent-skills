@@ -69,14 +69,21 @@ delegating detail work, and aggregating results.
 > **Enforcement note**: the `permission` block in each agent's
 > frontmatter is OpenCode-native and is enforced there. Claude Code,
 > Cursor, and Copilot ignore these keys — for those tools the read-only
-> boundaries (planner, plan-reviewer, code-reviewer) and the debugger's no-commit rule are
-> enforced by the agent instructions only. Note that `bash: allow`
-> means file mutation via shell is never blocked by `edit: deny` — the
-> permission block shapes tool access, while the instructions define
-> the actual contract. Do NOT add a `tools:` frontmatter key to these
-> files to tighten this: the two tool families expect different types
-> for that key (Claude Code: comma-separated string; OpenCode: object),
-> and OpenCode hard-fails agent loading on a string value.
+> boundaries (planner, plan-reviewer, code-reviewer) and the debugger's
+> no-commit rule are enforced by the agent instructions only.
+>
+> **Only the `edit` key is declared.** Shell policy is host-owned:
+> pi-subagents *rejects* an agent file that carries a `bash` key
+> (`permissions.bash is unsupported; pi-subagents leaves bash policy to
+> pi-guard`), which would make every generated agent unusable under pi.
+> OpenCode's default shell policy applies instead of an explicit
+> `bash: allow`, which is the same effective behavior. Sites that need
+> shell gating place it in the host (pi-guard), not in the template.
+>
+> Do NOT add a `tools:` frontmatter key to these files to tighten this:
+> the two tool families expect different types for that key (Claude
+> Code: comma-separated string; OpenCode: object), and OpenCode
+> hard-fails agent loading on a string value.
 
 ### The orchestrator's role
 
@@ -237,7 +244,16 @@ to call:
 The AI translates this into the appropriate call:
 - OpenCode: `task("analyze requirements", subagent_type="planner")`
 - Claude Code: Agent tool with `planner` subagent type
-- Other tools: read agent file and role-play (fallback)
+- pi (pi-subagents): `subagent({ agent: "planner", task: "..." })` — the
+  project agents under `.agents/agents/` are discovered automatically
+- Cursor / Copilot: read agent file and role-play (fallback)
+
+**If delegation is impossible** (the tool has no subagent system, or it
+rejects the agent files — pi-subagents rejects a frontmatter `bash` key),
+do NOT silently self-review: load the agent's file into a fresh-context
+child if one is available, and otherwise say plainly that the review is
+being done in the author's own context, and record that in `review.md`.
+An unlabelled self-review is worse than a labelled one.
 
 ### What context to provide
 
@@ -436,6 +452,20 @@ Existing work items continue to work with the new orchestration model.
 ---
 
 ## Changelog
+
+### 2026-09-21 — v1.4: Agent templates load under pi too
+
+- Removed `bash: allow` from all five agent templates: pi-subagents
+  rejects an agent file carrying a `bash` permission key (`permissions.bash
+  is unsupported`), which silently made every generated agent unusable in
+  pi — the *worst* failure mode, because the skill still instructs
+  delegation. Shell policy belongs to the host (pi-guard); OpenCode's
+  default applies where the key used to. Only `edit` is declared
+- Documented the pi call shape and a **labelled fallback** for delegation:
+  when no subagent system can load the agent, say so and record it in
+  `review.md` rather than self-reviewing while appearing independent
+- Regression guard: a test asserts no agent template declares a `bash`
+  permission key
 
 ### 2026-09-21 — v1.3: `code-reviewer`, a consistency gate, and one record shape
 

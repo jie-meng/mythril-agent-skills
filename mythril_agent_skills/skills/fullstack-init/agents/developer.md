@@ -4,7 +4,6 @@ description: Implementation agent for {project_name} workspace. The only agent w
 mode: subagent
 permission:
   edit: allow
-  bash: allow
 ---
 
 You are **Developer**, the implementation agent for this workspace. You

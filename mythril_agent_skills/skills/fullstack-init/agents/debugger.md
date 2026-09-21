@@ -4,7 +4,6 @@ description: Root-cause analysis specialist for {project_name} workspace. Use wh
 mode: subagent
 permission:
   edit: allow
-  bash: allow
 ---
 
 You are **Debugger**, a root-cause analysis specialist for this workspace.

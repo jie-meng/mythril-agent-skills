@@ -413,7 +413,7 @@ will later consume it — before implementation starts, not after:
 
 - `REPOS/WAVES/WAVE_i=…` → PASS. Record the wave summary in `plan.md`
   under the repositories table (one line: "Parallel waves:
-  W1(a,b) → W2(c)") so code-reviewers see the intended grouping.
+  W1(a,b) → W2(c)") so reviewers see the intended grouping.
 - `ERROR_NO_REPOS_TABLE` / `ERROR_DUPLICATE_REPO` /
   `ERROR_SELF_DEPENDENCY` / `ERROR_UNKNOWN_DEP` → fix the table, re-run.
 - `CYCLE_REPOS=a,b,…` → repos depend on each other in a circle; apply
@@ -450,30 +450,37 @@ Every work item is reviewed; the *loop* is what scales.
 Do not skip the gate because the plan "looks fine" — that judgment is the
 thing being tested.
 
-### What the code-reviewer receives
+### What the plan-reviewer receives
 
 - **The original requirements** gathered in Step 1a (Jira/Confluence/Figma
-  content, the user's own words). Without this the code-reviewer cannot detect
+  content, the user's own words). Without this the plan-reviewer cannot detect
   a dropped requirement.
 - `analysis.md` and `plan.md` **as written to disk** — not the planner's
   returned message.
 - The workspace `AGENTS.md` repo table, plus `AGENTS.md` / `README.md` of
   the affected repos.
 
-The code-reviewer is read-only (`edit: deny`) and returns findings; you write
+The plan-reviewer is read-only (`edit: deny`) and returns findings; you write
 them into `review.md`.
+
+If the tool cannot load the `plan-reviewer` subagent (no subagent system, or
+it rejects the agent files), delegate to any fresh-context read-only subagent
+with the agent file as its brief. If even that is impossible, do the review
+yourself but **say so in `review.md`** — an unlabelled self-review is worse
+than a labelled one.
 
 ### Handling the verdict
 
-Append the code-reviewer's output to `review.md` as a
-`## Plan Review — Round <N> — <date>` section (format in
+Append the plan-reviewer's output to `review.md` as a
+`## Plan Review — Round <N> — <date>` / `## 方案审查 — 第 <N> 轮 — <date>`
+section, in the document's language (format in
 [`references/document-templates.md`](references/document-templates.md)).
 
 | Verdict | What you do |
 |---------|-------------|
 | `PASS` | Proceed to Step 5 |
 | `PASS_WITH_RISKS` | Proceed to Step 5; make sure the risks appear in `plan.md` §Risks / Open Questions |
-| `NEEDS_FIXES` | Delegate the P0/P1 findings back to the **planner** verbatim; apply the returned revisions to the affected sections only (do not regenerate untouched sections); record what changed; re-run the code-reviewer as round N+1 |
+| `NEEDS_FIXES` | Delegate the P0/P1 findings back to the **planner** verbatim; apply the returned revisions to the affected sections only (do not regenerate untouched sections); record what changed; re-run the plan-reviewer as round N+1 |
 | `NEEDS_USER_DECISION` | Stop the loop. Put the open decisions in the Step 5 report and ask the user — planning is not complete until they are answered |
 
 Rules that keep the loop convergent:
@@ -485,7 +492,7 @@ Rules that keep the loop convergent:
 - **Round 2+ verifies the previous findings and the content changed to
   resolve them only** — never a fresh full audit. Otherwise every round
   harvests new P2s and the plan never converges.
-- **Never weaken a plan to satisfy a code-reviewer.** Deleting a criterion,
+- **Never weaken a plan to satisfy a reviewer.** Deleting a criterion,
   widening a contract to "TBD", or dropping a requirement to reach `PASS`
   is worse than shipping with a documented P1. If the honest fix is a
   choice only the user can make, that is `NEEDS_USER_DECISION`.
@@ -606,7 +613,7 @@ NOT re-run Steps 1–4 — the plan already exists. Run the gate alone:
    the active type directories; if several match, ask. If `plan.md` is
    missing, this is not a re-review — tell the user to plan it first.
 2. **Determine the round** — read `review.md`, take the highest existing
-   `## Plan Review — Round <N>`; the new round is N+1. If there are no
+   `## Plan Review — Round <N>` / `## 方案审查 — 第 <N> 轮`; the new round is N+1. If there are no
    rounds yet, this is a first review (round 1) — fine, proceed.
 3. **Recover the requirements source** — read `**Source**` in `plan.md`
    and fetch it (`jira`, `confluence`, `gh-operations`, or the referenced
@@ -622,7 +629,7 @@ NOT re-run Steps 1–4 — the plan already exists. Run the gate alone:
    git log -p --since=<last round date> -- changes/<type>/<name>/
    ```
 
-   Hand the code-reviewer the changed sections, not "please re-read
+   Hand the plan-reviewer the changed sections, not "please re-read
    everything" — round discipline (see Step 4.5) is what keeps repeats
    convergent.
 5. **Delegate to plan-reviewer** with the round number, the documents as

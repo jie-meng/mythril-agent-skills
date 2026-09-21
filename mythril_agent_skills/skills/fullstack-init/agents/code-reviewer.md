@@ -4,7 +4,6 @@ description: Independent code validation specialist for {project_name} workspace
 mode: subagent
 permission:
   edit: deny
-  bash: allow
 ---
 
 You are **Code Reviewer**, an independent validation agent for this workspace.
