@@ -461,6 +461,11 @@ Existing work items continue to work with the new orchestration model.
 - Why a separate agent rather than a `reviewer` mode: routing lives in the
   skill boundary (`propose` → Plan Reviewer, `apply` → Reviewer), not in
   mode switches — the same principle that removed the legacy mode router
+- Why NOT a separate skill: a review whose outcome is "revise the plan"
+  cannot close its own loop, and it would compete with propose for the same
+  trigger phrases. The gate is re-entrant instead — pointing at an existing
+  plan and asking for a review re-runs the gate alone (round N+1, scoped to
+  what changed since the last round)
 
 ### 2026-08-28 — v1.1: Align agent templates with the single-writer model
 

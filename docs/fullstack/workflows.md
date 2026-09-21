@@ -88,6 +88,9 @@ implementing — including validating unknowns first.
   original requirements, not against itself. Multi-repo and deep-mode
   plans loop through review and revision (max 2 rounds); single-repo plans
   get one pass. Findings land in `review.md`.
+- **Re-review on demand**: point at an existing plan and ask for it to be
+  reviewed ("审一下方案") and propose re-runs the gate alone — round N+1,
+  scoped to what changed since the last round, no replanning.
 - **Planning boundary**: propose plans only. Even if the request says
   "and implement it", propose stops after the documents are ready and
   waits for a new request. No project code is edited.
@@ -131,6 +134,7 @@ path.
 | "How does X work?" / "Where is X implemented?" | Explore |
 | "Plan a feature" / "We should add X" | Propose |
 | "Plan is ready" / "the plan looks vague" | Propose (plan review gate) |
+| "Review this plan" / "re-review the plan" / "审一下方案" | Propose (review-only re-entry) |
 | "This needs validation first" / "I'm not sure X is feasible" | Propose (deep mode) |
 | "Implement it" / "Continue the work" | Apply |
 | "It's done" / "Ship it" / "Merged" | Archive |

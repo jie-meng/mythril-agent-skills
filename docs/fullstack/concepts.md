@@ -92,6 +92,12 @@ files from the planner's reasoning; a self-review re-runs the same
 assumptions. Findings land in `review.md` as `## Plan Review — Round <N>`,
 so the file holds the whole falsification history of the item.
 
+The gate is a **step inside propose, not a separate skill**: a review whose
+outcome is "now revise the plan" cannot close its own loop, and it would
+compete with propose for the same trigger phrases. It is re-entrant,
+though — pointing at an existing plan and asking for a review re-runs the
+gate alone (round N+1, scoped to what changed since the last round).
+
 A plan may be handed to apply only when every criterion in propose's
 exit-criteria checklist holds — no unresolved P0/P1, every requirement
 mapped to a criterion and a task, every frozen contract complete, every

@@ -9,8 +9,12 @@ description: |
   "全栈提案", "全栈规划", "全栈计划", "全栈 spike", "全栈探针",
   "全栈验证", "全栈 poc"; ALSO when the user asks to plan, design, or
   prototype a feature/fix/refactor before implementing — "plan this",
-  "设计一下", "怎么做X", "先验证X", "we should add X". Planning only —
-  does not edit project code or create branches.
+  "设计一下", "怎么做X", "先验证X", "we should add X". Every plan is
+  gated by an independent plan review before handoff; ALSO for
+  re-reviewing an existing plan without replanning it — "review this
+  plan", "re-review the plan", "审一下方案", "方案靠谱吗", "is this
+  plan ready". Planning only — does not edit project code or create
+  branches.
 license: Apache-2.0
 ---
 
@@ -554,6 +558,53 @@ When invoked with a reference to an existing un-archived work item
 3. Resume from the last incomplete step; re-confirm repos if the plan
    has changed
 
+### Review-only re-entry — re-run the Plan Review Gate
+
+When the user points at an existing plan and asks for it to be
+**reviewed** rather than replanned ("审一下这个方案", "review the plan
+for X", "re-review the plan", "方案靠谱吗", "is this plan ready?"), do
+NOT re-run Steps 1–4 — the plan already exists. Run the gate alone:
+
+1. **Locate the work item** — `<docs-dir>/changes/<type>/<name>/`. Search
+   the active type directories; if several match, ask. If `plan.md` is
+   missing, this is not a re-review — tell the user to plan it first.
+2. **Determine the round** — read `review.md`, take the highest existing
+   `## Plan Review — Round <N>`; the new round is N+1. If there are no
+   rounds yet, this is a first review (round 1) — fine, proceed.
+3. **Recover the requirements source** — read `**Source**` in `plan.md`
+   and fetch it (`jira`, `confluence`, `gh-operations`, or the referenced
+   work item). If the original requirements cannot be recovered — only a
+   paraphrase survived — ask the user for them. A coverage check without
+   the requirements is theater.
+4. **Collect what changed since the last round** — the docs repo is a
+   git repo:
+
+   ```bash
+   cd <docs-dir>
+   git log --oneline -- changes/<type>/<name>/
+   git log -p --since=<last round date> -- changes/<type>/<name>/
+   ```
+
+   Hand the reviewer the changed sections, not "please re-read
+   everything" — round discipline (see Step 4.5) is what keeps repeats
+   convergent.
+5. **Delegate to plan-reviewer** with the round number, the documents as
+   written to disk, the requirements source, and the diff — the same
+   inputs Step 4.5 specifies.
+6. **Handle the verdict** exactly as Step 4.5 does: `PASS` /
+   `PASS_WITH_RISKS` → report with the Step 5 template; `NEEDS_FIXES` →
+   the planner revises the affected sections only, then round N+2;
+   `NEEDS_USER_DECISION` → ask the user. Re-run the Mermaid gate if a
+   diagram changed and the DAG gate if the repositories table changed.
+7. **Commit the docs repo** (the review rounds are part of the record)
+   and report using the Step 5 template.
+
+Boundaries for this path: it reviews and revises only. It never re-plans
+the item from scratch, never creates branches, and never touches project
+code. If the review shows the plan is wrong at the **requirements** level
+rather than merely incomplete, stop — that is a new planning round; say so
+and run the normal steps.
+
 ## Requirements
 
 - Python 3.10+
@@ -571,6 +622,8 @@ When invoked with a reference to an existing un-archived work item
 - Never weaken a plan — delete a criterion, widen a contract to `TBD`, or
   drop a requirement — to reach a `PASS` verdict.
 - No branches, no commits to code repos, no PRs.
+- Review-only re-entry re-runs the gate; it does not replan. A plan whose
+  requirements are wrong needs a new planning round, not a review round.
 - The four documents are mandatory — a missing `analysis.md` is a failure.
 - Success Criteria must be testable and specific, not subjective.
 - Multi-repo plans MUST freeze cross-repo contracts in `analysis.md`
