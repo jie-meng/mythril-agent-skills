@@ -102,7 +102,7 @@ feature, fix, or refactor.
 
 - Input is the propose-produced work directory. No planning happens here.
 - Implements repo by repo in dependency order, delegating to the
-  developer and reviewer subagents.
+  developer and code-reviewer subagents.
 - Opens PRs when the workspace has GitHub repos.
 - Iterations (user feedback, bug reports on the same item) are recorded
   in the same work directory's `progress.md` and `review.md` — there is

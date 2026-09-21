@@ -252,7 +252,7 @@ Skill（技能）是一个提示词/指令包，用于教 AI 助手如何处理�
 
 **[Fullstack Init](./mythril_agent_skills/skills/fullstack-init/)**
 
-初始化或更新多仓库全栈工作区，统一 AI 上下文。创建带有自动生成仓库表的 AGENTS.md、独立 git 仓库的文档目录、五个工作区 Agent（planner/plan-reviewer/dev/reviewer/debugger）以及 changes/ 工作跟踪结构。
+初始化或更新多仓库全栈工作区，统一 AI 上下文。创建带有自动生成仓库表的 AGENTS.md、独立 git 仓库的文档目录、五个工作区 Agent（planner/plan-reviewer/dev/code-reviewer/debugger）以及 changes/ 工作跟踪结构。
 
 - **示例：** 初始化全栈工作区
 - **依赖：** `git` CLI

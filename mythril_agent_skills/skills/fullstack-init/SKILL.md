@@ -139,7 +139,7 @@ subagent systems automatically discover these agents:
 | Planner | `planner.md` | Analyzes requirements and architecture, returns content for `analysis.md`/`plan.md` | read-only on code |
 | Plan Reviewer | `plan-reviewer.md` | Audits the written plan against the original requirements before implementation (coverage, contracts, referenced-code existence, testability), returns findings for `review.md` | read-only on code |
 | Developer | `developer.md` | Implements code — the only agent that writes production code; stages changes, orchestrator commits | full access |
-| Reviewer | `reviewer.md` | Reviews with falsification mindset, returns findings for `review.md` | read-only on code |
+| Code Reviewer | `code-reviewer.md` | Reviews with falsification mindset, returns findings for `review.md` | read-only on code |
 | Debugger | `debugger.md` | Root-cause analysis for fix work type; temporary debug edits allowed, never commits | scoped debug edits |
 
 These are regenerated on every run. Any customization will be overwritten.
@@ -163,7 +163,7 @@ five agents as available subagents. The main AI agent can then use
 the `task` tool (or equivalent) to delegate work:
 
 ```
-task("review the staged changes", subagent_type="reviewer")
+task("review the staged changes", subagent_type="code-reviewer")
 ```
 
 If a tool's agents directory already exists as a regular directory
@@ -174,7 +174,7 @@ If a tool's agents directory already exists as a regular directory
 - **Workspace-level agents** handle cross-repo coordination
 - If a repo has its own `.agents/agents/`, workspace agents **defer to
   repo-level agents** for that repo's internal concerns
-- Reviewer is **read-only on source code** — fixes are done by Developer
+- Code Reviewer is **read-only on source code** — fixes are done by Developer
 - Plan Reviewer is **read-only too**, and audits plans instead of diffs:
   it runs during propose (before code exists), never during apply, and
   never rewrites the plan — the Planner revises, the orchestrator writes
@@ -204,7 +204,7 @@ project-workspace/
 │   │   ├── planner.md            # + YAML frontmatter for subagent tools
 │   │   ├── plan-reviewer.md
 │   │   ├── developer.md
-│   │   ├── reviewer.md
+│   │   ├── code-reviewer.md
 │   │   └── debugger.md
 │   └── skills/                   # Preserved (user content)
 ├── central-docs/                 # Independent git repo (preserved)

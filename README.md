@@ -252,7 +252,7 @@ Draft user journey maps and lo-fi wireframes for PMs/BAs via natural language. G
 
 **[Fullstack Init](./mythril_agent_skills/skills/fullstack-init/)**
 
-Initialize or update a multi-repo fullstack workspace with unified AI context. Creates AGENTS.md with auto-generated repo table, docs dir (as independent git repo), five workspace agents (planner/plan-reviewer/dev/reviewer/debugger), and the changes/ work tracking structure.
+Initialize or update a multi-repo fullstack workspace with unified AI context. Creates AGENTS.md with auto-generated repo table, docs dir (as independent git repo), five workspace agents (planner/plan-reviewer/dev/code-reviewer/debugger), and the changes/ work tracking structure.
 
 - **Try:** Initialize this fullstack workspace
 - **Deps:** `git` CLI

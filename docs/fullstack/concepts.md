@@ -84,7 +84,7 @@ code exists, by an independent `plan-reviewer` subagent in propose
 |------|--------|-----------|
 | Mermaid lint | Diagrams parse | Anything else |
 | Dependency DAG | The repositories table's *shape* (no cycles, no unknown deps) | Whether an edge is *real* |
-| **Plan review** | Requirements coverage, contract completeness, referenced-code existence, testability, dependency semantics | Whether the code, once written, is correct — that is apply's `reviewer` |
+| **Plan review** | Requirements coverage, contract completeness, referenced-code existence, testability, dependency semantics | Whether the code, once written, is correct — that is apply's `code-reviewer` |
 
 Shape gates passing does not mean the plan is right. The review is
 independent rather than a self-check because the orchestrator wrote the
@@ -103,6 +103,40 @@ exit-criteria checklist holds — no unresolved P0/P1, every requirement
 mapped to a criterion and a task, every frozen contract complete, every
 "existing" path verified to exist, and no unanswered
 `NEEDS_USER_DECISION`.
+
+### Two layers of checking, and why both exist
+
+Reviews and scripts fail differently. A reviewer reads meaning and can be
+wrong; a script reads structure and is deterministic but blind. The family
+uses both:
+
+| Layer | Cost | Catches | Misses |
+|-------|------|---------|--------|
+| Independent review (`plan-reviewer`, `code-reviewer`) | model tokens, per round | Inventions, missing contracts, untestable criteria, dropped requirements | Anything it does not think to open |
+| `plan_lint.py` | free, instant, deterministic | Success Criteria ↔ Evidence drift, an unclosed review round, broken round numbering, dead task references | Everything semantic |
+
+`plan_lint.py` exists because the review layer alone demonstrably leaked:
+a real work item ended a round in `NEEDS_FIXES`, applied the revisions,
+self-attested the result, and left a stale Evidence table — while every
+prose gate in the skill read as satisfied. Rules that are only prose are
+satisfied by narration; rules with a `STATUS=` line are not.
+
+### One record, two stages
+
+`review.md` is the item's single falsification record and it runs the
+whole lifecycle — plan stage and code stage — under one shape:
+
+```text
+## 证据核验                       # Success Criteria → proof
+## 方案审查 — 第 N 轮              # propose (plan stage)
+## 代码审查 — <repo> — 第 N 轮     # apply (code stage)
+## 跨仓库一致性审查                 # apply (multi-repo)
+## 最终结论                        # closing verdict
+```
+
+Headings carry the artifact prefix so the two round series never collide;
+both stages share one file because it is the same work item's history, and
+because archiving moves one directory.
 
 ---
 

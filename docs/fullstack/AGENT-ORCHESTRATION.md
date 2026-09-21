@@ -12,13 +12,13 @@ protocol, and rationale.
 
 Multi-repo fullstack work was originally designed around **role-play**:
 the main AI agent reads a subagent's instruction file (`planner.md`,
-`plan-reviewer.md`, `developer.md`, `reviewer.md`, `debugger.md`) and then "becomes" that
+`plan-reviewer.md`, `developer.md`, `code-reviewer.md`, `debugger.md`) and then "becomes" that
 agent. This causes three problems:
 
 1. **Context pollution** — The main agent's context window fills with
    implementation details, code diffs, and review findings, crowding out
    the high-level orchestration context.
-2. **No true isolation** — A reviewer that shares context with the
+2. **No true isolation** — A code-reviewer that shares context with the
    developer cannot be truly independent. The same session sees both
    "what was intended" and "what was built," undermining the
    falsification mindset.
@@ -46,7 +46,7 @@ delegating detail work, and aggregating results.
 └──────┬──────────────┬──────────────┬──────────────┬──────────────┬──┘
        ▼              ▼              ▼              ▼              ▼
 ┌─────────────┐┌─────────────┐┌─────────────┐┌─────────────┐┌─────────────┐
-│  PLANNER    ││PLAN-REVIEWER││  DEVELOPER  ││  REVIEWER   ││  DEBUGGER   │
+│  PLANNER    ││PLAN-REVIEWER││  DEVELOPER  ││CODE-REVIEWER││  DEBUGGER   │
 │  read-only  ││  read-only  ││ full access ││  read-only  ││scoped edits │
 │             ││             ││             ││             ││             │
 │ analysis.md ││plan review  ││ source code ││ review.md   ││ root cause, │
@@ -63,13 +63,13 @@ delegating detail work, and aggregating results.
 | **Planner** | `edit: deny`, `bash: allow` | `analysis.md` content, `plan.md` content | Reads source code only to verify the contracts it freezes. Analyzes requirements and architecture. |
 | **Plan Reviewer** | `edit: deny`, `bash: allow` | Plan review findings (P0/P1/P2 + verdict) for `review.md` | Never edits files, never rewrites the plan. Audits the written documents against the **original requirements** before implementation starts. |
 | **Developer** | `edit: allow`, `bash: allow` | Production code, tests, config (staged — orchestrator commits) | Never touches `review.md` or `progress.md`. Implements and validates per repo. |
-| **Reviewer** | `edit: deny`, `bash: allow` | Review findings (P0/P1/P2 + verdict) | Never touches source code. Two modes: per-repo staged, cross-repo. |
+| **Code Reviewer** | `edit: deny`, `bash: allow` | Review findings (P0/P1/P2 + verdict) | Never touches source code. Two modes: per-repo staged, cross-repo. |
 | **Debugger** | `edit: allow`, `bash: allow` | Root-cause analysis, fix spec, temporary debug instrumentation | Never commits; never touches `plan.md` or the tracking docs. At most one uncommitted candidate fix left in the tree; Developer implements and ships. |
 
 > **Enforcement note**: the `permission` block in each agent's
 > frontmatter is OpenCode-native and is enforced there. Claude Code,
 > Cursor, and Copilot ignore these keys — for those tools the read-only
-> boundaries (planner, plan-reviewer, reviewer) and the debugger's no-commit rule are
+> boundaries (planner, plan-reviewer, code-reviewer) and the debugger's no-commit rule are
 > enforced by the agent instructions only. Note that `bash: allow`
 > means file mutation via shell is never blocked by `edit: deny` — the
 > permission block shapes tool access, while the instructions define
@@ -115,7 +115,7 @@ sequenceDiagram
     participant Planner
     participant PR as Plan Reviewer
     participant Dev as Developer
-    participant Rev as Reviewer
+    participant Rev as Code Reviewer
     participant Debugger
 
     User->>Orch: Implement feature X (+ Jira, Figma links)
@@ -206,9 +206,9 @@ flowchart TD
     P[propose output: four documents<br/>+ plan review verdict PASS] --> A[Orchestrator: read repo AGENTS.md, README.md<br/>check graphify, check repo agents]
     A --> B[Delegate to developer subagent]
     B --> C{Dev returns}
-    C -- "tests pass, staged" --> D[Delegate to reviewer subagent<br/>per-repo mode]
+    C -- "tests pass, staged" --> D[Delegate to code-reviewer subagent<br/>per-repo mode]
     C -- "tests fail" --> B
-    D --> E{Reviewer verdict}
+    D --> E{Code Reviewer verdict}
     E -- PASS --> F[Orchestrator: commit<br/>update progress.md<br/>graphify update]
     E -- NEEDS_FIXES --> G{Round < 3?}
     G -- yes --> H[Delegate to developer:<br/>fix P0/P1 only]
@@ -249,7 +249,7 @@ no more, no less. This keeps subagent context windows small and focused.
 | **Planner** | User requirements, workspace AGENTS.md repo table, gathered external context (Jira/Confluence/Figma) | Spike docs, prior work analysis |
 | **Plan Reviewer** | The **original requirements** (user prompt, Jira/Confluence/Figma content), `analysis.md` + `plan.md` as written to disk, workspace AGENTS.md repo table, round number and what changed since the last round | Repo `AGENTS.md`/`README.md`, predecessor work-item contracts, graphify results |
 | **Developer** | `plan.md`, `analysis.md`, repo AGENTS.md, repo README.md, branch name | Graphify query results, prior implementation notes |
-| **Reviewer** | `plan.md`, `analysis.md`, `progress.md`, diffs or staged changes | Repo conventions, predecessor contracts (Follow-up mode) |
+| **Code Reviewer** | `plan.md`, `analysis.md`, `progress.md`, diffs or staged changes | Repo conventions, predecessor contracts (Follow-up mode) |
 | **Debugger** | Error logs, stack traces, reproduction steps, affected repo context | Related bug reports, prior fix attempts |
 
 ### What to expect back
@@ -267,7 +267,7 @@ writes all output to files. This ensures:
 | **Planner** | Problem framing, affected repos, recommended approach, phased plan, acceptance criteria, risks |
 | **Plan Reviewer** | Requirements coverage matrix, P0/P1/P2 findings with document/section evidence, verified vs unverified claims, verdict, open decisions that require a human |
 | **Developer** | Summary of changes per file, test results, recommended commit message, issues encountered |
-| **Reviewer** | P0/P1/P2 findings with file/line evidence, verdict, recommendations |
+| **Code Reviewer** | P0/P1/P2 findings with file/line evidence, verdict, recommendations |
 | **Debugger** | What's broken, reproduction steps, root cause with evidence, recommended minimal fix, validation results, tree state (clean, or the single uncommitted candidate fix) |
 
 ---
@@ -294,7 +294,7 @@ window lean. Here's how:
 │  │ SUBAGENT OUTPUT (~60% of window, transient)        │  │
 │  │ • Planner's analysis summary                      │  │
 │  │ • Current developer's implementation summary      │  │
-│  │ • Current reviewer's findings                     │  │
+│  │ • Current code-reviewer's findings                     │  │
 │  │ (replaced per delegation — previous output purged)│  │
 │  └───────────────────────────────────────────────────┘  │
 │  ┌───────────────────────────────────────────────────┐  │
@@ -305,17 +305,17 @@ window lean. Here's how:
 └─────────────────────────────────────────────────────────┘
           │                    │                    │
           ▼                    ▼                    ▼
-   ┌──────────┐        ┌──────────┐        ┌──────────┐
-   │ PLANNER  │        │DEVELOPER │        │ REVIEWER │
-   │ context  │        │ context  │        │ context  │
-   │ (clean,  │        │ (clean,  │        │ (clean,  │
-   │ focused) │        │ focused) │        │ focused) │
-   └──────────┘        └──────────┘        └──────────┘
+   ┌──────────┐        ┌──────────┐        ┌──────────────┐
+   │ PLANNER  │        │DEVELOPER │        │CODE-REVIEWER │
+   │ context  │        │ context  │        │ context      │
+   │ (clean,  │        │ (clean,  │        │ (clean,      │
+   │ focused) │        │ focused) │        │ focused)     │
+   └──────────┘        └──────────┘        └──────────────┘
 ```
 
 **Key principle**: Subagent output enters the main context only as a
 summary. The orchestrator does NOT read every line of code the developer
-wrote or every finding the reviewer made — it reads the summary and
+wrote or every finding the code-reviewer made — it reads the summary and
 writes it to the work tracking files. Deep detail stays in the subagent's
 own context window.
 
@@ -351,7 +351,7 @@ workspace/.agents/agents/planner.md   ← cross-repo planning
 workspace/.agents/agents/plan-reviewer.md ← plan audit (read-only)
     │
     │  if <repo>/.agents/agents/plan-reviewer.md exists:
-    │  → use repo's plan reviewer for that repo's plan sections
+    │  → use repo's plan-reviewer for that repo's plan sections
     │
     ▼
 workspace/.agents/agents/developer.md ← cross-repo implementation
@@ -360,10 +360,10 @@ workspace/.agents/agents/developer.md ← cross-repo implementation
     │  → use repo's developer for that repo's code
     │
     ▼
-workspace/.agents/agents/reviewer.md  ← cross-repo review
+workspace/.agents/agents/code-reviewer.md  ← cross-repo review
     │
-    │  if <repo>/.agents/agents/reviewer.md exists:
-    │  → use repo's reviewer for that repo's changes
+    │  if <repo>/.agents/agents/code-reviewer.md exists:
+    │  → use repo's code-reviewer for that repo's changes
     │
     ▼
 workspace/.agents/agents/debugger.md  ← cross-repo debugging
@@ -405,9 +405,9 @@ after all repos are done.
 |--------|-------------------|---------------------------|
 | **Agent invocation** | "Read the agent file and use it" | "Delegate to the X subagent" |
 | **File ownership** | Subagents "write" files (but main agent actually writes) | Subagents return text; orchestrator writes files |
-| **Review** | `code-review-staged` skill for per-repo; main agent for cross-repo | Reviewer subagent handles BOTH modes |
+| **Review** | `code-review-staged` skill for per-repo; main agent for cross-repo | Code Reviewer subagent handles BOTH modes |
 | **Context isolation** | None — everything in main agent context | Subagents get clean focused context windows |
-| **review.md ownership** | Developer appends (contradicted agent definition) | Orchestrator appends reviewer's output |
+| **review.md ownership** | Developer appends (contradicted agent definition) | Orchestrator appends code-reviewer's output |
 | **Agent file format** | Plain markdown instructions | YAML frontmatter + markdown (tool-discoverable) |
 | **Tool integration** | None | Symlinks: `.opencode/agents/`, `.claude/agents/`, etc. |
 
@@ -425,7 +425,7 @@ Existing work items continue to work with the new orchestration model.
 | Requirement | How it's met |
 |-------------|-------------|
 | Main agent stays focused on flow | Orchestrator only handles flow control, confirmation, and delegation |
-| Subagents do detail work | Planner/Plan Reviewer/Developer/Reviewer/Debugger each own one domain |
+| Subagents do detail work | Planner/Plan Reviewer/Developer/Code Reviewer/Debugger each own one domain |
 | Context isolation | Subagents run in separate context windows (when tool supports it) |
 | Plan quality before implementation | Plan Reviewer audits the written documents against the original requirements (coverage, contracts, referenced-code existence, testability) |
 | Audit trail | All file writes from orchestrator; each delegation produces discrete output |
@@ -436,6 +436,35 @@ Existing work items continue to work with the new orchestration model.
 ---
 
 ## Changelog
+
+### 2026-09-21 — v1.3: `code-reviewer`, a consistency gate, and one record shape
+
+- **`reviewer` → `code-reviewer`**: with both a plan reviewer and a code
+  reviewer in the family, `reviewer` claimed a generality it never had
+  (it audits diffs). Roles are now named by the artifact they consume:
+  `planner` → `plan-reviewer` → `developer` → `code-reviewer`, plus
+  `debugger`. `install_agents` now **prunes** agents a later release no
+  longer generates (manifest + legacy name list), so a renamed role
+  cannot linger as a second, stale agent that delegation still resolves
+- **One record shape in `review.md`**: a canonical section order and
+  artifact-prefixed headings — `## 方案审查 — 第 N 轮` (plan) vs
+  `## 代码审查 — <repo> — 第 N 轮` (code), with round numbers per prefix.
+  Both stages share one file: it is the item's single falsification
+  record, and the four-file invariant survives archiving
+- **`plan_lint.py`** (shared asset, bundled into propose + apply): a
+  deterministic consistency gate. Checks Success Criteria ↔ Evidence
+  rows in both directions, plan-review closure (an unverified
+  `NEEDS_FIXES` revision is a failure), `1..N` round numbering, task ids
+  cited in `review.md`, and unresolved `待确认`/`TBD` markers. Shape gates
+  (Mermaid, DAG) could not catch any of these; three real defects slipped
+  through a live work item without it
+- **Reconciliation rules**: a revision that adds/renames/removes a
+  Success Criterion must sync the Evidence table in the same edit; any
+  round must add a dated `progress.md` entry. Written into propose
+  Step 4.5, apply Step 7, and both document templates
+- The author's own pre-check is now a registered section
+  (`## 设计复核（可选，作者自审，非门禁）`) instead of an improvised one —
+  recorded, explicitly non-authoritative, and ignored by the exit criteria
 
 ### 2026-09-21 — v1.2: Independent plan review before implementation
 
@@ -458,8 +487,8 @@ Existing work items continue to work with the new orchestration model.
   dropped) to reach `PASS`
 - Explicit **exit criteria** for "implementable" — the checklist a plan must
   satisfy before `fullstack-apply` may start
-- Why a separate agent rather than a `reviewer` mode: routing lives in the
-  skill boundary (`propose` → Plan Reviewer, `apply` → Reviewer), not in
+- Why a separate agent rather than a `plan-reviewer` mode: routing lives in the
+  skill boundary (`propose` → Plan Reviewer, `apply` → Code Reviewer), not in
   mode switches — the same principle that removed the legacy mode router
 - Why NOT a separate skill: a review whose outcome is "revise the plan"
   cannot close its own loop, and it would compete with propose for the same
@@ -483,7 +512,7 @@ Existing work items continue to work with the new orchestration model.
   propose fix items always, plus apply escalation for non-obvious
   failures (misleading symptoms, suspected cross-repo boundary, or a
   failed developer fix round)
-- planner / reviewer / debugger descriptions: "writes X.md" replaced
+- planner / code-reviewer / debugger descriptions: "writes X.md" replaced
   with "returns content for the orchestrator to write"
 - `planner.md`: source-code boundary relaxed to "read only to verify
   frozen contracts"

@@ -413,7 +413,7 @@ will later consume it — before implementation starts, not after:
 
 - `REPOS/WAVES/WAVE_i=…` → PASS. Record the wave summary in `plan.md`
   under the repositories table (one line: "Parallel waves:
-  W1(a,b) → W2(c)") so reviewers see the intended grouping.
+  W1(a,b) → W2(c)") so code-reviewers see the intended grouping.
 - `ERROR_NO_REPOS_TABLE` / `ERROR_DUPLICATE_REPO` /
   `ERROR_SELF_DEPENDENCY` / `ERROR_UNKNOWN_DEP` → fix the table, re-run.
 - `CYCLE_REPOS=a,b,…` → repos depend on each other in a circle; apply
@@ -450,22 +450,22 @@ Every work item is reviewed; the *loop* is what scales.
 Do not skip the gate because the plan "looks fine" — that judgment is the
 thing being tested.
 
-### What the reviewer receives
+### What the code-reviewer receives
 
 - **The original requirements** gathered in Step 1a (Jira/Confluence/Figma
-  content, the user's own words). Without this the reviewer cannot detect
+  content, the user's own words). Without this the code-reviewer cannot detect
   a dropped requirement.
 - `analysis.md` and `plan.md` **as written to disk** — not the planner's
   returned message.
 - The workspace `AGENTS.md` repo table, plus `AGENTS.md` / `README.md` of
   the affected repos.
 
-The reviewer is read-only (`edit: deny`) and returns findings; you write
+The code-reviewer is read-only (`edit: deny`) and returns findings; you write
 them into `review.md`.
 
 ### Handling the verdict
 
-Append the reviewer's output to `review.md` as a
+Append the code-reviewer's output to `review.md` as a
 `## Plan Review — Round <N> — <date>` section (format in
 [`references/document-templates.md`](references/document-templates.md)).
 
@@ -473,7 +473,7 @@ Append the reviewer's output to `review.md` as a
 |---------|-------------|
 | `PASS` | Proceed to Step 5 |
 | `PASS_WITH_RISKS` | Proceed to Step 5; make sure the risks appear in `plan.md` §Risks / Open Questions |
-| `NEEDS_FIXES` | Delegate the P0/P1 findings back to the **planner** verbatim; apply the returned revisions to the affected sections only (do not regenerate untouched sections); record what changed; re-run the reviewer as round N+1 |
+| `NEEDS_FIXES` | Delegate the P0/P1 findings back to the **planner** verbatim; apply the returned revisions to the affected sections only (do not regenerate untouched sections); record what changed; re-run the code-reviewer as round N+1 |
 | `NEEDS_USER_DECISION` | Stop the loop. Put the open decisions in the Step 5 report and ask the user — planning is not complete until they are answered |
 
 Rules that keep the loop convergent:
@@ -485,7 +485,7 @@ Rules that keep the loop convergent:
 - **Round 2+ verifies the previous findings and the content changed to
   resolve them only** — never a fresh full audit. Otherwise every round
   harvests new P2s and the plan never converges.
-- **Never weaken a plan to satisfy a reviewer.** Deleting a criterion,
+- **Never weaken a plan to satisfy a code-reviewer.** Deleting a criterion,
   widening a contract to "TBD", or dropping a requirement to reach `PASS`
   is worse than shipping with a documented P1. If the honest fix is a
   choice only the user can make, that is `NEEDS_USER_DECISION`.
@@ -511,9 +511,46 @@ The plan may be handed to `fullstack-apply` only when ALL of these hold:
 - [ ] Dependency edges verified semantically, not just structurally
 - [ ] No unanswered `NEEDS_USER_DECISION`
 - [ ] Mermaid gate PASS, and (multi-repo) DAG gate PASS
+- [ ] `plan_lint.py` reports `STATUS=PASS`
 
 If a box is unchecked, do NOT report the plan as ready — report the
 blocking items instead.
+
+### Consistency gate (MANDATORY — run it after every revision)
+
+Revisions are where the four documents drift apart, because each edit
+touches one file. A review-driven revision that adds a Success Criterion
+and forgets the matching Evidence row leaves the definition of done
+unverifiable — and nothing in the prose above catches it. Run the
+bundled linter on the work directory:
+
+```bash
+python3 SKILL_PATH/scripts/plan_lint.py <docs-dir>/changes/<type>/<work-name>
+```
+
+`STATUS=PASS` is required; `ERROR:` lines are the exit-criteria failures,
+`WARN:` lines are advisory. It checks, deterministically:
+
+- every Success Criterion in `plan.md` has exactly one Evidence row in
+  `review.md` (both directions — a stale row counts too)
+- the last plan-review round ends in `PASS` / `PASS_WITH_RISKS` — an
+  unverified `NEEDS_FIXES` revision is caught here
+- plan-review rounds are numbered `1..N` without gaps
+- every task id cited in `review.md` exists in `plan.md`
+- unresolved `待确认` / `TBD` markers are surfaced as warnings (they must
+  become a formal `NEEDS_USER_DECISION`, not stay a parenthetical)
+
+Then, in the SAME revision as any document edit:
+
+| What changed | What must follow it |
+|--------------|---------------------|
+| Success Criteria added / renamed / removed | Evidence table rows in `review.md` |
+| A task added / removed / rescoped | The affected-task list recorded in `review.md` |
+| Any review round or revision | A dated entry in `progress.md` |
+| A diagram | Re-run the Mermaid gate |
+| The repositories table | Re-run the DAG gate |
+
+Never report the plan as ready with `STATUS=FAIL` standing.
 
 ## Step 5 — Report the Plan
 
@@ -585,7 +622,7 @@ NOT re-run Steps 1–4 — the plan already exists. Run the gate alone:
    git log -p --since=<last round date> -- changes/<type>/<name>/
    ```
 
-   Hand the reviewer the changed sections, not "please re-read
+   Hand the code-reviewer the changed sections, not "please re-read
    everything" — round discipline (see Step 4.5) is what keeps repeats
    convergent.
 5. **Delegate to plan-reviewer** with the round number, the documents as
@@ -597,7 +634,8 @@ NOT re-run Steps 1–4 — the plan already exists. Run the gate alone:
    `NEEDS_USER_DECISION` → ask the user. Re-run the Mermaid gate if a
    diagram changed and the DAG gate if the repositories table changed.
 7. **Commit the docs repo** (the review rounds are part of the record)
-   and report using the Step 5 template.
+   and report using the Step 5 template. Run `plan_lint.py` first — the
+   consistency gate applies to a re-review exactly as it does to Step 4.5.
 
 Boundaries for this path: it reviews and revises only. It never re-plans
 the item from scratch, never creates branches, and never touches project

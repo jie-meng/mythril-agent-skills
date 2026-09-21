@@ -506,6 +506,8 @@ NEVER hand-edit a bundled copy directly — your changes will be lost on the nex
 | `mermaid_lint.py` | `shared/mermaid/mermaid_lint.py` | `fullstack-apply`, `fullstack-propose`, `fullstack-brief`, `user-journey` |
 | `MERMAID-RULES.md` | `shared/mermaid/MERMAID-RULES.md` | `fullstack-apply`, `fullstack-propose`, `fullstack-brief`, `user-journey` |
 | `graphify_check.py` | `shared/graphify/graphify_check.py` | `fullstack-init`, `fullstack-explore`, `fullstack-propose`, `fullstack-apply`, `fullstack-archive`, `fullstack-brief` |
+| `compute_waves.py` | `shared/waves/compute_waves.py` | `fullstack-propose`, `fullstack-apply` |
+| `plan_lint.py` | `shared/plan/plan_lint.py` | `fullstack-propose`, `fullstack-apply` |
 
 Note this is a different pattern from the `git-repo-reader` shared cache (above): the cache is **runtime** shared state on the user's machine, while shared assets are **build-time** duplicated files inside the repo. Both keep installed skills fully self-contained.
 

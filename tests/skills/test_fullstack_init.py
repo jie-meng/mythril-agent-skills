@@ -355,7 +355,7 @@ class TestGenerateAgentsMd:
         assert "planner.md" in result
         assert "plan-reviewer.md" in result
         assert "developer.md" in result
-        assert "reviewer.md" in result
+        assert "code-reviewer.md" in result
         assert "debugger.md" in result
 
     def test_docs_is_independent_repo(self):
@@ -740,13 +740,13 @@ class TestInstallAgents:
         self.func = install_agents
 
     def test_copies_all_agent_files(self, tmp_path: Path):
-        names = self.func(tmp_path, "my-project")
+        names, _pruned = self.func(tmp_path, "my-project")
         assert set(names) == {
             "debugger",
             "developer",
             "plan-reviewer",
             "planner",
-            "reviewer",
+            "code-reviewer",
         }
 
         for name in names:
@@ -755,7 +755,7 @@ class TestInstallAgents:
 
     def test_project_name_substitution(self, tmp_path: Path):
         self.func(tmp_path, "my-workspace")
-        for name in ("planner", "plan-reviewer", "developer", "reviewer", "debugger"):
+        for name in ("planner", "plan-reviewer", "developer", "code-reviewer", "debugger"):
             content = (tmp_path / ".agents" / "agents" / f"{name}.md").read_text()
             assert "my-workspace" in content, f"{name} missing project name"
             assert "{project_name}" not in content, f"{name} has unreplaced placeholder"
@@ -763,7 +763,7 @@ class TestInstallAgents:
     def test_all_files_have_yaml_frontmatter(self, tmp_path: Path):
         import yaml as _yaml_mod
         self.func(tmp_path, "test")
-        for name in ("planner", "plan-reviewer", "developer", "reviewer", "debugger"):
+        for name in ("planner", "plan-reviewer", "developer", "code-reviewer", "debugger"):
             content = (tmp_path / ".agents" / "agents" / f"{name}.md").read_text()
             assert content.startswith("---"), f"{name} missing frontmatter"
             frontmatter = content.split("---")[1]
@@ -782,9 +782,9 @@ class TestInstallAgents:
         content = (tmp_path / ".agents" / "agents" / "developer.md").read_text()
         assert "edit: allow" in content
 
-    def test_reviewer_read_only(self, tmp_path: Path):
+    def test_code_reviewer_read_only(self, tmp_path: Path):
         self.func(tmp_path, "proj")
-        content = (tmp_path / ".agents" / "agents" / "reviewer.md").read_text()
+        content = (tmp_path / ".agents" / "agents" / "code-reviewer.md").read_text()
         assert "edit: deny" in content
 
     def test_debugger_scoped_edits(self, tmp_path: Path):
@@ -809,9 +809,9 @@ class TestInstallAgents:
         assert "Do not rewrite or fix the plan" in content
         assert "NEEDS_USER_DECISION" in content
 
-    def test_reviewer_does_not_fix(self, tmp_path: Path):
+    def test_code_reviewer_does_not_fix(self, tmp_path: Path):
         self.func(tmp_path, "proj")
-        content = (tmp_path / ".agents" / "agents" / "reviewer.md").read_text()
+        content = (tmp_path / ".agents" / "agents" / "code-reviewer.md").read_text()
         assert "Do not fix issues you find" in content
 
     def test_debugger_root_cause(self, tmp_path: Path):
@@ -828,6 +828,61 @@ class TestInstallAgents:
         content = planner.read_text()
         assert "garbage" not in content
         assert "second" in content
+
+    def test_prunes_renamed_legacy_agent(self, tmp_path: Path):
+        # A workspace created before the manifest existed: reviewer.md sits
+        # on disk with nothing recording that this skill generated it.
+        agents_dir = tmp_path / ".agents" / "agents"
+        agents_dir.mkdir(parents=True)
+        (agents_dir / "reviewer.md").write_text("old role", encoding="utf-8")
+
+        names, pruned = self.func(tmp_path, "proj")
+
+        assert "reviewer" not in names
+        assert "code-reviewer" in names
+        assert pruned == ["reviewer"]
+        assert not (agents_dir / "reviewer.md").exists()
+        assert (agents_dir / "code-reviewer.md").exists()
+
+    def test_prunes_agent_dropped_by_a_later_release(self, tmp_path: Path):
+        import json as _json
+
+        self.func(tmp_path, "proj")  # records the manifest
+        agents_dir = tmp_path / ".agents" / "agents"
+        (agents_dir / "retired.md").write_text("x", encoding="utf-8")
+        manifest = agents_dir / ".generated-agents.json"
+        data = _json.loads(manifest.read_text())
+        data["agents"].append("retired")
+        manifest.write_text(_json.dumps(data), encoding="utf-8")
+
+        _names, pruned = self.func(tmp_path, "proj")
+
+        assert pruned == ["retired"]
+        assert not (agents_dir / "retired.md").exists()
+
+    def test_keeps_user_written_agents(self, tmp_path: Path):
+        agents_dir = tmp_path / ".agents" / "agents"
+        agents_dir.mkdir(parents=True)
+        (agents_dir / "my-own-agent.md").write_text("mine", encoding="utf-8")
+
+        _names, pruned = self.func(tmp_path, "proj")
+
+        assert pruned == []
+        assert (agents_dir / "my-own-agent.md").read_text() == "mine"
+
+    def test_manifest_lists_generated_agents(self, tmp_path: Path):
+        import json as _json
+
+        self.func(tmp_path, "proj")
+        manifest = tmp_path / ".agents" / "agents" / ".generated-agents.json"
+
+        assert set(_json.loads(manifest.read_text())["agents"]) == {
+            "planner",
+            "plan-reviewer",
+            "developer",
+            "code-reviewer",
+            "debugger",
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -856,7 +911,7 @@ class TestAgentSourceFiles:
             "planner",
             "plan-reviewer",
             "developer",
-            "reviewer",
+            "code-reviewer",
             "debugger",
         }
 
@@ -1024,7 +1079,7 @@ class TestBootstrapWorkspace:
         assert (tmp_path / ".agents" / "skills").is_dir()
         assert (tmp_path / "scripts").is_dir()
 
-        for name in ("planner", "plan-reviewer", "developer", "reviewer", "debugger"):
+        for name in ("planner", "plan-reviewer", "developer", "code-reviewer", "debugger"):
             assert (tmp_path / ".agents" / "agents" / f"{name}.md").exists()
 
         agents_md = (tmp_path / "AGENTS.md").read_text()

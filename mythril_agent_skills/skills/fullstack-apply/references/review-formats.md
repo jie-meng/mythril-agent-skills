@@ -3,7 +3,35 @@
 Templates for sections appended to `review.md` during implementation
 and review. Use the language matching the user's prompt.
 
-## Per-repo staged review section
+## Canonical order of `review.md`
+
+One work item has ONE falsification record. Every section carries an
+artifact prefix, so a reader (and `plan_lint.py`) can tell a plan-stage
+verdict from a code-stage one — both use round numbers:
+
+```text
+# 审查：<工作名称>          # header: what this file holds
+## 证据核验                  # Success Criteria → proof (propose seeds it, apply fills it)
+## 方案审查 — 第 N 轮        # written by fullstack-propose (Step 4.5)
+## 设计复核（可选，作者自审，非门禁）   # optional author self-check — never authoritative
+## 代码审查 — <repo> — 第 N 轮   # written by fullstack-apply (Step 4d)
+## 跨仓库一致性审查           # written by fullstack-apply (Step 5)
+## 最终结论                  # the item's closing verdict
+```
+
+Rules:
+
+- Sections are **appended in this order** — never insert a new round above
+  an older one.
+- Round numbers are per-prefix and monotonic: `方案审查` rounds run
+  1..N on their own, `代码审查` rounds restart at 1 per repo.
+- Existing rounds are historical record: never renumber or rewrite one.
+  Correct an error with a dated errata note inside the same section.
+- A `设计复核` section is the author's own pre-check. It is a working
+  artifact, not a gate: its verdict never substitutes for a
+  `方案审查` round.
+
+## Per-repo staged review section (code review)
 
 Appended once per repo per review round. The full
 `code-review-staged` output is preserved verbatim — do not summarize.
@@ -11,7 +39,7 @@ Appended once per repo per review round. The full
 ### English
 
 ```markdown
-## <repo> — Review Round <N> — <date>
+## Code Review — <repo> — Round <N> — <date>
 
 ### Staged Review Output
 
@@ -31,7 +59,7 @@ Appended once per repo per review round. The full
 ### Chinese
 
 ```markdown
-## <repo> — 第 <N> 轮审查 — <date>
+## 代码审查 — <repo> — 第 <N> 轮 — <date>
 
 ### 暂存区审查输出
 
@@ -47,6 +75,9 @@ Appended once per repo per review round. The full
 |------|---------|
 | `abc1234` | feat: add dark mode toggle |
 ```
+
+> Items created before this convention used `## <repo> — Review Round <N>`.
+> Leave them as they are; only new rounds use the prefixed form.
 
 ### Commits section rules
 

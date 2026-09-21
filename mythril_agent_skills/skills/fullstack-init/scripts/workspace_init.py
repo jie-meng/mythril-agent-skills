@@ -46,6 +46,16 @@ INFRA_DIRS = {
     "__pycache__",
 }
 
+# Agent manifest lives beside the generated agents; subagent discovery
+# globs `*.md`, so the dot-file stays invisible to it.
+AGENT_MANIFEST_NAME = ".generated-agents.json"
+
+# Agent names this skill generated in releases that predate the manifest.
+# Workspaces created then have the files on disk with no manifest to
+# consult, so a rename (reviewer → code-reviewer) needs this list to know
+# what it is allowed to prune.
+LEGACY_GENERATED_AGENTS = ("planner", "developer", "reviewer", "debugger")
+
 
 # ---------------------------------------------------------------------------
 # Config persistence (fullstack.json is the ONLY persistent state)
@@ -447,7 +457,7 @@ line and re-run before committing. Full rules live in
 │   │   ├── planner.md
 │   │   ├── plan-reviewer.md
 │   │   ├── developer.md
-│   │   ├── reviewer.md
+│   │   ├── code-reviewer.md
 │   │   └── debugger.md
 │   └── skills/        # Custom skills for this workspace (preserved)
 ├── scripts/           # Workspace-level automation scripts (preserved)
@@ -1015,12 +1025,20 @@ def _resolve_skill_agents_dir() -> Path:
     return script_dir.parent / "agents"
 
 
-def install_agents(target_root: Path, project_name: str) -> list[str]:
-    """Copy agent .md files from the skill's agents/ dir to the workspace.
+def install_agents(
+    target_root: Path, project_name: str
+) -> tuple[list[str], list[str]]:
+    """Sync the workspace's `.agents/agents/` with the bundled agents.
 
     Reads each .md file from the bundled agents directory, replaces
     {project_name}, and writes to <workspace>/.agents/agents/<name>.md.
-    Returns a sorted list of installed agent names.
+
+    Agents this skill generated in an earlier release but no longer
+    generates are removed — a renamed role must not linger as a second,
+    stale agent that delegation can still resolve to. The generated set is
+    recorded in a manifest so the next release can do the same to it.
+
+    Returns (installed, pruned) agent-name lists.
     """
     source_dir = _resolve_skill_agents_dir()
     target_dir = target_root / ".agents" / "agents"
@@ -1035,7 +1053,51 @@ def install_agents(target_root: Path, project_name: str) -> list[str]:
         (target_dir / f"{name}.md").write_text(content, encoding="utf-8")
         agent_names.append(name)
 
-    return agent_names
+    pruned = prune_stale_agents(target_dir, set(agent_names))
+    write_agent_manifest(target_dir, agent_names)
+
+    return agent_names, pruned
+
+
+def prune_stale_agents(target_dir: Path, current_names: set[str]) -> list[str]:
+    """Delete agent files this skill generated before but no longer generates.
+
+    Only names recorded in the manifest — plus LEGACY_GENERATED_AGENTS, for
+    workspaces created before the manifest existed — are candidates. Agent
+    files written by the user under other names are never touched.
+    """
+    known = read_agent_manifest(target_dir) | set(LEGACY_GENERATED_AGENTS)
+    pruned: list[str] = []
+
+    for name in sorted(known - current_names):
+        stale = target_dir / f"{name}.md"
+        if stale.is_file():
+            stale.unlink()
+            pruned.append(name)
+
+    return pruned
+
+
+def read_agent_manifest(target_dir: Path) -> set[str]:
+    """Return the agent names a previous run recorded as generated."""
+    manifest = target_dir / AGENT_MANIFEST_NAME
+    if not manifest.is_file():
+        return set()
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    names = data.get("agents") if isinstance(data, dict) else None
+    return set(names) if isinstance(names, list) else set()
+
+
+def write_agent_manifest(target_dir: Path, agent_names: list[str]) -> None:
+    """Record the generated agent set for the next run's pruning step."""
+    manifest = target_dir / AGENT_MANIFEST_NAME
+    manifest.write_text(
+        json.dumps({"agents": sorted(agent_names)}, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1199,10 +1261,15 @@ def bootstrap_workspace(
     # === REGENERATED FILES (always overwrite) ===
 
     # --- .agents/agents/ (copy from bundled agents/) ---
-    agent_names = install_agents(root, project_name)
+    agent_names, pruned_agents = install_agents(root, project_name)
     report["updated"].append(
         f".agents/agents/ ({', '.join(agent_names)})"
     )
+    if pruned_agents:
+        report["updated"].append(
+            ".agents/agents/ (removed stale agents: "
+            f"{', '.join(n + '.md' for n in pruned_agents)})"
+        )
 
     # --- Tool-specific agent symlinks ---
     symlink_messages = create_agent_symlinks(root)

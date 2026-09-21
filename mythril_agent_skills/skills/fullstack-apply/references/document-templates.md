@@ -577,17 +577,17 @@ sequenceDiagram
 ```markdown
 # Review: <Work Name>
 
-Plan review rounds (recorded by fullstack-propose before implementation)
-and, below them, per-repo staged review results and cross-repo
-consistency checks (appended during implementation).
-Each repo section records the full `code-review-staged` output and verdict.
-A final `### Verdict` or cross-repo `### Verdict` is required before
-finalization can proceed.
+This file is the work item's falsification record, in append order:
+plan review rounds (fullstack-propose) → Evidence → code review rounds
+and the cross-repo check (fullstack-apply) → closing verdict. See the
+canonical order in [`review-formats.md`](review-formats.md#canonical-order-of-reviewmd).
 
 ## Evidence
 
-Before finalization, map each Success Criterion from plan.md to
-concrete proof:
+Seeded by fullstack-propose with one row per Success Criterion from
+plan.md (all `待核验` / `Pending`), filled during finalization. A
+criterion without a row here is a criterion nobody verified —
+`plan_lint.py` fails the handoff and the finalization gate on it.
 
 | Success Criterion | Result | Evidence |
 |-------------------|--------|----------|
@@ -601,14 +601,15 @@ concrete proof:
 ```markdown
 # 审查：<工作名称>
 
-plan 阶段方案审查（由 fullstack-propose 在实现前写入），其下为实现过程中
-追加的各仓库暂存区审查结果和跨仓库一致性检查。
-每个仓库的章节记录完整的 `code-review-staged` 输出和结论。
-最终必须包含 `### 结论` 部分，否则无法进入收尾阶段。
+本文件是该工作项的证伪记录，按追加顺序：方案审查轮次（fullstack-propose）
+→ 证据核验 → 代码审查轮次与跨仓库审查（fullstack-apply）→ 最终结论。
+规范顺序见 [`review-formats.md`](review-formats.md#canonical-order-of-reviewmd)。
 
 ## 证据核验
 
-收尾前，将 plan.md 中的每条成功标准对照具体证据：
+由 fullstack-propose 预填：plan.md 中每条成功标准一行（全部标 `待核验`），
+收尾阶段填写证据。这里没有行的成功标准就是没人核验的标准——
+`plan_lint.py` 会在交付门与收尾门上报错。
 
 | 成功标准 | 结果 | 证据 |
 |---------|------|------|
@@ -625,7 +626,7 @@ defined in [`review-formats.md`](review-formats.md).
 ## Plan review round
 
 Written by **fullstack-propose** (Step 4.5), one section per round, before
-any implementation starts. The reviewer subagent returns the content; the
+any implementation starts. The plan-reviewer subagent returns the content; the
 orchestrator appends it. Section labels follow the work item's language.
 
 ### English
@@ -740,6 +741,50 @@ planner 拒绝某条问题时，orchestrator 在同一轮记录：
 ```
 
 未经 `已拒绝` 标注即在修订中消失的问题，在下一轮按新的 P0 处理。
+
+### Author self-check (optional section)
+
+An author's own pre-check of the plan is allowed and often worth
+recording — it catches cheap things before the independent audit runs.
+It is a **working artifact, not a gate**: its conclusion never
+substitutes for a `## Plan Review` round, and the exit criteria ignore
+it. Record it above the first plan-review round, clearly labelled:
+
+```markdown
+## 设计复核（可选，作者自审，非门禁）— <date>
+
+**结论**：<作者的判断，仅供参考>
+```
+
+```markdown
+## Design Self-Check (optional, author, NOT a gate) — <date>
+
+**Conclusion**: <the author's own assessment — informational only>
+```
+
+### Reconciliation after a revision (MANDATORY)
+
+Planner revisions touch one document at a time and the chain drifts.
+After applying revisions, sync in the same edit:
+
+| Revision | Must also update |
+|----------|------------------|
+| Success Criteria added / renamed / removed | the `## Evidence` table rows in `review.md` |
+| A task added / removed / rescoped | the affected-task list in the round's 修订 section |
+| Any round or revision | a dated section in `progress.md` |
+| A diagram | re-run the Mermaid gate |
+| The repositories table | re-run the DAG gate |
+
+Then run the consistency gate:
+
+```bash
+python3 SKILL_PATH/scripts/plan_lint.py <docs-dir>/changes/<type>/<work-name>
+```
+
+`STATUS=PASS` is required before the plan may be reported ready. It
+reports an unclosed review (last round ending in `NEEDS_FIXES`), an
+Evidence row missing for a criterion, broken round numbering, and task
+ids that no longer exist.
 
 ---
 

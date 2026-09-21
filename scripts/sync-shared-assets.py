@@ -125,6 +125,25 @@ def specs() -> list[SyncSpec]:
         )
     )
 
+    # --- shared/plan/plan_lint.py → <skill>/scripts/plan_lint.py
+    # Cross-document consistency gate: propose runs it before handing a
+    # plan to apply; apply runs it before finalizing the work item.
+    plan_consumers = (
+        "fullstack-apply",
+        "fullstack-propose",
+    )
+    plan_source = SHARED_ROOT / "plan" / "plan_lint.py"
+    out.append(
+        SyncSpec(
+            source=plan_source,
+            targets=tuple(
+                SKILLS_ROOT / skill / "scripts" / "plan_lint.py"
+                for skill in plan_consumers
+            ),
+            description="work-tracking document linter",
+        )
+    )
+
     return out
 
 

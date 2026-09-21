@@ -63,7 +63,7 @@ the archive lifecycle.
 | [Workflows](workflows.md) | When to use which skill, and how they connect |
 | [Concepts](concepts.md) | Deep design: directories, documents, lifecycle, naming |
 | [REFACTOR-PLAN](REFACTOR-PLAN.md) | The refactor plan that produced this structure (transitional) |
-| [AGENT-ORCHESTRATION](AGENT-ORCHESTRATION.md) | How the family delegates to subagents (planner / plan-reviewer / developer / reviewer / debugger) |
+| [AGENT-ORCHESTRATION](AGENT-ORCHESTRATION.md) | How the family delegates to subagents (planner / plan-reviewer / developer / code-reviewer / debugger) |
 
 ---
 

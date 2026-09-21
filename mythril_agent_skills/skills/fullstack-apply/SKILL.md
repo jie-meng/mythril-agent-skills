@@ -240,8 +240,8 @@ follows for the WHOLE run — do not improvise per step:
 - The developer cannot stage, so it MUST return the exact list of
   every file it created or modified, each with a path relative to the
   repo root — that list replaces the staged diff in every later step.
-- Review (4d) runs over that file list — the reviewer reads the named
-  files instead of a diff. If reviewer delegation is impossible, the
+- Review (4d) runs over that file list — the code-reviewer reads the named
+  files instead of a diff. If code-reviewer delegation is impossible, the
   orchestrator may self-review, and the review section must say so
   explicitly ("orchestrator self-review").
 - In `review.md`, its per-repo section records a `### Changed files`
@@ -259,7 +259,7 @@ follows for the WHOLE run — do not improvise per step:
 
 You are the **orchestrator**. Manage the high-level flow, confirm
 decisions with the user, and delegate detail work to subagents. Do NOT
-try to "become" the developer or reviewer — delegate to them.
+try to "become" the developer or code-reviewer — delegate to them.
 
 ### The wave model
 
@@ -310,7 +310,7 @@ serial, only faster when width > 1.
 |-------|------|----------------|------------|
 | **planner** | `analysis.md` content, `plan.md` content | Source code files | Orchestrator (you) |
 | **developer** | Production code, test files, env setup | `review.md`, `progress.md` | Orchestrator (you) |
-| **reviewer** | Review findings (per-repo + cross-repo) | Source code files | Orchestrator (you) |
+| **code-reviewer** | Review findings (per-repo + cross-repo) | Source code files | Orchestrator (you) |
 | **debugger** | Root-cause analysis + fix spec (fix-type plans, and escalation for non-obvious failures); temporary debug instrumentation | `plan.md`, commits | Orchestrator (you) |
 | **orchestrator (you)** | `progress.md`, `review.md` (append agent output), PRs, user communication | — | The user |
 
@@ -319,15 +319,15 @@ serial, only faster when width > 1.
   return structured results; you write them to the work directory. This
   single-writer rule is what makes parallel delegation safe — parallel
   developers never share mutable state.
-- The **reviewer is invoked for BOTH** per-repo review and cross-repo
-  review. One reviewer role, two modes; per-repo reviewers run as
+- The **code-reviewer is invoked for BOTH** per-repo review and cross-repo
+  review. One code-reviewer role, two modes; per-repo code-reviewers run as
   separate parallel instances.
 - The **developer** handles implementation + validation per repo and
   returns results. You don't write code in the main agent.
 - If a repo has its own `.agents/agents/` (repo-level agents), prefer
   them for that repo's concerns — pass them the same context and delegate.
 - **One repo, one agent at a time.** Never delegate two agents into the
-  same repository concurrently — even a read-only reviewer overlapping a
+  same repository concurrently — even a read-only code-reviewer overlapping a
   developer risks racing git index state./repos are the unit of isolation.
 
 ### Wave computation — MANDATORY SCRIPT CALL
@@ -459,31 +459,31 @@ on a broken one:
 5. Write each completed summary to `progress.md`, then proceed to
    staged review for that repo.
 
-#### 4d. Per-repo staged review — delegate to a reviewer subagent per repo
+#### 4d. Per-repo staged review — delegate to a code-reviewer subagent per repo
 
 As soon as a developer has staged changes in a repo, delegate to a
-**reviewer** subagent for that repo's staged review — reviewers of
+**code-reviewer** subagent for that repo's staged review — code-reviewers of
 different repos run as parallel instances and never wait for each
 other:
 
-1. Provide the reviewer with: `plan.md` (especially Success Criteria),
+1. Provide the code-reviewer with: `plan.md` (especially Success Criteria),
    `analysis.md`, `progress.md`, the same frozen-contract sections from
    4a, and the staged diff (`git diff --cached` in the repo) — for a
    repo without version control, the changed-file list from 4b instead
    (see Step 3 "Repos without version control").
-2. The reviewer returns findings in P0/P1/P2 format with a verdict
+2. The code-reviewer returns findings in P0/P1/P2 format with a verdict
    (PASS / PASS_WITH_RISKS / NEEDS_FIXES / FAIL), scoped to its repo.
-3. You append the reviewer's output to `review.md` — below the
+3. You append the code-reviewer's output to `review.md` — below the
    `## Plan Review` rounds that `fullstack-propose` wrote (never overwrite
    or renumber them; the plan reviews are part of this item's record).
 4. **If NEEDS_FIXES**: send the P0/P1 items back to THAT repo's
    developer subagent. Developer fixes → re-validates (lint/test/build)
-   → stages (`git add .`). Then invoke its reviewer again. Max 3 rounds
+   → stages (`git add .`). Then invoke its code-reviewer again. Max 3 rounds
    total, tracked per repo. If the same P0/P1 survives one developer
    fix round, or its cause is not evident from the diff, delegate to
    the **debugger** subagent for that repo first (root cause + fix
    spec, scoped-edit rules) and route its findings through the same
-   developer → reviewer loop.
+   developer → code-reviewer loop.
 5. **If PASS**: proceed to commit for that repo.
 
 #### 4e. Commit per repo, then the wave gate
@@ -528,7 +528,7 @@ After the final wave's gate passes → proceed to Step 5.
 
 Skip this step for single-repo work. For multi-repo, this is **the one
 global barrier** of the whole implementation: after the final wave's
-gate, delegate to the **reviewer** subagent in cross-repo mode to
+gate, delegate to the **code-reviewer** subagent in cross-repo mode to
 verify changes are consistent across all affected repos. Per-repo
 staged reviews (4d) never substitute for it — each saw only its own
 diff; integration defects live between diffs.
@@ -546,15 +546,15 @@ For a repo without version control, there is no diff — provide its
 `### Changed files` list from `review.md` plus direct reads of the
 named files instead (see Step 3 "Repos without version control").
 
-### 5b. Delegate to reviewer subagent (cross-repo mode)
+### 5b. Delegate to code-reviewer subagent (cross-repo mode)
 
-Provide the reviewer with:
+Provide the code-reviewer with:
 - `plan.md`, `analysis.md`, `progress.md` — full work context
 - Cross-repo diffs from all affected repos
 - For successor work (`-vN`): the predecessor's shipped contracts
   (backward-compatibility check)
 
-The reviewer checks:
+The code-reviewer checks:
 - **API contracts**: request/response shapes match between producer and consumer
 - **Shared types**: type definitions in shared-lib match usage in consumers
 - **Environment variables**: new env vars documented in all affected repos
@@ -565,7 +565,7 @@ The reviewer checks:
 
 ### 5c. Write cross-repo findings
 
-Append the reviewer's output to `review.md` using the template in
+Append the code-reviewer's output to `review.md` using the template in
 [`references/review-formats.md`](references/review-formats.md). Even if
 no issues are found, write a `PASS` confirmation documenting what was
 checked.
@@ -576,7 +576,7 @@ If P0/P1 cross-repo issues are found:
 1. Fix upstream repo first, then downstream (topological order — the
    wave plan from Step 4 is the order).
 2. For each repo needing fixes, go through its scoped developer →
-   reviewer loop again (Steps 4b through 4e). Fixes to MUTUALLY
+   code-reviewer loop again (Steps 4b through 4e). Fixes to MUTUALLY
    INDEPENDENT repos may fan out in parallel, exactly like a normal
    wave.
 3. Re-run the cross-repo review after all fix repos pass.
@@ -708,6 +708,30 @@ documented — mark it `⚠️ Skipped (no verified test run in <repo>)` —
 never `✅ Pass`. Untested is unproven; record the gap explicitly rather
 than claiming a result.
 
+### Consistency gate (MANDATORY)
+
+Run the bundled linter on the work directory:
+
+```bash
+python3 SKILL_PATH/scripts/plan_lint.py <docs-dir>/changes/<type>/<work-name>
+```
+
+`STATUS=PASS` is required before finalizing. It catches the drift that
+hand-checks miss, deterministically:
+
+- every Success Criterion in `plan.md` has exactly one Evidence row in
+  `review.md` (implementations add and rename criteria; the table rots)
+- the last plan-review round ended in `PASS` / `PASS_WITH_RISKS`
+- plan-review rounds are numbered `1..N` without gaps
+- every task id cited in `review.md` exists in `plan.md`
+- unresolved `待确认` / `TBD` markers are surfaced as warnings
+
+**Reconciliation rule** — any change to the Success Criteria list during
+implementation (a criterion added, renamed, waived, or dropped) must sync
+the `review.md` Evidence table in the same edit. A criterion the Evidence
+table does not know about is a criterion nobody verified; the linter will
+fail the finalization gate on it.
+
 ### Four-file consistency gate (MANDATORY)
 
 Verify all four documents exist and are internally consistent:
@@ -735,6 +759,8 @@ After review passes (and PRs created in Step 6 if applicable):
 3. **Update `plan.md`** — check off all completed tasks.
 4. **Fill the Evidence table** in `review.md` — map each Success
    Criterion to concrete proof (test results, PR links, screenshots).
+   Then re-run `plan_lint.py` — a stale Evidence table (missing or
+   renamed criteria) is the most common cause of `STATUS=FAIL` here.
 5. **Push feature branches** in each affected code repo so the user has
    reviewable code on the remote, regardless of whether PRs were created
    in Step 6:
@@ -862,7 +888,7 @@ directory:
    its findings into the briefs. Obvious, change-caused failures go
    straight into the wave loop.
 3. Re-run `compute_waves.py` on the affected repos, then run the same
-   wave loop: parallel developer → reviewer cycles (Steps 4a–4e).
+   wave loop: parallel developer → code-reviewer cycles (Steps 4a–4e).
 4. Update `progress.md` (new dated entry) and `review.md` (new review
    round) after each edit.
 5. Update `plan.md` Success Criteria if scope genuinely changed (with
