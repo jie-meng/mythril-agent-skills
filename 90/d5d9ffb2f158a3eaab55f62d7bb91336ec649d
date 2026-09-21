@@ -1,0 +1,27 @@
+mythril_agent_skills/skills/fullstack-propose/SKILL.md
+  s_3a87501e6adac5::t_b2a22cd733c6f3 589
+  s_3a87501e6adac5::t_392981e6a94ac3 12-17
+  s_3a87501e6adac5::t_d103ed6d388ec3 561-588,590-607,625-626
+docs/fullstack/concepts.md
+  s_3a87501e6adac5::t_710b9a4defcea1 95-100
+docs/fullstack/AGENT-ORCHESTRATION.md
+  s_3a87501e6adac5::t_765509dcd111c7 464-468
+docs/fullstack/workflows.md
+  s_3a87501e6adac5::t_d3c046487c892a 91-93,137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "90d5d9ffb2f158a3eaab55f62d7bb91336ec649d",
+  "prompts": {},
+  "sessions": {
+    "s_3a87501e6adac5": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0c420-8bbd-7038-86b5-9ae10abf6716",
+        "model": "deepseek-flash"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
