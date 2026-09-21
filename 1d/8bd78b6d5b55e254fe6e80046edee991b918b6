@@ -1,0 +1,31 @@
+docs/fullstack/AGENT-ORCHESTRATION.md
+  s_3a87501e6adac5::t_6f2ca266e1a16f 72-86,247-256,456-468
+  s_3a87501e6adac5::t_28c03e18245e77 469
+tests/skills/test_fullstack_init.py
+  s_3a87501e6adac5::t_79b0c2c813bd37 923-930
+mythril_agent_skills/skills/fullstack-init/agents/plan-reviewer.md
+  s_3a87501e6adac5::t_b51cd735c346bb 34
+mythril_agent_skills/skills/fullstack-init/SKILL.md
+  s_3a87501e6adac5::t_ed1d21dd2a5b09 132-134,160-163,172-177
+  s_3a87501e6adac5::t_2531c443115380 178
+mythril_agent_skills/skills/fullstack-apply/SKILL.md
+  s_3a87501e6adac5::t_bce62bf0f73842 474-476,696-697
+mythril_agent_skills/skills/fullstack-propose/SKILL.md
+  s_3a87501e6adac5::t_993884bca5f86d 416,453,456,463,466-471,474-476,483,495,616,632
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1d8bd78b6d5b55e254fe6e80046edee991b918b6",
+  "prompts": {},
+  "sessions": {
+    "s_3a87501e6adac5": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a0c420-8bbd-7038-86b5-9ae10abf6716",
+        "model": "deepseek-flash"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
