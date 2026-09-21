@@ -30,7 +30,7 @@ created by `fullstack-propose`:
 ├── analysis.md   # why and how (may include spike findings)
 ├── plan.md       # requirements, Success Criteria, tasks
 ├── progress.md   # dated change log
-└── review.md     # review findings + Evidence table
+└── review.md     # plan review rounds + code review findings + Evidence table
 ```
 
 This skill implements the plan in dependency-order waves — repos with
@@ -473,7 +473,9 @@ other:
    (see Step 3 "Repos without version control").
 2. The reviewer returns findings in P0/P1/P2 format with a verdict
    (PASS / PASS_WITH_RISKS / NEEDS_FIXES / FAIL), scoped to its repo.
-3. You append the reviewer's output to `review.md`.
+3. You append the reviewer's output to `review.md` — below the
+   `## Plan Review` rounds that `fullstack-propose` wrote (never overwrite
+   or renumber them; the plan reviews are part of this item's record).
 4. **If NEEDS_FIXES**: send the P0/P1 items back to THAT repo's
    developer subagent. Developer fixes → re-validates (lint/test/build)
    → stages (`git add .`). Then invoke its reviewer again. Max 3 rounds
@@ -687,6 +689,10 @@ Before finalizing, verify `review.md` contains at least one
 staged reviews (Step 4d). For multi-repo work, also verify the
 cross-repo review (Step 5) has a verdict. If either is missing,
 **STOP** and complete the review.
+
+A `## Plan Review — Round <N>` verdict (written by `fullstack-propose`)
+does NOT satisfy this gate — it predates the code. The gate needs a
+verdict grounded in a repo diff or a changed-file list.
 
 ### Success Criteria gate (MANDATORY)
 

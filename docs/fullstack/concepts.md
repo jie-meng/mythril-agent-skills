@@ -73,6 +73,31 @@ Evidence table in 79% of cases.
 `review.md` carries the matching **Evidence table**: each criterion is
 checked against concrete evidence (test results, PR links, screenshots).
 
+### The plan review gate — falsify the plan while it is still cheap
+
+Success Criteria only pay off if they are actually testable, and a plan
+only pays off if it is actually buildable. Both are checked **before** any
+code exists, by an independent `plan-reviewer` subagent in propose
+(Step 4.5).
+
+| Gate | Checks | Cannot see |
+|------|--------|-----------|
+| Mermaid lint | Diagrams parse | Anything else |
+| Dependency DAG | The repositories table's *shape* (no cycles, no unknown deps) | Whether an edge is *real* |
+| **Plan review** | Requirements coverage, contract completeness, referenced-code existence, testability, dependency semantics | Whether the code, once written, is correct — that is apply's `reviewer` |
+
+Shape gates passing does not mean the plan is right. The review is
+independent rather than a self-check because the orchestrator wrote the
+files from the planner's reasoning; a self-review re-runs the same
+assumptions. Findings land in `review.md` as `## Plan Review — Round <N>`,
+so the file holds the whole falsification history of the item.
+
+A plan may be handed to apply only when every criterion in propose's
+exit-criteria checklist holds — no unresolved P0/P1, every requirement
+mapped to a criterion and a task, every frozen contract complete, every
+"existing" path verified to exist, and no unanswered
+`NEEDS_USER_DECISION`.
+
 ---
 
 ## The changes/ container
@@ -209,6 +234,8 @@ behavior contract that lives beyond a work item, write it in your own
 | `changes/` | The lifecycle container in the docs repo |
 | Archive | Moving a work directory into `changes/archive/` with a date+type prefix |
 | Success Criteria | The pre-agreed, testable checklist in `plan.md` |
+| Plan Review | `review.md` sections written by propose before code exists — `## Plan Review — Round <N>` |
+| Exit criteria | The checklist a plan must satisfy before apply may start |
 | Evidence table | The review.md table mapping each criterion to concrete proof |
 | Spike (deep mode) | propose's optional validation path; lives in `analysis.md` |
 | Successor | A new work directory (`-vN`) that continues an archived predecessor |

@@ -4,7 +4,7 @@ How the fullstack skills coordinate workspace subagents for multi-repo
 implementation. Covers the agent model, orchestration strategy, delegation
 protocol, and rationale.
 
-**Last updated**: 2026-07-28
+**Last updated**: 2026-09-21
 
 ---
 
@@ -12,7 +12,7 @@ protocol, and rationale.
 
 Multi-repo fullstack work was originally designed around **role-play**:
 the main AI agent reads a subagent's instruction file (`planner.md`,
-`developer.md`, `reviewer.md`, `debugger.md`) and then "becomes" that
+`plan-reviewer.md`, `developer.md`, `reviewer.md`, `debugger.md`) and then "becomes" that
 agent. This causes three problems:
 
 1. **Context pollution** — The main agent's context window fills with
@@ -34,7 +34,7 @@ delegating detail work, and aggregating results.
 
 ## Agent Model
 
-### Four specialized subagents
+### Five specialized subagents
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -43,24 +43,25 @@ delegating detail work, and aggregating results.
 │  subagent output. NEVER writes code or performs reviews directly    │
 │  (sole exception: temporary, uncommitted spike changes during       │
 │  fullstack-propose deep mode).                                      │
-└──────┬──────────────┬────────────────┬──────────────────────────────┘
-       │              │                │
-       ▼              ▼                ▼
-┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────────────┐
-│   PLANNER   │ │  DEVELOPER  │ │  REVIEWER   │ │      DEBUGGER       │
-│  read-only  │ │  full access│ │  read-only  │ │    scoped edits     │
-│             │ │             │ │             │ │                     │
-│ analysis.md │ │ source code │ │ review.md   │ │ analysis.md (fix)   │
-│ plan.md     │ │ test files  │ │ findings    │ │ root cause, fix spec│
-│             │ │             │ │             │ │                     │
-│ MUST NOT:   │ │ MUST NOT:   │ │ MUST NOT:   │ │ MUST NOT:           │
-│ source code │ │ review.md   │ │ source code │ │ plan.md, commits    │
-└─────────────┘ └─────────────┘ └─────────────┘ └─────────────────────┘
+└──────┬──────────────┬──────────────┬──────────────┬──────────────┬──┘
+       ▼              ▼              ▼              ▼              ▼
+┌─────────────┐┌─────────────┐┌─────────────┐┌─────────────┐┌─────────────┐
+│  PLANNER    ││PLAN-REVIEWER││  DEVELOPER  ││  REVIEWER   ││  DEBUGGER   │
+│  read-only  ││  read-only  ││ full access ││  read-only  ││scoped edits │
+│             ││             ││             ││             ││             │
+│ analysis.md ││plan review  ││ source code ││ review.md   ││ root cause, │
+│ plan.md     ││findings     ││ test files  ││  findings   ││  fix spec   │
+│             ││             ││             ││             ││             │
+│ MUST NOT:   ││ MUST NOT:   ││ MUST NOT:   ││ MUST NOT:   ││ MUST NOT:   │
+│ source code ││fix the plan ││  review.md  ││ source code ││ plan.md /   │
+│             ││             ││             ││             ││ commits     │
+└─────────────┘└─────────────┘└─────────────┘└─────────────┘└─────────────┘
 ```
 
 | Agent | Permission | Primary output | Boundary |
 |-------|-----------|---------------|----------|
 | **Planner** | `edit: deny`, `bash: allow` | `analysis.md` content, `plan.md` content | Reads source code only to verify the contracts it freezes. Analyzes requirements and architecture. |
+| **Plan Reviewer** | `edit: deny`, `bash: allow` | Plan review findings (P0/P1/P2 + verdict) for `review.md` | Never edits files, never rewrites the plan. Audits the written documents against the **original requirements** before implementation starts. |
 | **Developer** | `edit: allow`, `bash: allow` | Production code, tests, config (staged — orchestrator commits) | Never touches `review.md` or `progress.md`. Implements and validates per repo. |
 | **Reviewer** | `edit: deny`, `bash: allow` | Review findings (P0/P1/P2 + verdict) | Never touches source code. Two modes: per-repo staged, cross-repo. |
 | **Debugger** | `edit: allow`, `bash: allow` | Root-cause analysis, fix spec, temporary debug instrumentation | Never commits; never touches `plan.md` or the tracking docs. At most one uncommitted candidate fix left in the tree; Developer implements and ships. |
@@ -68,7 +69,7 @@ delegating detail work, and aggregating results.
 > **Enforcement note**: the `permission` block in each agent's
 > frontmatter is OpenCode-native and is enforced there. Claude Code,
 > Cursor, and Copilot ignore these keys — for those tools the read-only
-> boundaries (planner, reviewer) and the debugger's no-commit rule are
+> boundaries (planner, plan-reviewer, reviewer) and the debugger's no-commit rule are
 > enforced by the agent instructions only. Note that `bash: allow`
 > means file mutation via shell is never blocked by `edit: deny` — the
 > permission block shapes tool access, while the instructions define
@@ -87,6 +88,9 @@ shared file system state) and creates a clean audit trail.
 The orchestrator also handles:
 - Gathering external context (Jira, Confluence, Figma, GitHub)
 - Presenting repo/branch proposals to the user for confirmation
+- Running the **Plan Review Gate** in `fullstack-propose`: delegating to
+  Plan Reviewer, appending findings to `review.md` as
+  `## Plan Review — Round <N>`, and routing P0/P1 findings back to Planner
 - Branch management across repos
 - PR creation (when `github_repos=true`)
 - Updating `progress.md` and the `review.md` header
@@ -109,6 +113,7 @@ sequenceDiagram
     participant User
     participant Orch as Orchestrator (main agent)
     participant Planner
+    participant PR as Plan Reviewer
     participant Dev as Developer
     participant Rev as Reviewer
     participant Debugger
@@ -131,6 +136,22 @@ sequenceDiagram
     end
 
     Orch->>Orch: Write analysis.md, plan.md<br/>Write progress.md, review.md header<br/>Run Mermaid Compatibility Gate
+
+    Note over Orch,PR: Plan Review Gate (propose) — max 2 revision rounds
+    loop Until PASS / PASS_WITH_RISKS / NEEDS_USER_DECISION / round cap
+        Orch->>PR: Delegate: audit the written documents<br/>against the original requirements
+        PR-->>Orch: Coverage matrix + findings + verdict
+        Orch->>Orch: Append to review.md<br/>as ## Plan Review — Round N
+        alt NEEDS_FIXES
+            Orch->>Planner: Delegate: resolve P0/P1<br/>or reject with a written reason
+            Planner-->>Orch: Revised sections
+            Orch->>Orch: Rewrite affected sections only<br/>Re-run affected gates
+        else NEEDS_USER_DECISION
+            Orch->>User: Ask the open decisions
+            User->>Orch: Decisions
+        end
+    end
+
     Orch->>User: Confirm repos, branches, dependency order
     User->>Orch: Confirmed
 
@@ -182,7 +203,8 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A[Orchestrator: read repo AGENTS.md, README.md<br/>check graphify, check repo agents] --> B[Delegate to developer subagent]
+    P[propose output: four documents<br/>+ plan review verdict PASS] --> A[Orchestrator: read repo AGENTS.md, README.md<br/>check graphify, check repo agents]
+    A --> B[Delegate to developer subagent]
     B --> C{Dev returns}
     C -- "tests pass, staged" --> D[Delegate to reviewer subagent<br/>per-repo mode]
     C -- "tests fail" --> B
@@ -225,6 +247,7 @@ no more, no less. This keeps subagent context windows small and focused.
 | Subagent | Required context | Optional context |
 |----------|-----------------|------------------|
 | **Planner** | User requirements, workspace AGENTS.md repo table, gathered external context (Jira/Confluence/Figma) | Spike docs, prior work analysis |
+| **Plan Reviewer** | The **original requirements** (user prompt, Jira/Confluence/Figma content), `analysis.md` + `plan.md` as written to disk, workspace AGENTS.md repo table, round number and what changed since the last round | Repo `AGENTS.md`/`README.md`, predecessor work-item contracts, graphify results |
 | **Developer** | `plan.md`, `analysis.md`, repo AGENTS.md, repo README.md, branch name | Graphify query results, prior implementation notes |
 | **Reviewer** | `plan.md`, `analysis.md`, `progress.md`, diffs or staged changes | Repo conventions, predecessor contracts (Follow-up mode) |
 | **Debugger** | Error logs, stack traces, reproduction steps, affected repo context | Related bug reports, prior fix attempts |
@@ -242,6 +265,7 @@ writes all output to files. This ensures:
 | Subagent | Returns |
 |----------|---------|
 | **Planner** | Problem framing, affected repos, recommended approach, phased plan, acceptance criteria, risks |
+| **Plan Reviewer** | Requirements coverage matrix, P0/P1/P2 findings with document/section evidence, verified vs unverified claims, verdict, open decisions that require a human |
 | **Developer** | Summary of changes per file, test results, recommended commit message, issues encountered |
 | **Reviewer** | P0/P1/P2 findings with file/line evidence, verdict, recommendations |
 | **Debugger** | What's broken, reproduction steps, root cause with evidence, recommended minimal fix, validation results, tree state (clean, or the single uncommitted candidate fix) |
@@ -324,6 +348,12 @@ workspace/.agents/agents/planner.md   ← cross-repo planning
     │  → use repo's planner for that repo's internal analysis
     │
     ▼
+workspace/.agents/agents/plan-reviewer.md ← plan audit (read-only)
+    │
+    │  if <repo>/.agents/agents/plan-reviewer.md exists:
+    │  → use repo's plan reviewer for that repo's plan sections
+    │
+    ▼
 workspace/.agents/agents/developer.md ← cross-repo implementation
     │
     │  if <repo>/.agents/agents/developer.md exists:
@@ -395,8 +425,9 @@ Existing work items continue to work with the new orchestration model.
 | Requirement | How it's met |
 |-------------|-------------|
 | Main agent stays focused on flow | Orchestrator only handles flow control, confirmation, and delegation |
-| Subagents do detail work | Planner/Developer/Reviewer/Debugger each own one domain |
+| Subagents do detail work | Planner/Plan Reviewer/Developer/Reviewer/Debugger each own one domain |
 | Context isolation | Subagents run in separate context windows (when tool supports it) |
+| Plan quality before implementation | Plan Reviewer audits the written documents against the original requirements (coverage, contracts, referenced-code existence, testability) |
 | Audit trail | All file writes from orchestrator; each delegation produces discrete output |
 | Repo-level agent support | Hierarchy with discovery and priority rules |
 | Multi-tool compatibility | YAML frontmatter format + symlinks; fallback to role-play when no subagent system |
@@ -405,6 +436,31 @@ Existing work items continue to work with the new orchestration model.
 ---
 
 ## Changelog
+
+### 2026-09-21 — v1.2: Independent plan review before implementation
+
+- New agent template `plan-reviewer.md` (`edit: deny`): audits the written
+  `analysis.md` / `plan.md` against the **original requirements** before any
+  code exists — requirements coverage matrix, frozen-contract completeness,
+  existence of referenced code, testability of Success Criteria, and
+  dependency *semantics* (the DAG gate only checks shape)
+- `fullstack-propose` gains the mandatory **Plan Review Gate** (Step 4.5):
+  every work item is reviewed; the revision loop scales with complexity
+  (1 pass for single-repo work, up to 2 revision rounds for multi-repo /
+  contract-freezing / deep-mode work)
+- Plan-review verdict vocabulary: `PASS` | `PASS_WITH_RISKS` |
+  `NEEDS_FIXES` | `NEEDS_USER_DECISION` — `FAIL` / `BLOCKED` are
+  code-review verdicts and do not apply to a plan
+- Convergence rules: round 2+ verifies only the previous findings and the
+  content changed to resolve them; a planner rejection must be written down
+  (`Rejected: <reason>`); oscillation stops the loop; a plan may never be
+  weakened (criterion deleted, contract widened to `TBD`, requirement
+  dropped) to reach `PASS`
+- Explicit **exit criteria** for "implementable" — the checklist a plan must
+  satisfy before `fullstack-apply` may start
+- Why a separate agent rather than a `reviewer` mode: routing lives in the
+  skill boundary (`propose` → Plan Reviewer, `apply` → Reviewer), not in
+  mode switches — the same principle that removed the legacy mode router
 
 ### 2026-08-28 — v1.1: Align agent templates with the single-writer model
 

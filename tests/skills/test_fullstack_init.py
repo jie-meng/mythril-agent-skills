@@ -350,9 +350,10 @@ class TestGenerateAgentsMd:
         result = self.func("proj", "| t |", "central-docs")
         assert "feat/XYZ-706" in result
 
-    def test_four_agents_in_structure(self):
+    def test_five_agents_in_structure(self):
         result = self.func("proj", "| t |", "central-docs")
         assert "planner.md" in result
+        assert "plan-reviewer.md" in result
         assert "developer.md" in result
         assert "reviewer.md" in result
         assert "debugger.md" in result
@@ -740,7 +741,13 @@ class TestInstallAgents:
 
     def test_copies_all_agent_files(self, tmp_path: Path):
         names = self.func(tmp_path, "my-project")
-        assert set(names) == {"debugger", "developer", "planner", "reviewer"}
+        assert set(names) == {
+            "debugger",
+            "developer",
+            "plan-reviewer",
+            "planner",
+            "reviewer",
+        }
 
         for name in names:
             path = tmp_path / ".agents" / "agents" / f"{name}.md"
@@ -748,7 +755,7 @@ class TestInstallAgents:
 
     def test_project_name_substitution(self, tmp_path: Path):
         self.func(tmp_path, "my-workspace")
-        for name in ("planner", "developer", "reviewer", "debugger"):
+        for name in ("planner", "plan-reviewer", "developer", "reviewer", "debugger"):
             content = (tmp_path / ".agents" / "agents" / f"{name}.md").read_text()
             assert "my-workspace" in content, f"{name} missing project name"
             assert "{project_name}" not in content, f"{name} has unreplaced placeholder"
@@ -756,7 +763,7 @@ class TestInstallAgents:
     def test_all_files_have_yaml_frontmatter(self, tmp_path: Path):
         import yaml as _yaml_mod
         self.func(tmp_path, "test")
-        for name in ("planner", "developer", "reviewer", "debugger"):
+        for name in ("planner", "plan-reviewer", "developer", "reviewer", "debugger"):
             content = (tmp_path / ".agents" / "agents" / f"{name}.md").read_text()
             assert content.startswith("---"), f"{name} missing frontmatter"
             frontmatter = content.split("---")[1]
@@ -790,6 +797,17 @@ class TestInstallAgents:
         self.func(tmp_path, "proj")
         content = (tmp_path / ".agents" / "agents" / "developer.md").read_text()
         assert "implementation" in content.lower()
+
+    def test_plan_reviewer_read_only(self, tmp_path: Path):
+        self.func(tmp_path, "proj")
+        content = (tmp_path / ".agents" / "agents" / "plan-reviewer.md").read_text()
+        assert "edit: deny" in content
+
+    def test_plan_reviewer_audits_plans(self, tmp_path: Path):
+        self.func(tmp_path, "proj")
+        content = (tmp_path / ".agents" / "agents" / "plan-reviewer.md").read_text()
+        assert "Do not rewrite or fix the plan" in content
+        assert "NEEDS_USER_DECISION" in content
 
     def test_reviewer_does_not_fix(self, tmp_path: Path):
         self.func(tmp_path, "proj")
@@ -831,10 +849,16 @@ class TestAgentSourceFiles:
     def test_agents_dir_exists(self):
         assert self.agents_dir.is_dir(), f"Missing agents/ at {self.agents_dir}"
 
-    def test_four_agent_files(self):
+    def test_five_agent_files(self):
         files = list(self.agents_dir.glob("*.md"))
         names = {f.stem for f in files}
-        assert names == {"planner", "developer", "reviewer", "debugger"}
+        assert names == {
+            "planner",
+            "plan-reviewer",
+            "developer",
+            "reviewer",
+            "debugger",
+        }
 
     def test_all_have_placeholder(self):
         for f in self.agents_dir.glob("*.md"):
@@ -1000,7 +1024,7 @@ class TestBootstrapWorkspace:
         assert (tmp_path / ".agents" / "skills").is_dir()
         assert (tmp_path / "scripts").is_dir()
 
-        for name in ("planner", "developer", "reviewer", "debugger"):
+        for name in ("planner", "plan-reviewer", "developer", "reviewer", "debugger"):
             assert (tmp_path / ".agents" / "agents" / f"{name}.md").exists()
 
         agents_md = (tmp_path / "AGENTS.md").read_text()

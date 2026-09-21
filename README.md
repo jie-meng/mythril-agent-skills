@@ -252,7 +252,7 @@ Draft user journey maps and lo-fi wireframes for PMs/BAs via natural language. G
 
 **[Fullstack Init](./mythril_agent_skills/skills/fullstack-init/)**
 
-Initialize or update a multi-repo fullstack workspace with unified AI context. Creates AGENTS.md with auto-generated repo table, docs dir (as independent git repo), four workspace agents (planner/dev/reviewer/debugger), and the changes/ work tracking structure.
+Initialize or update a multi-repo fullstack workspace with unified AI context. Creates AGENTS.md with auto-generated repo table, docs dir (as independent git repo), five workspace agents (planner/plan-reviewer/dev/reviewer/debugger), and the changes/ work tracking structure.
 
 - **Try:** Initialize this fullstack workspace
 - **Deps:** `git` CLI
@@ -273,7 +273,7 @@ Export the complete context of a workspace, single repo, or user-specified direc
 
 **[Fullstack Propose](./mythril_agent_skills/skills/fullstack-propose/)**
 
-Propose a new work item across a multi-repo fullstack workspace. Plans the approach and writes the work-tracking documents (analysis/plan/progress/review with Success Criteria). Deep mode runs a time-boxed spike to validate unknowns first — experiments and verdict live in the same work directory, so nothing is rewritten on handoff to apply.
+Propose a new work item across a multi-repo fullstack workspace. Plans the approach and writes the work-tracking documents (analysis/plan/progress/review with Success Criteria). Every plan is then audited by an independent `plan-reviewer` subagent against the original requirements — unbuildable or under-specified plans are caught before code exists, not at integration. Deep mode runs a time-boxed spike to validate unknowns first — experiments and verdict live in the same work directory, so nothing is rewritten on handoff to apply.
 
 - **Try:** Plan OAuth2 PKCE support; spike whether we can migrate to GraphQL
 - **Deps:** Workspace initialized by `fullstack-init`
@@ -427,7 +427,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `fullstack-init` | Initialize multi-repo fullstack workspace with AI context |
 | `fullstack-explore` | Read-only knowledge exploration across a fullstack workspace |
 | `fullstack-brief` | Export workspace/repo/user-specified directory context into one AI-optimized brief for web AI sessions |
-| `fullstack-propose` | Plan a work item with Success Criteria; validate unknowns (spike) |
+| `fullstack-propose` | Plan a work item with Success Criteria; validate unknowns (spike); independent plan review before handoff |
 | `fullstack-apply` | Implement a planned work item across a fullstack workspace |
 | `fullstack-archive` | Archive completed work items into changes/archive/ |
 | `fullstack-docs-migration` | Migrate a legacy docs repo to the changes/ structure |

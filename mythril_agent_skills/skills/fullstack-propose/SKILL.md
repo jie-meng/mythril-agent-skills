@@ -33,6 +33,11 @@ The deep mode's output IS the final work directory — there is no rewrite
 on handoff to `fullstack-apply`. One directory, one analysis, one
 lifecycle.
 
+Both modes end at the same gate: the **Plan Review Gate** (Step 4.5),
+where an independent `plan-reviewer` subagent audits the written
+documents against the original requirements before `fullstack-apply` is
+allowed to start.
+
 ## Planning Boundary (MANDATORY)
 
 This skill creates planning artifacts only. The user request that
@@ -266,8 +271,9 @@ amends them. Parallel implementation without frozen contracts produces
 integration drift discovered only at final review — do not leave the
 interface names to be improvised during apply.
 
-Then write `progress.md` (initial state) and `review.md` (header)
-yourself. Follow the templates in
+Then write `progress.md` (initial state) and `review.md` (header, plus the
+plan review rounds the gate below records) yourself. Follow the templates
+in
 [`references/document-templates.md`](references/document-templates.md).
 
 ### Deep mode (spike) — validate unknowns first
@@ -413,6 +419,98 @@ will later consume it — before implementation starts, not after:
 
 Do NOT finalize the plan with a failing DAG gate.
 
+## Step 4.5 — Plan Review Gate (MANDATORY)
+
+The documents are written; the Mermaid and DAG gates are green. None of
+that says the plan is *right* — those gates check shape, this one checks
+meaning. Before reporting the plan, delegate to the **plan-reviewer**
+subagent to falsify it against the original requirements.
+
+**Why an independent subagent and not a self-check.** You wrote these
+files from the planner's returned text, so you have already absorbed the
+planner's reasoning and its assumptions; a self-review re-runs the same
+assumptions and finds nothing. The plan-reviewer gets a clean context,
+the raw requirements, and the files **as written to disk** — which also
+means it catches what was lost in transcription, a failure class no other
+gate covers.
+
+### Review depth — scaled to the work
+
+Every work item is reviewed; the *loop* is what scales.
+
+| Work item shape | Review depth |
+|-----------------|--------------|
+| Trivial / single repo, no cross-repo contract | **1 pass.** P0/P1 → planner revises → 1 confirmation pass. Cap: 2 rounds |
+| Multi-repo, any frozen contract, deep (spike) mode, or architectural refactor | **Loop.** Pass → revise → re-review. Cap: 2 revision rounds (3 passes total) |
+
+Do not skip the gate because the plan "looks fine" — that judgment is the
+thing being tested.
+
+### What the reviewer receives
+
+- **The original requirements** gathered in Step 1a (Jira/Confluence/Figma
+  content, the user's own words). Without this the reviewer cannot detect
+  a dropped requirement.
+- `analysis.md` and `plan.md` **as written to disk** — not the planner's
+  returned message.
+- The workspace `AGENTS.md` repo table, plus `AGENTS.md` / `README.md` of
+  the affected repos.
+
+The reviewer is read-only (`edit: deny`) and returns findings; you write
+them into `review.md`.
+
+### Handling the verdict
+
+Append the reviewer's output to `review.md` as a
+`## Plan Review — Round <N> — <date>` section (format in
+[`references/document-templates.md`](references/document-templates.md)).
+
+| Verdict | What you do |
+|---------|-------------|
+| `PASS` | Proceed to Step 5 |
+| `PASS_WITH_RISKS` | Proceed to Step 5; make sure the risks appear in `plan.md` §Risks / Open Questions |
+| `NEEDS_FIXES` | Delegate the P0/P1 findings back to the **planner** verbatim; apply the returned revisions to the affected sections only (do not regenerate untouched sections); record what changed; re-run the reviewer as round N+1 |
+| `NEEDS_USER_DECISION` | Stop the loop. Put the open decisions in the Step 5 report and ask the user — planning is not complete until they are answered |
+
+Rules that keep the loop convergent:
+
+- **The planner must answer every P0/P1** — fix it, or reject it with a
+  written rationale, which you record in the same round as
+  `Rejected: <reason>`. A finding silently dropped during revision becomes
+  a P0 in the next round.
+- **Round 2+ verifies the previous findings and the content changed to
+  resolve them only** — never a fresh full audit. Otherwise every round
+  harvests new P2s and the plan never converges.
+- **Never weaken a plan to satisfy a reviewer.** Deleting a criterion,
+  widening a contract to "TBD", or dropping a requirement to reach `PASS`
+  is worse than shipping with a documented P1. If the honest fix is a
+  choice only the user can make, that is `NEEDS_USER_DECISION`.
+- **Oscillation stops the loop.** If a round produces more new findings
+  than the previous round resolved, stop, record the residual items as
+  known risks in `plan.md`, and report them in Step 5.
+- **Re-run the affected mechanical gates after revisions** — the Mermaid
+  gate if a diagram changed, the DAG gate if the repositories table
+  changed.
+
+### Exit criteria — "implementable" is a definition, not a feeling
+
+The plan may be handed to `fullstack-apply` only when ALL of these hold:
+
+- [ ] Plan review verdict is `PASS` or `PASS_WITH_RISKS` — no unresolved
+      P0/P1 (residual items are recorded as known risks, not as open fixes)
+- [ ] Every requirement maps to ≥ 1 Success Criterion, and every criterion
+      maps to ≥ 1 task
+- [ ] Every frozen contract passes the completeness check, or is explicitly
+      marked `TBD` with the user's decision recorded
+- [ ] Every path / symbol / endpoint referenced as **existing** has been
+      verified to exist
+- [ ] Dependency edges verified semantically, not just structurally
+- [ ] No unanswered `NEEDS_USER_DECISION`
+- [ ] Mermaid gate PASS, and (multi-repo) DAG gate PASS
+
+If a box is unchecked, do NOT report the plan as ready — report the
+blocking items instead.
+
 ## Step 5 — Report the Plan
 
 1. **Commit the work directory to the docs repo** (the ONLY repo that
@@ -430,8 +528,18 @@ Mode: standard | deep (spike)
 - Parallel waves: W1(<repos>) → W2(<repos>) → …
 - Contracts frozen in analysis.md: <list or "single-repo — none">
 - Design: <one-line summary of chosen option>
+- Plan review: <PASS | PASS_WITH_RISKS> — <N> rounds, <N> findings fixed
+- Open decisions: <none | list>
 
 Next: tell me to "implement this" to run fullstack-apply.
+```
+
+When the verdict was `NEEDS_USER_DECISION`, replace the `Next:` line with
+a request for the decisions instead:
+
+```
+Next: answer the open decisions above — I will re-run the plan review,
+      then hand the plan to fullstack-apply.
 ```
 
 ## Resuming a Previous Plan
@@ -441,7 +549,8 @@ When invoked with a reference to an existing un-archived work item
 
 1. Read the existing four documents in `<docs-dir>/changes/<type>/<name>/`
 2. Determine what's incomplete (missing sections, unanswered Success
-   Criteria, unfilled verdict)
+   Criteria, unfilled verdict, unresolved plan-review findings or open
+   decisions in `review.md`)
 3. Resume from the last incomplete step; re-confirm repos if the plan
    has changed
 
@@ -456,6 +565,11 @@ When invoked with a reference to an existing un-archived work item
 
 - Planning only. Any implementation instruction in the request does not
   carry forward — stop after artifacts are presented.
+- Every work item passes the Plan Review Gate. Reporting a plan as ready
+  with an unresolved P0/P1, an unanswered `NEEDS_USER_DECISION`, or a
+  failing mechanical gate is a failure of this skill.
+- Never weaken a plan — delete a criterion, widen a contract to `TBD`, or
+  drop a requirement — to reach a `PASS` verdict.
 - No branches, no commits to code repos, no PRs.
 - The four documents are mandatory — a missing `analysis.md` is a failure.
 - Success Criteria must be testable and specific, not subjective.

@@ -100,7 +100,7 @@
 | `analysis.md` | Technical analysis (why) | In deep mode it carries the spike sections (Objective/Hypothesis/Experiments/Findings); after validation, Design Options / Target Architecture are appended to the **same file** |
 | `plan.md` | Requirements / Affected Repos / Implementation Plan / Risks | **`**Status**:` field removed**; **`## Success Criteria` (checkbox) added** |
 | `progress.md` | Completed Steps / dated sections (the user actually uses `### YYYY-MM-DD`) | **`## Iteration Log` table removed**; Changelog kept |
-| `review.md` | Per-round review records | **Evidence table added** (each Success Criterion checked against evidence); review verdict normalized to `PASS` / `NEEDS_FIXES` / `BLOCKED` |
+| `review.md` | Per-round review records | **Evidence table added** (each Success Criterion checked against evidence); review verdict normalized to `PASS` / `PASS_WITH_RISKS` / `NEEDS_FIXES` / `FAIL` (the plan-stage reviewer additionally uses `NEEDS_USER_DECISION`) |
 
 Supporting changes:
 - `fullstack-init/agents/planner.md:51-53`'s required acceptance criteria now have a home (plan.md `## Success Criteria`).
@@ -160,7 +160,7 @@ This is the core of the refactor. Two modes:
 - **Simplified**:
   - The 4 Mode branches are gone (iteration-mode / followup-mode / reference-mode all become manual documentation, no longer routing branches).
   - `iteration_log_check.py` gate and the `## Iteration Log` sync checklist are removed.
-  - `review.md` verdicts normalized to `PASS` / `NEEDS_FIXES` / `BLOCKED`; an Evidence table is added (checked against plan.md's Success Criteria).
+  - `review.md` verdicts normalized to `PASS` / `PASS_WITH_RISKS` / `NEEDS_FIXES` / `FAIL`; an Evidence table is added (checked against plan.md's Success Criteria).
   - Follow-up edits: user feedback during apply → recorded in the same four documents (dated progress.md section + new review.md round), no separate Mode state machine.
   - **Successor work** (new requirement building on old work): propose creates `<name>-v2/` (or a new name); apply only cares about "the Success Criteria in plan.md".
 - **description draft**:
@@ -283,7 +283,7 @@ Rules:
 - `plan.md`: remove `**Status**:`; add `## Success Criteria` (checkbox, testable, non-subjective);
 - `analysis.md`: deep mode carries the spike sections; implementation design is appended to the same file after validation;
 - `progress.md`: remove `## Iteration Log`; keep dated sections and Changelog;
-- `review.md`: add the Evidence table; verdicts normalized to `PASS` / `NEEDS_FIXES` / `BLOCKED`;
+- `review.md`: add the Evidence table; verdicts normalized to `PASS` / `PASS_WITH_RISKS` / `NEEDS_FIXES` / `FAIL`;
 - Unify the reference field to `**Source**`, with correct `../../` cascade for relative paths.
 
 ---

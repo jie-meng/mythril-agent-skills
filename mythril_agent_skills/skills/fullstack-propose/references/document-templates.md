@@ -13,6 +13,7 @@ languages; only the labels differ.
 - [`analysis.md` (feat / refactor)](#analysismd--feature--refactor) — by Planner
 - [`analysis.md` (fix)](#analysismd--fix) — by Debugger
 - [`review.md` header](#reviewmd-header) — with Evidence table
+- [Plan review round](#plan-review-round) — written before implementation
 - [Visualization rules for analysis.md](#visualization-rules-for-analysismd)
 
 ---
@@ -576,8 +577,9 @@ sequenceDiagram
 ```markdown
 # Review: <Work Name>
 
-Per-repo staged review results and cross-repo consistency checks
-will be appended below during implementation.
+Plan review rounds (recorded by fullstack-propose before implementation)
+and, below them, per-repo staged review results and cross-repo
+consistency checks (appended during implementation).
 Each repo section records the full `code-review-staged` output and verdict.
 A final `### Verdict` or cross-repo `### Verdict` is required before
 finalization can proceed.
@@ -599,7 +601,8 @@ concrete proof:
 ```markdown
 # 审查：<工作名称>
 
-各仓库的暂存区审查结果和跨仓库一致性检查将在实现过程中追加到下方。
+plan 阶段方案审查（由 fullstack-propose 在实现前写入），其下为实现过程中
+追加的各仓库暂存区审查结果和跨仓库一致性检查。
 每个仓库的章节记录完整的 `code-review-staged` 输出和结论。
 最终必须包含 `### 结论` 部分，否则无法进入收尾阶段。
 
@@ -616,6 +619,127 @@ concrete proof:
 
 The per-round review section format and cross-repo review format are
 defined in [`review-formats.md`](review-formats.md).
+
+---
+
+## Plan review round
+
+Written by **fullstack-propose** (Step 4.5), one section per round, before
+any implementation starts. The reviewer subagent returns the content; the
+orchestrator appends it. Section labels follow the work item's language.
+
+### English
+
+```markdown
+## Plan Review — Round <N> — <date>
+
+### Scope Reviewed
+
+- Documents: analysis.md, plan.md — <what changed since the last round, if N > 1>
+- Requirements source: <Jira KEY / user prompt / Confluence page>
+- Codebase verification: <repos inspected, graphify used? yes/no>
+
+### Requirements Coverage
+
+| Requirement | Covered by criterion | Delivered by task | Status |
+|-------------|---------------------|-------------------|--------|
+| <req 1> | SC-1 | Phase 1, task 2 | OK |
+| <req 2> | — | — | **DROPPED** |
+
+### Findings
+
+- [P0] <doc/section> — <issue> — impact: <what breaks> — fix: <what would resolve it>
+- [P1] <doc/section> — <issue> — impact: <rework cost> — fix: <...>
+
+### Verified
+
+- <claims checked and confirmed>
+
+### Unverified
+
+- <what could not be checked, and what would be needed>
+
+### Verdict
+
+<PASS | PASS_WITH_RISKS | NEEDS_FIXES | NEEDS_USER_DECISION> — <summary>
+
+### Open Decisions (NEEDS_USER_DECISION only)
+
+| Decision | Options | Why an AI cannot choose | Blocking |
+|----------|---------|------------------------|----------|
+| <question> | A / B | <product or policy call> | yes/no |
+```
+
+Verdict meanings: `PASS` (implementable as written), `PASS_WITH_RISKS`
+(no open P0/P1, risks listed), `NEEDS_FIXES` (P0/P1 the planner can
+resolve alone), `NEEDS_USER_DECISION` (blocking item only a human can
+choose). `FAIL` and `BLOCKED` are code-review verdicts and do not apply
+to a plan.
+
+When the planner rejects a finding, the orchestrator records the
+rejection in the same round:
+
+```markdown
+- [P0] <issue> — **Rejected**: <the planner's rationale>
+```
+
+A finding dropped during revision without a `Rejected:` line is
+treated as a new P0 in the next round.
+
+### Chinese
+
+```markdown
+## 方案审查 — 第 <N> 轮 — <date>
+
+### 审查范围
+
+- 文档：analysis.md、plan.md — <与上一轮的差异>
+- 需求来源：<Jira 编号 / 用户需求 / Confluence 页面>
+- 代码核验：<检查的仓库，是否使用 graphify>
+
+### 需求覆盖
+
+| 需求 | 对应成功标准 | 对应任务 | 状态 |
+|------|------------|---------|------|
+| <需求 1> | 标准 1 | 阶段一 / 任务 2 | 覆盖 |
+| <需求 2> | — | — | **遗漏** |
+
+### 问题清单
+
+- [P0] <文档/章节> — <问题> — 影响：<会出什么错> — 建议：<如何解决>
+- [P1] <文档/章节> — <问题> — 影响：<返工成本> — 建议：<...>
+
+### 已核验
+
+- <已确认成立的论断>
+
+### 未核验
+
+- <无法核验的内容及所需条件>
+
+### 结论
+
+<PASS | PASS_WITH_RISKS | NEEDS_FIXES | NEEDS_USER_DECISION> — <总结>
+
+### 待决策事项（仅 NEEDS_USER_DECISION）
+
+| 决策点 | 选项 | 为何 AI 无法决定 | 是否阻塞 |
+|-------|------|----------------|---------|
+| <问题> | A / B | <产品或策略选择> | 是/否 |
+```
+
+结论含义：`PASS`（可直接实施）、`PASS_WITH_RISKS`（无未决 P0/P1，风险
+已列明）、`NEEDS_FIXES`（planner 可自行修复的 P0/P1）、
+`NEEDS_USER_DECISION`（阻塞项只能由人决定）。`FAIL` / `BLOCKED` 属于
+代码审查结论，不适用于方案。
+
+planner 拒绝某条问题时，orchestrator 在同一轮记录：
+
+```markdown
+- [P0] <问题> — **已拒绝**：<planner 的理由>
+```
+
+未经 `已拒绝` 标注即在修订中消失的问题，在下一轮按新的 P0 处理。
 
 ---
 

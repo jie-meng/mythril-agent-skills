@@ -127,7 +127,7 @@ regenerated each time, so the language always reflects the latest run.
 
 ## Workspace Agents
 
-Four subagents are generated in `.agents/agents/` on every run. Each file
+Five subagents are generated in `.agents/agents/` on every run. Each file
 contains YAML frontmatter (`name`, `description`, `mode: subagent`,
 `permission`) compatible with OpenCode and Claude Code, followed by role-
 specific instructions. Tools that support native subagent discovery
@@ -137,6 +137,7 @@ subagent systems automatically discover these agents:
 | Agent | File | Role | Permissions |
 |-------|------|------|-------------|
 | Planner | `planner.md` | Analyzes requirements and architecture, returns content for `analysis.md`/`plan.md` | read-only on code |
+| Plan Reviewer | `plan-reviewer.md` | Audits the written plan against the original requirements before implementation (coverage, contracts, referenced-code existence, testability), returns findings for `review.md` | read-only on code |
 | Developer | `developer.md` | Implements code — the only agent that writes production code; stages changes, orchestrator commits | full access |
 | Reviewer | `reviewer.md` | Reviews with falsification mindset, returns findings for `review.md` | read-only on code |
 | Debugger | `debugger.md` | Root-cause analysis for fix work type; temporary debug edits allowed, never commits | scoped debug edits |
@@ -158,7 +159,7 @@ agent directories to `.agents/agents/`:
 
 When you launch OpenCode (or Claude Code, Cursor, Copilot) from the
 workspace root, these tools automatically discover and register the
-four agents as available subagents. The main AI agent can then use
+five agents as available subagents. The main AI agent can then use
 the `task` tool (or equivalent) to delegate work:
 
 ```
@@ -174,6 +175,9 @@ If a tool's agents directory already exists as a regular directory
 - If a repo has its own `.agents/agents/`, workspace agents **defer to
   repo-level agents** for that repo's internal concerns
 - Reviewer is **read-only on source code** — fixes are done by Developer
+- Plan Reviewer is **read-only too**, and audits plans instead of diffs:
+  it runs during propose (before code exists), never during apply, and
+  never rewrites the plan — the Planner revises, the orchestrator writes
 - Debugger debugs hands-on with **temporary, uncommitted**
   instrumentation and returns root-cause analysis + a fix spec; it
   never commits — Developer implements and ships the fix
@@ -198,6 +202,7 @@ project-workspace/
 ├── .agents/
 │   ├── agents/                   # Regenerated each run
 │   │   ├── planner.md            # + YAML frontmatter for subagent tools
+│   │   ├── plan-reviewer.md
 │   │   ├── developer.md
 │   │   ├── reviewer.md
 │   │   └── debugger.md

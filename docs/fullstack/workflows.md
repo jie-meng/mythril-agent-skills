@@ -21,7 +21,13 @@ flowchart TD
     P2 -- No --> P4[standard mode]
     P3 --> P5[four docs ready]
     P4 --> P5
-    P5 --> I{User approves<br/>implementation?}
+    P5 --> P6[plan review<br/>by an independent subagent]
+    P6 --> P7{verdict?}
+    P7 -- "NEEDS_FIXES" --> P8[planner revises<br/>max 2 rounds]
+    P8 --> P6
+    P7 -- "NEEDS_USER_DECISION" --> P9[user decides]
+    P9 --> P6
+    P7 -- "PASS / PASS_WITH_RISKS" --> I{User approves<br/>implementation?}
     I -- Yes --> A2[fullstack-apply]
     A2 --> A3{Done / shipped?}
     A3 -- Yes --> AR[fullstack-archive]
@@ -37,6 +43,7 @@ sequenceDiagram
     participant User
     participant Explore as fullstack-explore
     participant Propose as fullstack-propose
+    participant PR as Plan Reviewer
     participant Apply as fullstack-apply
     participant Archive as fullstack-archive
 
@@ -44,6 +51,8 @@ sequenceDiagram
     Explore-->>User: Answers + optional draft analysis
     User->>Propose: Plan this feature
     Propose->>Propose: Write four docs in changes/feat/<name>/
+    Propose->>PR: Delegate: audit the documents<br/>against the original requirements
+    PR-->>Propose: Coverage matrix + findings + verdict
     Propose-->>User: Plan ready — confirm repos
     User->>Apply: Implement the plan
     Apply->>Apply: Implement per repo, review, PRs
@@ -74,6 +83,11 @@ implementing — including validating unknowns first.
 - **Standard mode**: requirements are clear; write the plan directly.
 - **Deep mode (spike)**: unknowns exist; run experiments first, recording
   them in `analysis.md`, then complete the plan from the findings.
+- **Plan review gate**: every plan is audited by an independent
+  `plan-reviewer` subagent before it is reported ready — against the
+  original requirements, not against itself. Multi-repo and deep-mode
+  plans loop through review and revision (max 2 rounds); single-repo plans
+  get one pass. Findings land in `review.md`.
 - **Planning boundary**: propose plans only. Even if the request says
   "and implement it", propose stops after the documents are ready and
   waits for a new request. No project code is edited.
@@ -116,6 +130,7 @@ path.
 |---|---|
 | "How does X work?" / "Where is X implemented?" | Explore |
 | "Plan a feature" / "We should add X" | Propose |
+| "Plan is ready" / "the plan looks vague" | Propose (plan review gate) |
 | "This needs validation first" / "I'm not sure X is feasible" | Propose (deep mode) |
 | "Implement it" / "Continue the work" | Apply |
 | "It's done" / "Ship it" / "Merged" | Archive |

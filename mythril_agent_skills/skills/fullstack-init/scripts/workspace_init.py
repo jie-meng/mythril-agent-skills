@@ -445,6 +445,7 @@ line and re-run before committing. Full rules live in
 ├── .agents/
 │   ├── agents/        # Workspace-level sub-agents (regenerated)
 │   │   ├── planner.md
+│   │   ├── plan-reviewer.md
 │   │   ├── developer.md
 │   │   ├── reviewer.md
 │   │   └── debugger.md
