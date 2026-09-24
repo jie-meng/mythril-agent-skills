@@ -266,6 +266,14 @@ flowchart LR
     B --> C[Component C]
 ```
 
+## Original Requirements
+
+What was asked for, **verbatim** — the user's own words, the Jira
+description, the spec text. Not a summary: this is the baseline the
+plan-reviewer falsifies coverage against, and a paraphrase here is what
+lets a narrowing pass as a documented limitation. One `REQ<n>` id per
+ask; `plan.md` and `review.md` cite the ids.
+
 ## Requirements Analysis
 
 <Break down requirements into concrete behaviors, inputs, outputs.>
@@ -340,6 +348,13 @@ flowchart LR
     B --> C[组件 C]
 ```
 
+## 需求原文
+
+**逐字**记录用户原话 / Jira description 原文 / 规格原文——不转述、不润色。
+这一节是方案审查判定"需求有没有被遗漏或收窄"的唯一基线：转述会把收窄藏成
+一条"已记录的边界"。每条诉求一个 `REQ<n>` 编号，plan.md 与 review.md 都
+引用编号（`R<n>` 留给风险表）。
+
 ## 需求分析
 
 <将需求拆解为具体的行为、输入、输出。>
@@ -406,6 +421,19 @@ flowchart LR
 **Type**: fix
 **Severity**: <Critical | High | Medium | Low> — <one-line impact>
 **Author**: Debugger
+
+## Original Requirements
+
+What was asked for, **verbatim** — the user's own words, the Jira
+description, the report as received. Do not summarize or tidy it: this
+section is the baseline the plan-reviewer falsifies coverage against,
+and a paraphrase here is what lets a narrowing pass as a documented
+limitation. One `REQ<n>` id per ask; `plan.md` and `review.md` cite the
+ids. `plan_lint.py` fails a round that cites an undeclared id, and one
+that never cites a declared id.
+
+- **REQ1** "<exact words>" — <source: user prompt / PROJ-123 / page>
+- **REQ2** "<exact words>" — <source>
 
 ## Symptom
 
@@ -493,6 +521,17 @@ is a root cause.>
 **严重程度**：<严重 | 高 | 中 | 低> — <一句话影响>
 **作者**：Debugger
 
+## 需求原文
+
+**逐字**记录用户原话（或 Jira description 原文、收到的报告原文）——不转述、
+不润色。这一节是方案审查判定"需求有没有被遗漏或收窄"的唯一基线：转述会把
+收窄藏成一条"已记录的边界"。每条诉求一个 `REQ<n>` 编号，plan.md 与
+review.md 都引用编号（`R<n>` 留给风险表）。引用了未声明的编号、或声明了
+却没有任何轮次引用，`plan_lint.py` 都会报错。
+
+- **REQ1** 「<原话>」——<来源：用户消息 / PROJ-123 / 页面>
+- **REQ2** 「<原话>」——<来源>
+
 ## 问题现象
 
 <确切的可观察行为：错误信息、日志、异常输出。>
@@ -577,10 +616,11 @@ sequenceDiagram
 ```markdown
 # Review: <Work Name>
 
-This file is the work item's falsification record, in append order:
-plan review rounds (fullstack-propose) → Evidence → code review rounds
-and the cross-repo check (fullstack-apply) → closing verdict. See the
-canonical order in [`review-formats.md`](review-formats.md#canonical-order-of-reviewmd).
+This file is the work item's falsification record. Canonical order:
+Evidence (seeded here, filled at finalization) → plan review rounds
+(fullstack-propose) → code review rounds and the cross-repo check
+(fullstack-apply) → closing verdict. See
+[`review-formats.md`](review-formats.md#canonical-order-of-reviewmd).
 
 ## Evidence
 
@@ -601,9 +641,10 @@ criterion without a row here is a criterion nobody verified —
 ```markdown
 # 审查：<工作名称>
 
-本文件是该工作项的证伪记录，按追加顺序：方案审查轮次（fullstack-propose）
-→ 证据核验 → 代码审查轮次与跨仓库审查（fullstack-apply）→ 最终结论。
-规范顺序见 [`review-formats.md`](review-formats.md#canonical-order-of-reviewmd)。
+本文件是该工作项的证伪记录。规范顺序：证据核验（此处预填，收尾阶段填写）
+→ 方案审查轮次（fullstack-propose）→ 代码审查轮次与跨仓库审查
+（fullstack-apply）→ 最终结论。见
+[`review-formats.md`](review-formats.md#canonical-order-of-reviewmd)。
 
 ## 证据核验
 
@@ -637,15 +678,22 @@ orchestrator appends it. Section labels follow the work item's language.
 ### Scope Reviewed
 
 - Documents: analysis.md, plan.md — <what changed since the last round, if N > 1>
-- Requirements source: <Jira KEY / user prompt / Confluence page>
-- Codebase verification: <repos inspected, graphify used? yes/no>
+- Requirements source: `analysis.md` §Original Requirements (REQ ids) — <plus
+  Jira KEY / Confluence page when one exists>
+- Codebase verification: <repos inspected> — graphify: used | skipped: <reason> | n/a
 
 ### Requirements Coverage
 
+One row per `REQ` id declared in `analysis.md` §Original Requirements —
+`plan_lint.py` fails the round when a declared REQ is missing here, and
+when a REQ cited here was never declared. Use the ids, not a paraphrase:
+`R<n>` belongs to plan.md's risk table, `REQ<n>` to the requirements.
+
 | Requirement | Covered by criterion | Delivered by task | Status |
 |-------------|---------------------|-------------------|--------|
-| <req 1> | SC-1 | Phase 1, task 2 | OK |
-| <req 2> | — | — | **DROPPED** |
+| REQ1 | SC-1 | Phase 1, task 2 | OK |
+| REQ2 | — | — | **DROPPED** |
+| REQ3 | SC-2 | Phase 1, task 3 | **NARROWED** — <what was dropped, and who is asked about it> |
 
 ### Findings
 
@@ -695,15 +743,20 @@ treated as a new P0 in the next round.
 ### 审查范围
 
 - 文档：analysis.md、plan.md — <与上一轮的差异>
-- 需求来源：<Jira 编号 / 用户需求 / Confluence 页面>
-- 代码核验：<检查的仓库，是否使用 graphify>
+- 需求来源：analysis.md §需求原文（REQ 编号）— <有 Jira / Confluence 时附编号>
+- 代码核验：<检查的仓库> — graphify：已用 | 跳过：<理由> | 无
 
 ### 需求覆盖
 
+`analysis.md` §需求原文 里每个 `REQ` 编号一行——声明了却在这里缺行，
+或这里引用了未声明的编号，`plan_lint.py` 都会报错。用编号，不要用转述：
+`R<n>` 是 plan.md 风险表的编号，`REQ<n>` 才是需求的编号。
+
 | 需求 | 对应成功标准 | 对应任务 | 状态 |
 |------|------------|---------|------|
-| <需求 1> | 标准 1 | 阶段一 / 任务 2 | 覆盖 |
-| <需求 2> | — | — | **遗漏** |
+| REQ1 | 标准 1 | 阶段一 / 任务 2 | 覆盖 |
+| REQ2 | — | — | **遗漏** |
+| REQ3 | 标准 2 | 阶段一 / 任务 3 | **收窄** — <砍掉了什么，以及由谁裁定> |
 
 ### 问题清单
 

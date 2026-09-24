@@ -24,9 +24,24 @@ Checks:
 5. **Unresolved placeholders** — `待确认` / `待定` / `TBD` in `analysis.md`
    or `plan.md` are warnings: they must become a formal
    `NEEDS_USER_DECISION`, not stay a parenthetical nobody answers.
+6. **Requirements of record** — `analysis.md` carries a `## 需求原文` /
+   `## Original Requirements` section holding the user's words verbatim,
+   each under a `REQ<n>` id. That section is the baseline the
+   requirements-coverage matrix is falsified against; without it,
+   "was a requirement dropped or narrowed?" has nothing to compare to
+   except the planner's own summary — the party being audited. Every
+   `REQ` cited in a review round's coverage matrix must exist there, and
+   every declared `REQ` must have a row in at least one round's matrix —
+   a prose mention never counts as coverage.
+7. **Finding discipline** — a round listing more than five P2 findings,
+   or a later round carrying more P0/P1 than the round before it
+   (oscillation). Both are capped in prose by the reviewer's brief;
+   neither is checkable by a reader scanning the document.
 
-Item 5 is a warning because a placeholder may legitimately be decided
-later; checks 1-4 are errors because each one silently breaks the chain.
+Checks 5 and 7 are warnings because neither breaks the chain. Checks 1-4
+and 6 are errors: each one lets an unverifiable claim enter the
+definition of done. Item 6 stays silent for work items that have neither
+the section nor a coverage matrix, so legacy items do not generate noise.
 
 Usage:
     python3 plan_lint.py <work-dir>
@@ -56,6 +71,7 @@ REVIEW_FILE = "review.md"
 
 SC_ID_RE = re.compile(r"\bSC\d+[a-z]?\b")
 TASK_ID_RE = re.compile(r"\bT\d+[a-z]?\b")
+REQ_ID_RE = re.compile(r"\bREQ\d+\b")
 ROUND_NUMBER_RE = re.compile(r"(?:Round|第)\s*(\d+)")
 
 # Longest first: PASS_WITH_RISKS must be matched before PASS.
@@ -65,11 +81,20 @@ VERDICT_RE = re.compile(r"\b(" + "|".join(VERDICTS) + r")\b")
 PLACEHOLDER_RE = re.compile(r"待确认|待定|\bTBD\b")
 
 EVIDENCE_HEADINGS = ("## 证据核验", "## Evidence")
+REQUIREMENTS_HEADINGS = ("## 需求原文", "## Original Requirements")
 PLAN_REVIEW_HEADING_RE = re.compile(r"^##\s+(?:Plan Review|方案审查)\b", re.MULTILINE)
 VERDICT_HEADING_RE = re.compile(
     r"^#{3,}\s*(?:Verdict|判定|结论)", re.MULTILINE
 )
+COVERAGE_HEADING_RE = re.compile(
+    r"^#{3,}\s*(?:Requirements Coverage|需求覆盖)", re.MULTILINE
+)
 HEADING_RE = re.compile(r"^##\s+(.*)$", re.MULTILINE)
+
+# A finding bullet is `- [P0] ...` / `* [P1] ...` per the reviewer's output
+# contract in agents/plan-reviewer.md.
+SEVERITY_BULLET_RE = re.compile(r"^\s*[-*]\s*\[P([0-9])\]", re.MULTILINE)
+MAX_P2_PER_ROUND = 5
 
 CLOSING_VERDICTS = ("PASS", "PASS_WITH_RISKS")
 
@@ -127,6 +152,27 @@ def parse_task_ids(text: str) -> set[str]:
     return set(TASK_ID_RE.findall(text))
 
 
+def parse_req_ids(text: str) -> set[str]:
+    """Return every `REQ<n>` id used in the text."""
+    return set(REQ_ID_RE.findall(text))
+
+
+def find_section_body(text: str, headings: tuple[str, ...]) -> str | None:
+    """Return the body of the first section matching one of `headings`."""
+    for heading, body in split_sections(text):
+        if heading.startswith(headings):
+            return body
+    return None
+
+
+def count_severities(body: str) -> dict[str, int]:
+    """Return how many `- [P<n>]` bullets a review round carries."""
+    counts = {"0": 0, "1": 0, "2": 0}
+    for severity in SEVERITY_BULLET_RE.findall(body):
+        counts[severity] = counts.get(severity, 0) + 1
+    return counts
+
+
 def parse_evidence_rows(review_text: str) -> set[str] | None:
     """Return the SC ids in the Evidence table, or None when absent.
 
@@ -143,6 +189,36 @@ def parse_evidence_rows(review_text: str) -> set[str] | None:
                 rows.update(SC_ID_RE.findall(first_cell))
             return rows
     return None
+
+
+def parse_coverage_rows(review_text: str) -> set[str] | None:
+    """Return the REQ ids rowed in every plan-review coverage matrix.
+
+    Only table rows inside a `### 需求覆盖` / `### Requirements Coverage`
+    section of a plan-review round count, so a REQ named in a finding
+    bullet or in prose does not. Returns None when no coverage matrix
+    exists in any round.
+    """
+    found = False
+    ids: set[str] = set()
+    for heading, body in split_sections(review_text):
+        if not heading.startswith("## ") or not PLAN_REVIEW_HEADING_RE.match(
+            heading
+        ):
+            continue
+        in_matrix = False
+        for line in body.splitlines():
+            if COVERAGE_HEADING_RE.match(line.strip()):
+                found = True
+                in_matrix = True
+                continue
+            if line.lstrip().startswith("#"):
+                in_matrix = False
+                continue
+            if in_matrix and line.lstrip().startswith("|"):
+                first_cell = line.lstrip().lstrip("|").split("|")[0]
+                ids.update(REQ_ID_RE.findall(first_cell))
+    return ids if found else None
 
 
 def detect_verdict(section_body: str) -> str | None:
@@ -222,7 +298,9 @@ def lint_work_dir(work_dir: Path) -> list[Finding]:
     findings.extend(_check_evidence_coverage(plan_text, review_text))
     findings.extend(_check_plan_review_rounds(review_text))
     findings.extend(_check_task_ids(plan_text, review_text))
+    findings.extend(_check_requirements_of_record(analysis_text, review_text))
     findings.extend(_check_placeholders(plan_text, analysis_text))
+    findings.extend(_check_finding_discipline(review_text))
 
     return findings
 
@@ -343,6 +421,111 @@ def _check_placeholders(plan_text: str, analysis_text: str) -> list[Finding]:
                     "NEEDS_USER_DECISION or resolve them: " + hits[0][:80],
                 )
             )
+    return findings
+
+
+def _check_requirements_of_record(
+    analysis_text: str, review_text: str
+) -> list[Finding]:
+    """Check 6 — the coverage matrix must be falsified against a baseline.
+
+    A work item with neither the section nor a coverage matrix is simply
+    older than this check, so it stays silent — a warning that fires on
+    every legacy item trains the reader to ignore it. The moment a round
+    asserts requirement coverage, though, it must say against what — and
+    only a row in the coverage matrix counts as having said it.
+    """
+    body = find_section_body(analysis_text, REQUIREMENTS_HEADINGS)
+    if body is None:
+        if parse_req_ids(review_text):
+            return [
+                Finding(
+                    "ERROR",
+                    f"{REVIEW_FILE} cites REQ ids but {ANALYSIS_FILE} has no "
+                    "'## 需求原文' / '## Original Requirements' section to "
+                    "check them against",
+                )
+            ]
+        if COVERAGE_HEADING_RE.search(review_text):
+            return [
+                Finding(
+                    "WARN",
+                    f"{REVIEW_FILE} asserts a requirements-coverage matrix "
+                    f"but {ANALYSIS_FILE} has no '## 需求原文' / '## Original "
+                    "Requirements' section — coverage is being judged "
+                    "against the planner's own summary, and a narrowing of "
+                    "a user-stated requirement cannot be told apart from a "
+                    "documented limitation",
+                )
+            ]
+        return []
+
+    declared = parse_req_ids(body)
+    if not declared:
+        return [
+            Finding(
+                "ERROR",
+                "the requirements-of-record section is empty — no REQ<n> id "
+                f"declared in {ANALYSIS_FILE}",
+            )
+        ]
+
+    # Coverage is asserted row by row, in the matrix — a REQ named in a
+    # finding bullet is one that was discussed, not one whose coverage
+    # was asserted.
+    covered = parse_coverage_rows(review_text) or set()
+    findings: list[Finding] = []
+    unknown = sorted(covered - declared, key=_natural_key)
+    if unknown:
+        findings.append(
+            Finding(
+                "ERROR",
+                f"{REVIEW_FILE} coverage-matrix rows cite requirement ids "
+                f"that are not declared in {ANALYSIS_FILE}: "
+                + ", ".join(unknown),
+            )
+        )
+    uncited = sorted(declared - covered, key=_natural_key)
+    if uncited:
+        findings.append(
+            Finding(
+                "ERROR",
+                "declared requirements never appear in any review round's "
+                "coverage matrix, so nobody asserted their coverage: "
+                + ", ".join(uncited),
+            )
+        )
+    return findings
+
+
+def _check_finding_discipline(review_text: str) -> list[Finding]:
+    """Check 7 — P2 inflation and oscillation, both capped in prose only."""
+    findings: list[Finding] = []
+    blocking_previous: int | None = None
+    for plan_round in parse_plan_review_rounds(review_text):
+        counts = count_severities(plan_round.body)
+        if counts["2"] > MAX_P2_PER_ROUND:
+            findings.append(
+                Finding(
+                    "WARN",
+                    f"round {plan_round.number} lists {counts['2']} P2 findings "
+                    f"(the reviewer's brief caps P2 at {MAX_P2_PER_ROUND}; "
+                    "P2 must never block)",
+                )
+            )
+        blocking = counts["0"] + counts["1"]
+        if blocking_previous is not None and blocking > blocking_previous:
+            findings.append(
+                Finding(
+                    "WARN",
+                    f"round {plan_round.number} carries {blocking} P0/P1 "
+                    f"findings against {blocking_previous} in the previous "
+                    "round — the loop may be oscillating; stop and hand the "
+                    "residual disagreement to the user",
+                )
+            )
+        if blocking or counts["2"]:
+            blocking_previous = blocking
     return findings
 
 

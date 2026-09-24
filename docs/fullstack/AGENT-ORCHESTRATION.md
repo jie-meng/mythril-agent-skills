@@ -263,7 +263,7 @@ no more, no less. This keeps subagent context windows small and focused.
 | Subagent | Required context | Optional context |
 |----------|-----------------|------------------|
 | **Planner** | User requirements, workspace AGENTS.md repo table, gathered external context (Jira/Confluence/Figma) | Spike docs, prior work analysis |
-| **Plan Reviewer** | The **original requirements** (user prompt, Jira/Confluence/Figma content), `analysis.md` + `plan.md` as written to disk, workspace AGENTS.md repo table, round number and what changed since the last round | Repo `AGENTS.md`/`README.md`, predecessor work-item contracts, graphify results |
+| **Plan Reviewer** | The **original requirements** as an artifact of record — `analysis.md` §Original Requirements / §需求原文, one `REQ<n>` id per ask in the user's own words (never the orchestrator's summary), `analysis.md` + `plan.md` as written to disk, workspace AGENTS.md repo table, round number and what changed since the last round | Repo `AGENTS.md`/`README.md`, predecessor work-item contracts, graphify results (graphify is optional; a round records `used / skipped: <reason> / n/a`) |
 | **Developer** | `plan.md`, `analysis.md`, repo AGENTS.md, repo README.md, branch name | Graphify query results, prior implementation notes |
 | **Code Reviewer** | `plan.md`, `analysis.md`, `progress.md`, diffs or staged changes | Repo conventions, predecessor contracts (Follow-up mode) |
 | **Debugger** | Error logs, stack traces, reproduction steps, affected repo context | Related bug reports, prior fix attempts |

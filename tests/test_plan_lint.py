@@ -16,8 +16,10 @@ from mythril_agent_skills.shared.plan.plan_lint import (
     find_placeholders,
     format_findings,
     lint_work_dir,
+    parse_coverage_rows,
     parse_evidence_rows,
     parse_plan_review_rounds,
+    parse_req_ids,
     parse_sc_ids,
     parse_task_ids,
 )
@@ -64,6 +66,62 @@ REVIEW_OK = """# 审查：demo
 PASS — no blocking findings.
 """
 
+ANALYSIS_REQS = """# 分析：demo
+
+## 需求原文
+
+- **REQ1**「跟周围的人聊聊天。」（用户原话，未指定话题）
+- **REQ2**「你和周围的人聊聊这个问题呗」要先聊刚才那件事
+
+## 根因
+
+正文。
+"""
+
+REVIEW_COV = """# 审查：demo
+
+## 证据核验
+
+| 成功标准 | 结果 | 证据 |
+|---------|------|------|
+| SC1 | 待核验 | |
+| SC2 | 待核验 | |
+
+## 方案审查 — 第 1 轮 — 2026-09-21
+
+### 需求覆盖
+
+| 需求 | 标准 | 状态 |
+|---|---|---|
+| REQ1 | SC1 | 覆盖 |
+| REQ2 | SC2 | 覆盖 |
+
+### 判定
+
+PASS — 无阻塞问题。
+"""
+
+# A coverage matrix that names requirements in prose instead of by id —
+# the shape every work item wrote before requirements got an id namespace.
+REVIEW_COV_NOREQ = REVIEW_COV.replace("| REQ1 |", "| 聊天指令 |").replace(
+    "| REQ2 |", "| 回指场景 |"
+)
+
+
+def _review_with_findings(p0: int = 0, p1: int = 0, p2: int = 0) -> str:
+    """REVIEW_OK's round 1 carrying the given number of severity bullets."""
+    bullets = "\n".join(
+        f"- [P{level}] finding {index}"
+        for level, count in (("0", p0), ("1", p1), ("2", p2))
+        for index in range(count)
+    )
+    return REVIEW_OK.replace(
+        "机械门禁：Mermaid **PASS**",
+        f"### 问题清单\n\n{bullets}\n\n机械门禁：Mermaid **PASS**"
+        if bullets
+        else "机械门禁：Mermaid **PASS**",
+    )
+
 
 def _errors(findings) -> list[str]:
     return [f.message for f in findings if f.level == "ERROR"]
@@ -83,6 +141,18 @@ class TestParseIds:
 
     def test_task_ids(self):
         assert parse_task_ids("T0, T3b and T14 — not TODO") == {"T0", "T3b", "T14"}
+
+    def test_req_ids(self):
+        assert parse_req_ids("REQ1 REQ12 but not REQUEST2") == {"REQ1", "REQ12"}
+
+    def test_severity_bullets(self):
+        from mythril_agent_skills.shared.plan.plan_lint import count_severities
+
+        body = (
+            "- [P0] block\n- [P1] a\n- [P1] b\n* [P2] c\n"
+            "- plain bullet, no severity\n"
+        )
+        assert count_severities(body) == {"0": 1, "1": 2, "2": 1}
 
 
 class TestParseEvidenceRows:
@@ -106,6 +176,39 @@ class TestParseEvidenceRows:
 
     def test_missing_section_returns_none(self):
         assert parse_evidence_rows("# 审查：demo\n\nno table here\n") is None
+
+
+class TestParseCoverageRows:
+    def test_reads_matrix_rows_across_rounds(self):
+        text = (
+            "## Plan Review - Round 1 - 2026-09-21\n"
+            "### Requirements Coverage\n"
+            "| Requirement | Criterion | Status |\n"
+            "|---|---|---|\n"
+            "| REQ1 | SC1 | OK |\n"
+            "| REQ2 | SC2 | OK |\n"
+            "### Verdict\n"
+            "PASS\n"
+            "## Plan Review - Round 2 - 2026-09-22\n"
+            "### Requirements Coverage\n"
+            "| Requirement | Criterion | Status |\n"
+            "|---|---|---|\n"
+            "| REQ3 | SC3 | OK |\n"
+            "### Verdict\n"
+            "PASS\n"
+        )
+        assert parse_coverage_rows(text) == {"REQ1", "REQ2", "REQ3"}
+
+    def test_prose_mention_does_not_count_as_row(self):
+        text = (
+            "## Plan Review - Round 1 - 2026-09-21\n"
+            "### Requirements Coverage\n"
+            "REQ1 is discussed in prose but has no row.\n"
+        )
+        assert parse_coverage_rows(text) == set()
+
+    def test_missing_matrix_returns_none(self):
+        assert parse_coverage_rows("# 审查：demo\n\nno matrix here\n") is None
 
 
 class TestDetectVerdict:
@@ -183,7 +286,10 @@ class TestLintWorkDir:
         assert any("not closed" in message for message in _errors(findings))
 
     def test_round_numbering_gap_is_an_error(self, tmp_path: Path):
-        review = REVIEW_OK + "\n## 方案审查 — 第 3 轮 — 2026-01-02\n\n### 结论\nPASS\n"
+        review = (
+            REVIEW_OK
+            + "\n## 方案审查 — 第 3 轮 — 2026-01-02\n\n### 结论\nPASS\n"
+        )
         findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, review))
         assert any("numbered 1..N" in message for message in _errors(findings))
 
@@ -212,6 +318,115 @@ class TestLintWorkDir:
     def test_missing_documents_are_errors(self, tmp_path: Path):
         findings = lint_work_dir(tmp_path)
         assert len(_errors(findings)) == 2
+
+
+    def test_requirements_round_trip_is_clean(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_OK, REVIEW_COV, analysis=ANALYSIS_REQS)
+        )
+        assert _errors(findings) == []
+        assert _warnings(findings) == []
+
+    def test_coverage_matrix_without_baseline_warns(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(
+                tmp_path, PLAN_OK, REVIEW_COV_NOREQ, analysis="# 分析\n\n无此节\n"
+            )
+        )
+        assert _errors(findings) == []
+        assert any("judged" in m for m in _warnings(findings))
+
+    def test_legacy_item_with_neither_is_silent(self, tmp_path: Path):
+        findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, REVIEW_OK))
+        assert not any("需求原文" in m for m in _warnings(findings))
+
+    def test_req_cited_without_a_section_is_an_error(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_OK, REVIEW_COV, analysis="# 分析\n\n正文\n")
+        )
+        assert any("REQ ids" in m for m in _errors(findings))
+
+    def test_undeclared_req_is_an_error(self, tmp_path: Path):
+        analysis = ANALYSIS_REQS.replace("- **REQ2**", "- **REQ9**")
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_OK, REVIEW_COV, analysis=analysis)
+        )
+        assert any("not declared" in m for m in _errors(findings))
+
+    def test_declared_but_never_reviewed_req_is_an_error(self, tmp_path: Path):
+        # REQ3 must sit inside the requirements section, not after it.
+        analysis = ANALYSIS_REQS.replace(
+            "\n## 根因",
+            "- **REQ3** 第三条从未被任何轮次引用\n\n## 根因",
+        )
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_OK, REVIEW_COV, analysis=analysis)
+        )
+        assert any("REQ3" in m and "never appear" in m for m in _errors(findings))
+
+    def test_prose_mention_does_not_fake_a_matrix_row(self, tmp_path: Path):
+        # REQ3 is declared and discussed in a finding bullet, but the
+        # coverage matrix has no row for it. Discussing a requirement is
+        # not the same as asserting its coverage.
+        analysis = ANALYSIS_REQS.replace(
+            "\n## 根因",
+            "- **REQ3** 第三条只在发现里被讨论过\n\n## 根因",
+        )
+        review = REVIEW_COV.replace(
+            "### 判定",
+            "- [P1] REQ3 已讨论，见结论\n\n### 判定",
+        )
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_OK, review, analysis=analysis)
+        )
+        assert any("REQ3" in m and "never appear" in m for m in _errors(findings))
+
+    def test_empty_requirements_section_is_an_error(self, tmp_path: Path):
+        analysis = "# 分析：demo\n\n## 需求原文\n\n（略）\n"
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_OK, REVIEW_OK, analysis=analysis)
+        )
+        empty = "requirements-of-record section is empty"
+        assert any(empty in m for m in _errors(findings))
+
+    def test_p2_above_the_cap_warns(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_OK, _review_with_findings(p1=1, p2=6))
+        )
+        assert any("6 P2 findings" in m for m in _warnings(findings))
+        assert _errors(findings) == []
+
+    def test_p2_at_the_cap_stays_silent(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_OK, _review_with_findings(p1=1, p2=5))
+        )
+        assert not any("P2 findings" in m for m in _warnings(findings))
+
+    def test_oscillating_rounds_warn(self, tmp_path: Path):
+        round_two = (
+            "\n## 方案审查 — 第 2 轮 — 2026-09-22\n\n"
+            "- [P1] new one\n- [P1] another\n- [P1] third\n\n"
+            "### 判定\n\nPASS — no blocking findings.\n"
+        )
+        findings = lint_work_dir(
+            _work_dir(
+                tmp_path, PLAN_OK, _review_with_findings(p1=1) + round_two
+            )
+        )
+        assert any("oscillating" in m for m in _warnings(findings))
+
+    def test_converging_rounds_do_not_warn(self, tmp_path: Path):
+        round_two = (
+            "\n## 方案审查 — 第 2 轮 — 2026-09-22\n\n"
+            "第 1 轮问题全部闭环。\n\n"
+            "### 判定\n\nPASS_WITH_RISKS — no blocking findings.\n"
+        )
+        findings = lint_work_dir(
+            _work_dir(
+                tmp_path, PLAN_OK, _review_with_findings(p1=4, p2=3) + round_two
+            )
+        )
+        assert not any("oscillating" in m for m in _warnings(findings))
 
 
 class TestFormatFindings:

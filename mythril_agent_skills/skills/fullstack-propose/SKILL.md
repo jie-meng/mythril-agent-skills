@@ -143,21 +143,41 @@ directory names (always lowercase-hyphenated English) or branch names
 
 Read ALL linked resources BEFORE proceeding.
 
+**Capture them verbatim.** Whatever the requirements turn out to be — the
+user's own sentences, the Jira description, the reported symptom as
+received — are re-emitted word-for-word into `analysis.md`
+§Original Requirements / §需求原文 in Step 4, one `REQ<n>` id per ask.
+That section is the baseline the plan review is falsified against; a
+summary written by the same agent being audited cannot show whether a
+requirement was narrowed.
+
 ### 1b. Read workspace context
 
 1. **`fullstack.json`** — get the docs directory name and `github_repos`
 2. **`AGENTS.md`** — repo table, conventions, structure
 3. **`<docs-dir>/AGENTS.md`** — documentation conventions
 
-### 1c. Check knowledge graphs (MANDATORY when available)
+### 1c. Check knowledge graphs (checking is MANDATORY; using it is recorded)
 
 For each repo relevant to the request, run
 `python3 SKILL_PATH/scripts/graphify_check.py <repo>` to check for
 `graphify-out/`. This script uses a direct filesystem check immune to
-`.gitignore` filtering — do NOT use Glob. When `graphify-out/` exists,
-`cd` into the repo and MUST use `graphify query "<question>"` to
-understand the codebase BEFORE grep/read. If output shows `TRUNCATED`,
-raise the budget (`--budget 8000`) or narrow the query.
+`.gitignore` filtering — do NOT use Glob. graphify is an optional
+dependency: a user who never installed it has no `graphify-out/`, and
+that is a normal state, not a defect.
+
+When `graphify-out/` exists, prefer `graphify query "<question>"` to
+locate code BEFORE grep/read — it resolves cross-file structure faster.
+If output shows `TRUNCATED`, raise the budget (`--budget 8000`) or
+narrow the query.
+
+When a claim set is already small enough to verify by direct read (a
+dozen named files, exact line numbers), reading the files is the better
+tool — graphify is not a substitute for confirming that `chat_service_impl.py:959`
+says what you cite it as saying. Skip it in that case, but **record the
+skip**: every review round states `graphify: used | skipped: <reason> |
+n/a` in its scope. An unrecorded deviation from a MUST is invisible; a
+recorded one can be read and challenged.
 
 ### 1d. Check prior context
 
@@ -452,9 +472,13 @@ thing being tested.
 
 ### What the plan-reviewer receives
 
-- **The original requirements** gathered in Step 1a (Jira/Confluence/Figma
-  content, the user's own words). Without this the plan-reviewer cannot detect
-  a dropped requirement.
+- **The original requirements** — `analysis.md` §Original Requirements /
+  §需求原文, the user's words as written to disk, not your restatement of
+  them. Without a baseline that exists outside this conversation, the
+  reviewer cannot detect a dropped requirement — and cannot detect a
+  narrowed one either, which is the failure that hides as "a documented
+  limitation". If the section is missing, stop and write it before
+  reviewing; do not brief the reviewer from your own summary.
 - `analysis.md` and `plan.md` **as written to disk** — not the planner's
   returned message.
 - The workspace `AGENTS.md` repo table, plus `AGENTS.md` / `README.md` of
@@ -496,6 +520,14 @@ Rules that keep the loop convergent:
   widening a contract to "TBD", or dropping a requirement to reach `PASS`
   is worse than shipping with a documented P1. If the honest fix is a
   choice only the user can make, that is `NEEDS_USER_DECISION`.
+- **A finding whose fix narrows a `REQ` is not the planner's to resolve.**
+  When the only available fix shrinks what a requirement promises — the
+  accepted behavior becomes a subset of what `REQ<n>` says as the user
+  wrote it — reporting `NEEDS_USER_DECISION` is required, with the
+  requirement quoted and the subset named. Writing the subset down as a
+  documented boundary is correct engineering *and* still a scope
+  decision; from inside the plan the two look identical, which is why
+  this needs its own rule rather than riding on the one above.
 - **Oscillation stops the loop.** If a round produces more new findings
   than the previous round resolved, stop, record the residual items as
   known risks in `plan.md`, and report them in Step 5.
@@ -509,6 +541,8 @@ The plan may be handed to `fullstack-apply` only when ALL of these hold:
 
 - [ ] Plan review verdict is `PASS` or `PASS_WITH_RISKS` — no unresolved
       P0/P1 (residual items are recorded as known risks, not as open fixes)
+- [ ] `analysis.md` carries §Original Requirements / §需求原文 with one
+      `REQ<n>` id per ask, in the user's words — not a summary
 - [ ] Every requirement maps to ≥ 1 Success Criterion, and every criterion
       maps to ≥ 1 task
 - [ ] Every frozen contract passes the completeness check, or is explicitly
@@ -544,6 +578,13 @@ python3 SKILL_PATH/scripts/plan_lint.py <docs-dir>/changes/<type>/<work-name>
   unverified `NEEDS_FIXES` revision is caught here
 - plan-review rounds are numbered `1..N` without gaps
 - every task id cited in `review.md` exists in `plan.md`
+- every `REQ` id cited in a review round's coverage matrix is declared
+  in `analysis.md` §需求原文, and every declared `REQ` has a row in some
+  round's matrix — a prose mention never counts as coverage; a
+  requirement nobody mapped is the silent-drop case, made checkable
+- a round carrying more than five P2 findings, or more P0/P1 than the
+  round before it, is reported as a warning (both caps exist in the
+  reviewer's brief and both are invisible to a reader scanning the file)
 - unresolved `待确认` / `TBD` markers are surfaced as warnings (they must
   become a formal `NEEDS_USER_DECISION`, not stay a parenthetical)
 
@@ -552,6 +593,7 @@ Then, in the SAME revision as any document edit:
 | What changed | What must follow it |
 |--------------|---------------------|
 | Success Criteria added / renamed / removed | Evidence table rows in `review.md` |
+| `REQ` ids added / renamed / removed | Coverage rows in `review.md`'s matrix |
 | A task added / removed / rescoped | The affected-task list recorded in `review.md` |
 | Any review round or revision | A dated entry in `progress.md` |
 | A diagram | Re-run the Mermaid gate |

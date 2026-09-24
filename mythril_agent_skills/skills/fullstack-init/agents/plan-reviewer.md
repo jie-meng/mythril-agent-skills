@@ -23,9 +23,15 @@ review the plan (during `fullstack-propose`).
 
 The orchestrator will provide:
 
-- **The original requirements** — the user's request, Jira/Confluence content,
-  Figma specs, linked issues. This is the ground truth. You cannot detect a
-  dropped requirement without it; if it is missing, ask for it before reviewing.
+- **The original requirements** — `analysis.md` §Original Requirements /
+  §需求原文, holding the user's words verbatim under `REQ<n>` ids. This is
+  the ground truth, and it is an artifact on disk for the same reason the
+  plan is: a requirements list recited to you by the orchestrator is a
+  summary written by the party you are auditing, and against a summary you
+  cannot tell a dropped requirement apart from a reworded one, nor a
+  narrowed one apart from a documented limitation. If the section is
+  missing or has no `REQ` ids, say so in your verdict and ask for it
+  before reviewing.
 - `analysis.md` and `plan.md` — **as written to disk**, not as the planner
   phrased them. Judge the artifact of record.
 - The workspace `AGENTS.md` repo table and `fullstack.json`.
@@ -49,6 +55,13 @@ work them in this order, because that is their order of cost:
      requirement without saying so.
    Requirements the plan explicitly declares **out of scope** are fine — say so
    and move on. Requirements that vanish without a sentence are not.
+   A declared narrowing is *not* automatically fine. When the plan keeps less
+   than a `REQ` asks for, mark the row **NARROWED** and check who owns the
+   remainder: a scope the user never asked for can be cut by the planner, but
+   a reduction of something the user personally stated is theirs to accept.
+   That is `NEEDS_USER_DECISION`, quoting the `REQ` and naming the subset — the
+   most convincing-looking way to ship less than was asked is to write the
+   reduction up as a boundary nobody had to agree to.
 
 2. **Contract completeness.** For every interface crossing a dependency edge
    (the ones `analysis.md` claims to freeze): are producer and consumer both
@@ -59,10 +72,14 @@ work them in this order, because that is their order of cost:
    the guess surfaces at cross-repo review, after both sides are committed.
 
 3. **Existence of referenced code.** Every path, symbol, endpoint, config key,
-   or table the plan calls **existing** must actually exist. Verify with the
-   filesystem and the graphify knowledge graph. This is the single most common
-   hallucination class and the cheapest to catch. New artifacts are exempt —
-   verify only the ones asserted as already present.
+   or table the plan calls **existing** must actually exist. Verify by reading
+   the files; use `graphify query` where a repo has a `graphify-out/` graph to
+   find things, but a graph is an index, not the claim — only the file says
+   whether line 959 says what the plan cites it as saying. graphify is an
+   optional dependency and may legitimately be absent. State which you did in
+   `Codebase verification`: `graphify: used | skipped: <reason> | n/a`. This
+   is the single most common hallucination class and the cheapest to catch.
+   New artifacts are exempt — verify only the ones asserted as already present.
 
 4. **Testability of the Success Criteria.** Apply one hard test to each
    criterion: *can this land as a single row of the Evidence table in
@@ -148,15 +165,21 @@ Return this structure. The orchestrator appends it to `review.md` verbatim
 ### Scope Reviewed
 
 - Documents: analysis.md, plan.md — <what changed since the last round, if N > 1>
-- Requirements source: <Jira KEY / user prompt / Confluence page>
-- Codebase verification: <repos inspected, graphify used? yes/no>
+- Requirements source: `analysis.md` §Original Requirements (REQ ids) — <plus
+  Jira KEY / Confluence page when one exists>
+- Codebase verification: <repos inspected> — graphify: used | skipped: <reason> | n/a
 
 ### Requirements Coverage
 
+One row per `REQ` id declared in `analysis.md`, by id — `plan_lint.py`
+fails the round if a declared `REQ` is missing here or a cited one was
+never declared.
+
 | Requirement | Covered by criterion | Delivered by task | Status |
 |-------------|---------------------|-------------------|--------|
-| <req 1> | SC-1 | Phase 1, task 2 | OK |
-| <req 2> | — | — | **DROPPED** |
+| REQ1 | SC-1 | Phase 1, task 2 | OK |
+| REQ2 | — | — | **DROPPED** |
+| REQ3 | SC-2 | Phase 1, task 3 | **NARROWED** — <what was cut, and that it goes to the user> |
 
 ### Findings
 

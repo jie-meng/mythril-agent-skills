@@ -728,6 +728,11 @@ hand-checks miss, deterministically:
 - the last plan-review round ended in `PASS` / `PASS_WITH_RISKS`
 - plan-review rounds are numbered `1..N` without gaps
 - every task id cited in `review.md` exists in `plan.md`
+- every `REQ` id cited in a review round's coverage matrix is declared
+  in `analysis.md` §需求原文, and every declared `REQ` has a matrix row
+  in at least one round
+- a plan-review round with more than five P2 findings, or with more
+  P0/P1 than the previous round, is reported as a warning
 - unresolved `待确认` / `TBD` markers are surfaced as warnings
 
 **Reconciliation rule** — any change to the Success Criteria list during
