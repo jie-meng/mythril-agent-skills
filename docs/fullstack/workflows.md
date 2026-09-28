@@ -79,7 +79,10 @@ cross-repo flow understanding, tech stack comparisons.
 **Use when** the user wants to plan a feature, fix, or refactor before
 implementing — including validating unknowns first.
 
-- Creates `changes/<type>/<work-name>/` with the four documents.
+- Creates `changes/<type>/<work-name>/` with the four documents —
+  `plan.md` opens with a 30-second `## 摘要` / `## Summary`, and
+  `review.md` carries an in-place `## 状态速览` / `## Status Overview`
+  above its append-only rounds.
 - **Standard mode**: requirements are clear; write the plan directly.
 - **Deep mode (spike)**: unknowns exist; run experiments first, recording
   them in `analysis.md`, then complete the plan from the findings.

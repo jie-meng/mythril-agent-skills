@@ -928,6 +928,19 @@ class TestAgentSourceFiles:
             frontmatter = f.read_text().split("---")[1]
             assert "bash" not in frontmatter, f"{f.name} declares a bash policy"
 
+    def test_decision_reader_section(self):
+        # planner/debugger/code-reviewer/plan-reviewer write the
+        # human-readable layer of the work-tracking documents, so they
+        # carry the decision-reader writing rules. developer.md does not:
+        # it is barred from editing progress/review (the orchestrator owns
+        # those) and produces no decision-reader prose.
+        for name in ("planner", "debugger", "code-reviewer", "plan-reviewer"):
+            content = (self.agents_dir / f"{name}.md").read_text()
+            assert "Writing for the Decision Reader" in content, f"{name}.md missing Writing for the Decision Reader section"
+        plan_reviewer = (self.agents_dir / "plan-reviewer.md").read_text()
+        assert "Summary" in plan_reviewer
+        assert "drift between them is a P1 finding" in plan_reviewer
+
 
 # ---------------------------------------------------------------------------
 # format_report

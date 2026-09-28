@@ -300,6 +300,13 @@ plan review rounds the gate below records) yourself. Follow the templates
 in
 [`references/document-templates.md`](references/document-templates.md).
 
+Write `plan.md`'s opening summary (`## 摘要` / `## Summary`) in the same
+pass — the decision-maker's entry point, five lines (one sentence /
+status / decisions needed / not solved / where to read), the one-sentence
+line carrying no ids and no file refs. It is the only section of the
+work item updated in place as the item evolves; template in
+[`references/document-templates.md`](references/document-templates.md#planmd).
+
 ### Deep mode (spike) — validate unknowns first
 
 Use this when Step 1 reveals significant unknowns (technical risk,
@@ -552,6 +559,9 @@ The plan may be handed to `fullstack-apply` only when ALL of these hold:
 - [ ] Dependency edges verified semantically, not just structurally
 - [ ] No unanswered `NEEDS_USER_DECISION`
 - [ ] Mermaid gate PASS, and (multi-repo) DAG gate PASS
+- [ ] `plan.md` §摘要 / §Summary matches the body — the one-sentence
+      line, the status, and the open decisions reflect the plan as it
+      now stands
 - [ ] `plan_lint.py` reports `STATUS=PASS`
 
 If a box is unchecked, do NOT report the plan as ready — report the
@@ -587,6 +597,9 @@ python3 SKILL_PATH/scripts/plan_lint.py <docs-dir>/changes/<type>/<work-name>
   reviewer's brief and both are invisible to a reader scanning the file)
 - unresolved `待确认` / `TBD` markers are surfaced as warnings (they must
   become a formal `NEEDS_USER_DECISION`, not stay a parenthetical)
+- `plan.md` carries the `## 摘要` / `## Summary` section — its absence is
+  a warning (legacy work items predate it), and the heading may carry a
+  parenthetical suffix (`## 摘要（给人读的…）` matches)
 
 Then, in the SAME revision as any document edit:
 
@@ -596,6 +609,7 @@ Then, in the SAME revision as any document edit:
 | `REQ` ids added / renamed / removed | Coverage rows in `review.md`'s matrix |
 | A task added / removed / rescoped | The affected-task list recorded in `review.md` |
 | Any review round or revision | A dated entry in `progress.md` |
+| Any review round or revision | `plan.md` §摘要 / §Summary and `review.md` §状态速览 / §Status Overview (both updated in place) |
 | A diagram | Re-run the Mermaid gate |
 | The repositories table | Re-run the DAG gate |
 
@@ -643,6 +657,14 @@ When invoked with a reference to an existing un-archived work item
    decisions in `review.md`)
 3. Resume from the last incomplete step; re-confirm repos if the plan
    has changed
+
+**Accretion rule** — when resuming because requirements changed and the
+scope grows significantly (a new repository joins, the task list roughly
+doubles, or a second independent goal appears), recommend splitting a
+successor work item by default; only fold the growth into this one when
+the user explicitly asks for it. A work item that accretes until it
+holds two work items is the shape review rounds cannot converge on, and
+its `## 摘要` stops being a 30-second read.
 
 ### Review-only re-entry — re-run the Plan Review Gate
 

@@ -8,6 +8,7 @@ languages; only the labels differ.
 
 ## Table of contents
 
+- [Writing rules for decision readers](#面向决策者的写作规则writing-rules-for-decision-readers) — style contract for all four documents
 - [`plan.md`](#planmd) — requirements, Success Criteria, execution checklist
 - [`progress.md`](#progressmd) — dated change log
 - [`analysis.md` (feat / refactor)](#analysismd--feature--refactor) — by Planner
@@ -15,6 +16,57 @@ languages; only the labels differ.
 - [`review.md` header](#reviewmd-header) — with Evidence table
 - [Plan review round](#plan-review-round) — written before implementation
 - [Visualization rules for analysis.md](#visualization-rules-for-analysismd)
+
+---
+
+## 面向决策者的写作规则（Writing Rules for Decision Readers）
+
+These rules apply to **all four documents, in both languages** — they are
+the "reads like it was written for a person" layer on top of the
+machine-checked structure. They bound *how* things are written, never
+*what* may be recorded: no rule below is permission to drop evidence,
+caveats, or audit detail.
+
+1. **Verdict first, evidence after（先结论，后证据）** — the first
+   sentence of every section, finding, and risk answers "what is this /
+   what is the conclusion"; evidence and detail follow. 每个章节、每条
+   发现、每条风险的第一句直接回答"这是什么/结论是什么"，证据与细节放
+   后面。Good: "**iOS 冷启动必现崩溃** —— 崩溃点在主题切换后的资源释
+   放路径，堆栈见下。" Bad: "经过对多个子系统的分析并交叉比对日志后，
+   发现可能存在一个潜在问题……"
+2. **Explain every term on first use; give an example where it is
+   subtle（术语首用必解释，微妙处必举例）** — an abbreviation or piece
+   of jargon gets one line of plain words the first time it appears; a
+   mechanism gets one concrete scenario or analogy. 缩写与行话首次出现
+   给一行大白话；机制给一个具体场景或比喻。Good: "UAF（use-after-free，
+   释放后使用）——对象已释放但代码还在用，如同房间退租后还有人拿旧钥匙
+   进来，表现为随机崩溃重启。" Bad: "命中 UAF，需排查。"（首次出现无解释）
+3. **Never use a coined term bare（自造缩略语禁裸用）** — a name this
+   work item invented（三同步约束、假绿、判定性实验……）is spelled out in
+   plain words on first use; the short form may appear afterwards. 项目
+   自造的名字首次出现必须拆开说清，之后才可用简称。Good: "三同步约束
+   （plan_lint.py、references 模板、SKILL.md 三处必须同步改动）。"
+4. **One claim per sentence（一条一个论点）** — more than two levels of
+   subordination or parentheses means split the sentence; paths, version
+   numbers, and line numbers belong in the evidence layer, not in the
+   claim sentence. 超过两层转折或括号就拆句；路径、版本号、行号放证据
+   层，不进论点句。Bad: "根因是 A（因为 B，而 B 又依赖 C（见 D:120，
+   v2.3.1）），同时 E 的历史包袱导致 F，但 G 在另外的分支上已经……"
+   ——一层句子塞四个论点加三层括号。Good: 论点句只说一件事，路径、版
+   本、行号挪到证据行："根因是 A（见证据 1）。证据 1：`D:120`，v2.3.1
+   起引入；证据 2：……"
+5. **Ids are an index, not the content（编号是索引不是内容）** — the
+   first occurrence of an id in a document carries a 3–8 character
+   gloss; the sentence must still read cleanly with the ids covered. 每
+   份文档里编号首次出现带 3–8 字说明；遮住编号句子仍要读得通。Bad:
+   "T3 同步 + SC3/SC6 双断言 + 三同步约束。" Good: "T3（同步三处 lint
+   副本）落地后，SC3 与 SC6 的断言（副本逐字节一致）随之生效。"
+6. **Process noise is not content（过程与技术分离）** — AI workflow
+   detail（子代理、门禁、簿记）goes into progress's process-notes tail or
+   the review round that produced it, never mixed into technical
+   conclusions. AI 工作流细节进 progress 的过程记录或产生它的审查轮次，
+   不与技术结论混排。Bad: progress 技术条目里写"子代理运行至 150 轮上限
+   被中断"。Good: 该细节放进 `（过程记录：…）`。
 
 ---
 
@@ -38,6 +90,13 @@ write a `**Status**:` field in `plan.md`.
 **Branch**: <branch-name>
 **Created**: <date>
 
+## Summary
+
+**In one sentence**: <what the problem is and what we'll do — no ids, no file refs>
+**Status**: <planning | ready to implement | in progress | done> — <one-line latest verdict>
+**Decisions needed from you**: <none; or one line each: question → options → our recommendation>
+**Not solved here**: <explicit exclusions, pending verifications, residual risks — one line each>
+**Where to read**: problem detail → analysis.md; how → this file's body; evidence → review.md
 
 ## Requirements
 
@@ -84,7 +143,17 @@ upstream code that may not exist yet.
 
 ## Risks / Open Questions
 
-<Known risks, things to clarify>
+**Active risks**
+
+| # | Risk | Likelihood | Impact | Mitigation |
+|---|------|-----------|--------|------------|
+| R1 | <risk, stated as its conclusion> | Medium | High | <mitigation> |
+
+**Closed**
+
+(none — a risk that has closed moves here with one line: why it closed and
+where it was resolved. Rows are never deleted; the partition keeps the
+live exposure readable at a glance.)
 ```
 
 ### Chinese
@@ -97,6 +166,13 @@ upstream code that may not exist yet.
 **分支**：<branch-name>
 **创建时间**：<date>
 
+## 摘要（给人读的——全工作项唯一允许原地更新的章节）
+
+**一句话**：<这是什么问题、打算怎么解决。不引用编号，不引用文件名。>
+**状态**：<规划中 | 审查通过待实施 | 实施中 | 已完成>——<一行最新结论>
+**需要你决策的事**：<无；或每条一行：问题 → 选项 → 我们的推荐>
+**没解决的事**：<明确排除项、待验证项、残留风险——每条一行>
+**读哪里**：问题细节→analysis.md；怎么实施→本文件正文；审查与证据→review.md
 
 ## 需求
 
@@ -139,8 +215,23 @@ upstream code that may not exist yet.
 
 ## 风险 / 待确认问题
 
-<已知风险、需要澄清的事项>
+**活风险**
+
+| # | 风险 | 可能性 | 影响 | 应对 |
+|---|------|--------|------|------|
+| R1 | <风险，直接写结论> | 中 | 高 | <应对> |
+
+**已闭环**
+
+（无——核销的风险移到这里，各保留一行：为何闭环、在哪里解决。行不删除；
+分区让"现在还悬着什么"一眼可读。）
 ```
+
+Update timing for the summary（`## 摘要` / `## Summary`）: rewrite it when
+the plan-review verdict changes, when requirements change, and at
+implementation close-out. History stays in `progress.md` / `review.md` —
+this section states only the current position. 方案审查结论变化、需求变更、
+实施收尾时更新；历史留在 progress/review，本节只写当前。
 
 ### Successor addition
 
@@ -156,9 +247,12 @@ When this work item inherits from an archived predecessor, add a
 
 `progress.md` is a **dated log**. Every meaningful change — kickoff,
 per-repo completion, review-driven fixes, user feedback, follow-up
-edits — is recorded as a `### <date>` section. Git history is the
-authoritative record of code changes; this file is the human-readable
-narrative that ties changes to decisions.
+edits — is recorded as a `### <date>` section. Each entry **opens with a
+bold result line** (`**Result**:` / `**结果**：`) — the decision-maker's
+first line — and **closes with a process-notes tail**
+(`（Process notes: …）` / `（过程记录：…）`) holding AI-workflow detail.
+Git history is the authoritative record of code changes; this file is
+the human-readable narrative that ties changes to decisions.
 
 ### English
 
@@ -183,12 +277,18 @@ narrative that ties changes to decisions.
 ## Change Log
 
 ### <date> — Started
+
+**Result**: <one or two plain sentences: what happened and where things stand now — the decision-maker's first line>
 - Created work plan
 - Identified affected repos: <list>
 - Created branches in: <list>
+（Process notes: <subagent runs, gate output, wording syncs — AI workflow detail>）
 
 ### <date> — <what happened>
+
+**Result**: <one or two plain sentences: what happened and where things stand now>
 - <what was done, why, and the result>
+（Process notes: <AI workflow detail>）
 ```
 
 ### Chinese
@@ -214,12 +314,18 @@ narrative that ties changes to decisions.
 ## 变更记录
 
 ### <date> — 启动
+
+**结果**：<一两句人话：发生了什么、现在状态如何——给决策者的第一行>
 - 创建工作计划
 - 确定涉及仓库：<list>
 - 创建分支：<list>
+（过程记录：<子代理运行情况、门禁输出、措辞同步等 AI 工作流细节>）
 
 ### <date> — <发生了什么>
+
+**结果**：<一两句人话：发生了什么、现在状态如何>
 - <做了什么、为什么、结果如何>
+（过程记录：<AI 工作流细节>）
 ```
 
 ### Successor back-link — `## Successors` table (optional)
@@ -617,10 +723,18 @@ sequenceDiagram
 # Review: <Work Name>
 
 This file is the work item's falsification record. Canonical order:
-Evidence (seeded here, filled at finalization) → plan review rounds
+status overview (updated in place) → Evidence (seeded here, filled at
+finalization) → plan review rounds
 (fullstack-propose) → code review rounds and the cross-repo check
 (fullstack-apply) → closing verdict. See
 [`review-formats.md`](review-formats.md#canonical-order-of-reviewmd).
+
+## Status Overview (updated in place; all rounds and evidence below are append-only)
+
+**Latest verdict**: <plan review PASS_WITH_RISKS (round N) | done — final verdict at the end of this file>
+**Review rounds**: <plan review N rounds; code review M rounds (repo names)>
+**Active risks**: <N items, one line each: id (plain-language description, how it is being followed up)>
+**Open decisions**: <none | list>
 
 ## Evidence
 
@@ -641,10 +755,17 @@ criterion without a row here is a criterion nobody verified —
 ```markdown
 # 审查：<工作名称>
 
-本文件是该工作项的证伪记录。规范顺序：证据核验（此处预填，收尾阶段填写）
-→ 方案审查轮次（fullstack-propose）→ 代码审查轮次与跨仓库审查
-（fullstack-apply）→ 最终结论。见
+本文件是该工作项的证伪记录。规范顺序：状态速览（原地更新）→ 证据核验
+（此处预填，收尾阶段填写）→ 方案审查轮次（fullstack-propose）→ 代码审查
+轮次与跨仓库审查（fullstack-apply）→ 最终结论。见
 [`review-formats.md`](review-formats.md#canonical-order-of-reviewmd)。
+
+## 状态速览（本节原地更新；其下所有轮次与证据 append-only）
+
+**最新结论**：<方案审查 PASS_WITH_RISKS（第 N 轮）| 已完成——最终结论见文末>
+**审查轮次**：<方案审查 N 轮；代码审查 M 轮（repo 名）>
+**活风险**：<N 项，每项一行：编号（人话描述，怎么跟进）>
+**待决策**：<无 | 列表>
 
 ## 证据核验
 

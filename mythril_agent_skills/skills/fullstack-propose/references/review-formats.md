@@ -11,6 +11,7 @@ verdict from a code-stage one — both use round numbers:
 
 ```text
 # 审查：<工作名称>          # header: what this file holds
+## 状态速览                  # updated in place — the only exception to append-only
 ## 证据核验                  # Success Criteria → proof (propose seeds it, apply fills it)
 ## 方案审查 — 第 N 轮        # written by fullstack-propose (Step 4.5)
 ## 设计复核（可选，作者自审，非门禁）   # optional author self-check — never authoritative
@@ -30,6 +31,23 @@ Rules:
 - A `设计复核` section is the author's own pre-check. It is a working
   artifact, not a gate: its verdict never substitutes for a
   `方案审查` round.
+
+### Status overview — `## 状态速览` / `## Status Overview`
+
+Sits between the header and the Evidence table. It is the one section of
+`review.md` that is **updated in place** — the single exception to the
+append-only rule above. The orchestrator rewrites it whenever a verdict
+lands: after each plan-review round, after each code-review round, when
+a risk opens or closes, and at finalization. It always states the
+current position, never the history — history lives in the rounds
+below. Four lines, in the work item's language:
+
+- **最新结论 / Latest verdict** — <方案审查 PASS_WITH_RISKS（第 N 轮）| 已完成——最终结论见文末>
+- **审查轮次 / Review rounds** — <方案审查 N 轮；代码审查 M 轮（repo 名）>
+- **活风险 / Active risks** — <N 项，每项一行：编号（人话描述，怎么跟进）>
+- **待决策 / Open decisions** — <无 | 列表>
+
+Everything below this section stays append-only, as before.
 
 ## Per-repo staged review section (code review)
 
@@ -276,6 +294,42 @@ is an explicit goal of this follow-up and is documented in
 `analysis.md`'s Design Options. The predecessor is the work item
 referenced under `**Predecessor**:` in `plan.md` (a successor work item,
 `<name>-vN`).
+
+---
+
+## Closing verdict — `## 最终结论` / `## Final Verdict`
+
+The item's closing verdict is a **fixed four-item list** — a reader
+finishes the work item knowing what shipped, what did not, what is
+still open, and what is on them. Write it in the work item's language;
+do not add or drop rows. Everything a reader might need beyond these
+four (evidence, rounds, per-repo detail) stays in the sections above.
+
+### Chinese
+
+```markdown
+## 最终结论
+
+| 项 | 内容 |
+|----|------|
+| 交付了什么 | <一段人话 + 提交哈希> |
+| 明确没交付什么 | <排除项——及原因/去向> |
+| 残留风险与待办 | <逐条：谁在什么条件下跟进> |
+| 需要人做的事 | <无 | 清单> |
+```
+
+### English
+
+```markdown
+## Final Verdict
+
+| Item | Content |
+|------|---------|
+| What was delivered | <plain-language paragraph + commit hashes> |
+| Explicitly not delivered | <exclusions — and why / where they went> |
+| Residual risks & follow-ups | <one line each: who follows up under what condition> |
+| What the human must do | <none | list> |
+```
 
 ---
 

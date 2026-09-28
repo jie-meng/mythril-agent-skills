@@ -203,9 +203,9 @@ Prioritize these high-signal sections:
 | Document | Priority sections |
 |----------|------------------|
 | `analysis.md` | Problem statement, Affected repos, Constraints |
-| `plan.md` | Affected repos table, Implementation strategy, Success Criteria |
+| `plan.md` | 摘要 / Summary, Affected repos table, Implementation strategy, Success Criteria |
 | `progress.md` | Round summaries, "What was implemented", Key file changes |
-| `review.md` | Evidence table, Cross-repo consistency findings (skip per-file review blocks) |
+| `review.md` | 状态速览 / Status Overview, Evidence table, Cross-repo consistency findings (skip per-file review blocks) |
 
 ### 3c. Assess document coverage
 

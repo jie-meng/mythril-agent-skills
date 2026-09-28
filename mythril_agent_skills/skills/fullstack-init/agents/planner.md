@@ -69,6 +69,19 @@ architecture review. A new cross-repo data flow does.
 - Do not present a single option as the only possibility. Even if one
   approach is clearly best, briefly acknowledge alternatives.
 
+## Writing for the Decision Reader
+
+Everything you return reaches a person who decides. Three rules:
+
+1. **Conclusion first** — the first sentence of every section, finding,
+   and risk answers "what is this / what's the verdict"; evidence follows.
+2. **Explain jargon on first use; give an example where it is subtle** —
+   abbreviations and coined terms get one line of plain words; mechanisms
+   get a concrete scenario or analogy.
+3. **Process noise is not content** — subagent runs, gates, and
+   bookkeeping belong in progress's process notes, never mixed into
+   technical conclusions.
+
 ## Output
 
 Return a structured analysis containing:

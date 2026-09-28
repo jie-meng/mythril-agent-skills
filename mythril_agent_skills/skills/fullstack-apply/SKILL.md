@@ -456,8 +456,13 @@ on a broken one:
 4. **No tests at all** (`tests: none`) → record an explicit
    `tests: none (<repo> has no test harness)` note in `progress.md`.
    Untested code must never pass silently.
-5. Write each completed summary to `progress.md`, then proceed to
-   staged review for that repo.
+5. Write each completed summary to `progress.md` — each dated entry
+   opens with a bold `**Result**:` / `**结果**：` line (the
+   decision-maker's first line) and closes with a
+   `（Process notes: …）` / `（过程记录：…）` tail for AI-workflow
+   detail (format in
+   [`references/document-templates.md`](references/document-templates.md)) —
+   then proceed to staged review for that repo.
 
 #### 4d. Per-repo staged review — delegate to a code-reviewer subagent per repo
 
@@ -734,6 +739,9 @@ hand-checks miss, deterministically:
 - a plan-review round with more than five P2 findings, or with more
   P0/P1 than the previous round, is reported as a warning
 - unresolved `待确认` / `TBD` markers are surfaced as warnings
+- `plan.md` carries the `## 摘要` / `## Summary` section — its absence is
+  a warning (legacy work items predate it), and the heading may carry a
+  parenthetical suffix (`## 摘要（给人读的…）` matches)
 
 **Reconciliation rule** — any change to the Success Criteria list during
 implementation (a criterion added, renamed, waived, or dropped) must sync
@@ -765,11 +773,18 @@ After review passes (and PRs created in Step 6 if applicable):
    changed).
 2. **Update `progress.md`** — add final changelog entry recording the
    completed work and PR links.
-3. **Update `plan.md`** — check off all completed tasks.
+3. **Update `plan.md`** — check off all completed tasks. Then refresh
+   §摘要 / §Summary to the final state: the one-sentence line, the
+   status (done), what is explicitly not solved, and where to read. It
+   is the only section of the work item updated in place; template in
+   [`references/document-templates.md`](references/document-templates.md#planmd).
 4. **Fill the Evidence table** in `review.md` — map each Success
    Criterion to concrete proof (test results, PR links, screenshots).
-   Then re-run `plan_lint.py` — a stale Evidence table (missing or
-   renamed criteria) is the most common cause of `STATUS=FAIL` here.
+   Then refresh §状态速览 / §Status Overview — the latest verdict, the
+   review rounds, the risks still active, the decisions still open —
+   everything below it stays append-only. Then re-run `plan_lint.py` —
+   a stale Evidence table (missing or renamed criteria) is the most
+   common cause of `STATUS=FAIL` here.
 5. **Push feature branches** in each affected code repo so the user has
    reviewable code on the remote, regardless of whether PRs were created
    in Step 6:

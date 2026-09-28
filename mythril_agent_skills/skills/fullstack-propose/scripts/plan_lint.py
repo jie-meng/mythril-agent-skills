@@ -37,11 +37,21 @@ Checks:
    or a later round carrying more P0/P1 than the round before it
    (oscillation). Both are capped in prose by the reviewer's brief;
    neither is checkable by a reader scanning the document.
+8. **Decision-reader summary** — `plan.md` should open with a
+   `## 摘要` / `## Summary` section: the one place a person can read in
+   30 seconds what the problem is, what the approach is, what needs
+   deciding, and where to read next. Heading matching reuses
+   `find_section_body`'s prefix match, so a parenthetical suffix
+   (`## 摘要（给人读的——…）`) still hits.
 
-Checks 5 and 7 are warnings because neither breaks the chain. Checks 1-4
-and 6 are errors: each one lets an unverifiable claim enter the
-definition of done. Item 6 stays silent for work items that have neither
-the section nor a coverage matrix, so legacy items do not generate noise.
+Checks 5, 7 and 8 are warnings because none of them breaks the chain.
+Checks 1-4 and 6 are errors: each one lets an unverifiable claim enter
+the definition of done. Item 6 stays silent for work items that have
+neither the section nor a coverage matrix, so legacy items do not
+generate noise. Item 8 warns rather than errors for the same reason in
+mirror image: work items written before the summary existed have no
+section to find, and the lint only runs on active work-item gates, so
+it never re-scans archived items.
 
 Usage:
     python3 plan_lint.py <work-dir>
@@ -82,6 +92,7 @@ PLACEHOLDER_RE = re.compile(r"待确认|待定|\bTBD\b")
 
 EVIDENCE_HEADINGS = ("## 证据核验", "## Evidence")
 REQUIREMENTS_HEADINGS = ("## 需求原文", "## Original Requirements")
+SUMMARY_HEADINGS = ("## 摘要", "## Summary")
 PLAN_REVIEW_HEADING_RE = re.compile(r"^##\s+(?:Plan Review|方案审查)\b", re.MULTILINE)
 VERDICT_HEADING_RE = re.compile(
     r"^#{3,}\s*(?:Verdict|判定|结论)", re.MULTILINE
@@ -301,6 +312,7 @@ def lint_work_dir(work_dir: Path) -> list[Finding]:
     findings.extend(_check_requirements_of_record(analysis_text, review_text))
     findings.extend(_check_placeholders(plan_text, analysis_text))
     findings.extend(_check_finding_discipline(review_text))
+    findings.extend(_check_summary_section(plan_text))
 
     return findings
 
@@ -527,6 +539,20 @@ def _check_finding_discipline(review_text: str) -> list[Finding]:
         if blocking or counts["2"]:
             blocking_previous = blocking
     return findings
+
+
+def _check_summary_section(plan_text: str) -> list[Finding]:
+    """Check 8 — plan.md carries the decision-reader summary section."""
+    if find_section_body(plan_text, SUMMARY_HEADINGS) is None:
+        return [
+            Finding(
+                "WARN",
+                f"{PLAN_FILE} has no '## 摘要' / '## Summary' section — a "
+                "reader has no 30-second entry point into the work item "
+                "(legacy work item?)",
+            )
+        ]
+    return []
 
 
 def _natural_key(value: str) -> tuple[str, int]:

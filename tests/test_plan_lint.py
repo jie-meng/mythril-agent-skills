@@ -36,9 +36,19 @@ def _work_dir(tmp_path: Path, plan: str = "", review: str = "", analysis: str = 
     return tmp_path
 
 
-PLAN_OK = """# Plan: demo
+SUMMARY_BLOCK = """## 摘要（给人读的——全工作项唯一允许原地更新的章节）
 
-## 成功标准
+**一句话**：给 demo 工作项一个可以核验的最小骨架。
+**状态**：规划中——方案待审查。
+**需要你决策的事**：无
+**没解决的事**：无
+**读哪里**：问题细节→analysis.md；怎么实施→本文件正文；审查与证据→review.md
+
+"""
+
+PLAN_OK = f"""# Plan: demo
+
+{SUMMARY_BLOCK}## 成功标准
 
 - [ ] SC1 works
 - [ ] SC2 also works
@@ -47,6 +57,8 @@ PLAN_OK = """# Plan: demo
 
 - [ ] T1 do the thing
 """
+
+PLAN_NO_SUMMARY = PLAN_OK.replace(SUMMARY_BLOCK, "")
 
 REVIEW_OK = """# 审查：demo
 
@@ -305,6 +317,17 @@ class TestLintWorkDir:
         )
         assert "STATUS=FAIL" in format_findings(findings)
         assert 'WARNINGS=1' in format_findings(findings)
+
+    def test_summary_section_present_no_warning(self, tmp_path: Path):
+        # The heading carries a parenthetical suffix on purpose: the
+        # prefix match in find_section_body must still hit it.
+        findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, REVIEW_OK))
+        assert _warnings(findings) == []
+
+    def test_missing_summary_warns_but_status_stays_pass(self, tmp_path: Path):
+        findings = lint_work_dir(_work_dir(tmp_path, PLAN_NO_SUMMARY, REVIEW_OK))
+        assert any("'## 摘要'" in m for m in _warnings(findings))
+        assert "STATUS=PASS" in format_findings(findings)
 
     def test_legacy_item_without_evidence_table_warns(self, tmp_path: Path):
         findings = lint_work_dir(
