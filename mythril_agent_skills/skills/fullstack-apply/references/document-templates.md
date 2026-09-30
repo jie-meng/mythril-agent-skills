@@ -67,6 +67,14 @@ caveats, or audit detail.
    conclusions. AI 工作流细节进 progress 的过程记录或产生它的审查轮次，
    不与技术结论混排。Bad: progress 技术条目里写"子代理运行至 150 轮上限
    被中断"。Good: 该细节放进 `（过程记录：…）`。
+7. **Field lines are separate paragraphs（字段行各自成段）** — two
+   consecutive lines that each start with a bold label (`**Source**:`,
+   `**来源**：`) MUST be separated by a blank line, in every template and
+   every generated document. Markdown renders consecutive lines of one
+   paragraph as a single merged line: the source looks line-broken in an
+   editor, but any preview fuses the whole header into one line.
+   相邻两行 `**字段**：…` 之间必须空一行：Markdown 渲染会把同一段落的
+   连续行合并成一行，编辑器里看着分行、预览里就粘成一长行。
 
 ---
 
@@ -86,16 +94,23 @@ write a `**Status**:` field in `plan.md`.
 # <Work Name>
 
 **Source**: <Jira link / user prompt / Confluence page / predecessor work item>
+
 **Type**: feat | refactor | fix
+
 **Branch**: <branch-name>
+
 **Created**: <date>
 
 ## Summary
 
 **In one sentence**: <what the problem is and what we'll do — no ids, no file refs>
+
 **Status**: <planning | ready to implement | in progress | done> — <one-line latest verdict>
+
 **Decisions needed from you**: <none; or one line each: question → options → our recommendation>
+
 **Not solved here**: <explicit exclusions, pending verifications, residual risks — one line each>
+
 **Where to read**: problem detail → analysis.md; how → this file's body; evidence → review.md
 
 ## Requirements
@@ -162,16 +177,23 @@ live exposure readable at a glance.)
 # <工作名称>
 
 **来源**：<Jira 链接 / 用户需求 / Confluence 页面 / 前置工作项>
+
 **类型**：feat | refactor | fix
+
 **分支**：<branch-name>
+
 **创建时间**：<date>
 
 ## 摘要（给人读的——全工作项唯一允许原地更新的章节）
 
 **一句话**：<这是什么问题、打算怎么解决。不引用编号，不引用文件名。>
+
 **状态**：<规划中 | 审查通过待实施 | 实施中 | 已完成>——<一行最新结论>
+
 **需要你决策的事**：<无；或每条一行：问题 → 选项 → 我们的推荐>
+
 **没解决的事**：<明确排除项、待验证项、残留风险——每条一行>
+
 **读哪里**：问题细节→analysis.md；怎么实施→本文件正文；审查与证据→review.md
 
 ## 需求
@@ -260,6 +282,7 @@ the human-readable narrative that ties changes to decisions.
 # Progress: <Work Name>
 
 **Last updated**: <date>
+
 **Branch**: <branch-name>
 
 ## Completed Steps
@@ -297,6 +320,7 @@ the human-readable narrative that ties changes to decisions.
 # 进度：<工作名称>
 
 **最后更新**：<date>
+
 **分支**：<branch-name>
 
 ## 已完成
@@ -357,7 +381,9 @@ decisions were made. Unlike `plan.md` (an execution checklist),
 # Analysis: <Work Name>
 
 **Created**: <date>
+
 **Type**: feat | refactor
+
 **Author**: Planner
 
 ## Current State
@@ -439,7 +465,9 @@ flowchart LR
 # 分析：<工作名称>
 
 **创建时间**：<date>
+
 **类型**：feat | refactor
+
 **作者**：Planner
 
 ## 现状
@@ -524,8 +552,11 @@ flowchart LR
 # Analysis: <Work Name>
 
 **Created**: <date>
+
 **Type**: fix
+
 **Severity**: <Critical | High | Medium | Low> — <one-line impact>
+
 **Author**: Debugger
 
 ## Original Requirements
@@ -623,8 +654,11 @@ is a root cause.>
 # 分析：<工作名称>
 
 **创建时间**：<date>
+
 **类型**：fix
+
 **严重程度**：<严重 | 高 | 中 | 低> — <一句话影响>
+
 **作者**：Debugger
 
 ## 需求原文
@@ -732,8 +766,11 @@ finalization) → plan review rounds
 ## Status Overview (updated in place; all rounds and evidence below are append-only)
 
 **Latest verdict**: <plan review PASS_WITH_RISKS (round N) | done — final verdict at the end of this file>
+
 **Review rounds**: <plan review N rounds; code review M rounds (repo names)>
+
 **Active risks**: <N items, one line each: id (plain-language description, how it is being followed up)>
+
 **Open decisions**: <none | list>
 
 ## Evidence
@@ -763,8 +800,11 @@ criterion without a row here is a criterion nobody verified —
 ## 状态速览（本节原地更新；其下所有轮次与证据 append-only）
 
 **最新结论**：<方案审查 PASS_WITH_RISKS（第 N 轮）| 已完成——最终结论见文末>
+
 **审查轮次**：<方案审查 N 轮；代码审查 M 轮（repo 名）>
+
 **活风险**：<N 项，每项一行：编号（人话描述，怎么跟进）>
+
 **待决策**：<无 | 列表>
 
 ## 证据核验
