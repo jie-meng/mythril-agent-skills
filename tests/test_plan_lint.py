@@ -1,21 +1,29 @@
 """Tests for the shared work-tracking document linter (plan_lint.py).
 
 Covers Success-Criteria ↔ Evidence-row reconciliation, plan-review closure
-and round numbering, task-id references, placeholder detection, and the
-CLI contract used by the fullstack skills.
+and round numbering, task-id references, placeholder detection, the Code
+Map reverse index, the per-round document-sync attestation, and the CLI
+contract (lint mode and `--find` lookup mode) used by the fullstack
+skills.
 """
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
 
 from mythril_agent_skills.shared.plan.plan_lint import (
     detect_verdict,
+    discover_docs_dir,
+    find_in_docs_dir,
     find_placeholders,
     format_findings,
     lint_work_dir,
+    match_code_map_row,
+    normalize_path,
+    parse_code_map_rows,
     parse_coverage_rows,
     parse_evidence_rows,
     parse_plan_review_rounds,
@@ -46,6 +54,14 @@ SUMMARY_BLOCK = """## 摘要（给人读的——全工作项唯一允许原地�
 
 """
 
+CODE_MAP_BLOCK = """## 代码地图（Code Map）
+
+| 仓库 | 路径 | 符号 | 改了什么 |
+|------|------|------|---------|
+| api | `src/preferences/dark_mode.py` | `ThemePreference` | 新增偏好接口 |
+
+"""
+
 PLAN_OK = f"""# Plan: demo
 
 {SUMMARY_BLOCK}## 成功标准
@@ -53,7 +69,7 @@ PLAN_OK = f"""# Plan: demo
 - [ ] SC1 works
 - [ ] SC2 also works
 
-## 实现计划
+{CODE_MAP_BLOCK}## 实现计划
 
 - [ ] T1 do the thing
 """
@@ -499,4 +515,335 @@ class TestCli:
 
     def test_missing_directory_exits_2(self, tmp_path: Path):
         result = self._run(str(tmp_path / "nope"))
+        assert result.returncode == 2
+
+
+# ---------------------------------------------------------------------------
+# Check 9 — Code Map
+# ---------------------------------------------------------------------------
+
+PLAN_NO_CODE_MAP = PLAN_OK.replace(CODE_MAP_BLOCK, "")
+
+PLAN_CODE_MAP_NO_ROWS = """## 代码地图（Code Map）
+
+还没填。
+"""
+
+PLAN_CODE_MAP_GLOB = """## 代码地图（Code Map）
+
+| 仓库 | 路径 | 符号 | 改了什么 |
+|------|------|------|---------|
+| api | `src/preferences/*` | — | 偏好相关全部文件 |
+"""
+
+PLAN_CODE_MAP_ABSOLUTE = """## 代码地图（Code Map）
+
+| 仓库 | 路径 | 符号 | 改了什么 |
+|------|------|------|---------|
+| api | `/Users/me/ws/api/src/dark_mode.py` | `ThemePreference` | 新增偏好接口 |
+"""
+
+
+def _plan_with(code_map: str) -> str:
+    """PLAN_OK with its Code Map block replaced by `code_map`."""
+    return PLAN_OK.replace(CODE_MAP_BLOCK, code_map)
+
+
+class TestParseCodeMapRows:
+    def test_reads_rows_and_skips_header(self):
+        rows = parse_code_map_rows(PLAN_OK)
+        assert rows == [
+            {
+                "repository": "api",
+                "path": "src/preferences/dark_mode.py",
+                "symbols": "ThemePreference",
+                "change": "新增偏好接口",
+            }
+        ]
+
+    def test_absent_section_returns_none(self):
+        assert parse_code_map_rows(PLAN_NO_CODE_MAP) is None
+
+    def test_prose_under_the_heading_is_not_a_row(self):
+        assert parse_code_map_rows(_plan_with(PLAN_CODE_MAP_NO_ROWS)) == []
+
+    def test_english_heading_matches(self):
+        text = (
+            "## Code Map\n\n"
+            "| Repository | Path | Symbols | What changed |\n"
+            "|---|---|---|---|\n"
+            "| web | `src/App.tsx` | `App` | Toggle row |\n"
+        )
+        assert parse_code_map_rows(text)[0]["path"] == "src/App.tsx"
+
+
+class TestCheckCodeMap:
+    def test_clean_item_has_no_code_map_finding(self, tmp_path: Path):
+        findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, REVIEW_OK))
+        assert not [f for f in findings if "Code Map" in f.message]
+
+    def test_missing_map_is_an_error(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_NO_CODE_MAP, REVIEW_OK)
+        )
+        assert any(
+            "Code Map" in m and "file path" in m for m in _errors(findings)
+        )
+
+    def test_empty_table_is_an_error(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, _plan_with(PLAN_CODE_MAP_NO_ROWS), REVIEW_OK)
+        )
+        assert any("has no data row" in m for m in _errors(findings))
+
+    def test_glob_row_is_an_error(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, _plan_with(PLAN_CODE_MAP_GLOB), REVIEW_OK)
+        )
+        assert any("glob or range" in m for m in _errors(findings))
+
+    def test_machine_path_is_an_error(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, _plan_with(PLAN_CODE_MAP_ABSOLUTE), REVIEW_OK)
+        )
+        assert any("repo-relative" in m for m in _errors(findings))
+
+
+# ---------------------------------------------------------------------------
+# Check 10 — document-sync attestation
+# ---------------------------------------------------------------------------
+
+ATTESTATION = (
+    "**文档同步**：`analysis.md` —— 目标架构图随之更新；"
+    "`plan.md` —— 无（仅实现细节）；`progress.md` —— 新增当日条目；"
+    "`review.md` —— 本节"
+)
+
+
+def _code_round(repo: str, round_no: int, attestation: str = "") -> str:
+    """One `## 代码审查` section, optionally carrying the attestation."""
+    return (
+        f"\n## 代码审查 — {repo} — 第 {round_no} 轮 — 2026-09-2{round_no}\n\n"
+        "### 结论\n\nPASS — 无阻塞。\n\n"
+        "### 提交记录\n\n| Hash | Message |\n|---|---|\n| `abc1234` | feat: x |\n\n"
+        "### 文档同步\n\n" + (attestation + "\n" if attestation else "")
+    )
+
+
+class TestDocumentSync:
+    def test_plan_only_item_is_silent(self, tmp_path: Path):
+        findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, REVIEW_OK))
+        assert not [f for f in findings if "文档同步" in f.message]
+
+    def test_newest_round_without_attestation_is_an_error(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_OK, REVIEW_OK + _code_round("api", 1))
+        )
+        assert any(
+            "newest code review round" in m for m in _errors(findings)
+        )
+
+    def test_older_rounds_are_not_back_filled(self, tmp_path: Path):
+        # two rounds, neither attested: only the newest is demanded
+        review = REVIEW_OK + _code_round("api", 1) + _code_round("api", 2)
+        findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, review))
+        missing = [m for m in _errors(findings) if "文档同步" in m]
+        assert len(missing) == 1
+        assert "第 2 轮" in missing[0]
+
+    def test_earlier_rounds_need_no_backfill(self, tmp_path: Path):
+        review = REVIEW_OK + _code_round("api", 1) + _code_round("api", 2, ATTESTATION)
+        findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, review))
+        assert not [f for f in findings if "文档同步" in f.message]
+
+    def test_round_after_the_first_attestation_must_attest(self, tmp_path: Path):
+        review = (
+            REVIEW_OK
+            + _code_round("api", 1, ATTESTATION)
+            + _code_round("web", 1)
+            + _code_round("web", 2)
+        )
+        findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, review))
+        errors = _errors(findings)
+        assert any(
+            "changes code but carries no" in m and "web — 第 1 轮" in m
+            for m in errors
+        )
+        assert any("newest code review round" in m for m in errors)
+
+    def test_attestation_naming_three_of_four_is_an_error(self, tmp_path: Path):
+        partial = ATTESTATION.replace("`progress.md` —— 新增当日条目；", "")
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_OK, REVIEW_OK + _code_round("api", 1, partial))
+        )
+        errors = _errors(findings)
+        assert any("omits progress.md" in m for m in errors)
+
+    def test_heading_without_line_is_not_an_attestation(self, tmp_path: Path):
+        review = REVIEW_OK + _code_round("api", 1).replace(
+            "### 文档同步\n\n", "### 文档同步\n\n本轮改了些东西。\n\n"
+        )
+        findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, review))
+        assert any(
+            "newest code review round" in m for m in _errors(findings)
+        )
+
+
+# ---------------------------------------------------------------------------
+# --find reverse lookup
+# ---------------------------------------------------------------------------
+
+
+class TestMatchCodeMapRow:
+    def setup_method(self):
+        self.row = {
+            "repository": "api",
+            "path": "src/preferences/dark_mode.py",
+            "symbols": "ThemePreference, GET /pref",
+            "change": "新增偏好接口",
+        }
+
+    def test_repo_relative_and_workspace_paths_both_score_3(self):
+        assert match_code_map_row("src/preferences/dark_mode.py", self.row) == 3
+        assert match_code_map_row("api/src/preferences/dark_mode.py", self.row) == 3
+
+    def test_trailing_segment_and_basename_score_2(self):
+        assert match_code_map_row("preferences/dark_mode.py", self.row) == 2
+        assert match_code_map_row("dark_mode.py", self.row) == 2
+
+    def test_symbol_scores_2(self):
+        assert match_code_map_row("ThemePreference", self.row) == 2
+
+    def test_unrelated_path_scores_0(self):
+        assert match_code_map_row("src/orders/dark_mode.py", self.row) == 0
+
+    def test_case_and_separators_are_ignored(self):
+        assert match_code_map_row("./API/src/Preferences/Dark_Mode.PY", self.row) == 3
+
+    def test_normalize_path(self):
+        assert normalize_path(".\\src//preferences\\") == "src/preferences"
+        assert normalize_path("/abs/path.py") == "abs/path.py"
+
+
+def _docs_dir_with(tmp_path: Path, items: dict[str, str]) -> Path:
+    """Build `<tmp>/central-docs/changes/<key>/plan.md` for each item."""
+    docs = tmp_path / "central-docs"
+    for key, plan in items.items():
+        work = docs / "changes" / Path(key)
+        work.mkdir(parents=True, exist_ok=True)
+        (work / "plan.md").write_text(plan, encoding="utf-8")
+    return docs
+
+
+class TestFindInDocsDir:
+    def test_finds_the_owning_work_item(self, tmp_path: Path):
+        docs = _docs_dir_with(tmp_path, {"feat/dark-mode": PLAN_OK})
+        hits, mentions = find_in_docs_dir(docs, "api/src/preferences/dark_mode.py")
+        assert len(hits) == 1
+        assert hits[0].startswith("CODEMAP: changes/feat/dark-mode | api |")
+
+    def test_symbol_lookup_finds_the_item(self, tmp_path: Path):
+        docs = _docs_dir_with(tmp_path, {"feat/dark-mode": PLAN_OK})
+        hits, _ = find_in_docs_dir(docs, "ThemePreference")
+        assert len(hits) == 1
+
+    def test_archived_items_are_scanned(self, tmp_path: Path):
+        docs = _docs_dir_with(
+            tmp_path, {"archive/2026-09-01-feat/dark-mode": PLAN_OK}
+        )
+        hits, _ = find_in_docs_dir(docs, "src/preferences/dark_mode.py")
+        assert len(hits) == 1
+
+    def test_no_owner_falls_back_to_prose_mentions(self, tmp_path: Path):
+        docs = _docs_dir_with(tmp_path, {"feat/dark-mode": PLAN_NO_CODE_MAP})
+        (docs / "changes/feat/dark-mode/analysis.md").write_text(
+            "## 目标架构\n\n`src/preferences/dark_mode.py` 承载偏好读写。\n",
+            encoding="utf-8",
+        )
+        hits, mentions = find_in_docs_dir(docs, "src/preferences/dark_mode.py")
+        assert hits == []
+        assert len(mentions) == 1
+        assert mentions[0].startswith("MENTION: dark-mode | analysis.md:3 |")
+
+    def test_exact_owner_ranks_above_substring_owner(self, tmp_path: Path):
+        loose = _plan_with(
+            "## 代码地图（Code Map）\n\n"
+            "| 仓库 | 路径 | 符号 | 改了什么 |\n|---|---|---|---|\n"
+            "| docs | `notes/dark_mode.py` | — | 文档脚本 |\n"
+        )
+        docs = _docs_dir_with(tmp_path, {"feat/precise": PLAN_OK, "feat/loose": loose})
+        hits, _ = find_in_docs_dir(docs, "src/preferences/dark_mode.py")
+        assert len(hits) == 1
+        assert "precise" in hits[0]
+
+    def test_git_directories_are_skipped(self, tmp_path: Path):
+        docs = _docs_dir_with(tmp_path, {"feat/dark-mode": PLAN_OK})
+        junk = docs / "changes/feat/dark-mode/.git/plan.md"
+        junk.parent.mkdir(parents=True, exist_ok=True)
+        junk.write_text(PLAN_OK, encoding="utf-8")
+        hits, _ = find_in_docs_dir(docs, "src/preferences/dark_mode.py")
+        assert len(hits) == 1
+
+
+class TestDiscoverDocsDir:
+    def test_reads_docs_dir_from_config(self, tmp_path: Path):
+        docs = _docs_dir_with(tmp_path, {"feat/x": PLAN_OK})
+        (tmp_path / "fullstack.json").write_text(
+            json.dumps({"docs_dir": docs.name}), encoding="utf-8"
+        )
+        assert discover_docs_dir(tmp_path / "api" / "src") == docs.resolve()
+
+    def test_falls_back_to_a_directory_holding_changes(self, tmp_path: Path):
+        docs = _docs_dir_with(tmp_path, {"feat/x": PLAN_OK})
+        assert discover_docs_dir(docs / "changes/feat/x") == docs.resolve()
+
+    def test_returns_none_when_nothing_matches(self, tmp_path: Path):
+        assert discover_docs_dir(tmp_path) is None
+
+
+class TestFindCli:
+    def _run(self, *args: str, cwd: Path | None = None):
+        return subprocess.run(
+            [
+                sys.executable,
+                str(
+                    Path(__file__).resolve().parent.parent
+                    / "mythril_agent_skills/shared/plan/plan_lint.py"
+                ),
+                *args,
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(cwd) if cwd else None,
+        )
+
+    def test_match_exits_0(self, tmp_path: Path):
+        docs = _docs_dir_with(tmp_path, {"feat/dark-mode": PLAN_OK})
+        result = self._run("--find", "src/preferences/dark_mode.py", str(docs))
+        assert result.returncode == 0
+        assert result.stdout.startswith("STATUS=MATCH")
+        assert "CODEMAP:" in result.stdout
+
+    def test_no_match_exits_1_and_tells_the_agent_to_ask(self, tmp_path: Path):
+        docs = _docs_dir_with(tmp_path, {"feat/dark-mode": PLAN_OK})
+        result = self._run("--find", "src/unrelated/thing.py", str(docs))
+        assert result.returncode == 1
+        assert "STATUS=NOMATCH" in result.stdout
+        assert "never edit code silently" in result.stdout
+
+    def test_discovery_from_the_workspace_root(self, tmp_path: Path):
+        docs = _docs_dir_with(tmp_path, {"feat/dark-mode": PLAN_OK})
+        (tmp_path / "fullstack.json").write_text(
+            json.dumps({"docs_dir": "central-docs"}), encoding="utf-8"
+        )
+        result = self._run("--find", "ThemePreference", cwd=tmp_path)
+        assert result.returncode == 0
+        assert f"DOCS_DIR={docs}" in result.stdout
+
+    def test_bad_docs_dir_exits_2(self, tmp_path: Path):
+        result = self._run("--find", "x", str(tmp_path / "nope"))
+        assert result.returncode == 2
+
+    def test_lint_mode_still_requires_work_dir(self):
+        result = self._run("--quiet")
         assert result.returncode == 2

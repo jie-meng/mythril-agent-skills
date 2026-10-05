@@ -252,7 +252,7 @@ Draft user journey maps and lo-fi wireframes for PMs/BAs via natural language. G
 
 **[Fullstack Init](./mythril_agent_skills/skills/fullstack-init/)**
 
-Initialize or update a multi-repo fullstack workspace with unified AI context. Creates AGENTS.md with auto-generated repo table, docs dir (as independent git repo), five workspace agents (planner/plan-reviewer/dev/code-reviewer/debugger), and the changes/ work tracking structure.
+Initialize or update a multi-repo fullstack workspace with unified AI context. Creates AGENTS.md with auto-generated repo table, docs dir (as independent git repo), five workspace agents (planner/plan-reviewer/dev/code-reviewer/debugger), the changes/ work tracking structure, and the Docs-Code Lockstep rule that keeps a work item's documents in sync with every change to the code they describe.
 
 - **Try:** Initialize this fullstack workspace
 - **Deps:** `git` CLI
@@ -280,7 +280,7 @@ Propose a new work item across a multi-repo fullstack workspace. Plans the appro
 
 **[Fullstack Apply](./mythril_agent_skills/skills/fullstack-apply/)**
 
-Implement a planned work item across a multi-repo fullstack workspace. Implements per repo in dependency order, delegates to workspace agents, reviews against the plan's Success Criteria, creates PRs, and finalizes the work-tracking documents.
+Implement a planned work item across a multi-repo fullstack workspace. Implements per repo in dependency order, delegates to workspace agents, reviews against the plan's Success Criteria, creates PRs, and finalizes the work-tracking documents. Every code-touching round — including a follow-up fix asked for after implementation — updates the Code Map and states the outcome for all four documents.
 
 - **Try:** Implement this Jira ticket across the workspace
 - **Deps:** Workspace initialized by `fullstack-init`; a plan from `fullstack-propose`

@@ -28,7 +28,7 @@ created by `fullstack-propose`:
 ```text
 <docs-dir>/changes/<type>/<work-name>/
 ├── analysis.md   # why and how (may include spike findings)
-├── plan.md       # requirements, Success Criteria, tasks
+├── plan.md       # requirements, Success Criteria, Code Map, tasks
 ├── progress.md   # dated change log
 └── review.md     # plan review rounds + code review findings + Evidence table
 ```
@@ -512,6 +512,18 @@ git commit -m "<message>"
   (Step 3). Skip the commit; note in `progress.md` that the team
   commits by hand.
 - Update `progress.md` with the commit summary and review verdict.
+- **Refresh the `plan.md` Code Map for this repo with the paths that
+  actually changed** — `git diff --name-only HEAD~1` is the list. Planned
+  rows that never got touched come out of the map, touched files that
+  were not planned go in: the map states current ownership, and a file
+  missing from it is a file no later fix can trace back to this item.
+- **Append this round's `**文档同步**` / `**Document Sync**` line** to its
+  `review.md` section — all four documents, one clause each, stating what
+  the round did to each or why nothing changed (format in
+  [`references/review-formats.md`](references/review-formats.md)). A round
+  that moved a responsibility between modules or layers, changed a call
+  order, or altered a frozen contract has invalidated `analysis.md`'s
+  architecture or flow section — that is a change to write, not a "no".
 - Run `python3 SKILL_PATH/scripts/graphify_check.py <repo>` — if
   `graphify-out/` exists, `cd` into the repo and run `graphify update`.
 
@@ -742,6 +754,13 @@ hand-checks miss, deterministically:
 - `plan.md` carries the `## 摘要` / `## Summary` section — its absence is
   a warning (legacy work items predate it), and the heading may carry a
   parenthetical suffix (`## 摘要（给人读的…）` matches)
+- `plan.md` carries a non-empty `## 代码地图` / `## Code Map` table of
+  repo-relative, one-file-per-row paths — its absence fails the gate,
+  because the work item then cannot be found from the code it produced
+- the **newest** `## 代码审查` / `## Code Review` round carries a
+  `**文档同步**` line naming all four documents — a follow-up fix cannot
+  skip the statement (rounds written before the convention are never
+  back-filled)
 
 **Reconciliation rule** — any change to the Success Criteria list during
 implementation (a criterion added, renamed, waived, or dropped) must sync
@@ -758,6 +777,15 @@ Verify all four documents exist and are internally consistent:
 3. `plan.md` tasks match `progress.md` completed/in-progress items
 4. If review found issues that changed the approach, are `analysis.md`
    and `plan.md` updated to reflect the final state?
+5. Does `analysis.md` still describe the code as it was committed? Check
+   its structure and flow claims against the final diff — the as-is and
+   target architecture, the user flow, the cross-repo impact, and the
+   diagrams drawing them. A section that the implementation contradicted
+   is rewritten now, in this pass; it does not get a correction note
+   parked underneath it.
+6. Does `plan.md`'s Code Map cover every file the item changed? Cross-check
+   it against each repo's branch diff, and confirm every code-review round
+   carries its `**文档同步**` / `**Document Sync**` line.
 
 Then run the **Mermaid Compatibility Gate** against EVERY `.md` file in
 the work directory that contains ` ```mermaid ` blocks. If `STATUS=FAIL`
@@ -769,8 +797,12 @@ on any, fix and re-run; do NOT finalize with broken diagrams. See
 After review passes (and PRs created in Step 6 if applicable):
 
 1. **Update `analysis.md`** if the review cycle or implementation
-   changed the technical approach (add an "Updated" date and note what
-   changed).
+   changed the technical approach, the structure, or the flow. Rewrite the
+   affected section and its diagram in place. Do not park an "Updated"
+   note under a heading whose body still says the opposite — the document
+   then holds two contradictory claims and no reader can tell which one
+   is current; history belongs in `progress.md`, which is where the dated
+   note goes.
 2. **Update `progress.md`** — add final changelog entry recording the
    completed work and PR links.
 3. **Update `plan.md`** — check off all completed tasks. Then refresh
@@ -904,7 +936,12 @@ When the user gives any feedback / fix / log on the same work item
 (before it is archived), run the same loop on the existing work
 directory:
 
-1. Read the four documents to understand current state.
+1. Read the four documents to understand current state. When the user
+   points at code instead of at this work directory, confirm the item owns
+   that code before touching it: `plan_lint.py --find <path-or-symbol>`
+   answers from the Code Map. If some other item owns it — or an archived
+   one does — say so and route the change there; never fix code against the
+   wrong spec, and never reopen an archived directory.
 2. Determine which repos/files are affected. If the reported problem is
    a failure whose cause is not obvious (misleading symptoms, suspected
    cross-repo boundary, no identifiable introducing change), delegate
@@ -913,14 +950,26 @@ directory:
    straight into the wave loop.
 3. Re-run `compute_waves.py` on the affected repos, then run the same
    wave loop: parallel developer → code-reviewer cycles (Steps 4a–4e).
-4. Update `progress.md` (new dated entry) and `review.md` (new review
-   round) after each edit.
-5. Update `plan.md` Success Criteria if scope genuinely changed (with
-   user awareness).
-6. Re-run the Mermaid gate and four-file consistency check.
+4. Update **every** document this round invalidated, in the same pass as
+   the code — not only `progress.md`:
+
+   | What the round changed | What must change |
+   |---|---|
+   | any code edit | `progress.md` — new dated entry |
+   | structure or flow: a responsibility moved between modules or layers, a call order changed, a component appeared or vanished, a frozen contract altered | `analysis.md` — rewrite the affected *Current State / Target Architecture / User Flow / Cross-Repo Impact* section and its diagram. These sections describe structure, so a structural fix makes them false; do not append a correction under a body that still says the opposite |
+   | behavior a Success Criterion covers | `plan.md` criterion + its `review.md` Evidence row |
+   | scope genuinely changed | `plan.md` Success Criteria, with user awareness |
+   | files touched | `plan.md` Code Map — replace planned paths with the paths actually changed |
+   | every round | `review.md` — new round carrying its `**文档同步**` / `**Document Sync**` line for all four documents |
+
+5. Re-run the Mermaid gate and four-file consistency check, then
+   `plan_lint.py` — it fails the round if the attestation or a Code Map
+   row is missing.
 
 Do NOT downgrade the discipline because the change is small. Every
-code-touching round gets a progress entry and a review round.
+code-touching round gets a progress entry, a review round, and an answer
+for each of the four documents — including the one that says why
+`analysis.md` did not need to move.
 
 **After the user archives the item** (via `fullstack-archive`), any new
 request on the same scope creates a NEW work item — never reopen an
@@ -1003,6 +1052,11 @@ When the user references an existing work directory:
 - Subagents must not start long-running servers or occupy ports during
   parallel waves.
 - The docs repo does NOT use feature branches.
+- **Code and documents move in the same pass.** A round that invalidates
+  `analysis.md`'s structure or flow, a Success Criterion, or the Code Map
+  is not finished until those documents say so — and it states the outcome
+  for all four in its `**文档同步**` / `**Document Sync**` line. The user
+  must never have to ask for the documents a second time.
 - Never reopen an archived work directory; successors are new `-vN`
   work items via `fullstack-propose`.
 - Mermaid gate must PASS before finalizing.

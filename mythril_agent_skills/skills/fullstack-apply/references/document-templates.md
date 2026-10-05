@@ -9,7 +9,7 @@ languages; only the labels differ.
 ## Table of contents
 
 - [Writing rules for decision readers](#面向决策者的写作规则writing-rules-for-decision-readers) — style contract for all four documents
-- [`plan.md`](#planmd) — requirements, Success Criteria, execution checklist
+- [`plan.md`](#planmd) — requirements, Success Criteria, Code Map, execution checklist
 - [`progress.md`](#progressmd) — dated change log
 - [`analysis.md` (feat / refactor)](#analysismd--feature--refactor) — by Planner
 - [`analysis.md` (fix)](#analysismd--fix) — by Debugger
@@ -143,6 +143,36 @@ MUST be frozen in analysis.md (exact field names, types, error codes):
 parallel developers write against the frozen contract, not against
 upstream code that may not exist yet.
 
+## Code Map
+
+<The reverse index — which files this work item owns. Written here at
+planning time with the paths the plan expects to touch; `fullstack-apply`
+replaces planned paths with the paths it actually changed, on every
+round. Later readers query this table to find the work item behind a
+file, so a path that changed code but is missing here is a change nobody
+can trace back to a spec.>
+
+| Repository | Path | Symbols | What changed |
+|-----------|------|---------|--------------|
+| api | `src/preferences/dark_mode.py` | `ThemePreference`, `GET /pref` | New preference endpoint |
+| android | `app/src/ui/SettingsScreen.kt` | `DarkModeToggle` | Toggle row on the settings screen |
+
+Rules:
+
+- **Path is relative to the repo root** (`src/preferences/dark_mode.py`),
+  never an absolute machine path and never a bare file name. Prefixing
+  the repo column and the repo-relative path is what makes the pair
+  greppable from a workspace-relative path.
+- **Symbols is optional** — fill it when the file name does not say what
+  changed. It is the lookup key for a reader who was told "the
+  `computeWave` function is wrong" and has no file path.
+- **Rewrite the table in place.** Unlike `progress.md`, this is a current
+  state, not a log: a path that was touched then reverted does not stay
+  listed. History belongs in `progress.md`.
+- **One row per file**, no ranges (`src/ui/*`) — a wildcard cannot be
+  matched by a path lookup, so it silently drops traceability for every
+  file it covers.
+
 ## Implementation Plan
 
 ### Phase 1: <name>
@@ -221,6 +251,30 @@ live exposure readable at a glance.)
 依据本表推导并行波次——无依赖边交叉的仓库会同时开发与提交。所有被下
 游消费的跨仓接口必须在 analysis.md 中冻结（精确字段名、类型、错误码）：
 并行开发者以冻结契约为准，而非可能尚未实现的上游代码。
+
+## 代码地图（Code Map）
+
+<反向索引——本工作项拥有哪些文件。规划阶段先填计划要改的路径；
+fullstack-apply 在每一轮把预测路径换成实际改动路径。后来的人靠这张表
+从文件路径找回对应的工作项，因此"改了代码却没登记在这里"等于留下一处
+无法追溯的改动。>
+
+| 仓库 | 路径 | 符号 | 改了什么 |
+|------|------|------|---------|
+| api | `src/preferences/dark_mode.py` | `ThemePreference`、`GET /pref` | 新增偏好设置接口 |
+| android | `app/src/ui/SettingsScreen.kt` | `DarkModeToggle` | 设置页新增开关行 |
+
+规则：
+
+- **路径相对仓库根目录**（`src/preferences/dark_mode.py`），不写机器绝对
+  路径，也不只写文件名。仓库列 + 仓内相对路径这两列合起来，才能被工作区
+  相对路径反查到。
+- **符号列可留空**——文件名说不清改了什么时必填。它是"只知道 `computeWave`
+  这个函数算错了、不知道在哪个文件"这种提问的检索入口。
+- **整表原地更新**。与 progress.md 不同，这里记录当前状态而不是流水账：
+  改后又回滚的路径不再保留，历史留在 progress.md。
+- **一行一个文件**，不写区间（`src/ui/*`）——通配符无法被路径检索命中，
+  等于悄悄丢掉它覆盖的每个文件的追溯性。
 
 ## 实现计划
 

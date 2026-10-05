@@ -113,7 +113,7 @@ uses both:
 | Layer | Cost | Catches | Misses |
 |-------|------|---------|--------|
 | Independent review (`plan-reviewer`, `code-reviewer`) | model tokens, per round | Inventions, missing contracts, untestable criteria, dropped requirements | Anything it does not think to open |
-| `plan_lint.py` | free, instant, deterministic | Success Criteria ↔ Evidence drift, an unclosed review round, broken round numbering, dead task references | Everything semantic |
+| `plan_lint.py` | free, instant, deterministic | Success Criteria ↔ Evidence drift, an unclosed review round, broken round numbering, dead task references, a missing Code Map, a code round that never stated what it did to the four documents | Everything semantic |
 
 `plan_lint.py` exists because the review layer alone demonstrably leaked:
 a real work item ended a round in `NEEDS_FIXES`, applied the revisions,

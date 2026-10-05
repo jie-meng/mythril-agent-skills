@@ -43,19 +43,51 @@ Checks:
    deciding, and where to read next. Heading matching reuses
    `find_section_body`'s prefix match, so a parenthetical suffix
    (`## 摘要（给人读的——…）`) still hits.
+9. **Code Map** — `plan.md` carries a `## 代码地图` / `## Code Map` table
+   of the files this work item owns, one row per file, as
+   `<repo> | <repo-relative path> | <symbols> | <what changed>`. It is
+   the reverse index: a later reader holding a file path or a function
+   name uses it to find which document authorized that code. A path that
+   changed but is not listed cannot be traced back, so the follow-up
+   that invalidates the design never finds the document it should have
+   updated. A wildcard row (`src/ui/*`) is rejected for the same reason
+   — it drops traceability for every file it pretends to cover.
+10. **Document sync attestation** — every `## 代码审查` / `## Code Review`
+    round must carry a `**文档同步**` / `**Document Sync**` line naming all
+    four documents, each with one clause stating what this round did to it
+    (or why nothing changed). Code-touching rounds are the moments the
+    documents go stale, and "did I break a diagram in analysis.md by
+    moving this responsibility?" is exactly the question a fast fix round
+    does not ask itself. The line forces the answer to be written down.
+    The **newest** round is always required — it is the one being written
+    now, and it is the round a follow-up fix produces; earlier rounds are
+    never back-filled, so an item that predates the convention is not
+    asked to invent history it did not record.
 
 Checks 5, 7 and 8 are warnings because none of them breaks the chain.
-Checks 1-4 and 6 are errors: each one lets an unverifiable claim enter
-the definition of done. Item 6 stays silent for work items that have
+Checks 1-4, 6, 9 and 10 are errors: each one lets an unverifiable claim
+enter the definition of done, or leaves the work item untraceable from
+its own code. Item 6 stays silent for work items that have
 neither the section nor a coverage matrix, so legacy items do not
 generate noise. Item 8 warns rather than errors for the same reason in
 mirror image: work items written before the summary existed have no
 section to find, and the lint only runs on active work-item gates, so
 it never re-scans archived items.
 
+## Reverse lookup mode
+
+`--find <path-or-symbol>` answers the other direction of the same
+question: given a file or function someone just reported a problem with,
+which work item owns it. It scans every work directory under the docs
+dir — active and archived — and reports Code Map hits first, then prose
+mentions as candidates. This is what makes "update the docs" executable
+rather than something the user has to say twice.
+
 Usage:
     python3 plan_lint.py <work-dir>
     python3 plan_lint.py --quiet <work-dir>
+    python3 plan_lint.py --find api/src/preferences/dark_mode.py
+    python3 plan_lint.py --find ThemePreference <docs-dir>
 
 Output (one field per line, machine-readable):
     STATUS=PASS|FAIL
@@ -63,13 +95,21 @@ Output (one field per line, machine-readable):
     ERROR: <message>
     WARN: <message>
 
-Exit code is 0 when STATUS=PASS, 1 otherwise. Findings are emitted in
+`--find` output:
+    STATUS=MATCH|NOMATCH
+    CODEMAP: <work-dir> | <repo> | <path> | <symbols>
+    MENTION: <work-dir> | <file>:<line> | <text>
+    HITS=<n>
+
+Exit code is 0 when STATUS=PASS (or `--find` matched), 1 otherwise.
+Findings are emitted in
 check order; the STATUS line always comes first.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from dataclasses import dataclass
@@ -77,7 +117,9 @@ from pathlib import Path
 
 PLAN_FILE = "plan.md"
 ANALYSIS_FILE = "analysis.md"
+PROGRESS_FILE = "progress.md"
 REVIEW_FILE = "review.md"
+DOC_FILES = (ANALYSIS_FILE, PLAN_FILE, PROGRESS_FILE, REVIEW_FILE)
 
 SC_ID_RE = re.compile(r"\bSC\d+[a-z]?\b")
 TASK_ID_RE = re.compile(r"\bT\d+[a-z]?\b")
@@ -93,6 +135,16 @@ PLACEHOLDER_RE = re.compile(r"待确认|待定|\bTBD\b")
 EVIDENCE_HEADINGS = ("## 证据核验", "## Evidence")
 REQUIREMENTS_HEADINGS = ("## 需求原文", "## Original Requirements")
 SUMMARY_HEADINGS = ("## 摘要", "## Summary")
+CODE_MAP_HEADINGS = ("## 代码地图", "## Code Map")
+CODE_REVIEW_HEADINGS = ("## 代码审查", "## Code Review")
+ATTESTATION_RE = re.compile(
+    r"\*\*\s*(?:文档同步|Document Sync|Docs ?Synced?)\s*\*\*", re.IGNORECASE
+)
+WILDCARD_RE = re.compile(r"[*?\[\]]")
+CONFIG_FILENAME = "fullstack.json"
+WORK_ITEM_TYPES = ("feat", "refactor", "fix")
+MAX_MENTIONS_PER_ITEM = 3
+MAX_DOCS_DIR_WALK_UP = 6
 PLAN_REVIEW_HEADING_RE = re.compile(r"^##\s+(?:Plan Review|方案审查)\b", re.MULTILINE)
 VERDICT_HEADING_RE = re.compile(
     r"^#{3,}\s*(?:Verdict|判定|结论)", re.MULTILINE
@@ -291,6 +343,210 @@ def find_placeholders(text: str) -> list[str]:
     return hits
 
 
+def parse_code_map_rows(plan_text: str) -> list[dict[str, str]] | None:
+    """Return the Code Map data rows of `plan.md`, or None when absent.
+
+    One dict per table row: repository, path, symbols, change. Header and
+    separator rows are dropped, and a row without both a repository and a
+    path is not counted — a prose paragraph under the heading is not a
+    map.
+    """
+    body = find_section_body(plan_text, CODE_MAP_HEADINGS)
+    if body is None:
+        return None
+
+    rows: list[dict[str, str]] = []
+    for line in body.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            continue
+        cells = [c.strip().strip("`") for c in stripped.strip("|").split("|")]
+        if len(cells) < 2:
+            continue
+        if all(not c or set(c) <= set("-: ") for c in cells):
+            continue
+        if cells[0].lower() in {"repository", "仓库"} or cells[1].lower() in {
+            "path",
+            "路径",
+        }:
+            continue
+        if not cells[0] or not cells[1]:
+            continue
+        rows.append(
+            {
+                "repository": cells[0],
+                "path": cells[1],
+                "symbols": cells[2] if len(cells) > 2 else "",
+                "change": cells[3] if len(cells) > 3 else "",
+            }
+        )
+    return rows
+
+
+def normalize_path(value: str) -> str:
+    """Return a path comparable across the ways a reader may spell it."""
+    text = value.strip().strip("`").replace("\\", "/")
+    while text.startswith("./"):
+        text = text[2:]
+    text = re.sub(r"/{2,}", "/", text)
+    return text.lower().lstrip("/").rstrip("/")
+
+
+def code_map_row_candidates(row: dict[str, str]) -> list[str]:
+    """Return the spellings a Code Map row answers to (repo-relative and not)."""
+    path = normalize_path(row["path"])
+    repo = normalize_path(row["repository"])
+    candidates = [path]
+    if repo and repo not in {"—", "-", "—"}:
+        candidates.append(f"{repo}/{path}")
+    return candidates
+
+
+def match_code_map_row(needle: str, row: dict[str, str]) -> int:
+    """Score one Code Map row against a lookup needle.
+
+    3 = whole path, 2 = trailing path segment or symbol, 1 = substring,
+    0 = no match. The score exists so a lookup for `src/x.py` does not
+    rank a `docs/x.py` row beside the real owner.
+    """
+    target = normalize_path(needle)
+    if not target:
+        return 0
+    candidates = code_map_row_candidates(row)
+    if target in candidates:
+        return 3
+    for candidate in candidates:
+        base = candidate.rsplit("/", 1)[-1]
+        if target == base or candidate.endswith("/" + target):
+            return 2
+    for symbol in re.split(r"[,，、;；/]+", row.get("symbols", "")):
+        cleaned = normalize_path(symbol)
+        if cleaned and (cleaned == target or cleaned in target or target in cleaned):
+            return 2
+    for candidate in candidates:
+        if target in candidate or candidate in target:
+            return 1
+    return 0
+
+
+def _check_code_map(plan_text: str) -> list[Finding]:
+    """Check 9 — plan.md carries a usable reverse index of owned files."""
+    rows = parse_code_map_rows(plan_text)
+    if rows is None:
+        return [
+            Finding(
+                "ERROR",
+                f"{PLAN_FILE} has no '## 代码地图' / '## Code Map' table — the "
+                "work item cannot be found from a file path, so a follow-up "
+                "fix has no way to learn which document it invalidates. Add "
+                "one row per file: repo | repo-relative path | symbols | what "
+                "changed",
+            )
+        ]
+    if not rows:
+        return [
+            Finding(
+                "ERROR",
+                f"the Code Map section in {PLAN_FILE} has no data row — a "
+                "path lookup finds nothing even though the section exists",
+            )
+        ]
+
+    findings: list[Finding] = []
+    for row in rows:
+        label = f"{row['repository']}/{row['path']}"
+        if WILDCARD_RE.search(row["path"]):
+            findings.append(
+                Finding(
+                    "ERROR",
+                    f"Code Map row '{label}' is a glob or range — one row per "
+                    "file. A range cannot be matched by a path lookup, so it "
+                    "silently drops traceability for every file it covers",
+                )
+            )
+        if row["path"].startswith(("/", "~")):
+            findings.append(
+                Finding(
+                    "ERROR",
+                    f"Code Map row '{label}' is not repo-relative — paths must "
+                    "start at the repo root, not at a machine location",
+                )
+            )
+    return findings
+
+
+def _attestation_line(body: str) -> str:
+    """Return the Document Sync line of a review round, or "" when absent.
+
+    The line is one paragraph starting with the bold label; trailing
+    clauses on following lines are not read, so a round cannot satisfy
+    the check by naming documents somewhere else in the section.
+    """
+    for line in body.splitlines():
+        if ATTESTATION_RE.search(line):
+            return line
+    return ""
+
+
+def _check_document_sync(review_text: str) -> list[Finding]:
+    """Check 10 — each code-review round attests what it did to the docs."""
+    rounds = [
+        (heading, body)
+        for heading, body in split_sections(review_text)
+        if heading.startswith(CODE_REVIEW_HEADINGS)
+    ]
+    if not rounds:
+        return []
+
+    lines = [_attestation_line(body) for _, body in rounds]
+    marked = [index for index, line in enumerate(lines) if line]
+    newest = len(rounds) - 1
+    findings: list[Finding] = []
+
+    # The newest round is the one being written right now, so it has no
+    # legacy excuse — and it is the round a follow-up fix produces, which
+    # is where the documents actually go stale.
+    if not lines[newest]:
+        findings.append(
+            Finding(
+                "ERROR",
+                f"'{rounds[newest][0]}' is the newest code review round and "
+                "carries no '**文档同步**' / '**Document Sync**' line — state "
+                "for each of analysis.md, plan.md, progress.md, review.md "
+                "what this round did to it, or why nothing changed (earlier "
+                "rounds are not back-filled)",
+            )
+        )
+
+    # Once the convention is in use inside the item, no later round opts out.
+    if marked and marked[0] < newest:
+        for index in range(marked[0] + 1, newest):
+            if not lines[index]:
+                findings.append(
+                    Finding(
+                        "ERROR",
+                        f"'{rounds[index][0]}' changes code but carries no "
+                        "'**文档同步**' / '**Document Sync**' line, while an "
+                        "earlier round does — state the outcome for each of "
+                        "the four documents",
+                    )
+                )
+
+    for index in marked:
+        missing = [doc for doc in DOC_FILES if doc not in lines[index]]
+        if missing:
+            findings.append(
+                Finding(
+                    "ERROR",
+                    f"'{rounds[index][0]}' Document Sync line omits "
+                    + ", ".join(missing)
+                    + " — all four documents must be answered, each with one "
+                    "clause; an omitted document is the one nobody checked",
+                )
+            )
+    return findings
+
+
 def lint_work_dir(work_dir: Path) -> list[Finding]:
     """Lint one work directory. Returns findings (errors and warnings)."""
     findings: list[Finding] = []
@@ -313,6 +569,8 @@ def lint_work_dir(work_dir: Path) -> list[Finding]:
     findings.extend(_check_placeholders(plan_text, analysis_text))
     findings.extend(_check_finding_discipline(review_text))
     findings.extend(_check_summary_section(plan_text))
+    findings.extend(_check_code_map(plan_text))
+    findings.extend(_check_document_sync(review_text))
 
     return findings
 
@@ -555,6 +813,132 @@ def _check_summary_section(plan_text: str) -> list[Finding]:
     return []
 
 
+def discover_docs_dir(start: Path) -> Path | None:
+    """Walk up from `start` to locate the workspace's shared docs directory.
+
+    Prefers `fullstack.json`'s `docs_dir` (the workspace's own record), and
+    falls back to any child directory that holds `changes/<type>/`. So a
+    lookup run from the workspace root or from inside a repo resolves
+    without the caller having to pass a path.
+    """
+    resolved = start.resolve()
+    for root in [resolved, *resolved.parents][:MAX_DOCS_DIR_WALK_UP]:
+        if not root.is_dir():
+            continue
+        config_path = root / CONFIG_FILENAME
+        if config_path.is_file():
+            try:
+                saved = json.loads(config_path.read_text(encoding="utf-8")).get(
+                    "docs_dir"
+                )
+            except (json.JSONDecodeError, OSError):
+                saved = None
+            if saved and (root / saved / "changes").is_dir():
+                return root / saved
+        for child in sorted(root.iterdir()):
+            if child.name.startswith("."):
+                continue
+            changes = child / "changes"
+            if changes.is_dir() and any(
+                (changes / work_type).is_dir() for work_type in WORK_ITEM_TYPES
+            ):
+                return child
+    return None
+
+
+def find_doc_mentions(
+    work_dir: Path, needle: str, max_mentions: int = MAX_MENTIONS_PER_ITEM
+) -> list[str]:
+    """Return prose lines in a work item that mention `needle`.
+
+    Candidates, not ownership: a path named in an `analysis.md` option
+    table does not mean that file belongs to the item.
+    """
+    lines: list[str] = []
+    lowered = needle.lower()
+    for doc in sorted(work_dir.glob("*.md")):
+        for number, line in enumerate(read(doc).splitlines(), start=1):
+            if lowered not in line.lower():
+                continue
+            lines.append(
+                f"MENTION: {work_dir.name} | {doc.name}:{number} | {line.strip()[:120]}"
+            )
+            if len(lines) >= max_mentions:
+                return lines
+    return lines
+
+
+def find_in_docs_dir(
+    docs_dir: Path, needle: str
+) -> tuple[list[str], list[str]]:
+    """Look up `needle` across every work item under the docs dir.
+
+    Returns (Code Map hits, prose mentions). Archived items are scanned
+    too: a bug reported against shipped code is often owned by work that
+    has already been archived, and that is exactly the case where the
+    reader needs to be told not to reopen it.
+    """
+    changes_dir = docs_dir / "changes"
+    codemap_hits: list[tuple[int, str]] = []
+    mentions: list[str] = []
+
+    for plan_path in sorted(changes_dir.rglob(PLAN_FILE)):
+        work_dir = plan_path.parent
+        if any(part.startswith(".") for part in plan_path.relative_to(changes_dir).parts):
+            continue
+        label = f"{work_dir.relative_to(docs_dir)}"
+        rows = parse_code_map_rows(read(plan_path)) or []
+        best = 0
+        best_rows: list[dict[str, str]] = []
+        for row in rows:
+            score = match_code_map_row(needle, row)
+            if score > best:
+                best, best_rows = score, [row]
+            elif score == best and score:
+                best_rows.append(row)
+        if best:
+            for row in best_rows:
+                codemap_hits.append(
+                    (
+                        best,
+                        f"CODEMAP: {label} | {row['repository']} | {row['path']} | "
+                        f"{row['symbols'] or '—'} | {row['change'] or '—'}",
+                    )
+                )
+        else:
+            mentions.extend(find_doc_mentions(work_dir, needle))
+
+    codemap_hits.sort(key=lambda item: (-item[0], item[1]))
+    return [line for _, line in codemap_hits], mentions
+
+
+def format_find_result(
+    docs_dir: Path, needle: str, codemap_hits: list[str], mentions: list[str]
+) -> str:
+    """Render the reverse lookup in the script's machine-readable style."""
+    hits = len(codemap_hits) + len(mentions)
+    lines = [
+        f"STATUS={'MATCH' if hits else 'NOMATCH'}",
+        f"HITS={hits}",
+        f"NEEDLE={needle}",
+        f"DOCS_DIR={docs_dir}",
+    ]
+    lines.extend(codemap_hits)
+    lines.extend(mentions)
+    if not codemap_hits and mentions:
+        lines.append(
+            "NOTE: no Code Map owns this — only prose mentions. Confirm "
+            "ownership before treating a mentioned item as the spec"
+        )
+    if not hits:
+        lines.append(
+            "NOTE: no work item owns this path or symbol. Ask the user "
+            "whether the change belongs to an existing item or needs a new "
+            "one; never edit code silently on the grounds that no doc applies"
+        )
+    return "\n".join(lines)
+
+
 def _natural_key(value: str) -> tuple[str, int]:
     """Sort SC2 before SC10."""
     match = re.match(r"([A-Z]+)(\d+)([a-z]?)", value)
@@ -579,15 +963,67 @@ def format_findings(findings: list[Finding]) -> str:
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns the process exit code."""
     parser = argparse.ArgumentParser(
-        description="Lint the work-tracking documents for consistency.",
+        description="Lint the work-tracking documents for consistency, or "
+        "look up which work item owns a code path.",
     )
-    parser.add_argument("work_dir", help="Work directory holding the four docs")
+    parser.add_argument(
+        "work_dir",
+        nargs="?",
+        help="Work directory holding the four docs (lint mode)",
+    )
     parser.add_argument(
         "--quiet",
         action="store_true",
         help="Print only the STATUS line and the errors",
     )
+    parser.add_argument(
+        "--find",
+        metavar="NEEDLE",
+        help="Reverse lookup mode: which work item owns this path, file, or "
+        "symbol",
+    )
+    parser.add_argument(
+        "--docs-dir",
+        metavar="DIR",
+        help="Shared docs directory for --find (default: discover from "
+        f"{CONFIG_FILENAME} upward from the current directory)",
+    )
     args = parser.parse_args(argv)
+
+    if args.find:
+        docs_arg = args.docs_dir or args.work_dir
+        if args.docs_dir and args.work_dir:
+            parser.error("--find takes one docs directory, not two")
+        if docs_arg:
+            docs_dir: Path | None = Path(docs_arg)
+            if not docs_dir.is_dir():
+                print(f"ERROR: not a directory: {docs_dir}", file=sys.stderr)
+                return 2
+        else:
+            docs_dir = discover_docs_dir(Path.cwd())
+            if docs_dir is None:
+                print(
+                    "ERROR: could not locate the shared docs directory — pass "
+                    "--docs-dir <dir>",
+                    file=sys.stderr,
+                )
+                return 2
+        changes_dir = docs_dir / "changes"
+        if not changes_dir.is_dir():
+            print(
+                f"ERROR: no changes/ under {docs_dir} — is this the workspace's "
+                "shared docs directory?",
+                file=sys.stderr,
+            )
+            return 2
+        hits, mentions = find_in_docs_dir(docs_dir, args.find)
+        print(format_find_result(docs_dir, args.find, hits, mentions))
+        return 0 if (hits or mentions) else 1
+
+    if args.docs_dir:
+        parser.error("--docs-dir is only meaningful with --find")
+    if not args.work_dir:
+        parser.error("work_dir is required unless --find is used")
 
     work_dir = Path(args.work_dir)
     if not work_dir.is_dir():

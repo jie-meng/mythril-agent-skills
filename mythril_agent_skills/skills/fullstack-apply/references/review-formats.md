@@ -72,6 +72,11 @@ Appended once per repo per review round. The full
 | Hash | Message |
 |------|---------|
 | `abc1234` | feat: add dark mode toggle |
+
+### Document Sync
+
+**Document Sync**: `analysis.md` — <what this round invalidated, or why
+nothing changed>; `plan.md` — <…>; `progress.md` — <…>; `review.md` — <…>
 ```
 
 ### Chinese
@@ -92,6 +97,11 @@ Appended once per repo per review round. The full
 | Hash | Message |
 |------|---------|
 | `abc1234` | feat: add dark mode toggle |
+
+### 文档同步
+
+**文档同步**：`analysis.md` —— <本轮推翻了什么，或为何无需改动>；
+`plan.md` —— <…>；`progress.md` —— <…>；`review.md` —— <…>
 ```
 
 > Items created before this convention used `## <repo> — Review Round <N>`.
@@ -114,6 +124,41 @@ that round, one row per commit, in chronological order.
   `## <repo> — Review Round <N>` heading); append `### Commits` to
   that new section after the commit is made — never back-fill into a
   prior round's section
+
+### Document Sync section rules
+
+The `### Document Sync` / `### 文档同步` line states what happened to each
+of the four documents in the round that writes it. It is appended right
+after `### Commits` (or after `### 结论` / `### Verdict` when the round
+made no commit).
+
+- **Name all four documents** — `analysis.md`, `plan.md`, `progress.md`,
+  `review.md` — each followed by one clause. A name with no clause is
+  not an answer; the line exists to force the judgement, not to be
+  filled in.
+- **"Small change" is not a reason to skip `analysis.md`.** It is a
+  legitimate answer only when it says why（例如"仅修正变量名，结构与流程
+  未变"）。
+- **`analysis.md` is the document that goes stale most often and least
+  visibly.** It holds the as-is architecture, the target architecture,
+  the user flow, and the cross-repo impact — plus the diagrams that draw
+  them. Any round that moves a responsibility between modules or layers,
+  changes the order of calls, adds or removes a component, or alters a
+  frozen contract makes one of those sections **false**. Rewrite the
+  affected section and its diagram.
+- **Rewrite, do not append a correction.** Adding "补充：实际上……" under a
+  heading whose body still says the opposite leaves two contradictory
+  claims in one document, and the next reader cannot tell which is
+  current. The only exception is a section explicitly marked as a
+  historical record.
+- **A diagram that no longer matches the code is worse than no diagram**
+  — it is read as authoritative. Update it in the same pass, and re-run
+  the Mermaid gate after editing it.
+- **Do not back-fill old rounds.** `plan_lint.py` check 10 requires the
+  line on the **newest** code-review round — the one being written now —
+  and on every later round once the item uses the line. Rounds that
+  predate it stay as they are: writing an attestation for a round you did
+  not run would be inventing history.
 
 ### Keeping commits in sync after hash changes
 

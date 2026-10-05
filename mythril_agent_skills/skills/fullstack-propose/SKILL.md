@@ -307,6 +307,17 @@ line carrying no ids and no file refs. It is the only section of the
 work item updated in place as the item evolves; template in
 [`references/document-templates.md`](references/document-templates.md#planmd).
 
+Write `plan.md`'s **Code Map** (`## 代码地图` / `## Code Map`) in the same
+pass too: one row per file the item is expected to touch, as
+`repo | repo-relative path | symbols | what changed`. Planned paths are
+what you have at this point, and that is fine — this table is the reverse
+index a later reader uses to find the work item *from* a file, and the
+follow-up fix that never finds the item never updates the document it
+just invalidated. `fullstack-apply` replaces planned paths with the ones
+it actually changed. Fill the `symbols` column whenever the file name does
+not say what changes: it is what a lookup on a function name resolves
+through.
+
 ### Deep mode (spike) — validate unknowns first
 
 Use this when Step 1 reveals significant unknowns (technical risk,
@@ -600,6 +611,13 @@ python3 SKILL_PATH/scripts/plan_lint.py <docs-dir>/changes/<type>/<work-name>
 - `plan.md` carries the `## 摘要` / `## Summary` section — its absence is
   a warning (legacy work items predate it), and the heading may carry a
   parenthetical suffix (`## 摘要（给人读的…）` matches)
+- `plan.md` carries a non-empty `## 代码地图` / `## Code Map` table, one
+  repo-relative file per row — its absence is an error, because the work
+  item then cannot be found from the code it will produce
+- the **newest** `## 代码审查` / `## Code Review` round carries a
+  `**文档同步**` line naming all four documents (none exist yet at
+  planning time; this is what fails an apply round that skipped the
+  statement)
 
 Then, in the SAME revision as any document edit:
 
@@ -608,6 +626,8 @@ Then, in the SAME revision as any document edit:
 | Success Criteria added / renamed / removed | Evidence table rows in `review.md` |
 | `REQ` ids added / renamed / removed | Coverage rows in `review.md`'s matrix |
 | A task added / removed / rescoped | The affected-task list recorded in `review.md` |
+| A file this item touches, planned or actual | Its `plan.md` Code Map row |
+| Structure or flow: a responsibility moved between modules or layers, a call order changed, a component appeared or vanished, a frozen contract altered | The affected `analysis.md` section (*Current State / Target Architecture / User Flow / Cross-Repo Impact*) and its diagram — rewritten, not appended a note that contradicts the body above it |
 | Any review round or revision | A dated entry in `progress.md` |
 | Any review round or revision | `plan.md` §摘要 / §Summary and `review.md` §状态速览 / §Status Overview (both updated in place) |
 | A diagram | Re-run the Mermaid gate |
@@ -741,4 +761,8 @@ and run the normal steps.
   an implementation-time failure you were asked to prevent.
 - Deep mode's output IS the work directory — never create a separate
   spike directory and never rewrite analysis on handoff.
+- `plan.md` carries the Code Map. A plan without it cannot be found again
+  from the code it produces: the follow-up fix that cannot locate the work
+  item is the one that leaves the documents behind. `plan_lint.py` fails
+  the gate on a missing or empty map.
 - Mermaid gate must PASS before finalizing.

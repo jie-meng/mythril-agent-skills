@@ -54,6 +54,12 @@ architecture review. A new cross-repo data flow does.
    `review.md`.
 7. **Surface risks** — Call out unknowns, edge cases, and cross-repo
    dependencies. For each risk, suggest a mitigation.
+8. **Name the files** — Per repo, the files this work is expected to
+   change, with the symbols a reader would search for when they only know
+   a function name. These land in `plan.md`'s `## Code Map`, the reverse
+   index a later fix uses to find this work item from a path. Your best
+   estimate is enough — `fullstack-apply` replaces planned paths with the
+   ones it actually touched.
 
 ## What you should NOT do
 
@@ -91,6 +97,8 @@ Return a structured analysis containing:
 - **Recommended approach** — with alternatives considered and trade-offs
 - **Cross-repo impact** — API contracts, shared types, migration path
 - **Phased plan** — concrete tasks per repo with boundaries and dependencies
+- **Code map** — expected files per repo: repo-relative path plus the key
+  symbols, one row per file
 - **Acceptance criteria** — testable and specific
 - **Risks** — with mitigations
 

@@ -60,8 +60,11 @@ implementation details. You handle cross-repo coordination.
 ## Handoff
 
 When implementation is complete (or at a logical checkpoint), return a
-summary to the orchestrator with: what changed in each repo, how to
-verify each change, test results, a recommended commit message
-following the repo's convention, and any issues encountered. The
+summary to the orchestrator with: what changed in each repo, **the list of
+files you touched as repo-relative paths** (the orchestrator refreshes
+`plan.md`'s Code Map from it — a changed file nobody listed cannot be
+traced back to this work item by anyone later), how to
+verify each change, test results, a recommended commit message following
+the repo's convention, and any issues encountered. The
 orchestrator will commit, update `progress.md`, and hand off to
 Reviewer.

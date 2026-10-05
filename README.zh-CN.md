@@ -252,7 +252,7 @@ Skill（技能）是一个提示词/指令包，用于教 AI 助手如何处理�
 
 **[Fullstack Init](./mythril_agent_skills/skills/fullstack-init/)**
 
-初始化或更新多仓库全栈工作区，统一 AI 上下文。创建带有自动生成仓库表的 AGENTS.md、独立 git 仓库的文档目录、五个工作区 Agent（planner/plan-reviewer/dev/code-reviewer/debugger）以及 changes/ 工作跟踪结构。
+初始化或更新多仓库全栈工作区，统一 AI 上下文。创建带有自动生成仓库表的 AGENTS.md、独立 git 仓库的文档目录、五个工作区 Agent（planner/plan-reviewer/dev/code-reviewer/debugger）、changes/ 工作跟踪结构，以及 Docs-Code Lockstep 规则——代码每改一次，描述它的文档就在同一轮里跟着更新。
 
 - **示例：** 初始化全栈工作区
 - **依赖：** `git` CLI
@@ -273,7 +273,7 @@ Skill（技能）是一个提示词/指令包，用于教 AI 助手如何处理�
 
 **[Fullstack Apply](./mythril_agent_skills/skills/fullstack-apply/)**
 
-在多仓库全栈工作区中实现已规划的工作项。按依赖顺序逐仓库实现，委派给工作区 Agent，对照方案的 Success Criteria 审查，创建 PR，并收尾工作跟踪文档。
+在多仓库全栈工作区中实现已规划的工作项。按依赖顺序逐仓库实现，委派给工作区 Agent，对照方案的 Success Criteria 审查，创建 PR，并收尾工作跟踪文档。每一轮改动代码——包括实现完成后追加的修复——都会更新 Code Map，并就四份文档各自的结论作出声明。
 
 - **示例：** 帮我在工作区里做这个 Jira 卡
 - **依赖：** 工作区需先通过 `fullstack-init` 初始化；先由 `fullstack-propose` 规划

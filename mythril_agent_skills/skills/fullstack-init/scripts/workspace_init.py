@@ -318,7 +318,7 @@ Each work directory contains:
 ```
 <category>/<work-name>/
 ├── analysis.md        # Technical analysis (architecture, root cause, design options)
-├── plan.md            # Implementation plan (repos, tasks, Success Criteria)
+├── plan.md            # Plan: repos, tasks, Success Criteria, Code Map
 ├── progress.md        # Dated change log (status, completed steps, blockers)
 └── review.md          # Review findings, Evidence table, verdict
 ```
@@ -327,6 +327,47 @@ Work directories are **never deleted** — they serve as project history.
 Archived work lives under `{docs_dir}/changes/archive/`. The
 `{docs_dir}/` repo does NOT use feature branches — all work tracking
 docs are committed directly to its main branch.
+
+## Docs-Code Lockstep (MANDATORY)
+
+Code in this workspace is implemented from a work item under
+`{docs_dir}/changes/`. Its four documents are the record of *why* the code
+looks the way it does, so an edit that leaves them behind makes the next
+reader — person or agent — implement against a spec that is no longer
+true. This applies to **every** code change here, including a follow-up
+fix asked for after implementation, whether or not the fullstack skills
+are invoked.
+
+1. **Find the owning work item before editing.** A file or symbol belongs
+   to the work item whose `## Code Map` lists it:
+
+   ```bash
+   python3 ~/.<agent>/skills/fullstack-propose/scripts/plan_lint.py --find <path-or-symbol>
+   ```
+
+   `CODEMAP:` lines are ownership; `MENTION:` lines are only candidates.
+   Exit 1 means nothing owns that code.
+2. **Update, in the same pass, every document the change invalidates.**
+
+   | What the change did | Must change |
+   |---|---|
+   | any code edit | `progress.md` — new dated entry |
+   | moved a responsibility between modules or layers, changed a call order, added or removed a component, altered a frozen contract | `analysis.md` — *Current State / Target Architecture / User Flow / Cross-Repo Impact* and their diagrams. These describe structure, so a structural fix makes them false: rewrite the affected section, do not append a note that contradicts the body above it |
+   | touched behavior a Success Criterion covers | `plan.md` criterion + its `review.md` Evidence row |
+   | was reviewed or verified | `review.md` — new round |
+3. **Attest it.** Each `## 代码审查` / `## Code Review` round carries a
+   `**文档同步**` / `**Document Sync**` line naming all four documents, each
+   with one clause: what the round did to it, or why nothing changed. For
+   `analysis.md`, "small fix" is only a valid answer when it says why
+   (e.g. 仅修正拼写，结构与流程未变).
+4. **Gate before committing:** `plan_lint.py <work-dir>` must report
+   `STATUS=PASS`. It fails when a code round carries no attestation or the
+   Code Map is missing or stale.
+
+If the lookup matches nothing, the code is untraceable to any work item —
+say so and ask whether to open one; never edit silently because "no doc
+applies". If the match is under `{docs_dir}/changes/archive/`, do not
+reopen it: work on archived scope is a new work item.
 
 ## Branch Naming Convention
 
@@ -950,6 +991,14 @@ version control, separate from the workspace-level git repo.
 - Keep documents concise; deep-dive details belong in the relevant repo.
 - This repo does NOT use feature branches — commit work tracking docs
   directly to the main branch.
+- **Docs-Code Lockstep**: these documents are the record of why the code
+  looks the way it does, so a code change — including a follow-up fix
+  asked for after implementation — updates the documents it invalidates in
+  the same pass, and each code-review round attests to that in a
+  `**文档同步**` / `**Document Sync**` line. The full rule, the reverse
+  lookup (`plan_lint.py --find <path-or-symbol>`), and the document
+  routing table live in the workspace root `AGENTS.md` →
+  *Docs-Code Lockstep (MANDATORY)*.
 - **Mermaid diagrams**: target Mermaid 10.2.3 compatibility. Many
   rendering platforms (older GitHub Enterprise, Confluence, Notion
   exports, internal wikis) still ship Mermaid 10.2.3 or earlier. Newer
@@ -984,7 +1033,7 @@ Each work item gets its own subdirectory:
 ```
 <category>/<work-name>/
 ├── analysis.md   # Technical analysis (why and how)
-├── plan.md       # Requirements, Success Criteria, implementation plan
+├── plan.md       # Requirements, Success Criteria, Code Map, plan
 ├── progress.md   # Dated change log
 └── review.md     # Review findings, Evidence table, verdict (append-only)
 ```
