@@ -159,6 +159,10 @@ LEGACY_CODE_REVIEW_RE = re.compile(r"^##\s.*\bReview Round\b", re.IGNORECASE)
 ATTESTATION_RE = re.compile(
     r"\*\*\s*(?:文档同步|Document Sync|Docs ?Synced?)\s*\*\*", re.IGNORECASE
 )
+# The sub-section the format puts the attestation in.
+ATTESTATION_HEAD_RE = re.compile(
+    r"^#{2,4}\s*(?:文档同步|Document Sync)\b", re.IGNORECASE
+)
 # A document name counts as answered only when a clause follows it.
 ATTESTED_DOC_RES = {
     doc: re.compile(re.escape(doc) + r"[`'\"”]\s*(?:——|—|–|:|：|-)\s*(\S.*)", re.IGNORECASE)
@@ -546,16 +550,28 @@ def _is_code_review_round(heading: str) -> bool:
 def _attestation_line(body: str) -> str:
     """Return the Document Sync paragraph of a review round, or "" when absent.
 
-    The label line and the lines wrapped under it are read as one
-    paragraph: the shipped template soft-wraps its four clauses, so
-    reading only the label line would reject a round that copied the
-    template verbatim. Text outside that paragraph does not count — a
-    round cannot satisfy the check by naming documents somewhere else in
-    the section.
+    The round's own `### Document Sync` / `### 文档同步` sub-section is the
+    place the format puts the attestation, so it is searched first; a line
+    outside a table row counts when no such sub-section exists. A table row
+    that merely quotes the bold label — which a round reviewing this very
+    check will contain — is not an attestation.
+
+    The label line and the lines wrapped under it are read as one paragraph:
+    the shipped template soft-wraps its four clauses, so reading only the
+    label line would reject a round that copied the template verbatim. Text
+    outside that paragraph does not count — a round cannot satisfy the check
+    by naming documents somewhere else in the section.
     """
     lines = body.splitlines()
+    start = 0
     for index, line in enumerate(lines):
-        if not ATTESTATION_RE.search(line):
+        if ATTESTATION_HEAD_RE.match(line.strip()):
+            start = index
+            break
+
+    for index in range(start, len(lines)):
+        line = lines[index]
+        if line.strip().startswith("|") or not ATTESTATION_RE.search(line):
             continue
         paragraph = [line]
         for following in lines[index + 1 :]:

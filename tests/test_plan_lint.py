@@ -996,3 +996,30 @@ class TestFindOwnershipStrength:
         assert result.returncode == 1
         assert "STATUS=CANDIDATE" in result.stdout
         assert "no Code Map owns this" in result.stdout
+
+
+class TestAttestationLocation:
+    """A round that only quotes the label has not attested anything."""
+
+    QUOTING_TABLE = (
+        "\n## 代码审查 — api — 第 5 轮 — 2026-09-28\n\n"
+        "### 结论\n\nPASS — 无阻塞。\n\n"
+        "| # | 缺陷 | 证据 |\n|---|---|---|\n"
+        "| D2 | 空话可满足声明 | `**文档同步**：analysis.md plan.md progress.md "
+        "review.md` → PASS |\n"
+    )
+
+    def test_table_quote_does_not_count_as_attestation(self, tmp_path: Path):
+        findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, REVIEW_OK + self.QUOTING_TABLE))
+        named = [m for m in _errors(findings) if "newest code review round" in m]
+        assert named and "第 5 轮" in named[0]
+
+    def test_real_paragraph_after_a_quoting_table_is_read(self, tmp_path: Path):
+        review = (
+            REVIEW_OK
+            + self.QUOTING_TABLE
+            + "\n### 文档同步\n\n"
+            + ATTESTATION_WRAPPED
+        )
+        findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, review))
+        assert not [f for f in findings if "文档同步" in f.message]
