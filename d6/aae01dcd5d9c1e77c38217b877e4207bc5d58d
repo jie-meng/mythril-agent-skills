@@ -1,0 +1,46 @@
+docs/fullstack/workflows.md
+  h_e0538e51a4c5ef 82-85
+mythril_agent_skills/shared/plan/plan_lint.py
+  h_e0538e51a4c5ef 40-54,95,315,544-557
+mythril_agent_skills/skills/fullstack-apply/SKILL.md
+  h_e0538e51a4c5ef 459-465,742-744,776-780,783-787
+mythril_agent_skills/skills/fullstack-apply/references/document-templates.md
+  h_e0538e51a4c5ef 11,22-72,93-99,146-156,169-175,218-227,230-235,250-255,280-281,285,288-289,291,317-318,322,325-326,328,726-727,732-738,758-760,763-769
+mythril_agent_skills/skills/fullstack-apply/references/review-formats.md
+  h_e0538e51a4c5ef 14,35-51,300-335
+mythril_agent_skills/skills/fullstack-apply/scripts/plan_lint.py
+  h_e0538e51a4c5ef 40-54,95,315,544-557
+mythril_agent_skills/skills/fullstack-explore/SKILL.md
+  h_e0538e51a4c5ef 206,208
+mythril_agent_skills/skills/fullstack-init/agents/code-reviewer.md
+  h_e0538e51a4c5ef 70-82
+mythril_agent_skills/skills/fullstack-init/agents/debugger.md
+  h_e0538e51a4c5ef 105-117
+mythril_agent_skills/skills/fullstack-init/agents/plan-reviewer.md
+  h_e0538e51a4c5ef 157-171
+mythril_agent_skills/skills/fullstack-init/agents/planner.md
+  h_e0538e51a4c5ef 72-84
+mythril_agent_skills/skills/fullstack-propose/SKILL.md
+  h_e0538e51a4c5ef 303-309,562-564,600-602,612,661-668
+mythril_agent_skills/skills/fullstack-propose/references/document-templates.md
+  h_e0538e51a4c5ef 11,22-72,93-99,146-156,169-175,218-227,230-235,250-255,280-281,285,288-289,291,317-318,322,325-326,328,726-727,732-738,758-760,763-769
+mythril_agent_skills/skills/fullstack-propose/references/review-formats.md
+  h_e0538e51a4c5ef 14,35-51,300-335
+mythril_agent_skills/skills/fullstack-propose/scripts/plan_lint.py
+  h_e0538e51a4c5ef 40-54,95,315,544-557
+tests/skills/test_fullstack_init.py
+  h_e0538e51a4c5ef 931-943
+tests/test_plan_lint.py
+  h_e0538e51a4c5ef 39,41-51,61-62,321-331
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d6aae01dcd5d9c1e77c38217b877e4207bc5d58d",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
