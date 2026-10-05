@@ -50,19 +50,26 @@ Checks:
    name uses it to find which document authorized that code. A path that
    changed but is not listed cannot be traced back, so the follow-up
    that invalidates the design never finds the document it should have
-   updated. A wildcard row (`src/ui/*`) is rejected for the same reason
-   — it drops traceability for every file it pretends to cover.
-10. **Document sync attestation** — every `## 代码审查` / `## Code Review`
-    round must carry a `**文档同步**` / `**Document Sync**` line naming all
-    four documents, each with one clause stating what this round did to it
-    (or why nothing changed). Code-touching rounds are the moments the
-    documents go stale, and "did I break a diagram in analysis.md by
-    moving this responsibility?" is exactly the question a fast fix round
-    does not ask itself. The line forces the answer to be written down.
-    The **newest** round is always required — it is the one being written
-    now, and it is the round a follow-up fix produces; earlier rounds are
-    never back-filled, so an item that predates the convention is not
-    asked to invent history it did not record.
+   updated. Rows that a lookup cannot hit are rejected: a wildcard
+   (`src/ui/*`), a directory, a placeholder, and more than one file in
+   the path cell — each silently drops traceability for the files it
+   pretends to cover. A path with no directory is a warning, since only a
+   file at the repo root can honestly be written that way.
+10. **Document sync attestation** — every code-review round must carry a
+    `**文档同步**` / `**Document Sync**` paragraph naming all four documents,
+    each followed by a clause stating what this round did to it (or why
+    nothing changed). Code-touching rounds are the moments the documents
+    go stale, and "did I break a diagram in analysis.md by moving this
+    responsibility?" is exactly the question a fast fix round does not ask
+    itself. The line forces the answer to be written down, so naming the
+    four files with no clause after them does not pass. Rounds are
+    recognized in both heading styles the format doc sanctions —
+    `## 代码审查` / `## Code Review` and the legacy `## <repo> — Review
+    Round N` — because a follow-up round is written in whatever style the
+    item already uses. The **newest** round is always required — it is the
+    one being written now, and it is the round a follow-up fix produces;
+    earlier rounds are never back-filled, so an item that predates the
+    convention is not asked to invent history it did not record.
 
 Checks 5, 7 and 8 are warnings because none of them breaks the chain.
 Checks 1-4, 6, 9 and 10 are errors: each one lets an unverifiable claim
@@ -96,12 +103,20 @@ Output (one field per line, machine-readable):
     WARN: <message>
 
 `--find` output:
-    STATUS=MATCH|NOMATCH
-    CODEMAP: <work-dir> | <repo> | <path> | <symbols>
+    STATUS=OWNER|CANDIDATE|NONE
+    CODEMAP: <work-dir> | <repo> | <path> | <symbols> | <change>
+    SUBSTRING: <work-dir> | <repo> | <path> | <symbols> | <change>
     MENTION: <work-dir> | <file>:<line> | <text>
     HITS=<n>
 
-Exit code is 0 when STATUS=PASS (or `--find` matched), 1 otherwise.
+Only `CODEMAP:` lines are ownership. `SUBSTRING:` rows matched a bare
+name or a substring, and `MENTION:` lines are prose — both are places to
+look, not claims that the item owns the file.
+
+Exit codes: in lint mode 0=PASS, 1=FAIL, 2=bad path or usage. In `--find`
+mode 0 is returned only for STATUS=OWNER; CANDIDATE and NONE both exit 1,
+and 2 means no docs directory could be found. A nonzero lookup exit always
+means "ask before editing", so reading exit 0 as "owner found" is safe.
 Findings are emitted in
 check order; the STATUS line always comes first.
 """
@@ -137,10 +152,21 @@ REQUIREMENTS_HEADINGS = ("## 需求原文", "## Original Requirements")
 SUMMARY_HEADINGS = ("## 摘要", "## Summary")
 CODE_MAP_HEADINGS = ("## 代码地图", "## Code Map")
 CODE_REVIEW_HEADINGS = ("## 代码审查", "## Code Review")
+# Items written before the prefixed convention title their code rounds
+# `## <repo> — Review Round 3`. A follow-up round inherits that style, so
+# keying only on the prefix would let the newest round escape check 10.
+LEGACY_CODE_REVIEW_RE = re.compile(r"^##\s.*\bReview Round\b", re.IGNORECASE)
 ATTESTATION_RE = re.compile(
     r"\*\*\s*(?:文档同步|Document Sync|Docs ?Synced?)\s*\*\*", re.IGNORECASE
 )
+# A document name counts as answered only when a clause follows it.
+ATTESTED_DOC_RES = {
+    doc: re.compile(re.escape(doc) + r"[`'\"”]\s*(?:——|—|–|:|：|-)\s*(\S.*)", re.IGNORECASE)
+    for doc in DOC_FILES
+}
 WILDCARD_RE = re.compile(r"[*?\[\]]")
+MULTI_PATH_RE = re.compile(r"[,，、]|\.\w+\s+\S+[\w./]*\.\w+")
+PLACEHOLDER_PATH_RE = re.compile(r"^(?:—|-+|<[^\n>]*>|\{\{?[^\n}]*\}?\}|待定|TBD)$", re.IGNORECASE)
 CONFIG_FILENAME = "fullstack.json"
 WORK_ITEM_TYPES = ("feat", "refactor", "fix")
 MAX_MENTIONS_PER_ITEM = 3
@@ -472,20 +498,92 @@ def _check_code_map(plan_text: str) -> list[Finding]:
                     "start at the repo root, not at a machine location",
                 )
             )
+        if MULTI_PATH_RE.search(row["path"]):
+            findings.append(
+                Finding(
+                    "ERROR",
+                    f"Code Map row '{label}' lists more than one file — one "
+                    "row per file, because a lookup matches rows, not cells",
+                )
+            )
+        if row["path"].endswith("/") or PLACEHOLDER_PATH_RE.match(row["path"]):
+            findings.append(
+                Finding(
+                    "ERROR",
+                    f"Code Map row '{label}' names no file (a directory or a "
+                    "placeholder) — a path lookup can never hit it, so every "
+                    "file it stands for is untraceable to this item",
+                )
+            )
+        if "/" not in row["path"] and not row["path"].startswith("."):
+            findings.append(
+                Finding(
+                    "WARN",
+                    f"Code Map row '{label}' has no directory — fine for a "
+                    "file at the repo root, but a nested file written by name "
+                    "alone makes `--find` guess, and it cannot be told apart "
+                    "from another repo's same-named file",
+                )
+            )
     return findings
 
 
-def _attestation_line(body: str) -> str:
-    """Return the Document Sync line of a review round, or "" when absent.
+def _is_code_review_round(heading: str) -> bool:
+    """Return whether a `## ` heading is a code-review round.
 
-    The line is one paragraph starting with the bold label; trailing
-    clauses on following lines are not read, so a round cannot satisfy
-    the check by naming documents somewhere else in the section.
+    Both the prefixed form and the legacy `## <repo> — Review Round N`
+    shape count, because a follow-up round inherits whatever style the
+    item already uses. Plan-review rounds do not: they review the plan and
+    change no code.
     """
-    for line in body.splitlines():
-        if ATTESTATION_RE.search(line):
-            return line
+    if heading.startswith(CODE_REVIEW_HEADINGS):
+        return True
+    return bool(
+        LEGACY_CODE_REVIEW_RE.match(heading)
+    ) and not PLAN_REVIEW_HEADING_RE.match(heading)
+
+
+def _attestation_line(body: str) -> str:
+    """Return the Document Sync paragraph of a review round, or "" when absent.
+
+    The label line and the lines wrapped under it are read as one
+    paragraph: the shipped template soft-wraps its four clauses, so
+    reading only the label line would reject a round that copied the
+    template verbatim. Text outside that paragraph does not count — a
+    round cannot satisfy the check by naming documents somewhere else in
+    the section.
+    """
+    lines = body.splitlines()
+    for index, line in enumerate(lines):
+        if not ATTESTATION_RE.search(line):
+            continue
+        paragraph = [line]
+        for following in lines[index + 1 :]:
+            if not following.strip():
+                break
+            paragraph.append(following)
+        return " ".join(part.strip() for part in paragraph)
     return ""
+
+
+def _documents_without_clause(paragraph: str) -> list[str]:
+    """Return the document names that are named but never answered.
+
+    The line exists to force a judgement per document, so a bare name is
+    not an answer; the separator the templates use (—— / — / : / -) must be
+    followed by text.
+    """
+    unanswered = []
+    for doc, pattern in ATTESTED_DOC_RES.items():
+        answered = False
+        for match in pattern.finditer(paragraph):
+            tail = match.group(1).strip().strip("`'\"”")
+            if tail:
+                answered = True
+                break
+        if not answered:
+            unanswered.append(doc)
+    return unanswered
 
 
 def _check_document_sync(review_text: str) -> list[Finding]:
@@ -493,7 +591,7 @@ def _check_document_sync(review_text: str) -> list[Finding]:
     rounds = [
         (heading, body)
         for heading, body in split_sections(review_text)
-        if heading.startswith(CODE_REVIEW_HEADINGS)
+        if _is_code_review_round(heading)
     ]
     if not rounds:
         return []
@@ -542,6 +640,18 @@ def _check_document_sync(review_text: str) -> list[Finding]:
                     + ", ".join(missing)
                     + " — all four documents must be answered, each with one "
                     "clause; an omitted document is the one nobody checked",
+                )
+            )
+        silent = _documents_without_clause(lines[index])
+        if silent:
+            findings.append(
+                Finding(
+                    "ERROR",
+                    f"'{rounds[index][0]}' Document Sync line names "
+                    + ", ".join(silent)
+                    + " with no clause after it — the line exists to force the "
+                    "judgement, not to be filled in; state what the round did "
+                    "to each document or why nothing changed",
                 )
             )
     return findings
@@ -847,21 +957,27 @@ def discover_docs_dir(start: Path) -> Path | None:
 
 
 def find_doc_mentions(
-    work_dir: Path, needle: str, max_mentions: int = MAX_MENTIONS_PER_ITEM
+    work_dir: Path,
+    needle: str,
+    label: str = "",
+    max_mentions: int = MAX_MENTIONS_PER_ITEM,
 ) -> list[str]:
     """Return prose lines in a work item that mention `needle`.
 
     Candidates, not ownership: a path named in an `analysis.md` option
-    table does not mean that file belongs to the item.
+    table does not mean that file belongs to the item. `label` is the
+    item's path under `changes/`, so an archived item is visible as one
+    and the "never reopen an archived item" rule can be applied here too.
     """
     lines: list[str] = []
     lowered = needle.lower()
+    shown = label or work_dir.name
     for doc in sorted(work_dir.glob("*.md")):
         for number, line in enumerate(read(doc).splitlines(), start=1):
             if lowered not in line.lower():
                 continue
             lines.append(
-                f"MENTION: {work_dir.name} | {doc.name}:{number} | {line.strip()[:120]}"
+                f"MENTION: {shown} | {doc.name}:{number} | {line.strip()[:120]}"
             )
             if len(lines) >= max_mentions:
                 return lines
@@ -873,13 +989,15 @@ def find_in_docs_dir(
 ) -> tuple[list[str], list[str]]:
     """Look up `needle` across every work item under the docs dir.
 
-    Returns (Code Map hits, prose mentions). Archived items are scanned
-    too: a bug reported against shipped code is often owned by work that
-    has already been archived, and that is exactly the case where the
-    reader needs to be told not to reopen it.
+    Returns (Code Map ownership hits, bare-name/substring hits, prose
+    mentions) — only the first bucket is ownership. Archived items are
+    scanned too: a bug reported against shipped code is often owned by
+    work that has already been archived, and that is exactly the case
+    where the reader needs to be told not to reopen it.
     """
     changes_dir = docs_dir / "changes"
     codemap_hits: list[tuple[int, str]] = []
+    weak_hits: list[str] = []
     mentions: list[str] = []
 
     for plan_path in sorted(changes_dir.rglob(PLAN_FILE)):
@@ -896,7 +1014,7 @@ def find_in_docs_dir(
                 best, best_rows = score, [row]
             elif score == best and score:
                 best_rows.append(row)
-        if best:
+        if best >= 2:
             for row in best_rows:
                 codemap_hits.append(
                     (
@@ -905,32 +1023,62 @@ def find_in_docs_dir(
                         f"{row['symbols'] or '—'} | {row['change'] or '—'}",
                     )
                 )
+        elif best == 1:
+            # A bare-name or substring row is a hint, not ownership: two
+            # repos can both carry `dark_mode.py`, and the lookup cannot
+            # tell which one the needle meant.
+            for row in best_rows:
+                weak_hits.append(
+                    f"SUBSTRING: {label} | {row['repository']} | "
+                    f"{row['path']} | {row['symbols'] or '—'} | "
+                    f"{row['change'] or '—'}"
+                )
         else:
-            mentions.extend(find_doc_mentions(work_dir, needle))
+            mentions.extend(find_doc_mentions(work_dir, needle, label))
 
     codemap_hits.sort(key=lambda item: (-item[0], item[1]))
-    return [line for _, line in codemap_hits], mentions
+    return [line for _, line in codemap_hits], weak_hits, mentions
 
 
 def format_find_result(
-    docs_dir: Path, needle: str, codemap_hits: list[str], mentions: list[str]
+    docs_dir: Path,
+    needle: str,
+    codemap_hits: list[str],
+    weak_hits: list[str],
+    mentions: list[str],
 ) -> str:
-    """Render the reverse lookup in the script's machine-readable style."""
-    hits = len(codemap_hits) + len(mentions)
+    """Render the reverse lookup in the script's machine-readable style.
+
+    STATUS answers ownership directly rather than "did anything match":
+    OWNER means a Code Map row claims the needle, CANDIDATE means only
+    weak rows or prose pointed here, and NONE means no work item knows
+    about it. An agent that reads exit 0 as "owner found" would treat a
+    mention as a specification, which is the mistake this lookup exists to
+    prevent.
+    """
+    candidates = len(weak_hits) + len(mentions)
+    if codemap_hits:
+        status = "OWNER"
+    elif candidates:
+        status = "CANDIDATE"
+    else:
+        status = "NONE"
     lines = [
-        f"STATUS={'MATCH' if hits else 'NOMATCH'}",
-        f"HITS={hits}",
+        f"STATUS={status}",
+        f"HITS={len(codemap_hits) + candidates}",
         f"NEEDLE={needle}",
         f"DOCS_DIR={docs_dir}",
     ]
     lines.extend(codemap_hits)
+    lines.extend(weak_hits)
     lines.extend(mentions)
-    if not codemap_hits and mentions:
+    if not codemap_hits and (weak_hits or mentions):
         lines.append(
-            "NOTE: no Code Map owns this — only prose mentions. Confirm "
-            "ownership before treating a mentioned item as the spec"
+            "NOTE: no Code Map owns this — SUBSTRING rows matched on a bare "
+            "name and MENTION lines are prose. Confirm ownership before "
+            "treating a candidate as the spec"
         )
-    if not hits:
+    if status == "NONE":
         lines.append(
             "NOTE: no work item owns this path or symbol. Ask the user "
             "whether the change belongs to an existing item or needs a new "
@@ -1016,9 +1164,12 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 2
-        hits, mentions = find_in_docs_dir(docs_dir, args.find)
-        print(format_find_result(docs_dir, args.find, hits, mentions))
-        return 0 if (hits or mentions) else 1
+        hits, weak, mentions = find_in_docs_dir(docs_dir, args.find)
+        print(format_find_result(docs_dir, args.find, hits, weak, mentions))
+        # 0 only when a Code Map row claims the needle. Candidates and
+        # misses both exit 1, so "the lookup succeeded" can never be read
+        # as "the owner is known".
+        return 0 if hits else 1
 
     if args.docs_dir:
         parser.error("--docs-dir is only meaningful with --find")

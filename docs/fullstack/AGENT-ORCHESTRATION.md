@@ -486,16 +486,21 @@ Existing work items continue to work with the new orchestration model.
   rows in both directions, plan-review closure (an unverified
   `NEEDS_FIXES` revision is a failure), `1..N` round numbering, task ids
   cited in `review.md`, unresolved `待确认`/`TBD` markers, the `plan.md`
-  Code Map (present, non-empty, one repo-relative file per row), and the
-  newest code-review round's `**文档同步**` attestation. It also serves
-  `--find <path-or-symbol>`: the reverse lookup that resolves a file or
-  function to the work item that owns it. Shape gates (Mermaid, DAG)
+  Code Map (present, non-empty, and every row names exactly one
+  repo-relative file — a glob, a directory, a placeholder or a merged
+  cell is a row no lookup can hit), and the newest code-review round's
+  `**文档同步**` attestation: a paragraph naming all four documents, each
+  followed by a clause. It also serves `--find <path-or-symbol>`: the
+  reverse lookup that resolves a file or function to the work item that
+  owns it, exiting 0 only on `STATUS=OWNER` so that "something matched"
+  can never be read as "the owner is known". Shape gates (Mermaid, DAG)
   could not catch any of these; three real defects slipped
   through a live work item without it
 - **Reconciliation rules**: a revision that adds/renames/removes a
   Success Criterion must sync the Evidence table in the same edit; any
-  round must add a dated `progress.md` entry, refresh the Code Map with
-  the paths it actually touched, and state the outcome for all four
+  round must add a dated `progress.md` entry, merge the paths it actually
+  touched into the Code Map (the table is the item's whole ownership, not
+  one round's diff), and state the outcome for all four
   documents — including whether `analysis.md`'s structure and flow still
   describe the code. Written into propose
   Step 4.5, apply Step 7, and both document templates

@@ -253,12 +253,112 @@ def build_repos_table(repos: list[dict[str, str]]) -> str:
     return "\n".join(lines)
 
 
+def resolve_skill_script(
+    skill: str, script: str, home: Path | None = None
+) -> str:
+    """Return a `~`-relative path to an installed skill script, or "".
+
+    The generated AGENTS.md orders agents to run the gate themselves,
+    without being asked — so a script path that does not exist on this
+    machine makes the mandate decorative. Skills install per tool
+    (`~/.claude/skills/…`), in the cross-tool shared directory
+    (`~/.agents/skills/…`), and in nested config dirs
+    (`~/.config/opencode/skills/…`), so the location is not knowable from
+    the template and has to be probed where it is written.
+    """
+    root = home or Path.home()
+    for pattern in (".agents/skills", ".claude/skills", "*/skills", "*/*/skills"):
+        for candidate in sorted(root.glob(f"{pattern}/{skill}/scripts/{script}")):
+            if candidate.is_file():
+                return f"~/{candidate.relative_to(root)}"
+    return ""
+
+
+def skill_command(
+    skill: str, script: str, args: str, home: Path | None = None
+) -> tuple[str, str]:
+    """Return (command, caveat) for a script the reader must be able to run."""
+    resolved = resolve_skill_script(skill, script, home)
+    if resolved:
+        return f"python3 {resolved} {args}".strip(), ""
+    placeholder = f"~/.<agent>/skills/{skill}/scripts/{script}"
+    return (
+        f"python3 {placeholder} {args}".strip(),
+        "`<agent>` is unresolved — no skill install was found on this "
+        "machine. Install the skills, then re-run fullstack-init to write "
+        "the real path.",
+    )
+
+
+DOCS_LOCKSTEP_BULLET = (
+    "- **Docs-Code Lockstep**: these documents are the record of why the code\n"
+    "  looks the way it does, so a code change — including a follow-up fix\n"
+    "  asked for after implementation — updates the documents it invalidates in\n"
+    "  the same pass, and each code-review round attests to that in a\n"
+    "  `**文档同步**` / `**Document Sync**` paragraph naming all four documents\n"
+    "  with one clause each. The full rule, the reverse lookup\n"
+    "  (`plan_lint.py --find <path-or-symbol>`), and the document routing table\n"
+    "  live in the workspace root `AGENTS.md` →\n"
+    "  *Docs-Code Lockstep (MANDATORY)*."
+)
+
+
+def inject_docs_lockstep(text: str) -> str:
+    """Add the Docs-Code Lockstep bullet to a docs AGENTS.md that lacks it.
+
+    The docs directory's AGENTS.md is create-only because users customize
+    it — which also means a workspace initialized before this rule has no
+    pointer to it, and that pointer is the entrance for a reader who came
+    from the documents rather than from the code. Only the missing bullet
+    is inserted, so hand-written content survives the re-run.
+    """
+    if "Docs-Code Lockstep" in text:
+        return text
+    lines = text.splitlines()
+    try:
+        start = next(
+            index
+            for index, line in enumerate(lines)
+            if line.strip() in ("## Conventions", "## 约定")
+        )
+    except StopIteration:
+        return text.rstrip("\n") + "\n\n## Conventions\n\n" + DOCS_LOCKSTEP_BULLET + "\n"
+
+    last_bullet = None
+    for index in range(start + 1, len(lines)):
+        if lines[index].startswith("## "):
+            break
+        if lines[index].startswith("- "):
+            last_bullet = index
+    if last_bullet is None:
+        return text.rstrip("\n") + "\n\n" + DOCS_LOCKSTEP_BULLET + "\n"
+
+    end = last_bullet
+    for index in range(last_bullet + 1, len(lines)):
+        if lines[index].startswith(("  ", "\t")) and lines[index].strip():
+            end = index
+        elif lines[index].strip() and not lines[index].startswith("## "):
+            break
+        else:
+            break
+    return "\n".join(lines[: end + 1] + [DOCS_LOCKSTEP_BULLET] + lines[end + 1 :]) + (
+        "\n" if text.endswith("\n") else ""
+    )
+
+
 def generate_agents_md(
     project_name: str,
     repos_table: str,
     docs_dir: str,
 ) -> str:
     """Generate the workspace-level AGENTS.md (always from scratch)."""
+    plan_lint_cmd, plan_lint_caveat = skill_command(
+        "fullstack-propose", "plan_lint.py", "--find <path-or-symbol>"
+    )
+    gate_cmd, _ = skill_command("fullstack-propose", "plan_lint.py", "<work-dir>")
+    mermaid_cmd, _ = skill_command(
+        "fullstack-propose", "mermaid_lint.py", "path/to/file.md"
+    )
     return f"""\
 # {project_name}
 
@@ -342,11 +442,15 @@ are invoked.
    to the work item whose `## Code Map` lists it:
 
    ```bash
-   python3 ~/.<agent>/skills/fullstack-propose/scripts/plan_lint.py --find <path-or-symbol>
+   {plan_lint_cmd}
    ```
-
-   `CODEMAP:` lines are ownership; `MENTION:` lines are only candidates.
-   Exit 1 means nothing owns that code.
+{plan_lint_caveat and f'\n   {plan_lint_caveat}\n'}
+   Only `CODEMAP:` lines are ownership. `SUBSTRING:` (a row written
+   without a directory) and `MENTION:` (prose) are candidates — confirm
+   before treating one as the specification. `STATUS=OWNER` exits 0;
+   `CANDIDATE` and `NONE` exit 1, so exit 0 can be read as "the owner is
+   known". Exit 2 means no docs directory was found — run it from the
+   workspace root.
 2. **Update, in the same pass, every document the change invalidates.**
 
    | What the change did | Must change |
@@ -355,14 +459,21 @@ are invoked.
    | moved a responsibility between modules or layers, changed a call order, added or removed a component, altered a frozen contract | `analysis.md` — *Current State / Target Architecture / User Flow / Cross-Repo Impact* and their diagrams. These describe structure, so a structural fix makes them false: rewrite the affected section, do not append a note that contradicts the body above it |
    | touched behavior a Success Criterion covers | `plan.md` criterion + its `review.md` Evidence row |
    | was reviewed or verified | `review.md` — new round |
-3. **Attest it.** Each `## 代码审查` / `## Code Review` round carries a
-   `**文档同步**` / `**Document Sync**` line naming all four documents, each
-   with one clause: what the round did to it, or why nothing changed. For
-   `analysis.md`, "small fix" is only a valid answer when it says why
-   (e.g. 仅修正拼写，结构与流程未变).
-4. **Gate before committing:** `plan_lint.py <work-dir>` must report
-   `STATUS=PASS`. It fails when a code round carries no attestation or the
-   Code Map is missing or stale.
+3. **Attest it.** Each code-review round — `## 代码审查` / `## Code Review`,
+   or the legacy `## <repo> — Review Round N` the item already uses — carries
+   a `**文档同步**` / `**Document Sync**` paragraph naming all four documents,
+   each followed by one clause: what the round did to it, or why nothing
+   changed. Four bare names are not an answer. For `analysis.md`, "small
+   fix" is only valid when it says why (e.g. 仅修正拼写，结构与流程未变).
+4. **Gate before committing** — it must report `STATUS=PASS`:
+
+   ```bash
+   {gate_cmd}
+   ```
+
+   It fails when the newest code round carries no attestation, when the
+   Code Map is missing or its rows name no file, or when a document is
+   named with no clause after it.
 
 If the lookup matches nothing, the code is untraceable to any work item —
 say so and ask whether to open one; never edit silently because "no doc
@@ -476,8 +587,7 @@ automatically after writing `analysis.md` / `plan.md`; for any other
 Markdown file you author by hand, invoke it manually:
 
 ```bash
-python3 ~/.<agent>/skills/fullstack-propose/scripts/mermaid_lint.py \\
-    path/to/file.md
+{mermaid_cmd}
 ```
 
 `STATUS=PASS` means safe to ship. `STATUS=FAIL` means the file will
@@ -622,6 +732,9 @@ def merge_agents_md(existing: str, generated: str) -> str:
     Merge rules:
     - Repositories section: always replace with generated (new repos may appear)
     - Directory Structure section: always replace with generated
+    - Skill-shipped rule sections (Docs-Code Lockstep, Documentation
+      Diagrams): always replace — their text is the skill's, not the
+      user's, and a merged copy keeps dead commands alive across re-runs
     - Workspace Conventions: merge bullet points (keep existing, add new ones)
     - New H2 sections (only in generated): insert at the expected position
     - User-only H2 sections (only in existing): preserve (append after generated)
@@ -634,7 +747,12 @@ def merge_agents_md(existing: str, generated: str) -> str:
     for title, body in existing_sections:
         existing_map[title[3:]] = body
 
-    REPLACE_SECTIONS = {"Repositories", "Directory Structure"}
+    REPLACE_SECTIONS = {
+        "Repositories",
+        "Directory Structure",
+        "Docs-Code Lockstep (MANDATORY)",
+        "Documentation Diagrams (Mermaid Compatibility)",
+    }
     MERGE_SECTIONS = {"Workspace Conventions"}
 
     merged: list[tuple[str, str]] = []
@@ -991,14 +1109,7 @@ version control, separate from the workspace-level git repo.
 - Keep documents concise; deep-dive details belong in the relevant repo.
 - This repo does NOT use feature branches — commit work tracking docs
   directly to the main branch.
-- **Docs-Code Lockstep**: these documents are the record of why the code
-  looks the way it does, so a code change — including a follow-up fix
-  asked for after implementation — updates the documents it invalidates in
-  the same pass, and each code-review round attests to that in a
-  `**文档同步**` / `**Document Sync**` line. The full rule, the reverse
-  lookup (`plan_lint.py --find <path-or-symbol>`), and the document
-  routing table live in the workspace root `AGENTS.md` →
-  *Docs-Code Lockstep (MANDATORY)*.
+{DOCS_LOCKSTEP_BULLET}
 - **Mermaid diagrams**: target Mermaid 10.2.3 compatibility. Many
   rendering platforms (older GitHub Enterprise, Confluence, Notion
   exports, internal wikis) still ship Mermaid 10.2.3 or earlier. Newer
@@ -1299,13 +1410,22 @@ def bootstrap_workspace(
             f"{resolved_docs_dir}/.git (initialized docs as independent repo)"
         )
 
-    # --- Docs dir AGENTS.md (create-only — user may customize) ---
+    # --- Docs dir AGENTS.md (content preserved; the lockstep pointer is
+    # added when missing, so a workspace predating the rule still gets it) ---
     docs_agents = docs_path / "AGENTS.md"
     if not docs_agents.exists():
         docs_agents.write_text(
             generate_docs_agents_md(resolved_docs_dir), encoding="utf-8"
         )
         report["created"].append(f"{resolved_docs_dir}/AGENTS.md")
+    else:
+        existing = docs_agents.read_text(encoding="utf-8")
+        patched = inject_docs_lockstep(existing)
+        if patched != existing:
+            docs_agents.write_text(patched, encoding="utf-8")
+            report["updated"].append(
+                f"{resolved_docs_dir}/AGENTS.md (Docs-Code Lockstep pointer added)"
+            )
 
     # === REGENERATED FILES (always overwrite) ===
 

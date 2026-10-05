@@ -1187,16 +1187,25 @@ class TestBootstrapWorkspace:
         self.func(tmp_path)
         assert custom_doc.read_text() == "# My plan\n"
 
-    def test_docs_agents_md_not_overwritten(self, tmp_path: Path):
+    def test_docs_agents_md_keeps_content_and_gains_the_pointer(
+        self, tmp_path: Path
+    ):
+        """A hand-written docs AGENTS.md survives; it only gains the pointer."""
         _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
         self.func(tmp_path)
 
         docs_agents = tmp_path / "central-docs" / "AGENTS.md"
-        docs_agents.write_text("# Custom docs rules\n")
+        docs_agents.write_text(
+            "# My Docs\n\nHand-written notes only.\n", encoding="utf-8"
+        )
 
         self.func(tmp_path)
-        assert docs_agents.read_text() == "# Custom docs rules\n"
+        after = docs_agents.read_text(encoding="utf-8")
+        assert "Hand-written notes only." in after
+        assert "Docs-Code Lockstep" in after
 
+        self.func(tmp_path)
+        assert docs_agents.read_text(encoding="utf-8") == after
     def test_scripts_dir_preserved(self, tmp_path: Path):
         _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
         self.func(tmp_path)
@@ -1394,3 +1403,159 @@ class TestCreateAgentSymlinks:
             link = tmp_path / f".{tool}" / "agents"
             assert link.is_symlink()
             assert link.resolve() == (tmp_path / ".agents" / "agents").resolve()
+
+
+# ---------------------------------------------------------------------------
+# Installed-skill path resolution (the generated gate command must run)
+# ---------------------------------------------------------------------------
+
+
+def _install_skill(home: Path, tool_dir: str, skill: str, script: str) -> Path:
+    """Fake one installed skill script under `home`."""
+    target = home / tool_dir / "skills" / skill / "scripts"
+    target.mkdir(parents=True, exist_ok=True)
+    path = target / script
+    path.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+    return path
+
+
+class TestResolveSkillScript:
+    def test_finds_a_nested_config_install(self, tmp_path: Path):
+        from workspace_init import resolve_skill_script
+
+        _install_skill(tmp_path, ".config/opencode", "fullstack-propose", "plan_lint.py")
+        assert resolve_skill_script(
+            "fullstack-propose", "plan_lint.py", home=tmp_path
+        ) == "~/.config/opencode/skills/fullstack-propose/scripts/plan_lint.py"
+
+    def test_prefers_the_cross_tool_shared_dir(self, tmp_path: Path):
+        from workspace_init import resolve_skill_script
+
+        _install_skill(tmp_path, ".config/opencode", "fullstack-propose", "plan_lint.py")
+        _install_skill(tmp_path, ".agents", "fullstack-propose", "plan_lint.py")
+        assert resolve_skill_script(
+            "fullstack-propose", "plan_lint.py", home=tmp_path
+        ).startswith("~/.agents/")
+
+    def test_returns_empty_when_nothing_is_installed(self, tmp_path: Path):
+        from workspace_init import resolve_skill_script
+
+        assert resolve_skill_script("fullstack-propose", "plan_lint.py", home=tmp_path) == ""
+
+    def test_fallback_command_is_labelled_as_unresolved(self, tmp_path: Path):
+        from workspace_init import skill_command
+
+        command, caveat = skill_command(
+            "fullstack-propose", "plan_lint.py", "--find x", home=tmp_path
+        )
+        assert "<agent>" in command
+        assert "re-run fullstack-init" in caveat
+
+    def test_resolved_command_carries_no_caveat(self, tmp_path: Path):
+        from workspace_init import skill_command
+
+        _install_skill(tmp_path, ".agents", "fullstack-propose", "plan_lint.py")
+        command, caveat = skill_command(
+            "fullstack-propose", "plan_lint.py", "--find x", home=tmp_path
+        )
+        assert command == (
+            "python3 ~/.agents/skills/fullstack-propose/scripts/plan_lint.py --find x"
+        )
+        assert caveat == ""
+
+
+class TestAgentsMdLockstepCommand:
+    """A mandate an agent cannot execute is a mandate it will skip."""
+
+    def test_generated_commands_point_at_installed_scripts(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        from workspace_init import generate_agents_md
+
+        _install_skill(tmp_path, ".agents", "fullstack-propose", "plan_lint.py")
+        _install_skill(tmp_path, ".agents", "fullstack-propose", "mermaid_lint.py")
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        result = generate_agents_md("proj", "| t |", "central-docs")
+        assert (
+            "python3 ~/.agents/skills/fullstack-propose/scripts/plan_lint.py "
+            "--find <path-or-symbol>" in result
+        )
+        assert "~/.<agent>" not in result
+
+    def test_lockstep_documents_the_exit_contract(self):
+        from workspace_init import generate_agents_md
+
+        result = generate_agents_md("proj", "| t |", "central-docs")
+        assert "Only `CODEMAP:` lines are ownership" in result
+        assert "SUBSTRING:" in result
+        assert "STATUS=OWNER" in result
+
+
+# ---------------------------------------------------------------------------
+# Docs-dir AGENTS.md pointer (must land on re-runs, not only on creation)
+# ---------------------------------------------------------------------------
+
+
+class TestInjectDocsLockstep:
+    def test_adds_the_pointer_to_an_existing_conventions_list(self, tmp_path: Path):
+        from workspace_init import inject_docs_lockstep
+
+        text = "# My Docs\n\n## Conventions\n\n- Use Markdown.\n"
+        result = inject_docs_lockstep(text)
+        assert "Docs-Code Lockstep" in result
+        assert result.index("Docs-Code Lockstep") > result.index("- Use Markdown.")
+        assert "- Use Markdown." in result
+
+    def test_is_idempotent(self):
+        from workspace_init import DOCS_LOCKSTEP_BULLET, inject_docs_lockstep
+
+        text = "# My Docs\n\n## Conventions\n\n- Use Markdown.\n"
+        once = inject_docs_lockstep(text)
+        assert inject_docs_lockstep(once) == once
+        assert once.count(DOCS_LOCKSTEP_BULLET) == 1
+
+    def test_appends_when_there_is_no_conventions_heading(self):
+        from workspace_init import inject_docs_lockstep
+
+        result = inject_docs_lockstep("# My Docs\n\nHand-written notes only.\n")
+        assert "## Conventions" in result
+        assert "Hand-written notes only." in result
+
+    def test_generated_docs_agents_md_uses_the_same_bullet(self):
+        from workspace_init import DOCS_LOCKSTEP_BULLET, generate_docs_agents_md
+
+        assert DOCS_LOCKSTEP_BULLET in generate_docs_agents_md("central-docs")
+
+
+class TestMergeRefreshesShippedRules:
+    """A re-run must repair the shipped rule text, not preserve the old copy."""
+
+    def test_stale_lockstep_section_is_replaced(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        from workspace_init import generate_agents_md, merge_agents_md
+
+        _install_skill(tmp_path, ".agents", "fullstack-propose", "plan_lint.py")
+        _install_skill(tmp_path, ".agents", "fullstack-propose", "mermaid_lint.py")
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        generated = generate_agents_md("proj", "| t |", "central-docs")
+        stale = (
+            "# proj\n\n## Repositories\n\n| old |\n\n"
+            "## Docs-Code Lockstep (MANDATORY)\n\n"
+            "```bash\npython3 ~/.<agent>/skills/fullstack-propose/scripts/"
+            "plan_lint.py --find x\n```\n"
+        )
+        merged = merge_agents_md(stale, generated)
+        assert "~/.<agent>" not in merged
+        assert (
+            "python3 ~/.agents/skills/fullstack-propose/scripts/plan_lint.py "
+            "--find <path-or-symbol>" in merged
+        )
+
+    def test_user_sections_still_survive(self):
+        from workspace_init import generate_agents_md, merge_agents_md
+
+        generated = generate_agents_md("proj", "| t |", "central-docs")
+        existing = "# proj\n\n## My Own Rules\n\nHand-written.\n"
+        merged = merge_agents_md(existing, generated)
+        assert "Hand-written." in merged

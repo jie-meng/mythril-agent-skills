@@ -80,6 +80,12 @@ directory name.
 Check the four work-tracking documents exist:
 
 - `analysis.md`, `plan.md`, `progress.md`, `review.md`
+- `plan.md` carries a `## 代码地图` / `## Code Map` table listing the files
+  the item ended up actually owning. Archiving is the last moment that
+  table can be corrected: nothing re-lints an archived item, and a stale
+  map sends every later `--find` for those files to the wrong place. The
+  archive stays in `--find`'s scope, so the map keeps working after the
+  move — it is just never fixed again.
 
 Also check `review.md` has at least one `### Verdict` (English) or
 `### 结论` (Chinese) section.

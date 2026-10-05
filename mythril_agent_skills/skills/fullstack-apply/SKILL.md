@@ -512,11 +512,15 @@ git commit -m "<message>"
   (Step 3). Skip the commit; note in `progress.md` that the team
   commits by hand.
 - Update `progress.md` with the commit summary and review verdict.
-- **Refresh the `plan.md` Code Map for this repo with the paths that
-  actually changed** — `git diff --name-only HEAD~1` is the list. Planned
-  rows that never got touched come out of the map, touched files that
-  were not planned go in: the map states current ownership, and a file
-  missing from it is a file no later fix can trace back to this item.
+- **Merge this round's actual paths into the `plan.md` Code Map for this
+  repo** — take every commit the round made (union of
+  `git show --name-only <hash>` per row in the round's `### Commits`
+  table), not just the newest one; a round that committed three times
+  changed three times as many files. The map holds the item's whole
+  ownership, so rows from earlier rounds stay in it; a row comes out only
+  when this round reverted or rolled back that change. Touched files that
+  were never planned go in: a file missing from the map is a file no later
+  fix can trace back to this item.
 - **Append this round's `**文档同步**` / `**Document Sync**` line** to its
   `review.md` section — all four documents, one clause each, stating what
   the round did to each or why nothing changed (format in

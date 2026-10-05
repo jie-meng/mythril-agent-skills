@@ -738,20 +738,20 @@ def _docs_dir_with(tmp_path: Path, items: dict[str, str]) -> Path:
 class TestFindInDocsDir:
     def test_finds_the_owning_work_item(self, tmp_path: Path):
         docs = _docs_dir_with(tmp_path, {"feat/dark-mode": PLAN_OK})
-        hits, mentions = find_in_docs_dir(docs, "api/src/preferences/dark_mode.py")
+        hits, _, mentions = find_in_docs_dir(docs, "api/src/preferences/dark_mode.py")
         assert len(hits) == 1
         assert hits[0].startswith("CODEMAP: changes/feat/dark-mode | api |")
 
     def test_symbol_lookup_finds_the_item(self, tmp_path: Path):
         docs = _docs_dir_with(tmp_path, {"feat/dark-mode": PLAN_OK})
-        hits, _ = find_in_docs_dir(docs, "ThemePreference")
+        hits, _, _ = find_in_docs_dir(docs, "ThemePreference")
         assert len(hits) == 1
 
     def test_archived_items_are_scanned(self, tmp_path: Path):
         docs = _docs_dir_with(
             tmp_path, {"archive/2026-09-01-feat/dark-mode": PLAN_OK}
         )
-        hits, _ = find_in_docs_dir(docs, "src/preferences/dark_mode.py")
+        hits, _, _ = find_in_docs_dir(docs, "src/preferences/dark_mode.py")
         assert len(hits) == 1
 
     def test_no_owner_falls_back_to_prose_mentions(self, tmp_path: Path):
@@ -760,10 +760,12 @@ class TestFindInDocsDir:
             "## 目标架构\n\n`src/preferences/dark_mode.py` 承载偏好读写。\n",
             encoding="utf-8",
         )
-        hits, mentions = find_in_docs_dir(docs, "src/preferences/dark_mode.py")
+        hits, _, mentions = find_in_docs_dir(docs, "src/preferences/dark_mode.py")
         assert hits == []
         assert len(mentions) == 1
-        assert mentions[0].startswith("MENTION: dark-mode | analysis.md:3 |")
+        assert mentions[0].startswith(
+            "MENTION: changes/feat/dark-mode | analysis.md:3 |"
+        )
 
     def test_exact_owner_ranks_above_substring_owner(self, tmp_path: Path):
         loose = _plan_with(
@@ -772,7 +774,7 @@ class TestFindInDocsDir:
             "| docs | `notes/dark_mode.py` | — | 文档脚本 |\n"
         )
         docs = _docs_dir_with(tmp_path, {"feat/precise": PLAN_OK, "feat/loose": loose})
-        hits, _ = find_in_docs_dir(docs, "src/preferences/dark_mode.py")
+        hits, _, _ = find_in_docs_dir(docs, "src/preferences/dark_mode.py")
         assert len(hits) == 1
         assert "precise" in hits[0]
 
@@ -781,7 +783,7 @@ class TestFindInDocsDir:
         junk = docs / "changes/feat/dark-mode/.git/plan.md"
         junk.parent.mkdir(parents=True, exist_ok=True)
         junk.write_text(PLAN_OK, encoding="utf-8")
-        hits, _ = find_in_docs_dir(docs, "src/preferences/dark_mode.py")
+        hits, _, _ = find_in_docs_dir(docs, "src/preferences/dark_mode.py")
         assert len(hits) == 1
 
 
@@ -821,14 +823,14 @@ class TestFindCli:
         docs = _docs_dir_with(tmp_path, {"feat/dark-mode": PLAN_OK})
         result = self._run("--find", "src/preferences/dark_mode.py", str(docs))
         assert result.returncode == 0
-        assert result.stdout.startswith("STATUS=MATCH")
+        assert result.stdout.startswith("STATUS=OWNER")
         assert "CODEMAP:" in result.stdout
 
     def test_no_match_exits_1_and_tells_the_agent_to_ask(self, tmp_path: Path):
         docs = _docs_dir_with(tmp_path, {"feat/dark-mode": PLAN_OK})
         result = self._run("--find", "src/unrelated/thing.py", str(docs))
         assert result.returncode == 1
-        assert "STATUS=NOMATCH" in result.stdout
+        assert "STATUS=NONE" in result.stdout
         assert "never edit code silently" in result.stdout
 
     def test_discovery_from_the_workspace_root(self, tmp_path: Path):
@@ -847,3 +849,150 @@ class TestFindCli:
     def test_lint_mode_still_requires_work_dir(self):
         result = self._run("--quiet")
         assert result.returncode == 2
+
+
+# ---------------------------------------------------------------------------
+# Round 3 — the gate must accept the format it ships, reject rows it cannot
+# look up, and never let a weak row pass as ownership
+# ---------------------------------------------------------------------------
+
+ATTESTATION_WRAPPED = (
+    "**文档同步**：`analysis.md` —— 目标架构图随之更新；\n"
+    "`plan.md` —— 无（仅实现细节）；`progress.md` —— 新增当日条目；\n"
+    "`review.md` —— 本节\n"
+)
+ATTESTATION_NAMES_ONLY = (
+    "**文档同步**：`analysis.md` `plan.md` `progress.md` `review.md`"
+)
+CODE_MAP_MULTI_PATH = """## 代码地图（Code Map）
+
+| 仓库 | 路径 | 符号 | 改了什么 |
+|---|---|---|---|
+| api | `src/preferences/dark_mode.py`, `src/preferences/theme.py` | — | 一格两个文件 |
+"""
+CODE_MAP_DIR = """## 代码地图（Code Map）
+
+| 仓库 | 路径 | 符号 | 改了什么 |
+|---|---|---|---|
+| api | `src/preferences/` | — | 整个偏好目录 |
+"""
+CODE_MAP_PLACEHOLDER = """## 代码地图（Code Map）
+
+| 仓库 | 路径 | 符号 | 改了什么 |
+|---|---|---|---|
+| api | — | — | 待补 |
+"""
+CODE_MAP_ROOT_FILE = """## 代码地图（Code Map）
+
+| 仓库 | 路径 | 符号 | 改了什么 |
+|---|---|---|---|
+| api | `README.md` | — | 仓库根的说明 |
+"""
+
+
+def _warnings(findings) -> list[str]:
+    return [f.message for f in findings if f.level == "WARN"]
+
+
+class TestAttestationFormat:
+    def test_template_wrapped_paragraph_is_read(self, tmp_path: Path):
+        """The shipped template soft-wraps its clauses; that must count."""
+        findings = lint_work_dir(
+            _work_dir(
+                tmp_path,
+                PLAN_OK,
+                REVIEW_OK + _code_round("api", 1, ATTESTATION_WRAPPED),
+            )
+        )
+        assert not [f for f in findings if "文档同步" in f.message]
+
+    def test_four_bare_names_are_not_an_answer(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(
+                tmp_path,
+                PLAN_OK,
+                REVIEW_OK + _code_round("api", 1, ATTESTATION_NAMES_ONLY),
+            )
+        )
+        assert any("no clause" in m for m in _errors(findings))
+
+    def test_legacy_review_round_heading_is_still_a_code_round(
+        self, tmp_path: Path
+    ):
+        """A follow-up round inherits the item's own heading style."""
+        review = (
+            REVIEW_OK
+            + "\n## api — Review Round 3 — 2026-09-28\n\n"
+            "### Verdict\n\nPASS — no blockers.\n"
+        )
+        findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, review))
+        named = [m for m in _errors(findings) if "newest code review round" in m]
+        assert named and "Review Round 3" in named[0]
+
+
+class TestCodeMapRowQuality:
+    def test_multi_file_cell_is_an_error(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, _plan_with(CODE_MAP_MULTI_PATH), REVIEW_OK)
+        )
+        assert any("more than one file" in m for m in _errors(findings))
+
+    def test_directory_row_is_an_error(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, _plan_with(CODE_MAP_DIR), REVIEW_OK)
+        )
+        assert any("names no file" in m for m in _errors(findings))
+
+    def test_placeholder_row_is_an_error(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, _plan_with(CODE_MAP_PLACEHOLDER), REVIEW_OK)
+        )
+        assert any("names no file" in m for m in _errors(findings))
+
+    def test_bare_root_file_warns_without_blocking(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, _plan_with(CODE_MAP_ROOT_FILE), REVIEW_OK)
+        )
+        assert any("no directory" in m for m in _warnings(findings))
+        assert not [f for f in findings if f.level == "ERROR" and "README" in f.message]
+
+
+class TestFindOwnershipStrength:
+    def test_bare_name_row_is_a_substring_not_an_owner(self, tmp_path: Path):
+        """A name-only row cannot claim another repo's same-named file."""
+        loose = _plan_with(CODE_MAP_ROOT_FILE).replace(
+            "| api | `README.md` | — | 仓库根的说明 |",
+            "| beta | `dark_mode.py` | — | 裸文件名 |",
+        )
+        docs = _docs_dir_with(tmp_path, {"feat/loose": loose})
+        hits, weak, mentions = find_in_docs_dir(
+            docs, "web/ui/dark_mode.py"
+        )
+        assert hits == []
+        assert len(weak) == 1
+        assert weak[0].startswith("SUBSTRING: changes/feat/loose |")
+
+    def test_owner_is_exit_0_and_a_candidate_is_exit_1(self, tmp_path: Path):
+        """Exit 0 must mean "the owner is known", never "something matched"."""
+        docs = _docs_dir_with(tmp_path, {"feat/dark-mode": PLAN_NO_CODE_MAP})
+        (docs / "changes/feat/dark-mode/analysis.md").write_text(
+            "## 目标架构\n\n`src/preferences/dark_mode.py` 承载偏好读写。\n",
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(
+                    Path(__file__).resolve().parent.parent
+                    / "mythril_agent_skills/shared/plan/plan_lint.py"
+                ),
+                "--find",
+                "src/preferences/dark_mode.py",
+                str(docs),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 1
+        assert "STATUS=CANDIDATE" in result.stdout
+        assert "no Code Map owns this" in result.stdout

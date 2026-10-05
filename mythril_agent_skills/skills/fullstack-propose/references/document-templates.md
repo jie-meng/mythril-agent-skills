@@ -162,16 +162,22 @@ Rules:
 - **Path is relative to the repo root** (`src/preferences/dark_mode.py`),
   never an absolute machine path and never a bare file name. Prefixing
   the repo column and the repo-relative path is what makes the pair
-  greppable from a workspace-relative path.
+  greppable from a workspace-relative path. A file that really sits at the
+  repo root is written `./README.md` — the `./` says "root", where a bare
+  `README.md` leaves the lookup guessing between same-named files in other
+  repos.
 - **Symbols is optional** — fill it when the file name does not say what
   changed. It is the lookup key for a reader who was told "the
   `computeWave` function is wrong" and has no file path.
 - **Rewrite the table in place.** Unlike `progress.md`, this is a current
   state, not a log: a path that was touched then reverted does not stay
-  listed. History belongs in `progress.md`.
-- **One row per file**, no ranges (`src/ui/*`) — a wildcard cannot be
-  matched by a path lookup, so it silently drops traceability for every
-  file it covers.
+  listed. History belongs in `progress.md`. Earlier rounds' files stay in
+  the table — it is the item's whole ownership, not this round's diff.
+- **One row per file**, no ranges (`src/ui/*`) and no path lists in one
+  cell (`src/a.py`, `src/b.py`) — a wildcard or a merged cell cannot be
+  matched by a path lookup, so each silently drops traceability for every
+  file it pretends to cover. A directory (`src/ui/`) or a placeholder
+  (`—`, `待定`) names no file either.
 
 ## Implementation Plan
 
@@ -268,13 +274,17 @@ fullstack-apply 在每一轮把预测路径换成实际改动路径。后来的�
 
 - **路径相对仓库根目录**（`src/preferences/dark_mode.py`），不写机器绝对
   路径，也不只写文件名。仓库列 + 仓内相对路径这两列合起来，才能被工作区
-  相对路径反查到。
+  相对路径反查到。确实在仓库根的文件写作 `./README.md`——`./` 表示"就在
+  根"，而光一个 `README.md` 让反查无法判断它和别的仓库同名文件谁是目标。
 - **符号列可留空**——文件名说不清改了什么时必填。它是"只知道 `computeWave`
   这个函数算错了、不知道在哪个文件"这种提问的检索入口。
 - **整表原地更新**。与 progress.md 不同，这里记录当前状态而不是流水账：
-  改后又回滚的路径不再保留，历史留在 progress.md。
-- **一行一个文件**，不写区间（`src/ui/*`）——通配符无法被路径检索命中，
-  等于悄悄丢掉它覆盖的每个文件的追溯性。
+  改后又回滚的路径不再保留，历史留在 progress.md。但此前轮次改过的
+  路径要留着——这张表是整个工作项的归属清单，不是本轮的 diff。
+- **一行一个文件**，不写区间（`src/ui/*`），也不把多个文件塞进一格
+  （`src/a.py`、`src/b.py`）——通配符与合并格都无法被路径检索命中，等于
+  悄悄丢掉它覆盖的每个文件的追溯性。目录（`src/ui/`）与占位符（`—`、
+  `待定`）同样不算登记了一个文件。
 
 ## 实现计划
 

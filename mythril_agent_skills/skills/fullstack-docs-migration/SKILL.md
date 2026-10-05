@@ -156,6 +156,15 @@ For **spike merges**:
    with correct `../../` depth) and summarizing the verdict.
 3. Delete the spike directory with `git rm -r`.
 
+Migration moves directories; it rewrites no document body, so a `plan.md`
+that already carries a `## 代码地图` / `## Code Map` keeps it untouched.
+Legacy items have no such table, and the linter errors on that as soon as
+someone touches their code — so list in the report which migrated items
+lack a Code Map. Do not invent rows for them from dates or guesses: the
+table is the item's ownership claim, and a wrong row sends a later
+`--find` to the wrong spec. Backfill each one from that item's
+`### Changed files` / `### 改动文件` records when it is next worked on.
+
 ## Step 5 — Write the Migration Report
 
 Write `<docs-dir>/MIGRATION-REPORT.md`:
