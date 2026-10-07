@@ -1,0 +1,20 @@
+mythril_agent_skills/shared/plan/plan_lint.py
+  h_e0538e51a4c5ef 162-165,553-563,566,568-574
+mythril_agent_skills/skills/fullstack-apply/scripts/plan_lint.py
+  h_e0538e51a4c5ef 162-165,553-563,566,568-574
+mythril_agent_skills/skills/fullstack-propose/scripts/plan_lint.py
+  h_e0538e51a4c5ef 162-165,553-563,566,568-574
+tests/test_plan_lint.py
+  h_e0538e51a4c5ef 999-1025
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2a4164c8f06fbda5cba8c0682bc26327c8a7372b",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
