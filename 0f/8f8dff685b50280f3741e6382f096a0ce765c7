@@ -1,0 +1,36 @@
+docs/fullstack/AGENT-ORCHESTRATION.md
+  h_e0538e51a4c5ef 489-496,501-503
+mythril_agent_skills/shared/plan/plan_lint.py
+  h_e0538e51a4c5ef 53-72,106-108,112-119,155-158,162-166,168-169,501-527,531-532,534-537,539-565,569-588,594,645-656,960-963,968-970,974,980,992-996,1000,1017,1026-1035,1037,1040,1044-1048,1050-1065,1067-1068,1073,1075,1077-1079,1081,1167-1172
+mythril_agent_skills/skills/fullstack-apply/SKILL.md
+  h_e0538e51a4c5ef 515-523
+mythril_agent_skills/skills/fullstack-apply/references/document-templates.md
+  h_e0538e51a4c5ef 165-168,174-180,277-278,282-287
+mythril_agent_skills/skills/fullstack-apply/scripts/plan_lint.py
+  h_e0538e51a4c5ef 53-72,106-108,112-119,155-158,162-166,168-169,501-527,531-532,534-537,539-565,569-588,594,645-656,960-963,968-970,974,980,992-996,1000,1017,1026-1035,1037,1040,1044-1048,1050-1065,1067-1068,1073,1075,1077-1079,1081,1167-1172
+mythril_agent_skills/skills/fullstack-archive/SKILL.md
+  h_e0538e51a4c5ef 83-88
+mythril_agent_skills/skills/fullstack-docs-migration/SKILL.md
+  h_e0538e51a4c5ef 159-167
+mythril_agent_skills/skills/fullstack-init/scripts/workspace_init.py
+  h_e0538e51a4c5ef 256-348,355-361,445,447-453,462-476,590,735-737,750-755,1112,1413-1414,1421-1428
+mythril_agent_skills/skills/fullstack-propose/references/document-templates.md
+  h_e0538e51a4c5ef 165-168,174-180,277-278,282-287
+mythril_agent_skills/skills/fullstack-propose/scripts/plan_lint.py
+  h_e0538e51a4c5ef 53-72,106-108,112-119,155-158,162-166,168-169,501-527,531-532,534-537,539-565,569-588,594,645-656,960-963,968-970,974,980,992-996,1000,1017,1026-1035,1037,1040,1044-1048,1050-1065,1067-1068,1073,1075,1077-1079,1081,1167-1172
+tests/skills/test_fullstack_init.py
+  h_e0538e51a4c5ef 1190-1193,1198-1200,1203-1205,1207-1208,1406-1561
+tests/test_plan_lint.py
+  h_e0538e51a4c5ef 741,747,754,763,766-768,777,786,826,833,852-998
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0f8f8dff685b50280f3741e6382f096a0ce765c7",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
