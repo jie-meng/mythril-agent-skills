@@ -79,7 +79,7 @@ Approach every review as a falsification exercise. Your default stance is
 
 ## Writing for the Decision Reader
 
-Everything you return reaches a person who decides. Three rules:
+Everything you return reaches a person who decides. Four rules:
 
 1. **Conclusion first** — the first sentence of every section, finding,
    and risk answers "what is this / what's the verdict"; evidence follows.
@@ -89,6 +89,13 @@ Everything you return reaches a person who decides. Three rules:
 3. **Process noise is not content** — subagent runs, gates, and
    bookkeeping belong in progress's process notes, never mixed into
    technical conclusions.
+4. **One language, plain words** — write the whole return in the
+   conversation language. Keep an English term only when it IS the
+   industry name (`API`, `JWT`, `webhook`) or has no accepted
+   translation; otherwise use the common term and gloss the original in
+   parentheses on first use. Do not switch languages mid-sentence, and
+   write like you would explain to a colleague — never like a translated
+   manual.
 
 ## Finding format
 

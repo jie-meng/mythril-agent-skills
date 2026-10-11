@@ -75,6 +75,25 @@ caveats, or audit detail.
    editor, but any preview fuses the whole header into one line.
    相邻两行 `**字段**：…` 之间必须空一行：Markdown 渲染会把同一段落的
    连续行合并成一行，编辑器里看着分行、预览里就粘成一长行。
+8. **One language per document; borrow a foreign term only when it is the
+   industry name（全文一种语言，外文只在必要时用）** — after the document
+   language is decided, keep the whole document in it. An English term
+   stays English only when it IS the industry name (`API`, `JWT`,
+   `webhook`, `OAuth`) or has no accepted translation; when a widely used
+   term exists in the document language, use it and put the original in
+   parentheses on first use. Do not switch languages mid-sentence when a
+   plain word in the document language says the same thing. 全文使用选定
+   的那一种语言：术语本身就是行业名（API、JWT、webhook）或没有通行译名
+   时保留外文；有通行译名的用中文表述并在首次出现时括注原文；句中不无
+   故夹用外文。Good: "这条调用链的消费方会出现延迟回退（latency
+   regression）。" Bad: "这个 flow 的 consumer 侧会有 latency regression。"
+9. **Write like you explain to a colleague, not like a translated manual
+   （像给同事讲，不像翻译腔）** — plain verbs and normal word order beat
+   formal register and noun piles. 术语解释完了就直接说事，用平实的动词
+   和正常语序，避免堆名词的公文体与翻译腔。Good: "把同步任务从轮询改成
+   事件推送，因为轮询每 5 秒查一次库，成本太高。" Bad: "本方案拟对现有
+   同步机制实施基于事件驱动范式的替代性迁移，以规避高频轮询所衍生的资
+   源开销问题。"
 
 ---
 
