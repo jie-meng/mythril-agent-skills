@@ -428,6 +428,14 @@ Archived work lives under `{docs_dir}/changes/archive/`. The
 `{docs_dir}/` repo does NOT use feature branches — all work tracking
 docs are committed directly to its main branch.
 
+Problems observed but not yet ready to become work items are recorded
+first under `{docs_dir}/issues/` (sibling of `changes/`) via the
+`fullstack-issue-create` skill: each issue is a `YYYY-MM-DD-<name>/`
+directory (date = the record day) holding a `README.md` plus raw
+evidence in `log/`. Closing is a move into `{docs_dir}/issues/archive/`
+with the name unchanged — directory location is the state, and nothing
+under `issues/` is ever deleted.
+
 ## Docs-Code Lockstep (MANDATORY)
 
 Code in this workspace is implemented from a work item under
@@ -618,6 +626,8 @@ line and re-run before committing. Full rules live in
 │   │   ├── feat/
 │   │   ├── refactor/
 │   │   ├── fix/
+│   │   └── archive/
+│   ├── issues/
 │   │   └── archive/
 ├── web/               # ← Independent git repo (example)
 ├── api/               # ← Independent git repo (example)
@@ -921,6 +931,8 @@ left off.
 │   │   ├── refactor/  #   Refactor work tracking
 │   │   ├── fix/       #   Fix work tracking
 │   │   └── archive/   #   Completed work
+│   ├── issues/        #   Issue records (pre-work-item)
+│   │   └── archive/   #   Closed issues
 ├── scripts/           # Workspace-level scripts (preserved)
 └── <repos...>/        # Your git repositories
 ```
@@ -942,6 +954,12 @@ Completed work is archived under
 `{docs_dir}/changes/archive/YYYY-MM-DD-<type>-<name>/`.
 
 These are never deleted — they serve as project history.
+
+Problems that are not ready to become work items are recorded first
+under `{docs_dir}/issues/YYYY-MM-DD-<name>/` (date = the record day)
+with raw evidence in `log/`. Closing an issue moves it into
+`{docs_dir}/issues/archive/` with the name unchanged. See the
+`fullstack-issue-create` skill.
 
 ## Documentation
 
@@ -1063,6 +1081,8 @@ propose 会在 `{docs_dir}/changes/` 下创建工作计划。如果有未知项�
 │   │   ├── refactor/  #   重构跟踪
 │   │   ├── fix/       #   Bug 修复跟踪
 │   │   └── archive/   #   已完成归档
+│   ├── issues/        #   问题记录（立项前）
+│   │   └── archive/   #   已关闭 issue
 ├── scripts/           # 工作区级脚本（跨运行保留）
 └── <repos...>/        # 你的各个 git 子仓库
 ```
@@ -1082,6 +1102,11 @@ propose 会在 `{docs_dir}/changes/` 下创建工作计划。如果有未知项�
 已完成的工作归档到 `{docs_dir}/changes/archive/YYYY-MM-DD-<type>-<name>/`。
 
 这些目录不会被删除——它们是项目的实施历史记录。
+
+尚不能立项的问题先用 `fullstack-issue-create` 技能记录到
+`{docs_dir}/issues/YYYY-MM-DD-<name>/`（日期为记录日）下，
+原始证据存放在 `log/`。关闭 issue 时将其移入
+`{docs_dir}/issues/archive/`，目录名保持不变。
 
 ## 文档说明
 
@@ -1138,6 +1163,13 @@ skills. Completed work is archived under `changes/archive/`:
 | `changes/refactor/` | `refactor/` | Code restructuring, tech debt |
 | `changes/fix/` | `fix/` | Bug fixes, issue resolution |
 | `changes/archive/` | _(none)_ | Completed work, `YYYY-MM-DD-<type>-<name>/` |
+| `issues/` | _(none)_ | Pre-work-item issue records, `YYYY-MM-DD-<name>/` (closed → `issues/archive/`, name unchanged) |
+
+The `issues/` directory holds problem records created by the
+`fullstack-issue-create` skill before they become work items — each
+issue is a `YYYY-MM-DD-<name>/` directory with a `README.md` and raw
+evidence in `log/`; closing moves it into `issues/archive/` with the
+name unchanged.
 
 Each work item gets its own subdirectory:
 
@@ -1150,8 +1182,9 @@ Each work item gets its own subdirectory:
 ```
 
 These directories are **never deleted** — they form the project's
-implementation history. Archived work stays in `changes/archive/`. Do
-not modify docs created by other work items.
+implementation history. Archived work stays in `changes/archive/`,
+closed issues in `issues/archive/`. Do not modify docs created by
+other work items.
 
 ## Structure
 
@@ -1163,6 +1196,8 @@ not modify docs created by other work items.
 │   ├── refactor/      #   Refactor work tracking
 │   ├── fix/           #   Fix work tracking
 │   └── archive/       #   Completed work (YYYY-MM-DD-<type>-<name>/)
+├── issues/            # Issue records (pre-work-item)
+│   └── archive/       #   Closed issues (name unchanged)
 ├── architecture.md    # System-wide architecture overview (example)
 ├── api-contracts/     # Shared API schemas, contracts (example)
 └── onboarding/        # New-member onboarding guides (example)
@@ -1394,6 +1429,8 @@ def bootstrap_workspace(
         (f"{resolved_docs_dir}/changes/refactor", "refactor work tracking"),
         (f"{resolved_docs_dir}/changes/fix", "fix work tracking"),
         (f"{resolved_docs_dir}/changes/archive", "archived work"),
+        (f"{resolved_docs_dir}/issues", "issue tracking"),
+        (f"{resolved_docs_dir}/issues/archive", "archived issues"),
         ("scripts", "workspace-level scripts"),
     ]:
         if ensure_directory(root / dirname):
