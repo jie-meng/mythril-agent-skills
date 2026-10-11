@@ -29,7 +29,7 @@ bullet points introduced by template updates.
 | **Generated from scratch** | `AGENTS.md`, `README.md`, `.agents/agents/*.md` | `README.md`, `.agents/agents/*.md` |
 | **Merged incrementally** | — | `AGENTS.md` (add new sections, update repos table, merge conventions, preserve user content) |
 | **Preserved** | `fullstack.json`, `<docs-dir>/`, `scripts/`, `.agents/skills/` | same |
-| **Create-only** | `<docs-dir>/` + git init, `scripts/`, `.agents/skills/` — created if missing, never touched if present | same |
+| **Create-only** | `<docs-dir>/` + git init, `<docs-dir>/issues/` + `<docs-dir>/issues/archive/`, `scripts/`, `.agents/skills/` — created if missing, never touched if present | same |
 
 This allows the workspace's AGENTS.md to evolve organically — users can add
 project-specific sections, conventions, or documentation — while still
@@ -225,6 +225,8 @@ project-workspace/
 │   │   ├── refactor/             # Active refactor work
 │   │   ├── fix/                  # Active fix work
 │   │   └── archive/              # Completed work (YYYY-MM-DD-<type>-<name>/)
+│   ├── issues/                   # Issue records (pre-work-item)
+│   │   └── archive/              # Closed issues (name unchanged)
 ├── scripts/                      # Preserved (user content)
 ├── web/                          # Independent repo
 ├── api/                          # Independent repo

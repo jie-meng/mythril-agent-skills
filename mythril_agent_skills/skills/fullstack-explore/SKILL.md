@@ -180,6 +180,8 @@ Fall back to manual scanning. List the docs directory structure:
 │   ├── refactor/<name>/    ← same structure as feat/
 │   ├── fix/<name>/         ← same structure as feat/
 │   └── archive/            ← completed work (YYYY-MM-DD-<type>-<name>/)
+├── issues/                 ← active issues: recorded, not-yet-triaged problems
+│   └── archive/            ← closed issues (YYYY-MM-DD-<name>/)
 └── AGENTS.md               ← doc directory conventions
 ```
 
@@ -188,6 +190,10 @@ Match work item directories against the query:
 - **Jira key**: does the query reference a specific ticket (e.g. `PROJ-123`)?
 - **Archive**: completed work lives under `changes/archive/` — scan it for
   historical context, not just active `changes/<type>/` directories.
+- **Active issues**: `issues/<name>/` directories hold recorded,
+  not-yet-triaged problems (`fullstack-issue-create`) — navigation
+  targets and requirements leads with the same standing as work items;
+  their README's symptom and analysis sections tell you where to look.
 
 ### 3b. For each matching document — check relevance, not full read
 

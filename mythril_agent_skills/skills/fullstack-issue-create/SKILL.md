@@ -165,7 +165,7 @@ this table — the section set and their order never change:
 ## 证据
 
 - `log/2026-10-11-robo-az3-serial-capture.log` — 串口原始日志（来源：设备 robo-az3 串口抓取）
-- `log/2026-10-11-robo-az3-serial-capture.cleaned.log` — 上件的精简版（派生方式：仅保留 14:28–14:35 时间窗与 ERROR 行）
+- `log/2026-10-11-robo-az3-serial-capture.cleaned.log` — 原始件的精简版（派生方式：仅保留 14:28–14:35 时间窗与 ERROR 行）
 
 ## 分析
 
@@ -245,11 +245,13 @@ Order of operations (MANDATORY — move first, then write):
    the pointer. Every reference is written with the POST-MOVE archive
    path (`issues/archive/<name>/...`), never the pre-move active path —
    that path stops resolving the moment the move lands.
-3. **Commit the docs repo**:
+3. **Commit the docs repo** — `git add issues/` (the parent directory)
+   stages both sides of the move above (the new archive path and the
+   old active path's deletion):
 
    ```bash
    cd <docs-dir>
-   git add issues/archive/<name>
+   git add issues/
    git commit -m "docs: close issue <name> (proposed)"
    ```
 

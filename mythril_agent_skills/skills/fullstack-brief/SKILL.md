@@ -188,7 +188,12 @@ Follow the token-efficient chain (workspace docs → graphify → source files).
    directories; for each, skim `plan.md` / `analysis.md` headers only —
    extract name, objective, status, affected repos. Do NOT paste whole
    work documents into the brief.
-3. **Per repo** (from the AGENTS.md repo table):
+3. **Active issues**: list `<docs-dir>/issues/` (excluding
+   `issues/archive/`) — an active issue is a recorded, not-yet-triaged
+   problem (`fullstack-issue-create`); capture each one's name, one-line
+   symptom, and domain from its README. Do NOT paste issue READMEs into
+   the brief.
+4. **Per repo** (from the AGENTS.md repo table):
    - `README.md`, package manifests (`package.json`, `pyproject.toml`,
      `go.mod`, `build.gradle*`, `Podfile`, ...) → stack + versions
    - graphify: run `python3 SKILL_PATH/scripts/graphify_check.py <repo>`.
@@ -196,7 +201,7 @@ Follow the token-efficient chain (workspace docs → graphify → source files).
      for module/relationship structure before grepping.
    - key entry points: main/app bootstrap files, route definitions,
      public API surfaces.
-4. **Cross-repo relationships**: who calls whom (HTTP routes, clients,
+5. **Cross-repo relationships**: who calls whom (HTTP routes, clients,
    shared schemas/events). Verify by reading both sides of each boundary.
 
 ### Single-repo mode
@@ -268,8 +273,9 @@ commands; environment/config strategy (names only); known constraints
 
 ## 7. Current State
 Active work items (name, type, status, repos touched, one-line objective);
-recently completed items if relevant; known issues / TODO clusters;
-in-flight migrations.
+active issues from `<docs-dir>/issues/` (an active issue is a recorded,
+not-yet-triaged problem); recently completed items if relevant; known
+issues / TODO clusters; in-flight migrations.
 
 ## 8. Domain Glossary
 Table: term → meaning. Include internal jargon the external AI cannot know.

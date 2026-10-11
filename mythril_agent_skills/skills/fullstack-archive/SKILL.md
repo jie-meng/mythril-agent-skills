@@ -90,6 +90,14 @@ Check the four work-tracking documents exist:
 Also check `review.md` has at least one `### Verdict` (English) or
 `### 结论` (Chinese) section.
 
+Also check the issue back-reference: when `plan.md`'s **Source** /
+**来源** points at an issue (an `issues/…` path), that issue directory
+must already live under `<docs-dir>/issues/archive/`. If it is still in
+the active area (`<docs-dir>/issues/<name>/`), report it and suggest
+closing it first via `fullstack-issue-create`'s close procedure
+(Step 3 — Close) — an archived work item pointing at an active issue is
+a dangling reference — but archive proceeds regardless.
+
 **These checks are advisory, not blocking.** Archive proceeds even if a
 document is missing or review is incomplete — but you MUST report any
 deficiency to the user so they can fix the record or consciously accept

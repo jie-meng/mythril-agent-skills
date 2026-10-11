@@ -186,6 +186,12 @@ recorded one can be read and challenged.
   to build on prior work. Record it under `**Source**` in the plan.
 - If the referenced work item is **archived** and this is genuinely new
   work on the same scope, plan a `-vN` successor (see Step 2).
+- **Scan active issues** — list the active issue directories under
+  `<docs-dir>/issues/` (not `issues/archive/`) for items related to the
+  request. An active issue is a recorded, not-yet-triaged problem
+  (`fullstack-issue-create`) and can serve as a requirements source:
+  when the request plans work for one, read its README (symptom,
+  evidence, analysis) and follow the issue-sourced procedure in Step 5.
 
 ## Step 2 — Determine Work Type
 
@@ -665,6 +671,41 @@ a request for the decisions instead:
 Next: answer the open decisions above — I will re-run the plan review,
       then hand the plan to fullstack-apply.
 ```
+
+3. **Issue-sourced proposals** — when the work item originated from an
+   active issue under `<docs-dir>/issues/` (see Step 1d):
+
+   - **Requirements**: the issue's symptom and analysis (its `## 现象` /
+     `## 分析` sections, or `## Symptom` / `## Analysis` in English
+     issues) are quoted verbatim into `analysis.md` §Original
+     Requirements / §需求原文, one `REQ<n>` id per ask — the same
+     mechanism as user-provided requirements (Step 1a).
+   - **Source**: `plan.md`'s **Source** / **来源** points at the issue's
+     archive path (`issues/archive/<name>/…`) — the post-move path, never
+     the pre-move active path; the active path stops resolving the moment
+     the close below lands.
+   - **Close (after the four documents are committed to the docs
+     repo)**: follow `fullstack-issue-create` Step 3 (Close), mode
+     `proposed` — the other three modes (`resolved`, `wontfix`,
+     `merged`) belong to the issue's own close flow, not the propose
+     flow. Order of operations is mandatory — move first, then write:
+
+     ```bash
+     mv <docs-dir>/issues/<name> <docs-dir>/issues/archive/<name>
+     ```
+
+     Then append `## 闭环` (`## Closure` in English issues) to the
+     issue's README — the mode, the date, and the pointer to the work
+     item directory this skill just created. Then commit the docs repo
+     in the same round — `git add issues/` (the parent directory) stages
+     both sides of the move above (the new archive path and the old
+     active path's deletion):
+
+     ```bash
+     cd <docs-dir>
+     git add issues/
+     git commit -m "docs: close issue <name> (proposed)"
+     ```
 
 ## Resuming a Previous Plan
 

@@ -403,7 +403,7 @@ skills-clean-cache --repos  # 交互式：选择要删除的仓库
 
 | 插件 | 描述 |
 |---|---|
-| `all-skills` | 全部技能包（共 26 个） |
+| `all-skills` | 全部技能包（共 31 个） |
 | `skill-creator` | 为任意 AI 平台创建/改进技能和提示词 |
 | `code-review-staged` | 暂存区代码审查 |
 | `branch-diff-review` | 本地分支差异代码审查 |

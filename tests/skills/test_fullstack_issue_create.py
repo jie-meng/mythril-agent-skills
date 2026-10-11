@@ -102,9 +102,13 @@ class TestIssueScaffolding:
         )
         before = _snapshot(issue)
 
-        self.func(tmp_path)
+        report = self.func(tmp_path)
 
         assert _snapshot(issue) == before
+        assert not any(
+            "2026-10-11-brownout-4g-bursts" in e
+            for e in report["created"] + report["updated"]
+        )
 
     def test_custom_docs_dir_gets_issues_dirs(self, tmp_path: Path):
         _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
@@ -151,8 +155,10 @@ class TestWorkspaceAgentsMdIssues:
 
     def test_directory_structure_tree_lists_issues(self):
         result = self.func("proj", "| t |", "central-docs")
-        assert "│   ├── issues/" in result
-        assert "│   │   └── archive/" in result
+        # The workspace AGENTS.md tree carries no per-line comments, so
+        # assert the two new lines adjacent — a bare "archive/" substring
+        # would also match the changes/ archive line and prove nothing.
+        assert "│   ├── issues/\n│   │   └── archive/" in result
 
 
 # ---------------------------------------------------------------------------
@@ -182,8 +188,10 @@ class TestDocsAgentsMdIssues:
 
     def test_structure_tree_lists_issues(self):
         result = self.func("central-docs")
-        assert "├── issues/" in result
-        assert "│   └── archive/" in result
+        # Assert the new lines WITH their comment suffixes — a bare
+        # "archive/" substring would also match the changes/ archive line.
+        assert "├── issues/            # Issue records (pre-work-item)" in result
+        assert "│   └── archive/       #   Closed issues (name unchanged)" in result
 
 
 # ---------------------------------------------------------------------------
@@ -229,8 +237,10 @@ class TestReadmeIssuesChinese:
 
     def test_structure_tree_lists_issues(self):
         result = self.func("proj", "central-docs", lang="zh")
-        assert "│   ├── issues/" in result
-        assert "│   │   └── archive/" in result
+        # Assert the new line WITH its comment suffix — a bare
+        # "archive/" substring would also match the changes/ archive line.
+        assert "│   ├── issues/        #   问题记录（立项前）" in result
+        assert "│   │   └── archive/   #   已关闭 issue" in result
         assert "问题记录" in result
 
     def test_work_tracking_paragraph(self):
