@@ -264,6 +264,13 @@ Skill（技能）是一个提示词/指令包，用于教 AI 助手如何处理�
 - **示例：** 哪个仓库负责用户认证？
 - **依赖：** 工作区需先通过 `fullstack-init` 初始化
 
+**[Fullstack Issue Create](./mythril_agent_skills/skills/fullstack-issue-create/)**
+
+在问题一时无法立项时先把它记录下来。把现象/bug 连同原始证据（`log/`）沉淀到 docs 仓库的 `issues/` 目录——目录位置即状态（`issues/` 下活跃、`issues/archive/` 下关闭），无需维护任何 Status 字段。一个 skill、三个操作（create / update / close）；`fullstack-propose` 立项时引用并关闭 issue。
+
+- **示例：** 先记个 issue：4G 突发时电压跌落，以后再排查
+- **依赖：** 工作区需先通过 `fullstack-init` 初始化
+
 **[Fullstack Propose](./mythril_agent_skills/skills/fullstack-propose/)**
 
 在多仓库全栈工作区中规划新工作项。设计方案并写出工作跟踪文档（analysis/plan/progress/review + Success Criteria）。每份方案随后都会由独立的 `plan-reviewer` 子 Agent 对照原始需求审查——不可实施或描述不充分的方案在写代码之前就被拦下，而不是拖到集成阶段。深度模式先做有时限的 spike 验证未知项——实验和结论留在同一个工作目录里，交给 apply 时无需重写。
@@ -419,6 +426,7 @@ skills-clean-cache --repos  # 交互式：选择要删除的仓库
 | `story-point-estimate` | 斐波那契点数估算——任意输入、CFR 覆盖、Buffer 策略、XLSX 输出 |
 | `fullstack-init` | 初始化多仓库全栈工作区 |
 | `fullstack-explore` | 全栈工作区只读知识探索 |
+| `fullstack-issue-create` | 把暂无法立项的问题连同 log/ 证据记录到 docs 仓库的 issues/ 目录 |
 | `fullstack-propose` | 规划工作项 + Success Criteria；先验证未知项（spike）；交付前经独立方案审查 |
 | `fullstack-apply` | 在全栈工作区中实现已规划的工作项 |
 | `fullstack-archive` | 把已完成工作项归档到 changes/archive/ |
@@ -671,6 +679,7 @@ mythril-agent-skills/
 │       ├── story-point-estimate/ # 斐波那契点数估算 — 含 CFR + Buffer + XLSX
 │       ├── fullstack-init/      # 初始化多仓库工作区
 │       ├── fullstack-explore/   # 只读知识探索
+│       ├── fullstack-issue-create/  # 记录暂无法立项的工作区 issue
 │       ├── fullstack-propose/   # 规划工作项 + 验证未知项
 │       ├── fullstack-apply/     # 实现已规划的工作项
 │       ├── fullstack-archive/   # 归档已完成工作项

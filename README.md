@@ -271,6 +271,13 @@ Export the complete context of a workspace, single repo, or user-specified direc
 - **Try:** Export a context brief so I can discuss this on ChatGPT
 - **Deps:** A git repo or a workspace initialized by `fullstack-init`
 
+**[Fullstack Issue Create](./mythril_agent_skills/skills/fullstack-issue-create/)**
+
+Record a workspace issue before it can become a work item. Captures a problem/bug/phenomenon with raw evidence (`log/`) in the docs repo's `issues/` directory — directory location is the state (`issues/` active, `issues/archive/` closed), no Status fields. One skill, three operations (create / update / close); `fullstack-propose` cites and closes the issue when the work item is created.
+
+- **Try:** Log this problem for later triage: brownout during 4G bursts
+- **Deps:** Workspace initialized by `fullstack-init`
+
 **[Fullstack Propose](./mythril_agent_skills/skills/fullstack-propose/)**
 
 Propose a new work item across a multi-repo fullstack workspace. Plans the approach and writes the work-tracking documents (analysis/plan/progress/review with Success Criteria). Every plan is then audited by an independent `plan-reviewer` subagent against the original requirements — unbuildable or under-specified plans are caught before code exists, not at integration. Deep mode runs a time-boxed spike to validate unknowns first — experiments and verdict live in the same work directory, so nothing is rewritten on handoff to apply.
@@ -403,7 +410,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 
 | Plugin | Description |
 |---|---|
-| `all-skills` | All-in-one bundle (all 30 skills) |
+| `all-skills` | All-in-one bundle (all 31 skills) |
 | `skill-creator` | Create and improve skills/prompts for any AI platform |
 | `code-review-staged` | Code review for git staged changes |
 | `branch-diff-review` | Code review for local branch differences |
@@ -427,6 +434,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `fullstack-init` | Initialize multi-repo fullstack workspace with AI context |
 | `fullstack-explore` | Read-only knowledge exploration across a fullstack workspace |
 | `fullstack-brief` | Export workspace/repo/user-specified directory context into one AI-optimized brief for web AI sessions |
+| `fullstack-issue-create` | Record pre-work-item issues with log/ evidence in the docs repo's issues/ directory |
 | `fullstack-propose` | Plan a work item with Success Criteria; validate unknowns (spike); independent plan review before handoff |
 | `fullstack-apply` | Implement a planned work item across a fullstack workspace |
 | `fullstack-archive` | Archive completed work items into changes/archive/ |
@@ -714,6 +722,7 @@ mythril-agent-skills/
 │       ├── fullstack-init/      # Initialize multi-repo workspace
 │       ├── fullstack-explore/   # Read-only knowledge exploration
 │       ├── fullstack-brief/     # Export context brief for web AI sessions
+│       ├── fullstack-issue-create/  # Record issues before they become work items
 │       ├── fullstack-propose/   # Plan a work item + validate unknowns
 │       ├── fullstack-apply/     # Implement a planned work item
 │       ├── fullstack-archive/   # Archive completed work items

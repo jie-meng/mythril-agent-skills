@@ -473,6 +473,25 @@
       "strict": false
     },
     {
+      "name": "fullstack-issue-create",
+      "source": "./plugins/fullstack-issue-create",
+      "description": "Record a workspace issue in the docs repo's issues/ directory — capture a problem/bug/phenomenon with log/ evidence before it can become a work item; one skill, three operations (create / update / close), closed by a move into issues/archive/",
+      "version": "0.3.0",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "development",
+      "tags": [
+        "workspace",
+        "fullstack",
+        "multi-repo",
+        "issues",
+        "triage"
+      ],
+      "strict": false
+    },
+    {
       "name": "fullstack-propose",
       "source": "./plugins/fullstack-propose",
       "description": "Propose a new work item across a multi-repo fullstack workspace — plan the approach, validate unknowns with a spike when needed, and write the work-tracking documents",
