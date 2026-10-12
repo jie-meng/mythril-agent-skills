@@ -70,9 +70,20 @@ Checks:
     one being written now, and it is the round a follow-up fix produces;
     earlier rounds are never back-filled, so an item that predates the
     convention is not asked to invent history it did not record.
+11. **Task-list integrity** — every task id (`T<n>`) cited anywhere in
+    `plan.md` must be declared in its `## 实现计划` / `## Implementation
+    Plan` task list. A narrative section (summary, dependencies, risks)
+    that references a task the list does not define sends an implementer
+    after work that was never planned: the reference cannot be acted on,
+    which is why this is an error — a broken chain inside the plan itself.
+    Check 4 guards review→plan task references; this guards the
+    plan→task-list direction, so "act on the task number" is checked from
+    both sides. All dangling ids are reported in one aggregate error. A
+    plan with no task ids at all stays silent, so legacy items written
+    with "任务 1"-style lists generate no noise (same design as check 6).
 
 Checks 5, 7 and 8 are warnings because none of them breaks the chain.
-Checks 1-4, 6, 9 and 10 are errors: each one lets an unverifiable claim
+Checks 1-4, 6, 9, 10 and 11 are errors: each one lets an unverifiable claim
 enter the definition of done, or leaves the work item untraceable from
 its own code. Item 6 stays silent for work items that have
 neither the section nor a coverage matrix, so legacy items do not
@@ -151,6 +162,7 @@ EVIDENCE_HEADINGS = ("## 证据核验", "## Evidence")
 REQUIREMENTS_HEADINGS = ("## 需求原文", "## Original Requirements")
 SUMMARY_HEADINGS = ("## 摘要", "## Summary")
 CODE_MAP_HEADINGS = ("## 代码地图", "## Code Map")
+IMPLEMENTATION_PLAN_HEADINGS = ("## 实现计划", "## Implementation Plan")
 CODE_REVIEW_HEADINGS = ("## 代码审查", "## Code Review")
 # Items written before the prefixed convention title their code rounds
 # `## <repo> — Review Round 3`. A follow-up round inherits that style, so
@@ -691,6 +703,7 @@ def lint_work_dir(work_dir: Path) -> list[Finding]:
     findings.extend(_check_evidence_coverage(plan_text, review_text))
     findings.extend(_check_plan_review_rounds(review_text))
     findings.extend(_check_task_ids(plan_text, review_text))
+    findings.extend(_check_task_refs_in_plan(plan_text))
     findings.extend(_check_requirements_of_record(analysis_text, review_text))
     findings.extend(_check_placeholders(plan_text, analysis_text))
     findings.extend(_check_finding_discipline(review_text))
@@ -799,6 +812,30 @@ def _check_task_ids(plan_text: str, review_text: str) -> list[Finding]:
             "ERROR",
             f"{REVIEW_FILE} cites task ids that are not in {PLAN_FILE}: "
             + ", ".join(unknown),
+        )
+    ]
+
+
+def _check_task_refs_in_plan(plan_text: str) -> list[Finding]:
+    """Check 11 — plan.md only cites tasks its own task list declares."""
+    cited = parse_task_ids(plan_text)
+    if not cited:
+        # A plan with no T-ids anywhere (e.g. "任务 1"-style legacy lists)
+        # has no reference to dangle — stay silent.
+        return []
+    declared_body = find_section_body(plan_text, IMPLEMENTATION_PLAN_HEADINGS)
+    declared = parse_task_ids(declared_body) if declared_body is not None else set()
+    dangling = sorted(cited - declared, key=_natural_key)
+    if not dangling:
+        return []
+    return [
+        Finding(
+            "ERROR",
+            f"{PLAN_FILE} cites task ids that are not in its '## 实现计划' / "
+            "'## Implementation Plan' task list: "
+            + ", ".join(dangling)
+            + " — a narrative reference to a task that does not exist "
+            "cannot be acted on; add the task or fix the reference",
         )
     ]
 

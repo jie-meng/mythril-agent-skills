@@ -467,6 +467,35 @@ will later consume it — before implementation starts, not after:
 
 Do NOT finalize the plan with a failing DAG gate.
 
+### Work-item tier — determine lean or full (after plan.md is written)
+
+Once `plan.md` is written — the repositories table and the Code Map are
+formed — determine the tier this work item runs at. The standard below is
+written verbatim in `fullstack-apply` Step 1 as well; when editing either
+copy, keep the two byte-identical.
+
+**A work item runs at lean tier only when ALL four conditions hold:**
+
+1. The change set consists entirely of skill definitions, documentation,
+   templates, and test files, or of skill-bundled gate scripts that have
+   test coverage (e.g. `plan_lint.py`) — no production code.
+2. Single repository.
+3. No product runtime behavior change — a bundled gate script's own
+   checking behavior does not count against this condition, provided it
+   has test coverage.
+4. No cross-repo contract — none added, none modified.
+
+An explicit user request for the `full` flow overrides this determination.
+If any of the four conditions cannot be confirmed, run `full` (fail-safe:
+prefer stricter). Tiering only limits review-loop counts and commit
+granularity — the four-document requirement, `plan_lint`, the Mermaid/DAG
+gates, the Evidence table, and the `**文档同步**` / `**Document Sync**`
+attestation all stay in force unchanged.
+
+Record the result in `plan.md` §摘要 / §Summary's status line
+(`…—— lean 档` / `…—— lean tier`); the Step 5 report's `Mode:` line
+carries the tier.
+
 ## Step 4.5 — Plan Review Gate (MANDATORY)
 
 The documents are written; the Mermaid and DAG gates are green. None of
@@ -488,7 +517,7 @@ Every work item is reviewed; the *loop* is what scales.
 
 | Work item shape | Review depth |
 |-----------------|--------------|
-| Trivial / single repo, no cross-repo contract | **1 pass.** P0/P1 → planner revises → 1 confirmation pass. Cap: 2 rounds |
+| **Lean tier** — the Step 4 four-condition standard holds and the user has not upgraded to full | **1 pass + 1 confirmation, capped.** On `NEEDS_FIXES`: planner revises, then the SAME round re-runs the mechanical gates (`plan_lint` / Mermaid / DAG) — a mechanical-gate re-check does not count as a review round. The confirmation round runs as a fresh agent on the round-2+ brief below. If it still does not converge, record the residual items as known risks in `plan.md` and close as `PASS_WITH_RISKS` — no third round |
 | Multi-repo, any frozen contract, deep (spike) mode, or architectural refactor | **Loop.** Pass → revise → re-review. Cap: 2 revision rounds (3 passes total) |
 
 Do not skip the gate because the plan "looks fine" — that judgment is the
@@ -516,6 +545,24 @@ it rejects the agent files), delegate to any fresh-context read-only subagent
 with the agent file as its brief. If even that is impossible, do the review
 yourself but **say so in `review.md`** — an unlabelled self-review is worse
 than a labelled one.
+
+### Round 2+ briefs — incremental, minimal, fresh
+
+From round 2 on — every re-review after a revision — the brief holds ONLY
+five items:
+
+1. The latest round's complete output;
+2. A `review.md` status-overview snapshot (§状态速览 / §Status Overview);
+3. The Evidence table;
+4. This round's change list — what the planner revised and where;
+5. The diff or revised sections awaiting verification.
+
+A full re-read of earlier rounds and of the four documents is forbidden
+in this brief — history lives in `review.md` and git, fetched on demand.
+Dispatch the round-2+ confirmation as a **fresh agent** with this minimal
+brief; do not continue an existing heavyweight subagent session — context
+that grows every round is what makes repeats slow and unconvergent. When
+no agent can be spawned, the fallback above applies unchanged.
 
 ### Handling the verdict
 
@@ -555,9 +602,11 @@ Rules that keep the loop convergent:
 - **Oscillation stops the loop.** If a round produces more new findings
   than the previous round resolved, stop, record the residual items as
   known risks in `plan.md`, and report them in Step 5.
-- **Re-run the affected mechanical gates after revisions** — the Mermaid
-  gate if a diagram changed, the DAG gate if the repositories table
-  changed.
+- **Re-run the affected mechanical gates after revisions** — `plan_lint`
+  after any document edit, the Mermaid gate if a diagram changed, the DAG
+  gate if the repositories table changed. At lean tier this mechanical
+  re-check runs in the same round as the revision and does not count as
+  a review round.
 
 ### Exit criteria — "implementable" is a definition, not a feeling
 
@@ -605,6 +654,9 @@ python3 SKILL_PATH/scripts/plan_lint.py <docs-dir>/changes/<type>/<work-name>
   unverified `NEEDS_FIXES` revision is caught here
 - plan-review rounds are numbered `1..N` without gaps
 - every task id cited in `review.md` exists in `plan.md`
+- every task id cited anywhere in `plan.md` exists in its `## 实现计划` /
+  `## Implementation Plan` task list — a narrative reference to a task
+  that does not exist cannot be acted on
 - every `REQ` id cited in a review round's coverage matrix is declared
   in `analysis.md` §需求原文, and every declared `REQ` has a row in some
   round's matrix — a prose mention never counts as coverage; a
@@ -650,7 +702,7 @@ Never report the plan as ready with `STATUS=FAIL` standing.
 ```
 Planned: <work-name> (<feat|fix|refactor>)
 Location: <docs-dir>/changes/<type>/<work-name>/
-Mode: standard | deep (spike)
+Mode: standard | deep (spike) — tier: lean | full
 
 - Requirements: <summary>
 - Success Criteria: <N criteria>
@@ -661,7 +713,9 @@ Mode: standard | deep (spike)
 - Plan review: <PASS | PASS_WITH_RISKS> — <N> rounds, <N> findings fixed
 - Open decisions: <none | list>
 
-Next: tell me to "implement this" to run fullstack-apply.
+Next: tell me to "implement this" to run fullstack-apply — preferably in
+a fresh session (orchestrator context slows as the session grows; the
+work-directory documents are the handoff interface).
 ```
 
 When the verdict was `NEEDS_USER_DECISION`, replace the `Next:` line with

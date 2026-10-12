@@ -1,7 +1,8 @@
 """Tests for the shared work-tracking document linter (plan_lint.py).
 
 Covers Success-Criteria ↔ Evidence-row reconciliation, plan-review closure
-and round numbering, task-id references, placeholder detection, the Code
+and round numbering, task-id references (review→plan and plan→task-list),
+placeholder detection, the Code
 Map reverse index, the per-round document-sync attestation, and the CLI
 contract (lint mode and `--find` lookup mode) used by the fullstack
 skills.
@@ -1023,3 +1024,57 @@ class TestAttestationLocation:
         )
         findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, review))
         assert not [f for f in findings if "文档同步" in f.message]
+
+
+# ---------------------------------------------------------------------------
+# Check 11 — plan.md task references resolve to its own task list
+# ---------------------------------------------------------------------------
+
+# Task list declares T1–T3; a narrative section cites T5, which the list
+# never defines — the dangling reference check 11 exists to catch.
+PLAN_DANGLING_TASK_REF = (
+    PLAN_OK.replace(
+        "- [ ] T1 do the thing",
+        "- [ ] T1 do the thing\n- [ ] T2 follow-up\n- [ ] T3 wrap-up",
+    )
+    + "\n## 依赖关系\n\n执行顺序见 T5 的说明——T5 是唯一的入口任务。\n"
+)
+
+# The narrative only cites ids the task list declares — no dangling ref.
+PLAN_ALIGNED_TASK_REF = (
+    PLAN_OK.replace(
+        "- [ ] T1 do the thing",
+        "- [ ] T1 do the thing\n- [ ] T2 verify the thing",
+    )
+    + "\n## 依赖关系\n\nT2 依赖 T1 的产出。\n"
+)
+
+# "任务 1"-style list, no T-id anywhere in plan.md — check 11 stays silent.
+PLAN_NO_TASK_IDS = PLAN_OK.replace(
+    "## 实现计划\n\n- [ ] T1 do the thing\n",
+    "## 实现计划\n\n- [ ] 任务 1：do the thing\n",
+)
+
+
+class TestTaskRefsInPlan:
+    def test_dangling_task_reference_is_an_error(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_DANGLING_TASK_REF, REVIEW_OK)
+        )
+        dangling = [m for m in _errors(findings) if "task list" in m]
+        assert len(dangling) == 1
+        assert "T5" in dangling[0]
+        assert "add the task or fix the reference" in dangling[0]
+        assert "T2" not in dangling[0].split("task list: ")[1]
+        assert "STATUS=FAIL" in format_findings(findings)
+
+    def test_aligned_task_reference_is_silent(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_ALIGNED_TASK_REF, REVIEW_OK)
+        )
+        assert _errors(findings) == []
+
+    def test_plan_without_task_ids_is_silent(self, tmp_path: Path):
+        findings = lint_work_dir(_work_dir(tmp_path, PLAN_NO_TASK_IDS, REVIEW_OK))
+        assert _errors(findings) == []
+        assert not any("task list" in m for m in _warnings(findings))

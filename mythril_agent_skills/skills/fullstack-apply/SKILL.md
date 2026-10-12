@@ -156,6 +156,35 @@ definition of done; `analysis.md` carries the technical approach;
 `progress.md` shows what's already complete; `review.md` shows review
 history.
 
+**Determine the tier (lean / full).** `plan.md` §摘要 / §Summary's status
+line records the tier `fullstack-propose` determined (`…—— lean 档` /
+`…—— lean tier`). Re-verify it against the same standard propose applies —
+the block below is written verbatim in `fullstack-propose` Step 4 too;
+when editing either copy, keep the two byte-identical.
+
+**A work item runs at lean tier only when ALL four conditions hold:**
+
+1. The change set consists entirely of skill definitions, documentation,
+   templates, and test files, or of skill-bundled gate scripts that have
+   test coverage (e.g. `plan_lint.py`) — no production code.
+2. Single repository.
+3. No product runtime behavior change — a bundled gate script's own
+   checking behavior does not count against this condition, provided it
+   has test coverage.
+4. No cross-repo contract — none added, none modified.
+
+An explicit user request for the `full` flow overrides this determination.
+If any of the four conditions cannot be confirmed, run `full` (fail-safe:
+prefer stricter). Tiering only limits review-loop counts and commit
+granularity — the four-document requirement, `plan_lint`, the Mermaid/DAG
+gates, the Evidence table, and the `**文档同步**` / `**Document Sync**`
+attestation all stay in force unchanged.
+
+If `plan.md` records no tier, or the repositories table and Code Map
+cannot confirm one of the four conditions, run the full flow. How the
+lean tier contracts the implementation loop is specified in Step 4
+("Lean tier — how the loop contracts").
+
 **Resume**: if the work is partially complete, resume from the last
 incomplete step recorded in `progress.md`. Check that branches still
 exist in the affected repos.
@@ -303,6 +332,22 @@ changes *when* work happens, never *whether* checks happen):
 1 → behavior identical to serial implementation. Wave width = degree of
 parallelism; there is no case where the wave model is less safe than
 serial, only faster when width > 1.
+
+### Lean tier — how the loop contracts
+
+When Step 1 confirmed the lean tier, the wave machinery below runs
+unchanged (`check_workspace`, `compute_waves`, the wave gates), but the
+per-repo loop contracts:
+
+- **One developer run per repo.** Fix iterations happen inside that same
+  developer session — do not spawn a fresh developer per fix round.
+- **One staged review per repo, then at most one confirmation re-review.**
+  When the staged review returns `NEEDS_FIXES` and the fix is mechanically
+  verifiable (tests / lint / build), re-run the mechanical checks in place
+  of a confirmation round. Otherwise dispatch one confirmation re-review
+  on the round-2+ brief from 4d — capped at one.
+- Single-repo items already skip Step 5's cross-repo review; lean does
+  not change that, and every gate in this skill stays in force.
 
 ### Agent roles and boundaries
 
@@ -494,6 +539,17 @@ other:
    developer → code-reviewer loop.
 5. **If PASS**: proceed to commit for that repo.
 
+**Round 2+ briefs (incremental).** Every re-review after a fix round —
+and the lean tier's confirmation re-review — runs on a minimal brief
+holding ONLY five items: the latest round's complete output, a
+`review.md` status-overview snapshot, the Evidence table, this round's
+change list (what the developer fixed), and the staged diff awaiting
+verification. Re-sending the full history of the four documents is
+forbidden — history lives in `review.md` and git, fetched on demand.
+Dispatch the confirmation round as a **fresh** code-reviewer with that
+brief; do not continue an existing heavyweight subagent session. When no
+agent can be spawned, the fallback in step 1 applies unchanged.
+
 #### 4e. Commit per repo, then the wave gate
 
 Commit each repo individually as it passes review (do not hold a green
@@ -507,6 +563,7 @@ git commit -m "<message>"
 - Use the commit message from the developer subagent's summary. If the
   repo has its own convention (from `AGENTS.md`), reconcile — repo
   convention wins.
+- Default: one commit per repo per apply round. Phase-split commits only when plan.md schedules them or the user explicitly asks.
 - A repo without version control has nothing to commit — its
   `### Changed files` section in `review.md` is the change record
   (Step 3). Skip the commit; note in `progress.md` that the team
@@ -749,6 +806,9 @@ hand-checks miss, deterministically:
 - the last plan-review round ended in `PASS` / `PASS_WITH_RISKS`
 - plan-review rounds are numbered `1..N` without gaps
 - every task id cited in `review.md` exists in `plan.md`
+- every task id cited anywhere in `plan.md` exists in its `## 实现计划` /
+  `## Implementation Plan` task list — a narrative reference to a task
+  that does not exist cannot be acted on
 - every `REQ` id cited in a review round's coverage matrix is declared
   in `analysis.md` §需求原文, and every declared `REQ` has a matrix row
   in at least one round

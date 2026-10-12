@@ -31,6 +31,12 @@ Rules:
 - A `设计复核` section is the author's own pre-check. It is a working
   artifact, not a gate: its verdict never substitutes for a
   `方案审查` round.
+- From round 2 on, every re-review runs on a minimal incremental brief,
+  never a full re-read of history: the brief holds only (1) the latest
+  round's complete output, (2) a `review.md` status-overview snapshot,
+  (3) the Evidence table, (4) this round's change list, and (5) the diff
+  or revised sections awaiting verification. Earlier rounds stay in
+  `review.md` and git — fetched on demand, not re-read wholesale.
 
 ### Status overview — `## 状态速览` / `## Status Overview`
 
