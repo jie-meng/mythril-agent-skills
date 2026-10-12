@@ -1,0 +1,16 @@
+mythril_agent_skills/skills/fullstack-init/scripts/workspace_init.py
+  h_e0538e51a4c5ef 431-438,630-631,934-935,958-963,1084-1085,1106-1110,1166-1172,1185-1187,1199-1200,1432-1433
+tests/skills/test_fullstack_issue_create.py
+  h_e0538e51a4c5ef 1-302
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "35935bdd59b3e8ccb84105f7a98595adf50c06f7",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
