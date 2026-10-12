@@ -1,0 +1,26 @@
+.claude-plugin/marketplace.json
+  h_e0538e51a4c5ef 476-494
+.workbuddy-plugin/marketplace.json
+  h_e0538e51a4c5ef 475-493
+README.md
+  h_e0538e51a4c5ef 274-280,413,437,725
+README.zh-CN.md
+  h_e0538e51a4c5ef 267-273,429,682
+mythril_agent_skills/skills/fullstack-issue-create/SKILL.md
+  h_e0538e51a4c5ef 1-298
+mythril_agent_skills/skills/fullstack-issue-create/scripts/check_workspace.py
+  h_e0538e51a4c5ef 1-96
+plugins/fullstack-issue-create/skills/fullstack-issue-create
+  h_e0538e51a4c5ef 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0ccd71b086bba9708f81669d18c787c3aceaddb5",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
