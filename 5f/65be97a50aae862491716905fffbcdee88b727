@@ -1,0 +1,32 @@
+AGENTS.md
+  h_e0538e51a4c5ef 313
+README.zh-CN.md
+  h_e0538e51a4c5ef 406
+mythril_agent_skills/skills/fullstack-archive/SKILL.md
+  h_e0538e51a4c5ef 93-100
+mythril_agent_skills/skills/fullstack-brief/SKILL.md
+  h_e0538e51a4c5ef 191-196,204,276-278
+mythril_agent_skills/skills/fullstack-explore/SKILL.md
+  h_e0538e51a4c5ef 183-184,193-196
+mythril_agent_skills/skills/fullstack-init/SKILL.md
+  h_e0538e51a4c5ef 32,228-229
+mythril_agent_skills/skills/fullstack-issue-create/SKILL.md
+  h_e0538e51a4c5ef 168,248-250,254
+mythril_agent_skills/skills/fullstack-propose/SKILL.md
+  h_e0538e51a4c5ef 189-194,675-709
+pyproject.toml
+  h_e0538e51a4c5ef 81
+tests/skills/test_fullstack_issue_create.py
+  h_e0538e51a4c5ef 105,108-111,158-161,191-194,240-243
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5f65be97a50aae862491716905fffbcdee88b727",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
