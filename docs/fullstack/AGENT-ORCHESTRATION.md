@@ -453,6 +453,30 @@ Existing work items continue to work with the new orchestration model.
 
 ## Changelog
 
+### 2026-10-12 — v1.5: the sync guard covers what it declares, and says so
+
+- **Four undeclared duplicates brought under the guard.**
+  `check_workspace.py` (4 copies), `repo_manager.py` (2),
+  `review-formats.md` (2) and `document-templates.md` (2) were
+  byte-identical across skills with no `SyncSpec` declaring them, so
+  editing one left the others stale with nothing to notice. They now have
+  canonical copies under `shared/workspace/`, `shared/git/` and
+  `shared/plan/`; `--check` covers 28 bundled copies, up from 18
+- **A new guard treats duplication itself as the signal.** The drift check
+  only ever guarded what `specs()` declared, so an undeclared copy passed
+  it forever — which is exactly how the fourth `check_workspace.py`
+  arrived: a new skill was created by copying an existing one.
+  `test_no_undeclared_duplicates` now fails on any cross-skill
+  byte-identical pair whose file name no `SyncSpec` declares
+- **`plan_lint.py` carries 11 checks**, not the 7 listed in the v1.3 entry
+  below — that entry is the v1.3 snapshot and is left as written. The four
+  added since: the `REQ` coverage matrix (`analysis.md` §需求原文 against
+  every round's matrix, in both directions), finding discipline (a round
+  listing more than five P2s, or carrying more P0/P1 than its
+  predecessor, is a warning), the `plan.md` §摘要 / §Summary section, and
+  dangling task references in `plan.md`'s prose. The `plan_lint.py` module
+  docstring is the authority
+
 ### 2026-09-21 — v1.4: Agent templates load under pi too
 
 - Removed `bash: allow` from all five agent templates: pi-subagents

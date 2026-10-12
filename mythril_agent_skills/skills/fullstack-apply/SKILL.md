@@ -159,8 +159,10 @@ history.
 **Determine the tier (lean / full).** `plan.md` §摘要 / §Summary's status
 line records the tier `fullstack-propose` determined (`…—— lean 档` /
 `…—— lean tier`). Re-verify it against the same standard propose applies —
-the block below is written verbatim in `fullstack-propose` Step 4 too;
-when editing either copy, keep the two byte-identical.
+the standard below, from "A work item runs at lean tier" through "stay in
+force unchanged", is written verbatim in `fullstack-propose` Step 4 too;
+keep that span byte-identical across the two copies. The closing paragraph
+is per-skill and is expected to differ.
 
 **A work item runs at lean tier only when ALL four conditions hold:**
 

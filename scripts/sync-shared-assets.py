@@ -144,6 +144,81 @@ def specs() -> list[SyncSpec]:
         )
     )
 
+    # --- shared/workspace/check_workspace.py → <skill>/scripts/check_workspace.py
+    # Workspace-validation gate: every skill that refuses to run outside an
+    # initialized fullstack workspace bundles its own copy, because skills
+    # install individually and must stay self-contained.
+    workspace_consumers = (
+        "fullstack-apply",
+        "fullstack-archive",
+        "fullstack-issue-create",
+        "fullstack-propose",
+    )
+    workspace_source = SHARED_ROOT / "workspace" / "check_workspace.py"
+    out.append(
+        SyncSpec(
+            source=workspace_source,
+            targets=tuple(
+                SKILLS_ROOT / skill / "scripts" / "check_workspace.py"
+                for skill in workspace_consumers
+            ),
+            description="workspace validation gate script",
+        )
+    )
+
+    # --- shared/git/repo_manager.py → <skill>/scripts/repo_manager.py
+    git_consumers = (
+        "git-repo-reader",
+        "github-code-review-pr",
+    )
+    git_source = SHARED_ROOT / "git" / "repo_manager.py"
+    out.append(
+        SyncSpec(
+            source=git_source,
+            targets=tuple(
+                SKILLS_ROOT / skill / "scripts" / "repo_manager.py"
+                for skill in git_consumers
+            ),
+            description="git clone/cache manager",
+        )
+    )
+
+    # --- shared/plan/review-formats.md → <skill>/references/review-formats.md
+    # The review-record format both stages of the fullstack flow write to.
+    review_format_consumers = (
+        "fullstack-apply",
+        "fullstack-propose",
+    )
+    review_format_source = SHARED_ROOT / "plan" / "review-formats.md"
+    out.append(
+        SyncSpec(
+            source=review_format_source,
+            targets=tuple(
+                SKILLS_ROOT / skill / "references" / "review-formats.md"
+                for skill in review_format_consumers
+            ),
+            description="review record format",
+        )
+    )
+
+    # --- shared/plan/document-templates.md → <skill>/references/document-templates.md
+    # The four work-tracking document templates.
+    templates_consumers = (
+        "fullstack-apply",
+        "fullstack-propose",
+    )
+    templates_source = SHARED_ROOT / "plan" / "document-templates.md"
+    out.append(
+        SyncSpec(
+            source=templates_source,
+            targets=tuple(
+                SKILLS_ROOT / skill / "references" / "document-templates.md"
+                for skill in templates_consumers
+            ),
+            description="work-tracking document templates",
+        )
+    )
+
     return out
 
 

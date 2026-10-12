@@ -470,9 +470,12 @@ Do NOT finalize the plan with a failing DAG gate.
 ### Work-item tier — determine lean or full (after plan.md is written)
 
 Once `plan.md` is written — the repositories table and the Code Map are
-formed — determine the tier this work item runs at. The standard below is
-written verbatim in `fullstack-apply` Step 1 as well; when editing either
-copy, keep the two byte-identical.
+formed — determine the tier this work item runs at. The standard that
+follows, from "A work item runs at lean tier" through "stay in force
+unchanged", is written verbatim in `fullstack-apply` Step 1 as well; keep
+that span byte-identical across the two copies. The closing paragraph is
+per-skill and is expected to differ — this copy records where the result
+goes, apply's states the fallback when no tier was recorded.
 
 **A work item runs at lean tier only when ALL four conditions hold:**
 

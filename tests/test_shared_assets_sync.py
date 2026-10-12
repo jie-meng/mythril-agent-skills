@@ -14,14 +14,17 @@ source. To fix drift, run:
 from __future__ import annotations
 
 import filecmp
+import hashlib
 import importlib.util
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = REPO_ROOT / "scripts"
+SKILLS_ROOT = REPO_ROOT / "mythril_agent_skills" / "skills"
 
 
 def _load_sync_module():
@@ -91,4 +94,73 @@ def test_no_drift(sync_module):
         "Bundled shared assets have drifted from the canonical source. "
         "Run `python3 scripts/sync-shared-assets.py` to fix:\n"
         + "\n".join(drift)
+    )
+
+
+def _declared_asset_names(sync_module) -> set[str]:
+    """Every file name any SyncSpec declares, as source or bundled target."""
+    names: set[str] = set()
+    for spec in sync_module.specs():
+        names.add(spec.source.name)
+        names.update(target.name for target in spec.targets)
+    return names
+
+
+def _skill_of(path: Path) -> str:
+    return path.relative_to(SKILLS_ROOT).parts[0]
+
+
+def _cross_skill_duplicates() -> dict[str, list[Path]]:
+    """Group skill-bundled files by content hash, keeping cross-skill groups.
+
+    Empty files and `__init__.py` are skipped: a package marker carries
+    nothing that can drift, so treating it as a shared asset would be noise.
+    """
+    groups: dict[str, list[Path]] = defaultdict(list)
+    for path in SKILLS_ROOT.rglob("*"):
+        if not path.is_file():
+            continue
+        if "__pycache__" in path.relative_to(SKILLS_ROOT).parts:
+            continue
+        if path.suffix not in (".py", ".md"):
+            continue
+        if path.name == "__init__.py" or path.stat().st_size == 0:
+            continue
+        groups[hashlib.sha256(path.read_bytes()).hexdigest()].append(path)
+
+    return {
+        digest: paths
+        for digest, paths in groups.items()
+        if len(paths) > 1 and len({_skill_of(p) for p in paths}) > 1
+    }
+
+
+def test_no_undeclared_duplicates(sync_module):
+    """A cross-skill byte-identical copy must be a declared shared asset.
+
+    The drift check above guards exactly what `specs()` declares, so a copy
+    nobody declared passes it forever. That is how the fourth
+    `check_workspace.py` arrived: a new skill was created by copying an
+    existing one, and the guard had nothing to compare it against. This test
+    treats duplication itself as the signal, so the next copy is caught at
+    the moment it lands rather than when the two sides finally diverge.
+    """
+    declared = _declared_asset_names(sync_module)
+    undeclared: list[str] = []
+    for digest, paths in sorted(_cross_skill_duplicates().items()):
+        stray = sorted({p.name for p in paths} - declared)
+        if not stray:
+            continue
+        undeclared.append(
+            f"  - {', '.join(stray)} ({len(paths)} copies, sha256 {digest[:12]}):\n"
+            + "\n".join(
+                f"      {p.relative_to(REPO_ROOT)}" for p in sorted(paths)
+            )
+        )
+
+    assert not undeclared, (
+        "These files are byte-identical across skills but no SyncSpec "
+        "declares them, so editing one leaves the others stale with nothing "
+        "to notice. Register them in scripts/sync-shared-assets.py, or remove "
+        "the duplicate:\n" + "\n".join(undeclared)
     )
