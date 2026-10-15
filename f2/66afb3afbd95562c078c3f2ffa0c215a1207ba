@@ -1,0 +1,30 @@
+docs/fullstack/AGENT-ORCHESTRATION.md
+  h_e0538e51a4c5ef 456-479
+mythril_agent_skills/shared/git/repo_manager.py
+  h_e0538e51a4c5ef 1-502
+mythril_agent_skills/shared/plan/document-templates.md
+  h_e0538e51a4c5ef 1-1154
+mythril_agent_skills/shared/plan/review-formats.md
+  h_e0538e51a4c5ef 1-400
+mythril_agent_skills/shared/workspace/check_workspace.py
+  h_e0538e51a4c5ef 1-96
+mythril_agent_skills/skills/fullstack-apply/SKILL.md
+  h_e0538e51a4c5ef 162-165
+mythril_agent_skills/skills/fullstack-propose/SKILL.md
+  h_e0538e51a4c5ef 473-478
+scripts/sync-shared-assets.py
+  h_e0538e51a4c5ef 147-221
+tests/test_shared_assets_sync.py
+  h_e0538e51a4c5ef 17,20,27,98-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f266afb3afbd95562c078c3f2ffa0c215a1207ba",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
