@@ -1,0 +1,32 @@
+mythril_agent_skills/shared/plan/plan_lint.py
+  h_e0538e51a4c5ef 84-98,101-111,182-187,571-578,743,1012-1100
+mythril_agent_skills/shared/plan/review-formats.md
+  h_e0538e51a4c5ef 52-55
+mythril_agent_skills/skills/fullstack-apply/references/review-formats.md
+  h_e0538e51a4c5ef 52-55
+mythril_agent_skills/skills/fullstack-apply/scripts/plan_lint.py
+  h_e0538e51a4c5ef 84-98,101-111,182-187,571-578,743,1012-1100
+mythril_agent_skills/skills/fullstack-init/agents/code-reviewer.md
+  h_e0538e51a4c5ef 29-34
+mythril_agent_skills/skills/fullstack-init/agents/plan-reviewer.md
+  h_e0538e51a4c5ef 40-58,159-160
+mythril_agent_skills/skills/fullstack-propose/SKILL.md
+  h_e0538e51a4c5ef 526-545
+mythril_agent_skills/skills/fullstack-propose/references/review-formats.md
+  h_e0538e51a4c5ef 52-55
+mythril_agent_skills/skills/fullstack-propose/scripts/plan_lint.py
+  h_e0538e51a4c5ef 84-98,101-111,182-187,571-578,743,1012-1100
+tests/test_plan_lint.py
+  h_e0538e51a4c5ef 6-7,52,1082-1182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6b09570c5bb173d4ec94c3acc1909d05192fc7a0",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
