@@ -26,6 +26,12 @@ The orchestrator will provide:
 - For per-repo review: the staged diff via `git diff --cached` in the repo
 - For cross-repo review: `git diff <default>...<feature>` in each affected repo
 
+Round 2 and later arrive on a minimal brief — the previous round's complete
+output, a `review.md` status-overview snapshot, the Evidence table, this
+round's change list, and the staged diff. Read that, plus whatever the diff
+makes you check; do not re-read the four documents end to end, which is what
+makes a fix round slow and re-opens files nobody touched.
+
 ## How you think
 
 Approach every review as a falsification exercise. Your default stance is

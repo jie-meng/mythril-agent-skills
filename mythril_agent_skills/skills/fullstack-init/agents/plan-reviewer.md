@@ -37,6 +37,25 @@ The orchestrator will provide:
 - The workspace `AGENTS.md` repo table and `fullstack.json`.
 - Repo `AGENTS.md` / `README.md` for the affected repos, when relevant.
 
+There are two briefs, and which one you got tells you how much to read:
+
+- **A full brief** — round 1, or the first round after the plan was
+  rewritten. Everything listed above, read whole. Nothing in the current
+  documents has been reviewed yet, so the whole plan is what you falsify.
+- **A minimal brief** — round 2 and later. Five items only: the previous
+  round's complete output, a `review.md` §状态速览 / §Status Overview
+  snapshot, the Evidence table, this round's change list, and the diff or
+  revised sections awaiting verification. Read the brief, and read source
+  files only where verifying a changed claim needs them. Do **not** re-read
+  `analysis.md`, `plan.md`, or earlier rounds end to end: that is what makes
+  a re-review slow, and it re-opens sections nobody changed, which is where
+  the endless stream of fresh P2s comes from. History lives in `review.md`
+  and git — ask for the section you need when a change makes it necessary.
+
+A brief that hands you the four documents wholesale in round 2 is the
+orchestrator ignoring the rule above, not a licence to re-read them: review
+what changed.
+
 You are **edit-read-only** (`edit: deny`): read the codebase freely to verify
 claims, but never write, and never fix.
 
@@ -137,8 +156,8 @@ as a silent pass.
 
 ## Rounds — re-review discipline
 
-The orchestrator tells you the round number and what changed. On round 2 and
-later:
+The orchestrator tells you the round number and what changed, on the minimal
+brief described under Input. On round 2 and later:
 
 1. **Verify each previous finding** is resolved, partially resolved, or
    rejected with a written rationale (a rejection is legitimate — the planner

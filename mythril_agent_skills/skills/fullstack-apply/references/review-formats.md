@@ -49,7 +49,10 @@ current position, never the history — history lives in the rounds
 below. Four lines, in the work item's language:
 
 - **最新结论 / Latest verdict** — <方案审查 PASS_WITH_RISKS（第 N 轮）| 已完成——最终结论见文末>
-- **审查轮次 / Review rounds** — <方案审查 N 轮；代码审查 M 轮（repo 名）>
+- **审查轮次 / Review rounds** — <方案审查 N 轮；代码审查 M 轮（repo 名）>。
+  方案被中途重写（用户答复 `NEEDS_USER_DECISION` 后换了设计）时，还要点出当前
+  轮次属于哪个循环——`方案审查 4 轮（第 2–4 轮同一循环，上限 3 轮）`。轮次上限
+  按循环计，不写这一句，读者无法区分"卡满上限"与"上限被忽略"。
 - **活风险 / Active risks** — <N 项，每项一行：编号（人话描述，怎么跟进）>
 - **待决策 / Open decisions** — <无 | 列表>
 

@@ -3,7 +3,8 @@
 Covers Success-Criteria ↔ Evidence-row reconciliation, plan-review closure
 and round numbering, task-id references (review→plan and plan→task-list),
 placeholder detection, the Code
-Map reverse index, the per-round document-sync attestation, and the CLI
+Map reverse index, the per-round document-sync attestation, the summary's
+freshness against the newest plan-review round, and the CLI
 contract (lint mode and `--find` lookup mode) used by the fullstack
 skills.
 """
@@ -48,7 +49,7 @@ def _work_dir(tmp_path: Path, plan: str = "", review: str = "", analysis: str = 
 SUMMARY_BLOCK = """## 摘要（给人读的——全工作项唯一允许原地更新的章节）
 
 **一句话**：给 demo 工作项一个可以核验的最小骨架。
-**状态**：规划中——方案待审查。
+**状态**：第 1 轮方案审查 PASS，规划完成。
 **需要你决策的事**：无
 **没解决的事**：无
 **读哪里**：问题细节→analysis.md；怎么实施→本文件正文；审查与证据→review.md
@@ -1078,3 +1079,104 @@ class TestTaskRefsInPlan:
         findings = lint_work_dir(_work_dir(tmp_path, PLAN_NO_TASK_IDS, REVIEW_OK))
         assert _errors(findings) == []
         assert not any("task list" in m for m in _warnings(findings))
+
+
+# ---------------------------------------------------------------------------
+# Check 12 — plan.md's summary reflects the newest plan-review round
+# ---------------------------------------------------------------------------
+
+FRESH_STATUS = "**状态**：第 1 轮方案审查 PASS，规划完成。"
+
+# Round 1 closed, round 2 is in the record with PASS_WITH_RISKS.
+REVIEW_TWO_ROUNDS = (
+    REVIEW_OK
+    + "\n## 方案审查 — 第 2 轮 — 2026-09-22\n\n### 结论\n\n"
+    "PASS_WITH_RISKS — no blocking findings.\n"
+)
+
+# The status line still reads "awaiting round 2" while round 2 has already
+# returned PASS_WITH_RISKS — the summary reports a position the record has
+# moved past. This is the drift the check exists for: the round number is
+# there, the verdict it returned is not.
+PLAN_STALE_SUMMARY = PLAN_OK.replace(
+    FRESH_STATUS,
+    "**状态**：第 2 轮提案完成；机械门禁通过；待 plan-reviewer 第 2 轮审查。",
+)
+
+# The summary moved forward with the review loop.
+PLAN_SUMMARY_ROUND_TWO = PLAN_OK.replace(
+    FRESH_STATUS,
+    "**状态**：第 2 轮方案审查 PASS_WITH_RISKS，待用户追认 D1。",
+)
+
+
+class TestSummaryFreshness:
+    def test_stale_summary_is_an_error(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_STALE_SUMMARY, REVIEW_TWO_ROUNDS)
+        )
+        stale = [
+            m for m in _errors(findings) if "newest plan-review round" in m
+        ]
+        assert len(stale) == 1
+        assert "PASS_WITH_RISKS" in stale[0]
+        assert "STATUS=FAIL" in format_findings(findings)
+
+    def test_unnamed_round_is_reported_by_number(self, tmp_path: Path):
+        # The summary stops at round 1 while round 2 is in the record.
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_OK, REVIEW_TWO_ROUNDS)
+        )
+        stale = [
+            m for m in _errors(findings) if "newest plan-review round" in m
+        ]
+        assert len(stale) == 1
+        assert "round 2" in stale[0]
+        assert "PASS_WITH_RISKS" in stale[0]
+
+    def test_fresh_summary_is_silent(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_SUMMARY_ROUND_TWO, REVIEW_TWO_ROUNDS)
+        )
+        assert not [m for m in _errors(findings) if "newest plan-review" in m]
+
+    def test_later_field_does_not_count_as_the_status(self, tmp_path: Path):
+        # Only the status field claims the current position; a round named
+        # in a neighbouring field is not the summary reporting its state.
+        plan = PLAN_OK.replace(
+            FRESH_STATUS,
+            "**状态**：规划中。\n"
+            "**读哪里**：第 2 轮 PASS_WITH_RISKS 见 review.md",
+        )
+        findings = lint_work_dir(_work_dir(tmp_path, plan, REVIEW_TWO_ROUNDS))
+        assert any("newest plan-review round" in m for m in _errors(findings))
+
+    def test_summary_without_a_status_field_stays_silent(self, tmp_path: Path):
+        # Older prose summaries carry no status field, so nothing claims a
+        # position — same legacy escape as the other checks.
+        plan = PLAN_OK.replace(FRESH_STATUS, "")
+        findings = lint_work_dir(_work_dir(tmp_path, plan, REVIEW_TWO_ROUNDS))
+        assert not [m for m in _errors(findings) if "newest plan-review" in m]
+
+    def test_missing_summary_section_stays_silent(self, tmp_path: Path):
+        findings = lint_work_dir(_work_dir(tmp_path, PLAN_NO_SUMMARY, REVIEW_OK))
+        assert not [m for m in _errors(findings) if "newest plan-review" in m]
+
+    def test_no_plan_review_round_stays_silent(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_OK, "# 审查：demo\n\nnothing\n")
+        )
+        assert not [m for m in _errors(findings) if "newest plan-review" in m]
+
+    def test_code_review_round_ends_the_check(self, tmp_path: Path):
+        # Once code review starts, the status line reports implementation and
+        # the live plan-review position is review.md's status overview — a
+        # summary that no longer names the round is not drift.
+        findings = lint_work_dir(
+            _work_dir(
+                tmp_path,
+                PLAN_STALE_SUMMARY,
+                REVIEW_TWO_ROUNDS + _code_round("api", 1, ATTESTATION),
+            )
+        )
+        assert not [m for m in _errors(findings) if "newest plan-review" in m]

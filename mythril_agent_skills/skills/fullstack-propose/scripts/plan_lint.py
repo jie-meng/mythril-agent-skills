@@ -81,16 +81,34 @@ Checks:
     both sides. All dangling ids are reported in one aggregate error. A
     plan with no task ids at all stays silent, so legacy items written
     with "任务 1"-style lists generate no noise (same design as check 6).
+12. **Summary freshness** — when `plan.md` carries a decision-reader
+    `## 摘要` / `## Summary` section — one with a `**状态**` / `**Status**`
+    field — and `review.md` holds plan-review rounds, that status line
+    must name the newest round and the verdict it returned. The summary
+    is the only section updated in place as the item evolves — everything
+    else is append-only — which makes it the one a revision forgets and
+    the first one a decision-maker reads. A summary still reading
+    "awaiting round 2" while round 2 has already returned `NEEDS_FIXES`
+    reports a state the documents no longer hold, and the reader who acts
+    on it is acting on a plan that was already falsified. No other check
+    catches that: every other one reads the rounds themselves, not the
+    summary's claim about them. The check applies while the item is still
+    being planned — once a code-review round exists the status line
+    reports implementation, and the live position belongs to `review.md`'s
+    status overview.
 
 Checks 5, 7 and 8 are warnings because none of them breaks the chain.
-Checks 1-4, 6, 9, 10 and 11 are errors: each one lets an unverifiable claim
-enter the definition of done, or leaves the work item untraceable from
-its own code. Item 6 stays silent for work items that have
-neither the section nor a coverage matrix, so legacy items do not
-generate noise. Item 8 warns rather than errors for the same reason in
-mirror image: work items written before the summary existed have no
-section to find, and the lint only runs on active work-item gates, so
-it never re-scans archived items.
+Checks 1-4, 6, 9, 10, 11 and 12 are errors: each one lets an
+unverifiable claim enter the definition of done, or leaves the work item
+untraceable from its own code. Item 6 stays silent for work items that
+have neither the section nor a coverage matrix, so legacy items do not
+generate noise. Items 8 and 12 are silent in mirror image: a work item
+written before the summary existed has no section to find — item 8
+reports that absence as a warning, item 12 has nothing to compare — and
+item 12 additionally stays silent for a summary written in the older
+prose shape, which carries no status field to go stale, and until a
+plan-review round exists. The lint only runs on active work-item gates,
+so it never re-scans archived items.
 
 ## Reverse lookup mode
 
@@ -161,6 +179,12 @@ PLACEHOLDER_RE = re.compile(r"待确认|待定|\bTBD\b")
 EVIDENCE_HEADINGS = ("## 证据核验", "## Evidence")
 REQUIREMENTS_HEADINGS = ("## 需求原文", "## Original Requirements")
 SUMMARY_HEADINGS = ("## 摘要", "## Summary")
+# The status field of the summary: the line that states the item's current
+# position, and the one a revision forgets to move forward.
+SUMMARY_STATUS_RE = re.compile(
+    r"^[ \t]*(?:\*\*)?[ \t]*(?:状态|Status)[ \t]*(?:\*\*)?[ \t]*[:：]",
+    re.MULTILINE,
+)
 CODE_MAP_HEADINGS = ("## 代码地图", "## Code Map")
 IMPLEMENTATION_PLAN_HEADINGS = ("## 实现计划", "## Implementation Plan")
 CODE_REVIEW_HEADINGS = ("## 代码审查", "## Code Review")
@@ -544,6 +568,14 @@ def _check_code_map(plan_text: str) -> list[Finding]:
     return findings
 
 
+def _has_code_review_round(review_text: str) -> bool:
+    """True once `fullstack-apply` has reviewed code for this item."""
+    return any(
+        _is_code_review_round(heading)
+        for heading, _ in split_sections(review_text)
+    )
+
+
 def _is_code_review_round(heading: str) -> bool:
     """Return whether a `## ` heading is a code-review round.
 
@@ -708,6 +740,7 @@ def lint_work_dir(work_dir: Path) -> list[Finding]:
     findings.extend(_check_placeholders(plan_text, analysis_text))
     findings.extend(_check_finding_discipline(review_text))
     findings.extend(_check_summary_section(plan_text))
+    findings.extend(_check_summary_freshness(plan_text, review_text))
     findings.extend(_check_code_map(plan_text))
     findings.extend(_check_document_sync(review_text))
 
@@ -974,6 +1007,95 @@ def _check_summary_section(plan_text: str) -> list[Finding]:
             )
         ]
     return []
+
+
+def _summary_status_field(body: str) -> str | None:
+    """Return the summary's status field, or None when it has none.
+
+    A summary with no status field is written in the older prose shape
+    (or is malformed); either way it makes no claim about the item's
+    current position, so there is nothing for check 12 to compare.
+
+    The field runs to the next blank line or the next bold field label, so
+    a status written across two lines is read whole. A bold token inside
+    the status itself (a verdict, say) does not end it — only a `**` at
+    the start of a line does.
+    """
+    match = SUMMARY_STATUS_RE.search(body)
+    if match is None:
+        return None
+    rest = body[match.end() :]
+    end = len(rest)
+    for stop in (
+        re.search(r"\n[ \t]*\n", rest),
+        re.search(r"\n[ \t]*\*\*", rest),
+    ):
+        if stop is not None:
+            end = min(end, stop.start())
+    return rest[:end]
+
+
+def _mentions_round(text: str, number: int) -> bool:
+    """True when `text` refers to plan-review round `number`.
+
+    Accepts the shapes a summary actually uses in either language:
+    `第 4 轮`, `Round 4`, `4 轮`, `4 rounds`.
+    """
+    return (
+        re.search(
+            rf"(?:第\s*{number}\s*轮|Round\s*{number}\b"
+            rf"|\b{number}\s*轮|\b{number}\s*rounds?\b)",
+            text,
+            re.IGNORECASE,
+        )
+        is not None
+    )
+
+
+def _check_summary_freshness(plan_text: str, review_text: str) -> list[Finding]:
+    """Check 12 — the summary states the newest plan-review position."""
+    body = find_section_body(plan_text, SUMMARY_HEADINGS)
+    if body is None:
+        return []  # check 8 owns the missing-section case
+
+    rounds = parse_plan_review_rounds(review_text)
+    if not rounds:
+        return []  # nothing reviewed yet, so there is no position to state
+
+    if _has_code_review_round(review_text):
+        # Planning is over: the status line now reports implementation, and
+        # the live plan-review position is review.md's status overview. The
+        # drift this check catches is a summary left behind at the propose
+        # gate, so the check stops where that gate does.
+        return []
+
+    newest = rounds[-1]
+    status = _summary_status_field(body)
+    if status is None:
+        # Older prose summaries carry no status field, so nothing is
+        # claiming a position. Same legacy escape as checks 6 and 8.
+        return []
+
+    missing: list[str] = []
+    if not _mentions_round(status, newest.number):
+        missing.append(f"round {newest.number}")
+    if newest.verdict and newest.verdict not in VERDICT_RE.findall(status):
+        missing.append(newest.verdict)
+    if not missing:
+        return []
+
+    return [
+        Finding(
+            "ERROR",
+            f"{PLAN_FILE}'s '## 摘要' / '## Summary' does not reflect the "
+            "newest plan-review round — missing "
+            + " and ".join(missing)
+            + ". The summary is the one section updated in place as the item "
+            "evolves, so a revision that leaves it behind reports a state the "
+            "documents no longer hold; state the round and its verdict in its "
+            "status line.",
+        )
+    ]
 
 
 def discover_docs_dir(start: Path) -> Path | None:

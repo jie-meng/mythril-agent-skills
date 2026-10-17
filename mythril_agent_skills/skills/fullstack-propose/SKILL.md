@@ -523,6 +523,26 @@ Every work item is reviewed; the *loop* is what scales.
 | **Lean tier** — the Step 4 four-condition standard holds and the user has not upgraded to full | **1 pass + 1 confirmation, capped.** On `NEEDS_FIXES`: planner revises, then the SAME round re-runs the mechanical gates (`plan_lint` / Mermaid / DAG) — a mechanical-gate re-check does not count as a review round. The confirmation round runs as a fresh agent on the round-2+ brief below. If it still does not converge, record the residual items as known risks in `plan.md` and close as `PASS_WITH_RISKS` — no third round |
 | Multi-repo, any frozen contract, deep (spike) mode, or architectural refactor | **Loop.** Pass → revise → re-review. Cap: 2 revision rounds (3 passes total) |
 
+**Counting the rounds — the cap counts passes, and a re-plan starts a new
+loop.** Three things follow from that:
+
+- A **re-plan** starts a new loop. When the user answers a
+  `NEEDS_USER_DECISION` with a different design and the planner rewrites the
+  documents instead of amending them, the rewritten plan is a new proposal:
+  its review is pass 1 of the new loop, and the cap is measured from there.
+  Earlier rounds stay in `review.md` as history and are not re-counted. A
+  rewrite changes design choices — a different option, a different data
+  shape, a scope that moved — not wording.
+- An answer that only **amends** the existing plan continues the current
+  loop: the review of the amendment is the next pass of that same loop.
+- A **mechanical-gate re-check** after a revision (`plan_lint` / Mermaid /
+  DAG) is never a pass.
+
+Record which loop the current round belongs to in `review.md` §状态速览 /
+§Status Overview, next to the round count — `方案审查 4 轮（第 2–4 轮同一循环，
+上限 3 轮）`. Without it a reader cannot tell a run that reached the cap from
+one that quietly ignored it, and neither can the next agent.
+
 Do not skip the gate because the plan "looks fine" — that judgment is the
 thing being tested.
 
