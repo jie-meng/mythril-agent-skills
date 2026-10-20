@@ -726,6 +726,35 @@ class TestMatchCodeMapRow:
         assert normalize_path(".\\src//preferences\\") == "src/preferences"
         assert normalize_path("/abs/path.py") == "abs/path.py"
 
+    def _symbol_row(self, symbols: str) -> dict[str, str]:
+        return {
+            "repository": "robo",
+            "path": "src/BleClientIntent.kt",
+            "symbols": symbols,
+            "change": "修复蓝牙意图",
+        }
+
+    def test_split_token_does_not_match_a_longer_identifier(self):
+        """`action` out of `state/action` is not a substring claim."""
+        row = self._symbol_row("state/action")
+        assert match_code_map_row("not_a_real_symbol_action_xyz", row) == 0
+
+    def test_split_token_still_matches_its_own_symbol(self):
+        assert match_code_map_row("action", self._symbol_row("state/action")) == 2
+
+    def test_qualified_symbol_suffix_matches(self):
+        row = self._symbol_row("repo.find_many_by_device_ids")
+        assert match_code_map_row("find_many_by_device_ids", row) == 2
+
+    def test_class_method_token_and_full_lookup_both_match(self):
+        row = self._symbol_row("Class/method")
+        assert match_code_map_row("method", row) == 2
+        assert match_code_map_row("Class/method", row) == 2
+
+    def test_chinese_gloss_after_the_symbol_still_matches(self):
+        row = self._symbol_row("onWakeUp（深睡唤醒）")
+        assert match_code_map_row("onWakeUp", row) == 2
+
 
 def _docs_dir_with(tmp_path: Path, items: dict[str, str]) -> Path:
     """Build `<tmp>/central-docs/changes/<key>/plan.md` for each item."""
@@ -737,7 +766,35 @@ def _docs_dir_with(tmp_path: Path, items: dict[str, str]) -> Path:
     return docs
 
 
+# The row that produced the false owner: `state/action` splits into two
+# short tokens, and `action` used to match any identifier containing it.
+CODE_MAP_STATE_ACTION = """## 代码地图（Code Map）
+
+| 仓库 | 路径 | 符号 | 改了什么 |
+|---|---|---|---|
+| robo | `src/BleClientIntent.kt` | `state/action` | 蓝牙意图分发 |
+"""
+
+
 class TestFindInDocsDir:
+    def test_split_token_does_not_claim_an_unrelated_needle(self, tmp_path: Path):
+        docs = _docs_dir_with(
+            tmp_path, {"feat/ble": _plan_with(CODE_MAP_STATE_ACTION)}
+        )
+        hits, weak, mentions = find_in_docs_dir(
+            docs, "not_a_real_symbol_action_xyz"
+        )
+        assert hits == []
+        assert not any(hit.startswith("CODEMAP:") for hit in weak + mentions)
+
+    def test_split_token_needle_still_finds_the_item(self, tmp_path: Path):
+        docs = _docs_dir_with(
+            tmp_path, {"feat/ble": _plan_with(CODE_MAP_STATE_ACTION)}
+        )
+        hits, _, _ = find_in_docs_dir(docs, "action")
+        assert len(hits) == 1
+        assert hits[0].startswith("CODEMAP: changes/feat/ble | robo |")
+
     def test_finds_the_owning_work_item(self, tmp_path: Path):
         docs = _docs_dir_with(tmp_path, {"feat/dark-mode": PLAN_OK})
         hits, _, mentions = find_in_docs_dir(docs, "api/src/preferences/dark_mode.py")
@@ -834,6 +891,23 @@ class TestFindCli:
         assert result.returncode == 1
         assert "STATUS=NONE" in result.stdout
         assert "never edit code silently" in result.stdout
+
+    def test_split_token_does_not_fake_an_owner(self, tmp_path: Path):
+        docs = _docs_dir_with(
+            tmp_path, {"feat/ble": _plan_with(CODE_MAP_STATE_ACTION)}
+        )
+        result = self._run("--find", "not_a_real_symbol_action_xyz", str(docs))
+        assert result.returncode == 1
+        assert "STATUS=NONE" in result.stdout
+        assert "CODEMAP:" not in result.stdout
+
+    def test_split_token_needle_is_a_real_owner(self, tmp_path: Path):
+        docs = _docs_dir_with(
+            tmp_path, {"feat/ble": _plan_with(CODE_MAP_STATE_ACTION)}
+        )
+        result = self._run("--find", "action", str(docs))
+        assert result.returncode == 0
+        assert "STATUS=OWNER" in result.stdout
 
     def test_discovery_from_the_workspace_root(self, tmp_path: Path):
         docs = _docs_dir_with(tmp_path, {"feat/dark-mode": PLAN_OK})
@@ -1180,3 +1254,106 @@ class TestSummaryFreshness:
             )
         )
         assert not [m for m in _errors(findings) if "newest plan-review" in m]
+
+
+# ---------------------------------------------------------------------------
+# Check 13 — the same-loop plan-review pass count in the status overview
+# ---------------------------------------------------------------------------
+
+
+def _plan_for_round(total: int) -> str:
+    """PLAN_OK whose summary names the final plan-review round."""
+    return PLAN_OK.replace(
+        FRESH_STATUS,
+        f"**状态**：第 {total} 轮方案审查 PASS，规划完成。",
+    )
+
+
+def _review_with_loop_line(rounds_line: str, total: int) -> str:
+    """A review with `total` closed rounds and `rounds_line` in its overview."""
+    review = REVIEW_OK
+    for number in range(2, total + 1):
+        review += (
+            f"\n## 方案审查 — 第 {number} 轮 — 2026-09-2{number}\n\n"
+            "### 结论\n\nPASS — no blocking findings.\n"
+        )
+    overview = (
+        "## 状态速览\n\n"
+        f"**最新结论**：方案审查 PASS（第 {total} 轮）\n\n"
+        f"**审查轮次**：{rounds_line}\n\n"
+        "**活风险**：无\n\n"
+        "**待决策**：无\n\n"
+    )
+    return review.replace("# 审查：demo\n\n", "# 审查：demo\n\n" + overview, 1)
+
+
+class TestLoopCap:
+    def _findings(self, tmp_path: Path, rounds_line: str, total: int):
+        return lint_work_dir(
+            _work_dir(
+                tmp_path,
+                _plan_for_round(total),
+                _review_with_loop_line(rounds_line, total),
+            )
+        )
+
+    def test_four_passes_in_one_loop_warn(self, tmp_path: Path):
+        findings = self._findings(
+            tmp_path, "方案审查 4 轮（同一循环，上限 3 轮）", 4
+        )
+        assert _errors(findings) == []
+        assert any(
+            "one loop" in m and "cap 3" in m for m in _warnings(findings)
+        )
+
+    def test_range_of_three_same_loop_passes_stays_silent(
+        self, tmp_path: Path
+    ):
+        findings = self._findings(
+            tmp_path, "方案审查 4 轮（第 2–4 轮同一循环，上限 3 轮）", 4
+        )
+        assert not any("one loop" in m for m in _warnings(findings))
+
+    def test_full_width_tilde_range_stays_silent(self, tmp_path: Path):
+        # CJK input methods emit U+FF5E for the range dash.
+        findings = self._findings(
+            tmp_path, "方案审查 4 轮（第 2～4 轮同一循环，上限 3 轮）", 4
+        )
+        assert _errors(findings) == []
+        assert not any("one loop" in m for m in _warnings(findings))
+
+    def test_full_width_hyphen_range_stays_silent(self, tmp_path: Path):
+        # CJK input methods emit U+FF0D for the range dash.
+        findings = self._findings(
+            tmp_path, "方案审查 4 轮（第 2－4 轮同一循环，上限 3 轮）", 4
+        )
+        assert _errors(findings) == []
+        assert not any("one loop" in m for m in _warnings(findings))
+
+    def test_three_same_loop_passes_stay_silent(self, tmp_path: Path):
+        findings = self._findings(
+            tmp_path, "方案审查 3 轮（同一循环，已达上限 3 轮）", 3
+        )
+        assert not any("one loop" in m for m in _warnings(findings))
+
+    def test_total_four_without_the_annotation_stays_silent(
+        self, tmp_path: Path
+    ):
+        findings = self._findings(tmp_path, "方案审查 4 轮。", 4)
+        assert not any("one loop" in m for m in _warnings(findings))
+
+    def test_english_range_stays_silent(self, tmp_path: Path):
+        findings = self._findings(
+            tmp_path,
+            "plan review 4 rounds (rounds 2–4 same loop, cap 3)",
+            4,
+        )
+        assert not any("one loop" in m for m in _warnings(findings))
+
+    def test_english_four_same_loop_passes_warn(self, tmp_path: Path):
+        findings = self._findings(
+            tmp_path, "plan review 4 rounds (same loop, cap 3)", 4
+        )
+        assert any(
+            "one loop" in m and "cap 3" in m for m in _warnings(findings)
+        )

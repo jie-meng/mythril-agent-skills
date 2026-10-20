@@ -96,8 +96,18 @@ Checks:
     being planned — once a code-review round exists the status line
     reports implementation, and the live position belongs to `review.md`'s
     status overview.
+13. **Same-loop plan-review cap** — `review.md`'s `## 状态速览` /
+    `## Status Overview` is the one section updated in place. When its
+    review-rounds line explicitly writes `同一循环` / `same loop`, the
+    number of plan-review passes in that loop must not exceed 3. A range
+    (`第 2–4 轮同一循环` / `rounds 2–4 same loop`) is counted as Y−X+1;
+    otherwise the `方案审查 N 轮` / `plan review N rounds` total is used.
+    Items that do not write the annotation stay silent, because a total
+    round count alone says nothing about a loop. Exceeding the cap is a
+    warning: either the flow re-planned past its cap or the loop boundary
+    is recorded wrong, and neither is visible to a reader otherwise.
 
-Checks 5, 7 and 8 are warnings because none of them breaks the chain.
+Checks 5, 7, 8 and 13 are warnings because none of them breaks the chain.
 Checks 1-4, 6, 9, 10, 11 and 12 are errors: each one lets an
 unverifiable claim enter the definition of done, or leaves the work item
 untraceable from its own code. Item 6 stays silent for work items that
@@ -224,6 +234,23 @@ HEADING_RE = re.compile(r"^##\s+(.*)$", re.MULTILINE)
 # contract in agents/plan-reviewer.md.
 SEVERITY_BULLET_RE = re.compile(r"^\s*[-*]\s*\[P([0-9])\]", re.MULTILINE)
 MAX_P2_PER_ROUND = 5
+
+STATUS_OVERVIEW_HEADINGS = ("## 状态速览", "## Status Overview")
+# The rounds-line annotation that scopes the round cap to one loop. Items
+# that do not write it predate the convention and stay silent.
+SAME_LOOP_MARKERS = ("同一循环", "same loop")
+PLAN_ROUNDS_COUNT_RE = re.compile(
+    r"(?:方案审查|plan review)\s*(\d+)\s*(?:轮|rounds?)", re.IGNORECASE
+)
+# `第 2–4 轮同一循环` / `rounds 2–4 same loop` — the recommended spelling
+# of a loop that consumed three of its passes. The separator class also
+# covers the full-width forms (`～`, `－`) that CJK input methods produce.
+SAME_LOOP_RANGE_RE = re.compile(
+    r"(?:第\s*(\d+)\s*[–—\-~～－]\s*(\d+)\s*轮\s*同一循环"
+    r"|rounds?\s*(\d+)\s*[–—\-~～－]\s*(\d+)\s*same loop)",
+    re.IGNORECASE,
+)
+MAX_SAME_LOOP_PASSES = 3
 
 CLOSING_VERDICTS = ("PASS", "PASS_WITH_RISKS")
 
@@ -468,6 +495,24 @@ def code_map_row_candidates(row: dict[str, str]) -> list[str]:
     return candidates
 
 
+def _contains_whole_identifier(haystack: str, needle: str) -> bool:
+    """True when `needle` occurs in `haystack` as a whole identifier.
+
+    `_` is an identifier character, so a short token split out of a
+    qualified symbol (`action` from `state/action`) matches its own symbol
+    and a `repo.`-qualified spelling, but not a longer identifier that
+    merely contains it (`not_a_real_symbol_action_xyz`). Without the
+    boundary, a common token claims every identifier it appears in and a
+    miss is reported as a Code Map owner.
+    """
+    if not needle:
+        return False
+    pattern = (
+        r"(?<![A-Za-z0-9_])" + re.escape(needle) + r"(?![A-Za-z0-9_])"
+    )
+    return re.search(pattern, haystack) is not None
+
+
 def match_code_map_row(needle: str, row: dict[str, str]) -> int:
     """Score one Code Map row against a lookup needle.
 
@@ -487,7 +532,11 @@ def match_code_map_row(needle: str, row: dict[str, str]) -> int:
             return 2
     for symbol in re.split(r"[,，、;；/]+", row.get("symbols", "")):
         cleaned = normalize_path(symbol)
-        if cleaned and (cleaned == target or cleaned in target or target in cleaned):
+        if cleaned and (
+            cleaned == target
+            or _contains_whole_identifier(cleaned, target)
+            or _contains_whole_identifier(target, cleaned)
+        ):
             return 2
     for candidate in candidates:
         if target in candidate or candidate in target:
@@ -743,6 +792,7 @@ def lint_work_dir(work_dir: Path) -> list[Finding]:
     findings.extend(_check_summary_freshness(plan_text, review_text))
     findings.extend(_check_code_map(plan_text))
     findings.extend(_check_document_sync(review_text))
+    findings.extend(_check_loop_cap(review_text))
 
     return findings
 
@@ -1094,6 +1144,58 @@ def _check_summary_freshness(plan_text: str, review_text: str) -> list[Finding]:
             "evolves, so a revision that leaves it behind reports a state the "
             "documents no longer hold; state the round and its verdict in its "
             "status line.",
+        )
+    ]
+
+
+def _check_loop_cap(review_text: str) -> list[Finding]:
+    """Check 13 — one loop must not exceed the plan-review pass cap.
+
+    `review.md`'s `## 状态速览` / `## Status Overview` is the one section
+    updated in place, and its review-rounds line is the only place that
+    says which round cap applies. It is checked only when that line
+    explicitly writes `同一循环` / `same loop`: a total round count alone
+    says nothing about a loop, so items written before the annotation
+    stay silent. A range (`第 2–4 轮同一循环` / `rounds 2–4 same loop`) is
+    counted as Y−X+1 — the recommended spelling of a legal 3-pass loop —
+    otherwise the stated `方案审查 N 轮` / `plan review N rounds` total
+    is used.
+    """
+    body = find_section_body(review_text, STATUS_OVERVIEW_HEADINGS)
+    if body is None:
+        return []
+
+    line = ""
+    for candidate in body.splitlines():
+        if not PLAN_ROUNDS_COUNT_RE.search(candidate):
+            continue
+        if any(marker in candidate.lower() for marker in SAME_LOOP_MARKERS):
+            line = candidate
+            break
+    if not line:
+        return []
+
+    span = SAME_LOOP_RANGE_RE.search(line)
+    if span is not None:
+        start = span.group(1) if span.group(1) else span.group(3)
+        end = span.group(2) if span.group(2) else span.group(4)
+        passes = int(end) - int(start) + 1
+    else:
+        total = PLAN_ROUNDS_COUNT_RE.search(line)
+        if total is None:
+            return []
+        passes = int(total.group(1))
+
+    if passes <= MAX_SAME_LOOP_PASSES:
+        return []
+    return [
+        Finding(
+            "WARN",
+            f"the status overview records {passes} plan-review passes in one "
+            "loop (cap 3) — fullstack-propose caps a loop at 3 rounds, so "
+            "either the cap was exceeded or the loop boundary is recorded "
+            "wrong; record which rounds belong to the current loop, or close "
+            "the item with the residual items as known risks",
         )
     ]
 

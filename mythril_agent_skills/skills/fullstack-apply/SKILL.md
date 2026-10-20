@@ -816,6 +816,10 @@ hand-checks miss, deterministically:
   in at least one round
 - a plan-review round with more than five P2 findings, or with more
   P0/P1 than the previous round, is reported as a warning
+- the status overview's `同一循环` / `same loop` line records more than 3
+  plan-review passes in one loop — a range (`第 2–4 轮同一循环`) counts as
+  Y−X+1, otherwise the stated total — is reported as a warning; items
+  without the annotation stay silent
 - unresolved `待确认` / `TBD` markers are surfaced as warnings
 - `plan.md` carries the `## 摘要` / `## Summary` section — its absence is
   a warning (legacy work items predate it), and the heading may carry a

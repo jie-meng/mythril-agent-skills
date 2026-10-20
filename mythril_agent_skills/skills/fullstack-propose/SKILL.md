@@ -687,6 +687,11 @@ python3 SKILL_PATH/scripts/plan_lint.py <docs-dir>/changes/<type>/<work-name>
 - a round carrying more than five P2 findings, or more P0/P1 than the
   round before it, is reported as a warning (both caps exist in the
   reviewer's brief and both are invisible to a reader scanning the file)
+- the status overview's `同一循环` / `same loop` line records more than 3
+  plan-review passes — counted as Y−X+1 when a range is written
+  (`第 2–4 轮同一循环` is 3), otherwise from the `方案审查 N 轮` total —
+  is reported as a warning; items that do not write the annotation stay
+  silent
 - unresolved `待确认` / `TBD` markers are surfaced as warnings (they must
   become a formal `NEEDS_USER_DECISION`, not stay a parenthetical)
 - `plan.md` carries the `## 摘要` / `## Summary` section — its absence is
