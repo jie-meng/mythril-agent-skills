@@ -1,0 +1,25 @@
+.workbuddy-plugin/marketplace.json
+  s_c875869e8bf569::t_a569b4f8bea27c 478,494-513
+mythril_agent_skills/skills/fullstack-issue-archive/scripts/check_workspace.py
+  s_c875869e8bf569::t_32685eaed08bb5 1-96
+plugins/fullstack-issue-archive/skills/fullstack-issue-archive
+  s_c875869e8bf569::t_1fc104bf17d5e6 1
+scripts/sync-shared-assets.py
+  s_c875869e8bf569::t_37cb568e8ea0e7 154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9c1d3a568b95f109c139479c83de14adbeed0c0e",
+  "prompts": {},
+  "sessions": {
+    "s_c875869e8bf569": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ea87a0b7bffembFasOlJnccp4T",
+        "model": "unknown"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
