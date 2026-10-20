@@ -273,10 +273,17 @@ Export the complete context of a workspace, single repo, or user-specified direc
 
 **[Fullstack Issue Create](./mythril_agent_skills/skills/fullstack-issue-create/)**
 
-Record a workspace issue before it can become a work item. Captures a problem/bug/phenomenon with raw evidence (`log/`) in the docs repo's `issues/` directory — directory location is the state (`issues/` active, `issues/archive/` closed), no Status fields. One skill, three operations (create / update / close); `fullstack-propose` cites and closes the issue when the work item is created.
+Record a workspace issue before it can become a work item. Captures a problem/bug/phenomenon with raw evidence (`log/`) in the docs repo's `issues/` directory — directory location is the state (`issues/` active, `issues/archive/` closed), no Status fields. One skill, two operations (create / update); closing is delegated to `fullstack-issue-archive`. `fullstack-propose` cites and closes the issue when the work item is created.
 
 - **Try:** Log this problem for later triage: brownout during 4G bursts
 - **Deps:** Workspace initialized by `fullstack-init`
+
+**[Fullstack Issue Archive](./mythril_agent_skills/skills/fullstack-issue-archive/)**
+
+Close a workspace issue by moving its directory into `issues/archive/` — the archive move IS the closed state, name unchanged. Four close modes: `proposed` (became a work item), `resolved` (fixed directly, no work item needed — the common small-fix path), `wontfix`, `merged`. Detects whether the target is an issue or a work item from the path or context and hands off to `fullstack-archive` when it is a work item. Refuses to close an unresolved issue silently: `resolved` needs a fix pointer plus verification; otherwise the issue stays active or is closed as `wontfix`.
+
+- **Try:** Close the issue: brownout during 4G bursts
+- **Deps:** Workspace initialized by `fullstack-init`; an active issue under `issues/`
 
 **[Fullstack Propose](./mythril_agent_skills/skills/fullstack-propose/)**
 
@@ -294,7 +301,7 @@ Implement a planned work item across a multi-repo fullstack workspace. Implement
 
 **[Fullstack Archive](./mythril_agent_skills/skills/fullstack-archive/)**
 
-Archive a completed work item by moving its directory into `changes/archive/YYYY-MM-DD-<type>-<name>/`. The archive move IS the done state — no Status fields to maintain.
+Archive a completed work item by moving its directory into `changes/archive/YYYY-MM-DD-<type>-<name>/`. The archive move IS the done state — no Status fields to maintain. Refuses to archive unfinished work: failing Success Criteria or a `NEEDS_FIXES` review verdict must be resolved, or explicitly overridden and recorded in `progress.md`.
 
 - **Try:** Archive the dark mode feature
 - **Deps:** Workspace initialized by `fullstack-init`
@@ -434,7 +441,8 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `fullstack-init` | Initialize multi-repo fullstack workspace with AI context |
 | `fullstack-explore` | Read-only knowledge exploration across a fullstack workspace |
 | `fullstack-brief` | Export workspace/repo/user-specified directory context into one AI-optimized brief for web AI sessions |
-| `fullstack-issue-create` | Record pre-work-item issues with log/ evidence in the docs repo's issues/ directory |
+| `fullstack-issue-create` | Record or update pre-work-item issues with log/ evidence in the docs repo's issues/ directory |
+| `fullstack-issue-archive` | Close an issue by moving it into issues/archive/ — proposed / resolved / wontfix / merged |
 | `fullstack-propose` | Plan a work item with Success Criteria; validate unknowns (spike); independent plan review before handoff |
 | `fullstack-apply` | Implement a planned work item across a fullstack workspace |
 | `fullstack-archive` | Archive completed work items into changes/archive/ |
@@ -723,6 +731,7 @@ mythril-agent-skills/
 │       ├── fullstack-explore/   # Read-only knowledge exploration
 │       ├── fullstack-brief/     # Export context brief for web AI sessions
 │       ├── fullstack-issue-create/  # Record issues before they become work items
+│       ├── fullstack-issue-archive/ # Close issues (issues/archive/)
 │       ├── fullstack-propose/   # Plan a work item + validate unknowns
 │       ├── fullstack-apply/     # Implement a planned work item
 │       ├── fullstack-archive/   # Archive completed work items

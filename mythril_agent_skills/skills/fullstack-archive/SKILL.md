@@ -8,7 +8,13 @@ description: |
   archived. Trigger: "fullstack archive", "archive it", "归档",
   "做完了", "ship it", "结了", "merged", "已完成", "收尾". Use when the
   user says a feature, fix, or refactor is done, shipped, merged, or
-  finished and should be moved out of the active listing.
+  finished and should be moved out of the active listing. NOT for
+  workspace issues — a directory under issues/ is closed by
+  fullstack-issue-archive; when the user says only "archive it", list
+  active work items and active issues, then ask which one. Refuses to
+  archive unfinished work: failing Success Criteria or a NEEDS_FIXES
+  review verdict must be resolved, or explicitly overridden and recorded
+  in progress.md.
 license: Apache-2.0
 ---
 
@@ -63,7 +69,37 @@ print(result.stdout)
 
 Record `DOCS_DIR` for the archive path.
 
-## Step 1 — Identify the Work Item
+## Step 1 — Route by Target Type, Then Identify the Work Item
+
+There are two archives in a fullstack workspace: work items under
+`changes/` and issues under `issues/`. Check the first matching row
+BEFORE doing anything else:
+
+| # | Signal | Target | Action |
+|---|--------|--------|--------|
+| 1 | Path under `<docs-dir>/changes/archive/` | Work item, already archived | Report it is already archived; stop. |
+| 2 | Path under `<docs-dir>/changes/{feat,refactor,fix}/` | Work item | Continue with this skill |
+| 3 | Path under `<docs-dir>/issues/archive/` | Issue, already closed | Report it is already closed; stop. |
+| 4 | Path under `<docs-dir>/issues/` | Issue | STOP — hand off to `fullstack-issue-archive` |
+| 5 | Bare name matching exactly one active work item | Work item | Continue; confirm the match with the user |
+| 6 | Bare name matching exactly one active issue | Issue | STOP — hand off to `fullstack-issue-archive` |
+| 7 | Bare "archive it" / "归档一下" with no name | Ambiguous | List active work items AND active issues, then ask which one; route by the answer |
+
+Rules:
+
+- **Path beats prose.** When the user gave a path, the tree it lives in
+  decides the type — never the user's wording. `changes/` → this skill;
+  `issues/` → `fullstack-issue-archive`.
+- **Context counts.** Work item names, plans, branch names, Progress/
+  Review references point at a work item. Issue names, symptoms (现象),
+  `log/` evidence, or an `issues/…` back-reference point at an issue.
+- **One match or ask.** If a bare name matches more than one candidate,
+  list the candidates with their paths and ask — do not guess.
+- Never close an issue from this skill, and never archive a work item
+  from `fullstack-issue-archive` — say what you found and invoke the
+  right skill.
+
+Then identify the work item:
 
 1. **If the user named a work item** (e.g. "archive add-dark-mode"),
    locate it under `<docs-dir>/changes/<type>/<work-name>/`.
@@ -75,7 +111,31 @@ Record `DOCS_DIR` for the archive path.
 Confirm the type (feat / refactor / fix) — it comes from the parent
 directory name.
 
-## Step 2 — Integrity Check (WARN ONLY, non-blocking)
+## Step 2 — Verify Done State and Check Integrity (MANDATORY)
+
+### 2a — Done gate (BLOCKING)
+
+**"Archive it" is not proof that the work is finished.** Read `plan.md`,
+`review.md`, and `progress.md` and verify all of the following:
+
+| Check | Done when | Not done when |
+|-------|-----------|---------------|
+| Success Criteria | every criterion in `plan.md` has an Evidence row in `review.md` marked `✅ Pass` / `✅ 通过`, or is explicitly waived (`⚠️ Skipped` / `⚠️ 跳过`) with a documented reason the user has accepted | any `❌ Fail` / `❌ 未通过`, `待核验` / `Pending`, missing row, or an unaccepted `⚠️ Skipped` / `⚠️ 跳过` |
+| Review verdict | the newest code-review verdict (the last `### Verdict` / `### 结论`, or the Status Overview's latest verdict) is `PASS` or `PASS_WITH_RISKS` | `NEEDS_FIXES`, `FAIL`, `BLOCKED`, or `NEEDS_USER_DECISION` |
+| Open work | `progress.md` ends in a completed state (merged / shipped / done) | an open blocker, an in-progress tail, or an unresolved decision |
+
+If any row is "not done", **STOP** — report `NOT DONE` with the failing
+checks and do not archive. Ask the user to finish the work or to
+explicitly confirm an early archive.
+
+**Informed override.** If the user explicitly says to archive anyway
+after hearing the failures, append a dated entry to `progress.md` BEFORE
+the move, recording the unmet checks and the user's decision (e.g.
+`Archived with SC-3 ⚠️ Skipped by user decision`). Then continue. An
+archived item must read as unfinished when it is unfinished — the move
+must never imply completion.
+
+### 2b — Document integrity (advisory, non-blocking)
 
 Check the four work-tracking documents exist:
 
@@ -94,14 +154,13 @@ Also check the issue back-reference: when `plan.md`'s **Source** /
 **来源** points at an issue (an `issues/…` path), that issue directory
 must already live under `<docs-dir>/issues/archive/`. If it is still in
 the active area (`<docs-dir>/issues/<name>/`), report it and suggest
-closing it first via `fullstack-issue-create`'s close procedure
-(Step 3 — Close) — an archived work item pointing at an active issue is
-a dangling reference — but archive proceeds regardless.
+closing it first via `fullstack-issue-archive` — an archived work item
+pointing at an active issue is a dangling reference — but archive
+proceeds regardless.
 
-**These checks are advisory, not blocking.** Archive proceeds even if a
-document is missing or review is incomplete — but you MUST report any
+**These integrity checks are advisory, not blocking.** Report any
 deficiency to the user so they can fix the record or consciously accept
-it as-is.
+it. Completion is decided by the 2a done gate, not by document count.
 
 ## Step 3 — Optional Changelog Entry
 
@@ -166,7 +225,8 @@ Contents:
 - review.md     ✓ / missing  (verdict: present / missing)
 
 Notes:
-- <any integrity warnings from Step 2>
+- <done-gate failures + any integrity warnings from Step 2>
+- <informed override recorded in progress.md: yes/no>
 - <changelog entry written: yes/no>
 ```
 
@@ -192,5 +252,9 @@ Notes:
   listing.
 - Never overwrite an existing archive directory — fail hard on collision.
 - Never reopen an archived directory. Successors are new work items.
-- Integrity checks are advisory — report deficiencies, don't block.
+- The 2a done gate is blocking: never archive an item with failing
+  Success Criteria or a `NEEDS_FIXES` / `FAIL` review verdict. An
+  informed override must be recorded in `progress.md` before the move.
+- Document integrity checks are advisory — report deficiencies, don't
+  block.
 - The docs repo is the only repo touched. No code repos are modified.

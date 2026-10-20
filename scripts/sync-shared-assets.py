@@ -151,6 +151,7 @@ def specs() -> list[SyncSpec]:
     workspace_consumers = (
         "fullstack-apply",
         "fullstack-archive",
+        "fullstack-issue-archive",
         "fullstack-issue-create",
         "fullstack-propose",
     )

@@ -147,6 +147,7 @@ class TestWorkspaceAgentsMdIssues:
         assert "log/" in section
         assert "issues/archive/" in section
         assert "fullstack-issue-create" in section
+        assert "fullstack-issue-archive" in section
 
     def test_work_tracking_states_close_semantics(self):
         section = self._work_tracking_section()
@@ -181,6 +182,7 @@ class TestDocsAgentsMdIssues:
     def test_work_tracking_explains_issue_shape_and_close_move(self):
         result = self.func("central-docs")
         assert "fullstack-issue-create" in result
+        assert "fullstack-issue-archive" in result
         assert "YYYY-MM-DD-<name>" in result
         assert "log/" in result
         assert "issues/archive/" in result
@@ -221,6 +223,7 @@ class TestReadmeIssuesEnglish:
         assert "issues/archive/" in result
         assert "name unchanged" in result
         assert "fullstack-issue-create" in result
+        assert "fullstack-issue-archive" in result
 
     def test_no_chinese_half_bleed(self):
         result = self.func("proj", "central-docs", lang="en")
@@ -251,6 +254,7 @@ class TestReadmeIssuesChinese:
         assert "issues/archive/" in result
         assert "目录名保持不变" in result
         assert "fullstack-issue-create" in result
+        assert "fullstack-issue-archive" in result
 
     def test_no_english_half_bleed(self):
         result = self.func("proj", "central-docs", lang="zh")
@@ -288,10 +292,11 @@ class TestIssueCreateSkillContract:
         ):
             assert marker in self.frontmatter, f"description missing: {marker}"
 
-    def test_three_operations_are_titled(self):
+    def test_create_update_and_delegated_close_are_titled(self):
         assert "## Step 1 — Create" in self.body
         assert "## Step 2 — Update" in self.body
         assert "## Step 3 — Close" in self.body
+        assert "fullstack-issue-archive" in self.body
 
     def test_boundary_section_with_github(self):
         assert "Boundary with GitHub" in self.body

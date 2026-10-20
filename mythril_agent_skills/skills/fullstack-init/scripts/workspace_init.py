@@ -434,7 +434,10 @@ first under `{docs_dir}/issues/` (sibling of `changes/`) via the
 directory (date = the record day) holding a `README.md` plus raw
 evidence in `log/`. Closing is a move into `{docs_dir}/issues/archive/`
 with the name unchanged — directory location is the state, and nothing
-under `issues/` is ever deleted.
+under `issues/` is ever deleted. Issues are closed by the
+`fullstack-issue-archive` skill — including a problem that was fixed
+directly without a work item — and only after the fix is verified or
+the user explicitly accepts an unresolved close.
 
 ## Docs-Code Lockstep (MANDATORY)
 
@@ -900,6 +903,20 @@ When a work item is done, use `fullstack-archive`:
 The skill moves the work directory into
 `{docs_dir}/changes/archive/YYYY-MM-DD-<type>-<name>/`.
 
+### Close a recorded issue
+
+An issue that was fixed directly — no work item needed — is closed with
+`fullstack-issue-archive`:
+
+```
+> Close the issue: brownout during 4G bursts
+> 归档 issue：4G 突发时电压跌落
+```
+
+The skill moves the issue directory into `{docs_dir}/issues/archive/`
+with the name unchanged, and records the close mode (`resolved` here),
+a pointer to the commit that fixed it, and how the fix was verified.
+
 ### Resume previous work
 
 If a session was interrupted, start a new session and tell the agent to
@@ -959,7 +976,8 @@ Problems that are not ready to become work items are recorded first
 under `{docs_dir}/issues/YYYY-MM-DD-<name>/` (date = the record day)
 with raw evidence in `log/`. Closing an issue moves it into
 `{docs_dir}/issues/archive/` with the name unchanged. See the
-`fullstack-issue-create` skill.
+`fullstack-issue-create` skill (record / update) and
+`fullstack-issue-archive` (close).
 
 ## Documentation
 
@@ -1052,6 +1070,18 @@ propose 会在 `{docs_dir}/changes/` 下创建工作计划。如果有未知项�
 技能会把工作目录移动到
 `{docs_dir}/changes/archive/YYYY-MM-DD-<type>-<name>/`。
 
+### 关闭已记录的 issue
+
+如果问题已直接修好、不需要立项，用 `fullstack-issue-archive` 关闭：
+
+```
+> 关闭 issue：4G 突发时电压跌落
+> Close the issue: brownout during 4G bursts
+```
+
+技能会把 issue 目录移入 `{docs_dir}/issues/archive/`，目录名保持不变，
+并记录关闭方式（这里是 `resolved`）、修复它的提交指针，以及验证方式。
+
 ### 继续上一次的工作
 
 如果上次会话中断了，新建会话后告诉 AI 继续：
@@ -1105,8 +1135,10 @@ propose 会在 `{docs_dir}/changes/` 下创建工作计划。如果有未知项�
 
 尚不能立项的问题先用 `fullstack-issue-create` 技能记录到
 `{docs_dir}/issues/YYYY-MM-DD-<name>/`（日期为记录日）下，
-原始证据存放在 `log/`。关闭 issue 时将其移入
-`{docs_dir}/issues/archive/`，目录名保持不变。
+原始证据存放在 `log/`。关闭 issue 时用 `fullstack-issue-archive`
+技能将其移入 `{docs_dir}/issues/archive/`，目录名保持不变——
+包括问题已直接修好、没有走工作项的情况；只有修复经过验证，或用户
+明确接受未解决的关闭时，才会真正关闭。
 
 ## 文档说明
 
@@ -1169,7 +1201,7 @@ The `issues/` directory holds problem records created by the
 `fullstack-issue-create` skill before they become work items — each
 issue is a `YYYY-MM-DD-<name>/` directory with a `README.md` and raw
 evidence in `log/`; closing moves it into `issues/archive/` with the
-name unchanged.
+name unchanged and is performed by `fullstack-issue-archive`.
 
 Each work item gets its own subdirectory:
 

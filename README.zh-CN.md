@@ -266,10 +266,17 @@ Skill（技能）是一个提示词/指令包，用于教 AI 助手如何处理�
 
 **[Fullstack Issue Create](./mythril_agent_skills/skills/fullstack-issue-create/)**
 
-在问题一时无法立项时先把它记录下来。把现象/bug 连同原始证据（`log/`）沉淀到 docs 仓库的 `issues/` 目录——目录位置即状态（`issues/` 下活跃、`issues/archive/` 下关闭），无需维护任何 Status 字段。一个 skill、三个操作（create / update / close）；`fullstack-propose` 立项时引用并关闭 issue。
+在问题一时无法立项时先把它记录下来。把现象/bug 连同原始证据（`log/`）沉淀到 docs 仓库的 `issues/` 目录——目录位置即状态（`issues/` 下活跃、`issues/archive/` 下关闭），无需维护任何 Status 字段。一个 skill、两个操作（create / update）；关闭交给 `fullstack-issue-archive`。`fullstack-propose` 立项时引用并关闭 issue。
 
 - **示例：** 先记个 issue：4G 突发时电压跌落，以后再排查
 - **依赖：** 工作区需先通过 `fullstack-init` 初始化
+
+**[Fullstack Issue Archive](./mythril_agent_skills/skills/fullstack-issue-archive/)**
+
+把 issue 目录移入 `issues/archive/` 来关闭它——移动即关闭，目录名保持不变。四种关闭方式：`proposed`（已立项）、`resolved`（直接修好、无需立项——简单修复的常用路径）、`wontfix`、`merged`。能根据路径或上下文自动判断目标是 issue 还是工作项，是工作项时交给 `fullstack-archive`。拒绝糊里糊涂关闭未解决的问题：`resolved` 必须有修复指针 + 验证证据，否则保持活跃或按 `wontfix` 关闭。
+
+- **示例：** 关闭 issue：4G 突发时电压跌落
+- **依赖：** 工作区需先通过 `fullstack-init` 初始化；`issues/` 下有活跃 issue
 
 **[Fullstack Propose](./mythril_agent_skills/skills/fullstack-propose/)**
 
@@ -287,7 +294,7 @@ Skill（技能）是一个提示词/指令包，用于教 AI 助手如何处理�
 
 **[Fullstack Archive](./mythril_agent_skills/skills/fullstack-archive/)**
 
-把已完成的工作项目录移动到 `changes/archive/YYYY-MM-DD-<type>-<name>/`。归档这个动作本身就是"完成"状态——无需维护任何 Status 字段。
+把已完成的工作项目录移动到 `changes/archive/YYYY-MM-DD-<type>-<name>/`。归档这个动作本身就是"完成"状态——无需维护任何 Status 字段。拒绝归档未完成的工作：Success Criteria 未通过或审查结论为 `NEEDS_FIXES` 时，必须先解决，或显式确认并在 `progress.md` 中留痕。
 
 - **示例：** 归档暗色模式功能
 - **依赖：** 工作区需先通过 `fullstack-init` 初始化
@@ -426,7 +433,8 @@ skills-clean-cache --repos  # 交互式：选择要删除的仓库
 | `story-point-estimate` | 斐波那契点数估算——任意输入、CFR 覆盖、Buffer 策略、XLSX 输出 |
 | `fullstack-init` | 初始化多仓库全栈工作区 |
 | `fullstack-explore` | 全栈工作区只读知识探索 |
-| `fullstack-issue-create` | 把暂无法立项的问题连同 log/ 证据记录到 docs 仓库的 issues/ 目录 |
+| `fullstack-issue-create` | 把暂无法立项的问题连同 log/ 证据记录或更新到 docs 仓库的 issues/ 目录 |
+| `fullstack-issue-archive` | 把 issue 移入 issues/archive/ 关闭——proposed / resolved / wontfix / merged |
 | `fullstack-propose` | 规划工作项 + Success Criteria；先验证未知项（spike）；交付前经独立方案审查 |
 | `fullstack-apply` | 在全栈工作区中实现已规划的工作项 |
 | `fullstack-archive` | 把已完成工作项归档到 changes/archive/ |
@@ -680,6 +688,7 @@ mythril-agent-skills/
 │       ├── fullstack-init/      # 初始化多仓库工作区
 │       ├── fullstack-explore/   # 只读知识探索
 │       ├── fullstack-issue-create/  # 记录暂无法立项的工作区 issue
+│       ├── fullstack-issue-archive/ # 关闭 issue（issues/archive/）
 │       ├── fullstack-propose/   # 规划工作项 + 验证未知项
 │       ├── fullstack-apply/     # 实现已规划的工作项
 │       ├── fullstack-archive/   # 归档已完成工作项

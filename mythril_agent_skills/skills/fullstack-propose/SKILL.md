@@ -762,18 +762,20 @@ Next: answer the open decisions above — I will re-run the plan review,
      the pre-move active path; the active path stops resolving the moment
      the close below lands.
    - **Close (after the four documents are committed to the docs
-     repo)**: follow `fullstack-issue-create` Step 3 (Close), mode
-     `proposed` — the other three modes (`resolved`, `wontfix`,
-     `merged`) belong to the issue's own close flow, not the propose
-     flow. Order of operations is mandatory — move first, then write:
+     repo)**: invoke `fullstack-issue-archive` (mode `proposed`) — the
+     other three modes (`resolved`, `wontfix`, `merged`) belong to the
+     issue's own close flow, not the propose flow. The mandatory order
+     still applies — move first, then write:
 
      ```bash
      mv <docs-dir>/issues/<name> <docs-dir>/issues/archive/<name>
      ```
 
      Then append `## 闭环` (`## Closure` in English issues) to the
-     issue's README — the mode, the date, and the pointer to the work
-     item directory this skill just created. Then commit the docs repo
+     issue's README — the mode, the date, the pointer to the work item
+     directory this skill just created, and `验证: n/a` / `Verification:
+     n/a` (a `proposed` close tracks the problem, it does not claim it is
+     fixed). Then commit the docs repo
      in the same round — `git add issues/` (the parent directory) stages
      both sides of the move above (the new archive path and the old
      active path's deletion):

@@ -1,9 +1,20 @@
 ---
 name: fullstack-issue-create
 description: |
-  Record a workspace issue in the docs repo's issues/ directory — capture a
-  problem, bug, or phenomenon now so it can be triaged into a work item
-  later; one skill, three operations (create / update / close). Trigger: "fullstack issue", "全栈 issue", "记录一个工作区 issue"; ALSO when the user asks to record a problem/bug/phenomenon for later triage in this workspace — "记录这个问题", "把这个 bug 先记下来", "先记个 issue 以后再处理", "沉淀一个问题", "track this problem", "log this problem", "note this issue for later". NOT for GitHub/GitLab/Jira issues — requests mentioning gh/github/a remote repo/an issue URL route to gh-operations or jira instead. Bare English "create an issue" defaults to GitHub unless workspace context is present. Ambiguous bare "issue" with no platform context → this skill, announced, GitHub offered.
+  Record or update a workspace issue in the docs repo's issues/ directory —
+  capture a problem, bug, or phenomenon now so it can be triaged into a work
+  item later. One skill, two operations (create / update); closing is a
+  separate lifecycle operation owned by fullstack-issue-archive. Trigger:
+  "fullstack issue", "全栈 issue", "记录一个工作区 issue"; ALSO when the
+  user asks to record a problem/bug/phenomenon for later triage in this
+  workspace — "记录这个问题", "把这个 bug 先记下来", "先记个 issue 以后再处理",
+  "沉淀一个问题", "track this problem", "log this problem", "note this issue
+  for later". For closing an issue ("close issue", "archive issue",
+  "归档 issue"), use fullstack-issue-archive instead. NOT for GitHub/GitLab/Jira
+  issues — requests mentioning gh/github/a remote repo/an issue URL route to
+  gh-operations or jira instead. Bare English "create an issue" defaults to
+  GitHub unless workspace context is present. Ambiguous bare "issue" with no
+  platform context → this skill, announced, GitHub offered.
 license: Apache-2.0
 ---
 
@@ -12,13 +23,15 @@ license: Apache-2.0
 Record a problem in the docs repo's `issues/` directory before it can
 become a work item — a lightweight, evidence-first issue slip that
 `fullstack-explore` and `fullstack-propose` later consume. One skill,
-three operations:
+two operations:
 
 | Operation | When | What happens |
 |-----------|------|--------------|
 | **Create** | A problem is observed but cannot be planned yet | New issue dir under `issues/` with README.md + `log/` evidence |
 | **Update** | New findings or evidence for an active issue | Dated entry in 更新记录, files added to `log/` |
-| **Close** | The issue is triaged (proposed / resolved / wontfix / merged) | Move into `issues/archive/`, append 闭环, commit |
+
+Closing is a distinct lifecycle operation handled by
+**`fullstack-issue-archive`** — this skill never performs it (see Step 3).
 
 ## Core Principle — Directory Location Is the State（目录位置即状态）
 
@@ -35,7 +48,8 @@ There is no `Status` field. Unlike work items — which only gain a date
 prefix when archived — an issue carries its record date in its name
 from birth, so the archive listing sorts naturally by record day.
 Closing is a directory **move**, never a delete: the directories are
-project history.
+project history. The close itself is performed by
+`fullstack-issue-archive`.
 
 ## Prerequisites — Workspace Validation Gate (MANDATORY SCRIPT CALL)
 
@@ -188,7 +202,7 @@ this table — the section set and their order never change:
 
 - 2026-10-11 — 创建 issue，录入初始现象与证据。
 
-<!-- ## 闭环 — 关闭时才追加（Step 3）：方式 + 日期 + 指向 -->
+<!-- ## 闭环 — 关闭时才追加（fullstack-issue-archive）：方式 + 日期 + 指向 -->
 ```
 
 Skeleton rules:
@@ -203,8 +217,9 @@ Skeleton rules:
 - `## 关联` cross-references related issues (active or archived), work
   items, and archived work items; delete lines that do not apply.
 - `## 更新记录` is append-only — one dated entry per update.
-- `## 闭环` is appended ONLY at close time (Step 3); at create time it
-  stays a placeholder comment. There is **no `Status` field** anywhere.
+- `## 闭环` is appended ONLY at close time by
+  `fullstack-issue-archive`; at create time it stays a placeholder
+  comment. There is **no `Status` field** anywhere.
 
 ## Step 2 — Update: Append to an Active Issue
 
@@ -221,48 +236,36 @@ An ARCHIVED issue (under `issues/archive/`) must NEVER be edited. If
 the problem resurfaces or the investigation continues, create a NEW
 issue and cross-reference both directions under `## 关联`.
 
-## Step 3 — Close: Settle the Issue
+## Step 3 — Close: Delegate to `fullstack-issue-archive`
 
-Close an issue when it is triaged. Four close modes:
+Closing is a separate lifecycle operation owned by the
+**`fullstack-issue-archive`** skill — this skill only creates and
+updates active issues. Do not improvise the close here: when the user
+asks to close or archive an issue ("close issue", "archive issue",
+"归档 issue"), invoke `fullstack-issue-archive`.
 
-| Mode | Meaning | 闭环 pointer |
-|------|---------|--------------|
-| `proposed` | Became a work item — the main path | the `changes/<type>/<name>/` directory `fullstack-propose` created |
-| `resolved` | Fixed directly, no work item needed | the commit / change that resolved it |
-| `wontfix` | Reviewed, deliberately not pursued | one line saying why |
-| `merged` | Folded into another issue or work item | the absorbing issue / work item path |
+That skill owns all four close modes — `proposed`, `resolved`,
+`wontfix`, `merged` — plus the move into `issues/archive/`, the
+`## 闭环` record, and the docs-repo commit. Before moving, it verifies
+the issue is genuinely settled (a fix pointer plus verification for
+`resolved`, an existing work item for `proposed`) and refuses to
+relabel an unresolved issue as `resolved`. In short:
 
-Order of operations (MANDATORY — move first, then write):
+| Mode | Meaning |
+|------|---------|
+| `proposed` | Became a work item (`changes/<type>/<name>/`) |
+| `resolved` | Fixed directly, no work item needed (pointer: the commit) |
+| `wontfix` | Reviewed, deliberately not pursued |
+| `merged` | Folded into another issue or work item |
 
-1. **Move the issue directory into the archive** — the directory name
-   does not change:
+Two rules remain visible from here:
 
-   ```bash
-   mv <docs-dir>/issues/<name> <docs-dir>/issues/archive/<name>
-   ```
-
-2. **Then append `## 闭环`** to the README — the mode, the date, and
-   the pointer. Every reference is written with the POST-MOVE archive
-   path (`issues/archive/<name>/...`), never the pre-move active path —
-   that path stops resolving the moment the move lands.
-3. **Commit the docs repo** — `git add issues/` (the parent directory)
-   stages both sides of the move above (the new archive path and the
-   old active path's deletion):
-
-   ```bash
-   cd <docs-dir>
-   git add issues/
-   git commit -m "docs: close issue <name> (proposed)"
-   ```
-
-4. **Closed is closed** — a closed issue is never edited again. New
-   findings during the work item's implementation go to the work
-   item's `progress.md`, not back into the issue.
-
-When closing as `proposed`, the pointer target is the work item
-directory `fullstack-propose` just created and committed — the propose
-flow closes the issue in the same round its four work-tracking
-documents are committed to the docs repo.
+- Only ACTIVE issues (under `issues/`) can be updated; an archived
+  issue is read-only forever.
+- When closing as `proposed`, the pointer target is the work item
+  directory `fullstack-propose` just created and committed — the
+  propose flow closes the issue in the same round its four
+  work-tracking documents are committed to the docs repo.
 
 ## Boundary with GitHub / GitLab / Jira Issues
 
@@ -296,5 +299,6 @@ This skill records WORKSPACE issues in the docs repo. It is **NOT a trigger** fo
   existing issue directory.
 - Raw evidence files are immutable once archived; trimming produces a
   `.cleaned.log` derivative, never an in-place edit.
-- Only active issues (under `issues/`) can be updated or closed;
-  archived issues are read-only forever.
+- Only active issues (under `issues/`) can be updated; archived issues
+  are read-only forever. Closing is delegated to
+  `fullstack-issue-archive`.

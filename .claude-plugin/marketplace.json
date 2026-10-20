@@ -476,7 +476,7 @@
     {
       "name": "fullstack-issue-create",
       "source": "./plugins/fullstack-issue-create",
-      "description": "Record a workspace issue in the docs repo's issues/ directory — capture a problem/bug/phenomenon with log/ evidence before it can become a work item; one skill, three operations (create / update / close), closed by a move into issues/archive/",
+      "description": "Record or update a workspace issue in the docs repo's issues/ directory — capture a problem/bug/phenomenon with log/ evidence before it can become a work item; closing is delegated to fullstack-issue-archive",
       "version": "0.3.0",
       "author": {
         "name": "Jie Meng"
@@ -489,6 +489,26 @@
         "multi-repo",
         "issues",
         "triage"
+      ],
+      "strict": false
+    },
+    {
+      "name": "fullstack-issue-archive",
+      "source": "./plugins/fullstack-issue-archive",
+      "description": "Close a workspace issue by moving its directory into issues/archive/ — four close modes (proposed / resolved / wontfix / merged); resolved records a problem fixed directly without a work item",
+      "version": "0.3.0",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "development",
+      "tags": [
+        "workspace",
+        "fullstack",
+        "multi-repo",
+        "issues",
+        "archive",
+        "lifecycle"
       ],
       "strict": false
     },

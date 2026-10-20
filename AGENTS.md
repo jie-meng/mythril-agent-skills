@@ -310,7 +310,7 @@ Skills appear in multiple listings: the README "Available Skills" table, the `sk
 | 6 | **Media Processing** | Standalone CLI tools for media files | imagemagick, ffmpeg |
 | 7 | **Content** | Content creation and writing tools | blog-writer |
 | 8 | **Project Planning** | Estimation, scoping, and planning tools | story-point-estimate |
-| 9 | **Fullstack Workspace** | Multi-repo workspace scaffolding, lifecycle, and cross-repo implementation | fullstack-init, fullstack-explore, fullstack-brief, fullstack-issue-create, fullstack-propose, fullstack-apply, fullstack-archive, fullstack-docs-migration |
+| 9 | **Fullstack Workspace** | Multi-repo workspace scaffolding, lifecycle, and cross-repo implementation | fullstack-init, fullstack-explore, fullstack-brief, fullstack-issue-create, fullstack-issue-archive, fullstack-propose, fullstack-apply, fullstack-archive, fullstack-docs-migration |
 
 **Within each category**, order by dependency complexity — no deps first, then CLI deps, then API credential deps:
 - No external dependencies → CLI tool dependency (`git`) → Platform CLI dependency (`gh`) → API token dependency

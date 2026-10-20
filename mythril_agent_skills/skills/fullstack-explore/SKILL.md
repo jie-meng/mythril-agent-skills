@@ -439,6 +439,7 @@ Based on the findings, recommend a concrete follow-up action:
 | Query revealed a straightforward change | Suggest `fullstack-propose` with specific work scope (planner subagent will analyze, developer will implement, reviewer will validate) |
 | Uncertainty remains, needs prototyping | Suggest `fullstack-propose` (deep mode) to validate assumptions |
 | Work is done, needs closing | Suggest `fullstack-archive` |
+| An active issue is fixed or triaged, needs closing | Suggest `fullstack-issue-archive` |
 | Workspace setup is incomplete or outdated | Suggest re-running `fullstack-init` (regenerates AGENTS.md, agents, and symlinks) |
 | Repos missing graphify would benefit from it | Suggest running `graphify` to build knowledge graphs |
 | Documents are stale and should be updated | Suggest opening a docs update work item |
