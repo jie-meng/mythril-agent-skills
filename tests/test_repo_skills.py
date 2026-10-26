@@ -1,8 +1,10 @@
 """Tests for the repo-private skill index (repo_skills.py).
 
 Covers frontmatter parsing (plain and block scalars), skill discovery
-under both roots with symlink dedupe, the machine-readable index output,
-and the CLI contract the fullstack skills rely on.
+under both roots with symlink dedupe, repo-name resolution across the
+current and sibling workspaces (including the ambiguous case), the
+machine-readable index output, and the CLI contract the fullstack skills
+rely on.
 """
 
 from __future__ import annotations
@@ -13,8 +15,10 @@ from pathlib import Path
 
 from mythril_agent_skills.shared.workspace.repo_skills import (
     discover_repo_skills,
+    find_workspace_root,
     format_repo_index,
     parse_frontmatter,
+    resolve_repo,
 )
 
 SCRIPT = (
@@ -87,7 +91,7 @@ class TestDiscoverRepoSkills:
 class TestFormatRepoIndex:
     def test_emits_every_skill_with_absolute_path(self, tmp_path: Path):
         _skill(tmp_path, "alpha", "---\nname: alpha\ndescription: A\n---\n")
-        lines, ok = format_repo_index(tmp_path)
+        lines, ok = format_repo_index(tmp_path, cwd=tmp_path)
         assert ok is True
         assert "SKILLS=1" in lines
         skill_line = next(line for line in lines if line.startswith("SKILL="))
@@ -95,14 +99,111 @@ class TestFormatRepoIndex:
         assert skill_line.endswith(" | A")
 
     def test_empty_index_is_identified_not_an_error(self, tmp_path: Path):
-        lines, ok = format_repo_index(tmp_path)
+        lines, ok = format_repo_index(tmp_path, cwd=tmp_path)
         assert ok is True
         assert f"NO_REPO_SKILLS={tmp_path.name}" in lines
 
     def test_missing_repo(self, tmp_path: Path):
-        lines, ok = format_repo_index(tmp_path / "ghost")
+        lines, ok = format_repo_index(tmp_path / "ghost", cwd=tmp_path)
         assert ok is False
         assert lines[0].startswith("ERROR_NO_SUCH_REPO=")
+
+
+class TestResolveRepo:
+    """A repo may be named by path or by directory name, nearest scope first."""
+
+    def _workspace(self, tmp_path: Path, name: str) -> Path:
+        root = tmp_path / name
+        root.mkdir(parents=True, exist_ok=True)
+        (root / "fullstack.json").write_text(
+            '{"docs_dir": "docs"}', encoding="utf-8"
+        )
+        return root
+
+    def test_existing_path_wins(self, tmp_path: Path):
+        repo = tmp_path / "somewhere"
+        repo.mkdir()
+        assert resolve_repo(str(repo), cwd=tmp_path).path == repo.resolve()
+
+    def test_name_resolves_inside_the_current_workspace(
+        self, tmp_path: Path
+    ):
+        ws = self._workspace(tmp_path, "ai")
+        repo = ws / "stock-analysis"
+        repo.mkdir()
+        found = resolve_repo("stock-analysis", cwd=ws)
+        assert found.path == repo.resolve()
+        assert found.note == ""
+
+    def test_name_resolves_from_a_repo_directory_inside_the_workspace(
+        self, tmp_path: Path
+    ):
+        ws = self._workspace(tmp_path, "ai")
+        repo = ws / "stock-analysis"
+        inside = repo / "src"
+        inside.mkdir(parents=True)
+        found = resolve_repo("stock-analysis", cwd=inside)
+        assert found.path == repo.resolve()
+        assert "workspace root" in found.note
+
+    def test_name_reaches_a_sibling_workspace(self, tmp_path: Path):
+        ws = self._workspace(tmp_path, "ai")
+        (ws / "art-studio").mkdir()
+        neighbor = self._workspace(tmp_path, "hkmw")
+        target = neighbor / "robo-server"
+        target.mkdir()
+        found = resolve_repo("robo-server", cwd=ws)
+        assert found.path == target.resolve()
+        assert "sibling" in found.note or "neighboring" in found.note
+
+    def test_local_hit_beats_a_sibling_of_the_same_name(self, tmp_path: Path):
+        ws = self._workspace(tmp_path, "ai")
+        local = ws / "robo-server"
+        local.mkdir()
+        other = self._workspace(tmp_path, "hkmw") / "robo-server"
+        other.mkdir()
+        assert resolve_repo("robo-server", cwd=ws).path == local.resolve()
+
+    def test_two_sibling_hits_are_ambiguous(self, tmp_path: Path):
+        ws = self._workspace(tmp_path, "ai")
+        (ws / "art-studio").mkdir()
+        for name in ("hkmw", "other"):
+            hit = self._workspace(tmp_path, name) / "shared-repo"
+            hit.mkdir()
+        found = resolve_repo("shared-repo", cwd=ws)
+        assert found.path is None
+        assert len(found.candidates) == 2
+
+    def test_miss_reports_the_scopes_it_tried(self, tmp_path: Path):
+        ws = self._workspace(tmp_path, "ai")
+        found = resolve_repo("nope", cwd=ws)
+        assert found.path is None
+        assert str(ws / "nope") in found.searched
+
+    def test_dot_named_siblings_are_skipped(self, tmp_path: Path):
+        ws = self._workspace(tmp_path, "ai")
+        (ws / "art-studio").mkdir()
+        hidden = tmp_path / ".cache" / "robo-server"
+        hidden.mkdir(parents=True)
+        assert resolve_repo("robo-server", cwd=ws).path is None
+
+    def test_find_workspace_root_walks_up(self, tmp_path: Path):
+        ws = self._workspace(tmp_path, "ai")
+        deep = ws / "repo" / "src" / "pkg"
+        deep.mkdir(parents=True)
+        assert find_workspace_root(deep) == ws.resolve()
+
+    def test_format_reports_ambiguity_as_lines(self, tmp_path: Path):
+        ws = self._workspace(tmp_path, "ai")
+        (ws / "art-studio").mkdir()
+        for name in ("hkmw", "other"):
+            self._workspace(tmp_path, name)
+            (tmp_path / name / "shared-repo").mkdir()
+        lines, ok = format_repo_index("shared-repo", cwd=ws)
+        assert ok is False
+        assert lines[0] == "AMBIGUOUS_REPO=shared-repo"
+        assert any(line.startswith("CANDIDATE=") for line in lines)
+        assert any(line.startswith("SEARCHED=") for line in lines)
 
 
 class TestCli:
@@ -128,6 +229,25 @@ class TestCli:
             capture_output=True,
             text=True,
             check=False,
+            cwd=tmp_path,
         )
         assert result.returncode == 1
         assert "ERROR_NO_SUCH_REPO=" in result.stdout
+
+    def test_cli_accepts_a_bare_repo_name(self, tmp_path: Path):
+        ws = tmp_path / "ai"
+        ws.mkdir()
+        (ws / "fullstack.json").write_text(
+            '{"docs_dir": "docs"}', encoding="utf-8"
+        )
+        _skill(ws / "stock-analysis", "technical-indicator", "---\n---\n")
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "stock-analysis"],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=ws,
+        )
+        assert result.returncode == 0
+        assert "REPO=stock-analysis" in result.stdout
+        assert "SKILL=technical-indicator" in result.stdout

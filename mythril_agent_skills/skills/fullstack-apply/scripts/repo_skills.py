@@ -12,6 +12,17 @@ line per skill, with the absolute `SKILL.md` path so the caller can read
 it without guessing where the skill lives. It parses frontmatter without
 PyYAML because skill scripts must run on a bare Python install.
 
+A repo is named either by path or by directory name. Names resolve
+nearest scope first and the first scope with a hit wins, so
+"push-data in robo-business-skills" works from any workspace root
+without the user supplying a path:
+
+1. the argument as a path, if it is one that exists
+2. `<workspace>/<name>` — the workspace root the argument belongs to
+   (`fullstack.json`'s directory, else the current directory)
+3. `<workspace-parent>/*/<name>` — a repo that lives in a sibling
+   workspace. More than one hit is reported as ambiguous, never guessed.
+
 Usage:
     python3 repo_skills.py <repo> [<repo> ...]
 
@@ -19,12 +30,14 @@ Output (one field per line, machine-readable):
     REPO=<name>  REPO_PATH=<abs path>  SKILLS=<n>
     SKILL=<skill-dir-name> | <abs SKILL.md path> | <description>
     NO_REPO_SKILLS=<name>
-    ERROR_NO_SUCH_REPO=<path>
+    NOTE=<how the name was resolved>            (name resolved off cwd)
+    AMBIGUOUS_REPO=<name> + CANDIDATE=<abs path>
+    ERROR_NO_SUCH_REPO=<argument>  SEARCHED=<scope tried> ...
 
-Exit codes: 0 = every repo was read, 1 = at least one repo path is not a
-directory, 2 = usage error. A repo with zero skills is not an error: the
-`NO_REPO_SKILLS` line distinguishes "nothing to load" from "script
-failed".
+Exit codes: 0 = every repo was read, 1 = at least one argument resolved to
+no single directory, 2 = usage error. A repo with zero skills is not an
+error: the `NO_REPO_SKILLS` line distinguishes "nothing to load" from
+"script failed".
 """
 
 from __future__ import annotations
@@ -32,6 +45,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 
 # `.claude` is often a symlink to `.agents`; the realpath dedupe below
@@ -42,6 +56,10 @@ SKILL_ROOTS = (".agents/skills", ".claude/skills")
 # at 200 cut them off on most real skills. 500 bounds a pathological
 # frontmatter without dropping the matching signal.
 MAX_DESCRIPTION_CHARS = 500
+WORKSPACE_CONFIG = "fullstack.json"
+# An ambiguous name reports this many candidates; more than this means the
+# caller needs a path, not a longer list.
+MAX_CANDIDATES = 8
 
 
 def _unquote(value: str) -> str:
@@ -111,6 +129,90 @@ def parse_frontmatter(text: str) -> tuple[str, str]:
     return name, _normalize_description(" ".join(description))
 
 
+@dataclass(frozen=True)
+class Resolution:
+    """What a repo argument turned into. Exactly one outcome is set."""
+
+    path: Path | None = None
+    candidates: list[Path] = field(default_factory=list)
+    searched: list[str] = field(default_factory=list)
+    note: str = ""
+
+
+def find_workspace_root(start: Path) -> Path | None:
+    """Return the nearest directory holding `fullstack.json`, or None."""
+    for candidate in (start, *start.parents):
+        if (candidate / WORKSPACE_CONFIG).is_file():
+            return candidate
+    return None
+
+
+def _visible_children(parent: Path, name: str) -> list[Path]:
+    """Return `parent/*/<name>` hits, skipping dot-directories and non-dirs."""
+    if name.startswith("."):
+        return []
+    try:
+        matches = sorted(parent.glob(f"*/{name}"))
+    except OSError:
+        return []
+    return [
+        match
+        for match in matches
+        if not match.parent.name.startswith(".") and match.is_dir()
+    ]
+
+
+def resolve_repo(argument: str, cwd: Path | None = None) -> Resolution:
+    """Resolve a repo path or bare directory name into one directory.
+
+    Scopes are tried nearest first and the first scope holding a hit wins:
+    the argument as a path, then `<base>/<name>`, then
+    `<base-parent>/*/<name>` so a repo belonging to a sibling workspace
+    resolves by name. `base` is the workspace root the session sits in
+    (`fullstack.json`'s directory), falling back to the current directory.
+    Two hits in the same scope are reported as candidates, never guessed:
+    the same repo name in two workspaces is a question for the user.
+    """
+    start = (cwd or Path.cwd()).expanduser().resolve()
+    given = Path(argument).expanduser()
+    if given.is_dir():
+        return Resolution(path=given.resolve())
+
+    name = given.name
+    if not name:
+        return Resolution(path=None, searched=[str(given)])
+
+    base = find_workspace_root(start) or start
+    searched = [str(base / name)]
+    direct = base / name
+    if direct.is_dir():
+        note = (
+            f"NOTE: resolved from the workspace root {base}"
+            if base != start
+            else ""
+        )
+        return Resolution(path=direct.resolve(), searched=searched, note=note)
+
+    parent = base.parent
+    if parent != base and len(base.parents) > 1:
+        searched.append(str(parent / "*" / name))
+        hits = _visible_children(parent, name)
+        if len(hits) == 1:
+            return Resolution(
+                path=hits[0].resolve(),
+                searched=searched,
+                note=f"NOTE: resolved outside this directory — the repo lives "
+                f"in the neighboring workspace {hits[0].parent}",
+            )
+        if len(hits) > 1:
+            return Resolution(
+                candidates=[hit.resolve() for hit in hits[:MAX_CANDIDATES]],
+                searched=searched,
+            )
+
+    return Resolution(searched=searched)
+
+
 def discover_repo_skills(repo: Path) -> list[tuple[str, Path, str]]:
     """Return `(skill_name, skill_md_path, description)` for one repo."""
     seen: set[Path] = set()
@@ -135,22 +237,34 @@ def discover_repo_skills(repo: Path) -> list[tuple[str, Path, str]]:
     return sorted(found, key=lambda item: item[0].lower())
 
 
-def format_repo_index(repo: Path) -> tuple[list[str], bool]:
-    """Return `(output_lines, repo_exists)` for one repo path."""
-    repo = repo.expanduser()
-    if not repo.is_dir():
-        return [f"ERROR_NO_SUCH_REPO={repo}"], False
-    resolved = repo.resolve()
-    skills = discover_repo_skills(resolved)
-    lines = [
-        f"REPO={resolved.name}",
-        f"REPO_PATH={resolved}",
-        f"SKILLS={len(skills)}",
-    ]
+def format_repo_index(
+    argument: str | Path, cwd: Path | None = None
+) -> tuple[list[str], bool]:
+    """Return `(output_lines, resolved)` for one repo path or name."""
+    resolution = resolve_repo(str(argument), cwd)
+    if resolution.path is None:
+        if resolution.candidates:
+            lines = [f"AMBIGUOUS_REPO={Path(str(argument)).name}"]
+            lines += [f"CANDIDATE={hit}" for hit in resolution.candidates]
+        else:
+            lines = [f"ERROR_NO_SUCH_REPO={argument}"]
+        lines += [f"SEARCHED={scope}" for scope in resolution.searched]
+        lines.append(
+            "NOTE: pass the repository path, or its directory name inside "
+            "this workspace or a sibling workspace"
+        )
+        return lines, False
+
+    repo = resolution.path
+    skills = discover_repo_skills(repo)
+    lines = [f"REPO={repo.name}", f"REPO_PATH={repo}"]
+    if resolution.note:
+        lines.append(resolution.note)
+    lines.append(f"SKILLS={len(skills)}")
     for name, skill_md, description in skills:
         lines.append(f"SKILL={name} | {skill_md} | {description or '—'}")
     if not skills:
-        lines.append(f"NO_REPO_SKILLS={resolved.name}")
+        lines.append(f"NO_REPO_SKILLS={repo.name}")
     return lines, True
 
 
@@ -158,19 +272,20 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns the process exit code."""
     parser = argparse.ArgumentParser(
         description="List the skills a repository ships under "
-        ".agents/skills/ (falling back to .claude/skills/).",
+        ".agents/skills/ (falling back to .claude/skills/). A repository "
+        "is named by path or by directory name.",
     )
     parser.add_argument(
         "repos",
         nargs="+",
         metavar="repo",
-        help="Repository path (one or more)",
+        help="Repository path or directory name (one or more)",
     )
     args = parser.parse_args(argv)
 
     all_ok = True
     for item in args.repos:
-        lines, ok = format_repo_index(Path(item))
+        lines, ok = format_repo_index(item)
         all_ok = all_ok and ok
         print("\n".join(lines))
     return 0 if all_ok else 1

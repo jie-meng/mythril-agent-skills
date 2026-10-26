@@ -508,6 +508,7 @@ NEVER hand-edit a bundled copy directly — your changes will be lost on the nex
 | `graphify_check.py` | `shared/graphify/graphify_check.py` | `fullstack-init`, `fullstack-explore`, `fullstack-propose`, `fullstack-apply`, `fullstack-archive`, `fullstack-brief` |
 | `compute_waves.py` | `shared/waves/compute_waves.py` | `fullstack-propose`, `fullstack-apply` |
 | `plan_lint.py` | `shared/plan/plan_lint.py` | `fullstack-propose`, `fullstack-apply` |
+| `repo_skills.py` | `shared/workspace/repo_skills.py` | `fullstack-init`, `fullstack-explore`, `fullstack-apply` |
 
 Note this is a different pattern from the `git-repo-reader` shared cache (above): the cache is **runtime** shared state on the user's machine, while shared assets are **build-time** duplicated files inside the repo. Both keep installed skills fully self-contained.
 
