@@ -1474,6 +1474,8 @@ class TestAgentsMdLockstepCommand:
 
         _install_skill(tmp_path, ".agents", "fullstack-propose", "plan_lint.py")
         _install_skill(tmp_path, ".agents", "fullstack-propose", "mermaid_lint.py")
+        _install_skill(tmp_path, ".agents", "fullstack-init", "repo_skills.py")
+        _install_skill(tmp_path, ".agents", "fullstack-init", "graphify_check.py")
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         result = generate_agents_md("proj", "| t |", "central-docs")
         assert (
@@ -1537,6 +1539,8 @@ class TestMergeRefreshesShippedRules:
 
         _install_skill(tmp_path, ".agents", "fullstack-propose", "plan_lint.py")
         _install_skill(tmp_path, ".agents", "fullstack-propose", "mermaid_lint.py")
+        _install_skill(tmp_path, ".agents", "fullstack-init", "repo_skills.py")
+        _install_skill(tmp_path, ".agents", "fullstack-init", "graphify_check.py")
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         generated = generate_agents_md("proj", "| t |", "central-docs")
         stale = (

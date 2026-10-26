@@ -281,6 +281,16 @@ protocol to completion for one repo before moving to the next.
 
 ### Per-repo protocol — GATE (check this FIRST, before anything else)
 
+**Check for repo skills** — run
+`python3 SKILL_PATH/scripts/repo_skills.py <repo>`. Repo-private skills
+live in `<repo>/.agents/skills/` and are invisible to the skill tool from
+the workspace root, so this index is the only way to find them. When a
+skill's description matches the query topic, Read its `SKILL.md` BEFORE
+answering and treat it as the repo's own instructions; run its commands
+from the repo root. Do not bulk-load non-matching skills. Reading a
+`SKILL.md` is not a source read — the graphify rule below still governs
+when you may touch source files.
+
 **Check for `<repo>/graphify-out/`** — run
 `python3 SKILL_PATH/scripts/graphify_check.py <repo>` to check. This
 script uses a direct filesystem check immune to `.gitignore` filtering

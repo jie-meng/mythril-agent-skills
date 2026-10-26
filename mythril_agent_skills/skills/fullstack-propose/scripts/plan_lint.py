@@ -106,9 +106,18 @@ Checks:
     round count alone says nothing about a loop. Exceeding the cap is a
     warning: either the flow re-planned past its cap or the loop boundary
     is recorded wrong, and neither is visible to a reader otherwise.
+14. **Repo skills indexed** — repo-private skills live in
+    `<repo>/.agents/skills/` and are invisible to the agent's skill
+    registry from the workspace root. When the newest code-review round
+    for a repo exists and that repo ships skills, the round must carry a
+    `**Repo Skills**` / `**仓库技能**` line naming every indexed skill. An
+    unrecorded index is indistinguishable from one that was never run, so
+    a matching instruction can be missed without anyone noticing — the
+    line forces the judgement to be written down. Repos with no skills
+    are silent, and so is a work directory outside a fullstack workspace.
 
 Checks 5, 7, 8 and 13 are warnings because none of them breaks the chain.
-Checks 1-4, 6, 9, 10, 11 and 12 are errors: each one lets an
+Checks 1-4, 6, 9, 10, 11, 12 and 14 are errors: each one lets an
 unverifiable claim enter the definition of done, or leaves the work item
 untraceable from its own code. Item 6 stays silent for work items that
 have neither the section nor a coverage matrix, so legacy items do not
@@ -251,6 +260,25 @@ SAME_LOOP_RANGE_RE = re.compile(
     re.IGNORECASE,
 )
 MAX_SAME_LOOP_PASSES = 3
+
+# Check 14 — the repo-skill index a code round considered. The line is
+# bold-labelled so a skill name quoted in a review body or a table cell
+# cannot satisfy it by accident.
+REPO_SKILLS_RE = re.compile(
+    r"\*\*\s*(?:Repo Skills|仓库技能)\s*\*\*\s*[:：]\s*(.+)", re.IGNORECASE
+)
+# The prefixed code-review heading carries the repo between its first two
+# dashes. Only em/en dashes are separators: a repo name may contain an
+# ASCII hyphen (`mythril-agent-skills`).
+CODE_REVIEW_REPO_RE = re.compile(
+    r"^##\s*(?:代码审查|Code Review)\s*[—–]\s*(.+?)\s*[—–]\s*"
+    r"(?:第\s*\d+\s*轮|Round\s*\d+)",
+    re.IGNORECASE,
+)
+LEGACY_REVIEW_REPO_RE = re.compile(
+    r"^##\s*(.+?)\s*[—–]\s*Review Round\b", re.IGNORECASE
+)
+REPO_SKILL_ROOTS = (".agents/skills", ".claude/skills")
 
 CLOSING_VERDICTS = ("PASS", "PASS_WITH_RISKS")
 
@@ -793,6 +821,7 @@ def lint_work_dir(work_dir: Path) -> list[Finding]:
     findings.extend(_check_code_map(plan_text))
     findings.extend(_check_document_sync(review_text))
     findings.extend(_check_loop_cap(review_text))
+    findings.extend(_check_repo_skills(work_dir, review_text))
 
     return findings
 
@@ -1198,6 +1227,135 @@ def _check_loop_cap(review_text: str) -> list[Finding]:
             "the item with the residual items as known risks",
         )
     ]
+
+
+def _code_review_repo(heading: str) -> str | None:
+    """Return the repo a code-review heading belongs to, or None."""
+    match = CODE_REVIEW_REPO_RE.match(heading)
+    if match:
+        return match.group(1).strip().strip("`") or None
+    match = LEGACY_REVIEW_REPO_RE.match(heading)
+    if match:
+        repo = match.group(1).strip().strip("`")
+        if repo.startswith(CODE_REVIEW_HEADINGS):
+            return None
+        return repo or None
+    return None
+
+
+def _repo_skill_names(repo_path: Path) -> list[str]:
+    """Return the skill names a repo ships, deduped across skill roots.
+
+    `.claude` is often a symlink to `.agents`; the realpath dedupe keeps
+    those from being counted twice. Directory names are used rather than
+    frontmatter `name` because the directory is what the reader opens.
+    """
+    seen: set[Path] = set()
+    names: set[str] = set()
+    for relative in REPO_SKILL_ROOTS:
+        base = repo_path / relative
+        if not base.is_dir():
+            continue
+        for skill_md in base.glob("*/SKILL.md"):
+            if not skill_md.is_file():
+                continue
+            real = skill_md.resolve()
+            if real in seen:
+                continue
+            seen.add(real)
+            names.add(skill_md.parent.name)
+    return sorted(names)
+
+
+def _repo_skills_line(body: str) -> str:
+    """Return the `**Repo Skills**` value of a review round, or "".
+
+    Table rows are skipped: a round that documents this check may quote
+    the label in a table, and a quoted label is not a record of the
+    index.
+    """
+    for line in body.splitlines():
+        if line.strip().startswith("|"):
+            continue
+        match = REPO_SKILLS_RE.search(line)
+        if match:
+            return match.group(1).strip()
+    return ""
+
+
+def _newest_code_round_per_repo(
+    review_text: str,
+) -> list[tuple[str, str, str]]:
+    """Return `(repo, heading, body)` for each repo's newest code round."""
+    latest: dict[str, tuple[str, str]] = {}
+    order: list[str] = []
+    for heading, body in split_sections(review_text):
+        if not _is_code_review_round(heading):
+            continue
+        repo = _code_review_repo(heading)
+        if not repo:
+            continue
+        if repo not in latest:
+            order.append(repo)
+        latest[repo] = (heading, body)
+    return [(repo, *latest[repo]) for repo in order]
+
+
+def _check_repo_skills(work_dir: Path, review_text: str) -> list[Finding]:
+    """Check 14 — a repo's private skills were indexed, not ignored."""
+    rounds = _newest_code_round_per_repo(review_text)
+    if not rounds:
+        return []
+    docs_dir = discover_docs_dir(work_dir)
+    if docs_dir is None:
+        return []
+    workspace_root = docs_dir.parent
+
+    findings: list[Finding] = []
+    for repo, heading, body in rounds:
+        repo_path = workspace_root / repo
+        if not repo_path.is_dir():
+            continue
+        skills = _repo_skill_names(repo_path)
+        if not skills:
+            continue
+        line = _repo_skills_line(body)
+        if not line:
+            findings.append(
+                Finding(
+                    "ERROR",
+                    f"'{heading}' is the newest code review round for "
+                    f"'{repo}', which ships repo skills, and carries no "
+                    "'**Repo Skills**' / '**仓库技能**' line — the index was "
+                    "never recorded, so a matching instruction may have been "
+                    "missed. List the skills the index reported: "
+                    + ", ".join(skills),
+                )
+            )
+            continue
+        missing = [
+            skill
+            for skill in skills
+            if not re.search(
+                r"(?<![A-Za-z0-9_-])"
+                + re.escape(skill)
+                + r"(?![A-Za-z0-9_-])",
+                line,
+            )
+        ]
+        if missing:
+            findings.append(
+                Finding(
+                    "ERROR",
+                    f"'{heading}' Repo Skills line does not account for "
+                    + ", ".join(missing)
+                    + f" — the repo's index lists: {', '.join(skills)}. Name "
+                    "every indexed skill (say which matched), or record why "
+                    "none matched; a line that omits a skill records an "
+                    "index that was not read",
+                )
+            )
+    return findings
 
 
 def discover_docs_dir(start: Path) -> Path | None:

@@ -431,6 +431,10 @@ a slice of the plan, not the whole thing:
   upstream interface it integrates with (field names, types, error
   codes). Frozen means downstream code targets exactly these names —
   not whatever upstream happened to write on the day.
+- The repo's **repo-skill index** — run
+  `python3 SKILL_PATH/scripts/repo_skills.py <repo>` and paste its output
+  verbatim. Repo-private skills are invisible to the skill tool from the
+  workspace root, so this index is the developer's only discovery path.
 - The repo's branch name and its wave position ("wave N of k")
 - Work-dir path and where progress/review updates go (return them —
   you, the orchestrator, write the files)
@@ -453,6 +457,12 @@ Each developer subagent MUST, inside its own repo:
    format, architecture constraints — MANDATORY), then `README.md`
    (build / test / lint commands). When both document tests,
    `AGENTS.md` wins over `README.md`.
+   **Then load repo skills**: the brief carries the repo-skill index. Read
+   the `SKILL.md` of every skill whose description matches this task,
+   treat it as binding repo convention, and run its commands with the
+   repo root as cwd (repo skills reference their scripts relative to the
+   repo root, e.g. `.agents/skills/<name>/scripts/...`). Do not load
+   non-matching skills.
 2. **Check for repo-level agents** at `<repo>/.agents/agents/` — if the
    repo has specialized agents, defer internal details to them.
 3. **Check for `graphify-out/`** — run
@@ -587,6 +597,13 @@ git commit -m "<message>"
   that moved a responsibility between modules or layers, changed a call
   order, or altered a frozen contract has invalidated `analysis.md`'s
   architecture or flow section — that is a change to write, not a "no".
+- **Append the `**Repo Skills**` / `**仓库技能**` line** for a repo that
+  ships skills under `.agents/skills/`: run
+  `python3 SKILL_PATH/scripts/repo_skills.py <repo>` and record every
+  indexed skill, naming which matched this round and were read (format in
+  [`references/review-formats.md`](references/review-formats.md)). The
+  final `plan_lint.py` gate fails when the line is missing or omits an
+  indexed skill.
 - Run `python3 SKILL_PATH/scripts/graphify_check.py <repo>` — if
   `graphify-out/` exists, `cd` into the repo and run `graphify update`.
 
@@ -831,6 +848,10 @@ hand-checks miss, deterministically:
   `**文档同步**` line naming all four documents — a follow-up fix cannot
   skip the statement (rounds written before the convention are never
   back-filled)
+- a repo that ships skills under `.agents/skills/` has a
+  `**Repo Skills**` / `**仓库技能**` line in its newest code-review round
+  naming every indexed skill — a missing line, or one that omits a skill,
+  fails the gate
 
 **Reconciliation rule** — any change to the Success Criteria list during
 implementation (a criterion added, renamed, waived, or dropped) must sync
@@ -855,7 +876,8 @@ Verify all four documents exist and are internally consistent:
    parked underneath it.
 6. Does `plan.md`'s Code Map cover every file the item changed? Cross-check
    it against each repo's branch diff, and confirm every code-review round
-   carries its `**文档同步**` / `**Document Sync**` line.
+   carries its `**文档同步**` / `**Document Sync**` line and, for a repo
+   that ships skills, its `**Repo Skills**` line.
 
 Then run the **Mermaid Compatibility Gate** against EVERY `.md` file in
 the work directory that contains ` ```mermaid ` blocks. If `STATUS=FAIL`

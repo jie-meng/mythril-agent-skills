@@ -692,6 +692,96 @@ class TestDocumentSync:
 
 
 # ---------------------------------------------------------------------------
+# Check 14 — repo skills index
+# ---------------------------------------------------------------------------
+
+REPO_SKILLS_LINE = (
+    "### 仓库技能\n\n"
+    "**仓库技能**：deploy-helper、release-helper —— deploy-helper 与本轮相关并已加载\n\n"
+)
+
+
+def _workspace_work_dir(tmp_path: Path, skills: list[str]) -> Path:
+    """Create a work dir inside a workspace whose `api` repo ships skills."""
+    root = tmp_path / "ws"
+    work = root / "docs" / "changes" / "fix" / "demo"
+    work.mkdir(parents=True)
+    (root / "fullstack.json").write_text(
+        '{"docs_dir": "docs"}', encoding="utf-8"
+    )
+    for skill in skills:
+        skill_md = root / "api" / ".agents" / "skills" / skill / "SKILL.md"
+        skill_md.parent.mkdir(parents=True)
+        skill_md.write_text(f"---\nname: {skill}\n---\n", encoding="utf-8")
+    return work
+
+
+def _lint_in_workspace(work: Path, review: str) -> list:
+    (work / "plan.md").write_text(PLAN_OK, encoding="utf-8")
+    (work / "review.md").write_text(review, encoding="utf-8")
+    return lint_work_dir(work)
+
+
+class TestRepoSkills:
+    def test_missing_line_is_an_error(self, tmp_path: Path):
+        work = _workspace_work_dir(tmp_path, ["deploy-helper", "release-helper"])
+        review = REVIEW_OK + _code_round("api", 1, ATTESTATION)
+        errors = _errors(_lint_in_workspace(work, review))
+        assert any(
+            "Repo Skills" in message and "deploy-helper" in message
+            for message in errors
+        )
+
+    def test_line_covering_every_indexed_skill_passes(self, tmp_path: Path):
+        work = _workspace_work_dir(tmp_path, ["deploy-helper", "release-helper"])
+        review = (
+            REVIEW_OK
+            + _code_round("api", 1, ATTESTATION)
+            + REPO_SKILLS_LINE
+        )
+        errors = _errors(_lint_in_workspace(work, review))
+        assert not [message for message in errors if "Repo Skills" in message]
+
+    def test_partial_line_names_the_missing_skill(self, tmp_path: Path):
+        work = _workspace_work_dir(tmp_path, ["deploy-helper", "release-helper"])
+        partial = "### 仓库技能\n\n**仓库技能**：deploy-helper —— 已加载\n\n"
+        review = REVIEW_OK + _code_round("api", 1, ATTESTATION) + partial
+        errors = _errors(_lint_in_workspace(work, review))
+        assert any("release-helper" in message for message in errors)
+
+    def test_repo_without_skills_is_silent(self, tmp_path: Path):
+        work = _workspace_work_dir(tmp_path, [])
+        review = REVIEW_OK + _code_round("api", 1, ATTESTATION)
+        errors = _errors(_lint_in_workspace(work, review))
+        assert not [message for message in errors if "Repo Skills" in message]
+
+    def test_legacy_heading_repo_is_recognized(self, tmp_path: Path):
+        work = _workspace_work_dir(tmp_path, ["deploy-helper"])
+        review = (
+            REVIEW_OK
+            + "\n## api — Review Round 1 — 2026-09-21\n\n### 结论\n\nPASS\n\n"
+            + "### 文档同步\n\n"
+            + ATTESTATION
+            + "\n"
+        )
+        errors = _errors(_lint_in_workspace(work, review))
+        assert any(
+            "Repo Skills" in message and "deploy-helper" in message
+            for message in errors
+        )
+
+    def test_work_dir_outside_a_workspace_is_silent(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_OK, REVIEW_OK + _code_round("api", 1, ATTESTATION))
+        )
+        assert not [
+            message
+            for message in _errors(findings)
+            if "Repo Skills" in message
+        ]
+
+
+# ---------------------------------------------------------------------------
 # --find reverse lookup
 # ---------------------------------------------------------------------------
 

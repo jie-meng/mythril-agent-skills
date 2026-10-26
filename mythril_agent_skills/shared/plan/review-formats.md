@@ -82,6 +82,11 @@ Appended once per repo per review round. The full
 |------|---------|
 | `abc1234` | feat: add dark mode toggle |
 
+### Repo Skills
+
+**Repo Skills**: `skill-a`, `skill-b` — skill-a matched this task and was
+read; skill-b did not
+
 ### Document Sync
 
 **Document Sync**: `analysis.md` — <what this round invalidated, or why
@@ -106,6 +111,11 @@ nothing changed>; `plan.md` — <…>; `progress.md` — <…>; `review.md` — 
 | Hash | Message |
 |------|---------|
 | `abc1234` | feat: add dark mode toggle |
+
+### 仓库技能
+
+**仓库技能**：`skill-a`、`skill-b` —— skill-a 与本次改动相关并已加载；
+skill-b 不相关
 
 ### 文档同步
 
@@ -168,6 +178,29 @@ made no commit).
   and on every later round once the item uses the line. Rounds that
   predate it stay as they are: writing an attestation for a round you did
   not run would be inventing history.
+
+### Repo Skills section rules
+
+The `### Repo Skills` / `### 仓库技能` line records the repo-private skill
+index the round considered. Repo skills live in `<repo>/.agents/skills/`
+(or `.claude/skills/`) and are invisible to the agent's skill tool from
+the workspace root, so the index is the only discovery path.
+
+- **Required when the repo ships skills** — omit the subsection for a
+  repo with no `.agents/skills/*/SKILL.md`, and do not write it for a
+  repo that has none.
+- **Name every indexed skill**, not only the matching ones. Run
+  `python3 <skill>/scripts/repo_skills.py <repo>` and record the index
+  it printed; then say which matched this round and were read. A subset
+  records an index that was not read.
+- **The line belongs to the repo's newest code-review round**, next to
+  the Document Sync attestation. Do not add it to older rounds of the
+  same repo. When the only round predates this convention, append the
+  line during finalization — the index is computable now, so it records
+  a fact rather than history you did not run.
+- `plan_lint.py` check 14 fails when the line is missing or omits an
+  indexed skill. A repo with no skills is silent, and so is a work
+  directory outside a fullstack workspace.
 
 ### Keeping commits in sync after hash changes
 

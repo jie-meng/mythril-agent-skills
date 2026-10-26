@@ -167,6 +167,28 @@ def specs() -> list[SyncSpec]:
         )
     )
 
+    # --- shared/workspace/repo_skills.py → <skill>/scripts/repo_skills.py
+    # Repo-private skills live in `<repo>/.agents/skills/` and are invisible
+    # to the agent's skill registry from the workspace root. init writes the
+    # index command into AGENTS.md; apply and explore call it when a repo
+    # enters scope.
+    repo_skills_consumers = (
+        "fullstack-init",
+        "fullstack-apply",
+        "fullstack-explore",
+    )
+    repo_skills_source = SHARED_ROOT / "workspace" / "repo_skills.py"
+    out.append(
+        SyncSpec(
+            source=repo_skills_source,
+            targets=tuple(
+                SKILLS_ROOT / skill / "scripts" / "repo_skills.py"
+                for skill in repo_skills_consumers
+            ),
+            description="repo-private skill index script",
+        )
+    )
+
     # --- shared/git/repo_manager.py → <skill>/scripts/repo_manager.py
     git_consumers = (
         "git-repo-reader",
