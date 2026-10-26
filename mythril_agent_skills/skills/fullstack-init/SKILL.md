@@ -49,7 +49,11 @@ the workspace has already been initialized. The script automatically
 performs an **incremental merge** on AGENTS.md:
 
 - **Repos table**: Updated to match current repos (new repos may have been added)
-- **Workspace Conventions bullet points**: New ones from template updates are appended
+- **Workspace Conventions bullet points**: New ones are appended; the
+  skill-shipped ones (`Repo Skills`, `Knowledge Graph (graphify)`) are
+  replaced with the current template text, because their commands and rules
+  move with the skill. Every other bullet is user territory — kept exactly
+  as written, so a re-run never overwrites your own wording.
 - **Directory Structure**: Updated to match current scaffolding layout
 - **New H2 sections**: Inserted if they appear in the generated template but not in the existing file
 - **User-customized content**: Preserved — sections that exist in both versions keep the user's version

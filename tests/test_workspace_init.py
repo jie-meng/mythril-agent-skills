@@ -79,13 +79,72 @@ def test_old_workspace_gets_the_bullet_on_merge(init_module, tmp_path: Path):
     home = _installed_home(tmp_path)
     existing = (
         "# ws\n\n## Workspace Conventions\n\n"
-        "- **Knowledge Graph (graphify)**: old text kept by the user\n"
+        "- **My Own Rule**: hand-written here\n"
+        "- **Knowledge Graph (graphify)**: old shipped text\n"
         "  - **Check for graphify-out/**: Run\n"
         "    `python3 SKILL_PATH/scripts/graphify_check.py <repo-path>` to check.\n"
     )
     merged = init_module.merge_agents_md(existing, _generated(init_module, home))
     assert merged.count("**Repo Skills**") == 1
-    assert "old text kept by the user" in merged
+    assert "- **My Own Rule**: hand-written here" in merged
+    # A shipped bullet is replaced, not preserved: its command is the
+    # skill's, and the old copy carried a placeholder no agent can run.
+    assert "old shipped text" not in merged
+    assert (
+        "~/.agents/skills/fullstack-init/scripts/graphify_check.py <repo-path>"
+        in merged
+    )
+    assert merged.count("**Check for graphify-out/**") == 1
+
+
+def test_shipped_bullet_is_refreshed_when_the_template_changes(
+    init_module, tmp_path: Path
+):
+    """The case this rule exists for: a workspace that already carries the
+    bullet must receive the revised text, not keep the version it was
+    first written with."""
+    home = _installed_home(tmp_path)
+    shipped_once = _generated(init_module, home)
+    existing = _extract_conventions(init_module, shipped_once)
+    revised = shipped_once.replace(
+        "Do not bulk-load non-matching skills.",
+        "Do not bulk-load non-matching skills. NEW SHIPPED CLAUSE.",
+    )
+    merged = init_module.merge_agents_md(existing, revised)
+    assert "NEW SHIPPED CLAUSE" in merged
+    assert merged.count("**Repo Skills**") == 1
+    assert "Do not bulk-load" in merged
+
+
+def test_user_worded_convention_is_never_replaced(
+    init_module, tmp_path: Path
+):
+    home = _installed_home(tmp_path)
+    existing = (
+        "# ws\n\n## Workspace Conventions\n\n"
+        "- **Scripts**: our automation lives in `ops/`, do not move it\n"
+    )
+    merged = init_module.merge_agents_md(existing, _generated(init_module, home))
+    assert "our automation lives in `ops/`" in merged
+    assert merged.count("- **Scripts**:") == 1
+
+
+def test_re_init_after_a_refresh_changes_nothing(init_module, tmp_path: Path):
+    home = _installed_home(tmp_path)
+    generated = _generated(init_module, home)
+    once = init_module.merge_agents_md(
+        "# ws\n\n## Workspace Conventions\n\n- **Existing**: x\n", generated
+    )
+    twice = init_module.merge_agents_md(once, generated)
+    assert once == twice
+
+
+def _extract_conventions(init_module, text: str) -> str:
+    """Return an AGENTS.md holding only the generated conventions section."""
+    body = text[text.index("## Workspace Conventions") :]
+    if "\n## " in body[len("## Workspace Conventions") :]:
+        body = body[: body.index("\n## ", len("## Workspace Conventions"))]
+    return "# ws\n\n" + body.rstrip() + "\n"
 
 
 def test_repeated_reinit_does_not_duplicate_the_bullet(

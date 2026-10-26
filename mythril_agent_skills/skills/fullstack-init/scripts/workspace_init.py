@@ -726,73 +726,120 @@ def parse_agents_md_sections(content: str) -> tuple[str, list[tuple[str, str]]]:
     return h1_line, sections
 
 
-def _merge_conventions(existing_section: str, generated_section: str) -> str:
-    """Merge Workspace Conventions sections.
+# Convention bullets whose text belongs to the skill, not the workspace.
+# They carry machine-resolved commands and get revised as the skill
+# evolves, so a merged copy would keep a stale rule alive across re-runs —
+# the same failure `merge_agents_md` replaces whole shipped sections for.
+# Every other bullet stays user territory: kept as written, refreshed only
+# by hand, because a workspace owner may legitimately reword them.
+SHIPPED_CONVENTION_BULLETS = frozenset({"Repo Skills", "Knowledge Graph (graphify)"})
 
-    Keeps all existing bullets, appends any new ones from generated that have
-    a bold title (e.g., "- **Knowledge Graph (graphify)**:") not present in
-    the existing section.
+
+def _bullet_title(line: str) -> str:
+    """Return a top-level bullet's bold title without asterisks, or "".
+
+    The title text runs from index 4 — past the opening `- **` — to the
+    closing `**`. A one-character title (`- **A**:`) has its closing pair at
+    index 5, so the open scan starts at 4 and never finds the opener.
     """
+    stripped = line.strip()
+    if not stripped.startswith("- **"):
+        return ""
+    end = stripped.find("**", 4)
+    return stripped[4:end].strip() if end > 4 else ""
 
-    def _extract_bullet_titles(text: str) -> set[str]:
-        """Extract the first bold title from each bullet."""
-        titles: set[str] = set()
-        for line in text.split("\n"):
-            stripped = line.strip()
-            if stripped.startswith("- **"):
-                end = stripped.find("**", 4)
-                if end > 0:
-                    titles.add(stripped[3 : end + 2])
-        return titles
 
-    def _extract_bullet_blocks(text: str) -> list[str]:
-        """Split a section body into individual bullet blocks."""
-        blocks: list[str] = []
-        current: list[str] = []
-        heading_found = False
+def _convention_blocks(section: str) -> list[tuple[str, int, int]]:
+    """Return `(title, start_line, end_line)` per top-level bullet.
 
-        for line in text.split("\n"):
-            stripped = line.strip()
-            if stripped.startswith("## ") and not heading_found:
-                heading_found = True
-                continue
-            if not heading_found:
-                continue
-            if stripped.startswith("- "):
-                if current:
-                    blocks.append("\n".join(current))
-                current = [line]
-            elif current:
-                current.append(line)
+    A block runs from a `- ` line at column zero up to the next one, so
+    indented sub-bullets and indented code fences belong to their parent —
+    which is what makes a whole-bullet replacement possible. The old
+    splitter tested the *stripped* line and therefore cut sub-bullets into
+    separate blocks. A fenced block at column zero cannot start a bullet:
+    lines inside it are ignored while tracking the fence.
+    """
+    lines = section.split("\n")
+    starts: list[int] = []
+    in_fence = False
+    for index, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if not in_fence and line.startswith("- "):
+            starts.append(index)
 
-        if current:
-            blocks.append("\n".join(current))
-        return blocks
+    blocks: list[tuple[str, int, int]] = []
+    for position, start in enumerate(starts):
+        end = starts[position + 1] if position + 1 < len(starts) else len(lines)
+        blocks.append((_bullet_title(lines[start]), start, end))
+    return blocks
 
-    existing_titles = _extract_bullet_titles(existing_section)
-    generated_blocks = _extract_bullet_blocks(generated_section)
 
-    new_blocks: list[str] = []
-    for block in generated_blocks:
-        block_lines = block.strip().split("\n")
-        if block_lines:
-            first = block_lines[0].strip()
-            if first.startswith("- **"):
-                end = first.find("**", 4)
-                if end > 0:
-                    title = first[3 : end + 2]
-                    if title not in existing_titles:
-                        new_blocks.append(block)
+def _merge_conventions(existing_section: str, generated_section: str) -> str:
+    """Merge Workspace Conventions: keep the user's bullets, refresh shipped ones.
 
-    if not new_blocks:
+    Shipped bullets (`SHIPPED_CONVENTION_BULLETS`) are replaced in place with
+    the generated text, because their commands and rules move with the skill.
+    Anything else is preserved exactly as the workspace has it, and generated
+    bullets the workspace does not carry are appended at the end. When nothing
+    is replaced or appended the section is returned byte-for-byte unchanged,
+    so a no-op re-init leaves the file alone.
+    """
+    lines = existing_section.split("\n")
+    blocks = _convention_blocks(existing_section)
+    generated_blocks = [
+        (title, generated_section.split("\n")[start:end])
+        for title, start, end in _convention_blocks(generated_section)
+    ]
+    replacements: dict[str, list[str]] = {}
+    appends: list[list[str]] = []
+    existing_titles = {title for title, _, _ in blocks if title}
+    for title, body in generated_blocks:
+        if not title:
+            continue
+        if title in SHIPPED_CONVENTION_BULLETS:
+            if title in existing_titles:
+                replacements[title] = body
+            else:
+                appends.append(body)
+        elif title not in existing_titles:
+            appends.append(body)
+
+    if not replacements and not appends:
         return existing_section
 
-    existing_lines = existing_section.rstrip().split("\n")
-    existing_lines.append("")
-    for block in new_blocks:
-        existing_lines.append(block.rstrip())
+    out: list[str] = []
+    cursor = 0
+    for title, start, end in blocks:
+        out.extend(lines[cursor:start])
+        original = lines[start:end]
+        if title in replacements:
+            stripped_original = list(original)
+            trailing_blanks = 0
+            while stripped_original and not stripped_original[-1].strip():
+                stripped_original.pop()
+                trailing_blanks += 1
+            replacement = list(replacements[title])
+            while replacement and not replacement[-1].strip():
+                replacement.pop()
+            out.extend(replacement)
+            out.extend([""] * trailing_blanks)
+        else:
+            out.extend(original)
+        cursor = end
+    out.extend(lines[cursor:])
 
-    return "\n".join(existing_lines)
+    for body in appends:
+        while out and not out[-1].strip():
+            out.pop()
+        stripped_body = list(body)
+        while stripped_body and not stripped_body[-1].strip():
+            stripped_body.pop()
+        out.append("")
+        out.extend(stripped_body)
+
+    return "\n".join(out)
 
 
 def merge_agents_md(existing: str, generated: str) -> str:
@@ -804,7 +851,10 @@ def merge_agents_md(existing: str, generated: str) -> str:
     - Skill-shipped rule sections (Docs-Code Lockstep, Documentation
       Diagrams): always replace — their text is the skill's, not the
       user's, and a merged copy keeps dead commands alive across re-runs
-    - Workspace Conventions: merge bullet points (keep existing, add new ones)
+    - Workspace Conventions: user bullets kept as written, new generated
+      bullets appended, and shipped bullets (`SHIPPED_CONVENTION_BULLETS`)
+      replaced in place — the same rule as the shipped sections, one level
+      down
     - New H2 sections (only in generated): insert at the expected position
     - User-only H2 sections (only in existing): preserve (append after generated)
     - Everything else: keep existing content (may be user-customized)
