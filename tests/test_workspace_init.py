@@ -108,7 +108,21 @@ def test_legacy_graphify_placeholder_is_upgraded(init_module, tmp_path: Path):
     )
     upgraded = init_module.upgrade_legacy_skill_commands(old, home=home)
     assert "SKILL_PATH" not in upgraded
-    assert "~/.agents/skills/fullstack-init/scripts/graphify_check.py" in upgraded
+    assert (
+        "~/.agents/skills/fullstack-init/scripts/graphify_check.py <repo-path>"
+        in upgraded
+    )
+
+
+def test_upgrade_does_not_duplicate_the_argument(
+    init_module, tmp_path: Path
+):
+    """`graphify_check.py` takes exactly one path — a second argument makes
+    the command exit 2, so the migrated line must carry one."""
+    home = _installed_home(tmp_path)
+    old = "`python3 SKILL_PATH/scripts/graphify_check.py <repo-path>` to check\n"
+    upgraded = init_module.upgrade_legacy_skill_commands(old, home=home)
+    assert upgraded.count("<repo-path>") == 1
 
 
 def test_placeholder_is_left_alone_without_an_install(
@@ -116,3 +130,17 @@ def test_placeholder_is_left_alone_without_an_install(
 ):
     old = "Run `python3 SKILL_PATH/scripts/graphify_check.py <repo-path>` now.\n"
     assert init_module.upgrade_legacy_skill_commands(old, home=tmp_path) == old
+
+
+def test_doubled_argument_from_an_earlier_migration_is_repaired(
+    init_module, tmp_path: Path
+):
+    """The first migration left `<repo-path> <repo-path>`, which the script
+    rejects with exit 2. Repaired even with no install to resolve."""
+    broken = (
+        "`python3 ~/.agents/skills/fullstack-init/scripts/"
+        "graphify_check.py <repo-path> <repo-path>` to check\n"
+    )
+    repaired = init_module.upgrade_legacy_skill_commands(broken, home=tmp_path)
+    assert repaired.count("<repo-path>") == 1
+    assert "SKILL_PATH" not in repaired

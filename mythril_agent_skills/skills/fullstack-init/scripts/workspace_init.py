@@ -290,19 +290,29 @@ def skill_command(
     )
 
 
-LEGACY_GRAPHIFY_PLACEHOLDER = "python3 SKILL_PATH/scripts/graphify_check.py"
+# The whole command is the placeholder, argument included: `graphify_check.py`
+# takes exactly one path, so replacing only the script part would leave the
+# old argument standing and produce a call the script rejects with exit 2.
+LEGACY_GRAPHIFY_PLACEHOLDER = "python3 SKILL_PATH/scripts/graphify_check.py <repo-path>"
+# Workspaces migrated by that first version carry the doubled argument; the
+# repair is a pure typo fix, so it runs even where no install resolves.
+DOUBLED_GRAPHIFY_ARGS = "graphify_check.py <repo-path> <repo-path>"
+CLEAN_GRAPHIFY_ARGS = "graphify_check.py <repo-path>"
 
 
 def upgrade_legacy_skill_commands(text: str, home: Path | None = None) -> str:
     """Replace the legacy `SKILL_PATH` placeholder with the installed path.
 
     Workspaces initialized before the command was resolved carry
-    `python3 SKILL_PATH/scripts/graphify_check.py`, which cannot run from
-    the workspace root: there is no skill directory there to substitute
-    for `SKILL_PATH`. Re-init rewrites that literal to the path probed on
-    this machine. When no install is found the text is left untouched
-    rather than replaced with a second placeholder.
+    `python3 SKILL_PATH/scripts/graphify_check.py <repo-path>`, which cannot
+    run from the workspace root: there is no skill directory there to
+    substitute for `SKILL_PATH`. Re-init rewrites that literal to the path
+    probed on this machine, and repairs the doubled argument an earlier
+    version of this migration left behind. When no install is found the
+    placeholder is left untouched rather than replaced with a second
+    placeholder.
     """
+    text = text.replace(DOUBLED_GRAPHIFY_ARGS, CLEAN_GRAPHIFY_ARGS)
     command, caveat = skill_command(
         "fullstack-init", "graphify_check.py", "<repo-path>", home
     )
