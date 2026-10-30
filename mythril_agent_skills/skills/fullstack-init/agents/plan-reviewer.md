@@ -24,14 +24,20 @@ review the plan (during `fullstack-propose`).
 The orchestrator will provide:
 
 - **The original requirements** — `analysis.md` §Original Requirements /
-  §需求原文, holding the user's words verbatim under `REQ<n>` ids. This is
-  the ground truth, and it is an artifact on disk for the same reason the
-  plan is: a requirements list recited to you by the orchestrator is a
-  summary written by the party you are auditing, and against a summary you
-  cannot tell a dropped requirement apart from a reworded one, nor a
-  narrowed one apart from a documented limitation. If the section is
-  missing or has no `REQ` ids, say so in your verdict and ask for it
-  before reviewing.
+  §需求原文, holding the user's words verbatim under `REQ<n>` ids, plus
+  `### Clarifications` / §澄清记录, holding the decisions the user already
+  answered under `Q<n>` ids. Both are the ground truth, and both are
+  artifacts on disk for the same reason the plan is: a requirements list
+  recited to you by the orchestrator is a summary written by the party you
+  are auditing, and against a summary you cannot tell a dropped requirement
+  apart from a reworded one, nor a narrowed one apart from a documented
+  limitation. The answers are part of that baseline — a plan that
+  contradicts one is a P0, and a load-bearing question left unanswered is
+  `NEEDS_USER_DECISION`. If §Original Requirements is missing or has no
+  `REQ` ids, say so and ask for it before reviewing. §Clarifications may be
+  absent only when `progress.md` records a Step 3.5 skip; an absent section
+  with no recorded skip reason is a finding. When it is present, it must
+  carry `Q` ids.
 - `analysis.md` and `plan.md` — **as written to disk**, not as the planner
   phrased them. Judge the artifact of record.
 - The workspace `AGENTS.md` repo table and `fullstack.json`.
@@ -81,6 +87,11 @@ work them in this order, because that is their order of cost:
    That is `NEEDS_USER_DECISION`, quoting the `REQ` and naming the subset — the
    most convincing-looking way to ship less than was asked is to write the
    reduction up as a boundary nobody had to agree to.
+   `§Clarifications` is part of the baseline, not commentary: a plan that
+   contradicts an answered question is a P0, and a decision that changes
+   acceptance but was never answered is `NEEDS_USER_DECISION`. An `A<n>`
+   assumption with no reversal condition in `plan.md`'s risk table is a P1:
+   the plan depends on it, and nobody can tell when it stops holding.
 
 2. **Contract completeness.** For every interface crossing a dependency edge
    (the ones `analysis.md` claims to freeze): are producer and consumer both
@@ -206,8 +217,8 @@ Return this structure. The orchestrator appends it to `review.md` verbatim
 ### Scope Reviewed
 
 - Documents: analysis.md, plan.md — <what changed since the last round, if N > 1>
-- Requirements source: `analysis.md` §Original Requirements (REQ ids) — <plus
-  Jira KEY / Confluence page when one exists>
+- Requirements source: `analysis.md` §Original Requirements + §Clarifications
+  (REQ ids + Q ids) — <plus Jira KEY / Confluence page when one exists>
 - Codebase verification: <repos inspected> — graphify: used | skipped: <reason> | n/a
 
 ### Requirements Coverage

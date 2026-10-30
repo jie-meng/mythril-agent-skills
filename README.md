@@ -287,7 +287,7 @@ Close a workspace issue by moving its directory into `issues/archive/` — the a
 
 **[Fullstack Propose](./mythril_agent_skills/skills/fullstack-propose/)**
 
-Propose a new work item across a multi-repo fullstack workspace. Plans the approach and writes the work-tracking documents (analysis/plan/progress/review with Success Criteria). Every plan is then audited by an independent `plan-reviewer` subagent against the original requirements — unbuildable or under-specified plans are caught before code exists, not at integration. Deep mode runs a time-boxed spike to validate unknowns first — experiments and verdict live in the same work directory, so nothing is rewritten on handoff to apply.
+Propose a new work item across a multi-repo fullstack workspace. When a plan-shaping decision is still open, it first runs a bounded requirements interrogation (up to five questions per round, each with a recommended answer) and records the answers in the clarification log that the plan review uses as its requirements baseline; `grill me` turns on a deeper round-by-round mode. It then plans the approach and writes the work-tracking documents (analysis/plan/progress/review with Success Criteria). Every plan is then audited by an independent `plan-reviewer` subagent against the original requirements — unbuildable or under-specified plans are caught before code exists, not at integration. Deep mode runs a time-boxed spike to validate unknowns first — experiments and verdict live in the same work directory, so nothing is rewritten on handoff to apply.
 
 - **Try:** Plan OAuth2 PKCE support; spike whether we can migrate to GraphQL
 - **Deps:** Workspace initialized by `fullstack-init`

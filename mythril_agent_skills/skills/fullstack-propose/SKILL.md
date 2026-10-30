@@ -5,6 +5,8 @@ description: |
   gather context, design the approach, validate unknowns (spike) if
   needed, and write the work-tracking documents in one step. Standard
   mode for clear requirements; deep mode (spike) for uncertain ones.
+  An explicit "grill me", "拷问我", "盘问我", or "别急着给方案" turns on
+  round-by-round requirements interrogation before any plan is written.
   Trigger: "fullstack propose", "fullstack plan", "fullstack spike",
   "全栈提案", "全栈规划", "全栈计划", "全栈 spike", "全栈探针",
   "全栈验证", "全栈 poc"; ALSO when the user asks to plan, design, or
@@ -240,6 +242,104 @@ Does this look correct? You can:
 Do NOT proceed until the user confirms. If the user corrects you,
 update and reconfirm.
 
+## Step 3.5 — Requirements Interrogation Gate
+
+Planning starts from requirements, and a one-line request leaves most
+plan-shaping decisions unstated. Before the planner writes anything, ask
+the questions whose answers change the plan — and only those.
+
+### Trigger
+
+Run the gate when at least one **plan-shaping decision** is unresolved. A
+decision is plan-shaping when its answer changes any of:
+
+- scope — what is in and what is out;
+- user-visible behavior or acceptance criteria;
+- a cross-repo contract, data shape, or migration order;
+- rollout, rollback, or backward compatibility;
+- priority, when two requirements conflict.
+
+### Skip conditions
+
+Skip the gate when **any** of these holds:
+
+1. The requirements already pin every plan-shaping decision above.
+2. The user explicitly said not to ask — "don't ask", "just plan",
+   "直接出方案", "别问", "你定".
+3. The change is mechanical — typo, version bump, formatting — with no
+   behavior change.
+4. Review-only re-entry: the plan exists and only its plan review is being
+   re-run.
+
+A skip is a decision too. Its reason becomes the first `progress.md` entry
+at the moment Step 4 creates the work directory, and that entry is the
+record — do not invent a clarification row. Do not skip silently.
+
+### One round, at most five questions
+
+Ask `Q1..Qn` with `n <= 5`, all in one message. Each question carries:
+
+| Part | Content |
+|------|---------|
+| Title | `Q<n> — <the decision>` |
+| Why it matters | which part of the plan the answer changes |
+| Recommendation | the answer you would choose, with its reason |
+| Cost of being wrong | the rework a wrong answer causes, and whether it is reversible |
+
+`按推荐` / `全部按推荐` / `all recommendations` accepts every recommendation
+in the round and closes the interrogation.
+
+- **Standard mode** — at most two rounds. A second round runs only when an
+  answer opens a new plan-shaping decision, and it asks that new frontier
+  only.
+- **Grill mode** — the user said "grill me", "拷问我", "盘问我", or
+  "别急着给方案". No round cap and no five-question cap: ask the current
+  frontier, wait for the answers, recompute the frontier from them, repeat
+  until no plan-shaping decision is left. Stop on decisions, not on a
+  count.
+
+### Facts are the agent's job, decisions are the user's
+
+Check the repository first. If the answer is in the code, the docs, or the
+workspace `AGENTS.md`, it is a fact — look it up and state it; a question
+spent on a fact wastes the user's attention. When the fact-find is deep
+(a call path, an existing contract, a migration history), dispatch the
+`explore` subagent instead of asking; if the host has no `explore`
+subagent, do the fact-find yourself. Ask only what code cannot answer:
+intent, priority, acceptable trade-offs, rollout policy, and conflicts
+between requirements.
+
+### Record the answers
+
+The answers are part of the requirements baseline the Step 4.5 review
+falsifies against. After the round, `analysis.md` §Original Requirements /
+§需求原文 carries a `### Clarifications` / `### 澄清记录` subsection, one row
+per question:
+
+| Q | Question | Recommendation | User answer | Plan impact |
+|---|----------|----------------|-------------|-------------|
+| Q1 | <the decision> | <recommended answer> | <the user's answer, or `(as recommended)`> | <which part of the plan changes> |
+
+An answer that changes what the system must do derives a requirement line
+in the same section: `- **REQ<n>** "<the answer>" — Source: clarification
+Q<n>`. When the user accepted the recommendation, quote the
+recommendation's own wording and mark it `(as recommended)` — never just
+"as recommended", which leaves the baseline with an empty requirement.
+
+Every open decision ends in exactly one of two states:
+
+- `A<n>` — assumed, and only when it does not block acceptance. The row
+  goes in `plan.md`'s risk table with the reversal condition — what makes
+  the assumption false and how to back out — in the `Mitigation` /
+  `应对` column.
+- `NEEDS_USER_DECISION` — the decision blocks acceptance; do not write a
+  plan around it — ask the user now. Until answered, it stays an open
+  decision in the Step 5 report.
+
+No silent assumptions. The exact table and row shape are frozen in
+[`references/document-templates.md`](references/document-templates.md);
+Step 4 writes this content to disk before the planner is delegated to.
+
 ## Step 4 — Create the Work Plan
 
 Create a work directory under `<docs-dir>/changes/<type>/`:
@@ -267,6 +367,24 @@ breaks traceability.
 | Trivial (typo, config, version bump) | 1-2 sections: brief current state + change rationale |
 | Simple (single repo, clear scope) | 3-4 sections: current state, requirements, chosen approach |
 | Complex (multi-repo, architectural) | Full template: diagrams, options, trade-offs, risk matrix |
+
+### Write the requirements baseline first
+
+The orchestrator writes the requirements baseline; the planner returns the
+rest.
+
+1. Create the work directory and the four files (invariant above).
+2. Immediately write `analysis.md`'s `## Original Requirements` / §需求原文
+   from the user's own words, plus `### Clarifications` / §澄清记录 from
+   Step 3.5. If the gate was skipped, omit `### 澄清记录`; the first
+   `progress.md` entry records the skip reason at this same moment.
+3. Only then delegate to the planner, passing that same content in the
+   brief. Do not tell the planner to read a section that does not exist on
+   disk yet — a missing section is how the answers and the skip reason get
+   silently dropped.
+
+The Step 3.5 answers live in the conversation until this point; this is
+where they become an artifact the Step 4.5 review can falsify against.
 
 ### Standard mode — write the four documents
 
@@ -548,13 +666,17 @@ thing being tested.
 
 ### What the plan-reviewer receives
 
-- **The original requirements** — `analysis.md` §Original Requirements /
-  §需求原文, the user's words as written to disk, not your restatement of
-  them. Without a baseline that exists outside this conversation, the
+- **The requirements baseline** — `analysis.md` §Original Requirements /
+  §需求原文, the user's words as written to disk, plus §Clarifications /
+  §澄清记录, the decisions the user already answered. Not your restatement
+  of either. Without a baseline that exists outside this conversation, the
   reviewer cannot detect a dropped requirement — and cannot detect a
   narrowed one either, which is the failure that hides as "a documented
-  limitation". If the section is missing, stop and write it before
-  reviewing; do not brief the reviewer from your own summary.
+  limitation". If `§Original Requirements` is missing or has no `REQ` ids,
+  stop and write it before reviewing. `§Clarifications` may be absent only
+  when the first `progress.md` entry records a Step 3.5 skip; an absent
+  section with no recorded skip is a finding. Do not brief the reviewer
+  from your own summary.
 - `analysis.md` and `plan.md` **as written to disk** — not the planner's
   returned message.
 - The workspace `AGENTS.md` repo table, plus `AGENTS.md` / `README.md` of
@@ -586,6 +708,12 @@ Dispatch the round-2+ confirmation as a **fresh agent** with this minimal
 brief; do not continue an existing heavyweight subagent session — context
 that grows every round is what makes repeats slow and unconvergent. When
 no agent can be spawned, the fallback above applies unchanged.
+
+**A plan that contradicts an answered clarification is a P0.** The
+`§Clarifications` answers are part of the baseline the reviewer falsifies
+against; a plan that re-opens a settled decision, or silently substitutes
+its own assumption for the user's answer, is not a wording issue — it is
+the plan promising something the user already declined.
 
 ### Handling the verdict
 
@@ -639,6 +767,10 @@ The plan may be handed to `fullstack-apply` only when ALL of these hold:
       P0/P1 (residual items are recorded as known risks, not as open fixes)
 - [ ] `analysis.md` carries §Original Requirements / §需求原文 with one
       `REQ<n>` id per ask, in the user's words — not a summary
+- [ ] Every plan-shaping decision is answered, recorded as `A<n>` with a
+      reversal condition, or escalated as `NEEDS_USER_DECISION` — no silent
+      assumptions; `analysis.md` carries `§澄清记录`, or `progress.md`
+      records a Step 3.5 skip
 - [ ] Every requirement maps to ≥ 1 Success Criterion, and every criterion
       maps to ≥ 1 task
 - [ ] Every frozen contract passes the completeness check, or is explicitly
