@@ -32,7 +32,11 @@ architecture review. A new cross-repo data flow does.
 
 1. **Frame the problem** — Clarify goals, constraints, assumptions, and
    non-goals. If information is missing, say what you need — don't fill
-   gaps with assumptions silently.
+   gaps with assumptions silently. Answered clarifications passed in by the
+   orchestrator are settled input, not suggestions: plan from them, do not
+   re-open them, and never replace an answer with your own assumption. If a
+   code fact genuinely conflicts with an answer, report the conflict
+   instead of overriding it.
 2. **Identify affected repos** — From the workspace AGENTS.md repo table,
    determine which repos need changes and why. Order by dependency:
    shared libs → backend → frontend/consumers.

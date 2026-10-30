@@ -489,6 +489,37 @@ plan-reviewer falsifies coverage against, and a paraphrase here is what
 lets a narrowing pass as a documented limitation. One `REQ<n>` id per
 ask; `plan.md` and `review.md` cite the ids.
 
+### Clarifications
+
+Question/answer record from the Step 3.5 requirements interrogation — one
+row per question asked before planning, `Q1..Qn`, numbered per work item
+and never reused. An unanswered row is allowed, but its resolution must
+live elsewhere: an `A<n>` row in `plan.md` §Risks / Open Questions, or a
+`NEEDS_USER_DECISION` — never a silent assumption. When the gate was
+skipped, this subsection may be omitted; the skip reason recorded in
+`progress.md` is the record.
+
+| Q | Question | Recommendation | User answer | Plan impact |
+|---|----------|----------------|-------------|-------------|
+| Q1 | <what only the user can decide> | <the recommended answer> | <the user's answer; `(as recommended)` when they took the default> | <which part of the plan the answer changes> |
+
+An answer that changes what the system must do derives a requirement line
+in this section, next to the other `REQ` lines:
+
+- **REQ<n>** "<the user's answer>" — Source: clarification Q<n>
+
+When the user accepted the recommendation, quote the recommendation's own
+wording inside the quotes and mark it `(as recommended)` — never write
+just "as recommended", which leaves the review baseline with an empty
+requirement. An implementation choice that does not change what the
+system must do stays in this table; the analysis section that relies on
+it cites the Q id.
+
+An unanswered decision that does not block acceptance becomes an `A<n>` row
+in `plan.md` §Risks / Open Questions, numbered apart from `R<n>`:
+`| A1 | <the assumption, phrased as a fact the plan relies on> | Medium |
+High | Reversal: <what would make it false> → <how to back out> |`.
+
 ## Requirements Analysis
 
 <Break down requirements into concrete behaviors, inputs, outputs.>
@@ -572,6 +603,29 @@ flowchart LR
 一条"已记录的边界"。每条诉求一个 `REQ<n>` 编号，plan.md 与 review.md 都
 引用编号（`R<n>` 留给风险表）。
 
+### 澄清记录
+
+Step 3.5 追问门的问答记录——规划前问过的每个问题一行，`Q1..Qn` 按工作项编号、
+不复用。允许出现未答行，但它的归宿必须在别处：`plan.md` §风险 / 待确认问题 的
+`A<n>` 行，或 `NEEDS_USER_DECISION`——不允许静默假设。追问门被跳过时，本节可以
+省略；`progress.md` 里记录的跳过原因就是记录。
+
+| Q | 问题 | 推荐答案 | 用户回答 | 对方案的影响 |
+|---|------|---------|---------|-------------|
+| Q1 | <只有用户能定的决策> | <推荐答案> | <用户回答；接受默认时写"（按推荐）"> | <会改变方案的哪一部分> |
+
+回答改变了"系统必须做什么"时，在本节里（与其他 `REQ` 行并列）派生一条需求：
+
+- **REQ<n>** "<用户回答原文>" — 来源：澄清 Q<n>
+
+用户接受推荐时，引号内引用推荐答案自己的措辞并标 `（按推荐）`——不能只写
+"按推荐"，否则审查基线里会是一条空需求。不改变"系统必须做什么"的实现选择
+留在本表；引用它的分析章节写明 Q 编号。
+
+未答且不影响验收的决策写成 `plan.md` §风险 / 待确认问题 的 `A<n>` 行，与
+`R<n>` 分开编号：`| A1 | <假设，按方案依赖的事实陈述> | 中 | 高 | 反转条件：
+<什么情况下失效> → <怎么回退> |`。
+
 ## 需求分析
 
 <将需求拆解为具体的行为、输入、输出。>
@@ -654,6 +708,37 @@ that never cites a declared id.
 
 - **REQ1** "<exact words>" — <source: user prompt / PROJ-123 / page>
 - **REQ2** "<exact words>" — <source>
+
+### Clarifications
+
+Question/answer record from the Step 3.5 requirements interrogation — one
+row per question asked before planning, `Q1..Qn`, numbered per work item
+and never reused. An unanswered row is allowed, but its resolution must
+live elsewhere: an `A<n>` row in `plan.md` §Risks / Open Questions, or a
+`NEEDS_USER_DECISION` — never a silent assumption. When the gate was
+skipped, this subsection may be omitted; the skip reason recorded in
+`progress.md` is the record.
+
+| Q | Question | Recommendation | User answer | Plan impact |
+|---|----------|----------------|-------------|-------------|
+| Q1 | <what only the user can decide> | <the recommended answer> | <the user's answer; `(as recommended)` when they took the default> | <which part of the plan the answer changes> |
+
+An answer that changes what the system must do derives a requirement line
+in this section, next to the other `REQ` lines:
+
+- **REQ<n>** "<the user's answer>" — Source: clarification Q<n>
+
+When the user accepted the recommendation, quote the recommendation's own
+wording inside the quotes and mark it `(as recommended)` — never write
+just "as recommended", which leaves the review baseline with an empty
+requirement. An implementation choice that does not change what the
+system must do stays in this table; the analysis section that relies on
+it cites the Q id.
+
+An unanswered decision that does not block acceptance becomes an `A<n>` row
+in `plan.md` §Risks / Open Questions, numbered apart from `R<n>`:
+`| A1 | <the assumption, phrased as a fact the plan relies on> | Medium |
+High | Reversal: <what would make it false> → <how to back out> |`.
 
 ## Symptom
 
@@ -754,6 +839,29 @@ review.md 都引用编号（`R<n>` 留给风险表）。引用了未声明的编
 
 - **REQ1** 「<原话>」——<来源：用户消息 / PROJ-123 / 页面>
 - **REQ2** 「<原话>」——<来源>
+
+### 澄清记录
+
+Step 3.5 追问门的问答记录——规划前问过的每个问题一行，`Q1..Qn` 按工作项编号、
+不复用。允许出现未答行，但它的归宿必须在别处：`plan.md` §风险 / 待确认问题 的
+`A<n>` 行，或 `NEEDS_USER_DECISION`——不允许静默假设。追问门被跳过时，本节可以
+省略；`progress.md` 里记录的跳过原因就是记录。
+
+| Q | 问题 | 推荐答案 | 用户回答 | 对方案的影响 |
+|---|------|---------|---------|-------------|
+| Q1 | <只有用户能定的决策> | <推荐答案> | <用户回答；接受默认时写"（按推荐）"> | <会改变方案的哪一部分> |
+
+回答改变了"系统必须做什么"时，在本节里（与其他 `REQ` 行并列）派生一条需求：
+
+- **REQ<n>** "<用户回答原文>" — 来源：澄清 Q<n>
+
+用户接受推荐时，引号内引用推荐答案自己的措辞并标 `（按推荐）`——不能只写
+"按推荐"，否则审查基线里会是一条空需求。不改变"系统必须做什么"的实现选择
+留在本表；引用它的分析章节写明 Q 编号。
+
+未答且不影响验收的决策写成 `plan.md` §风险 / 待确认问题 的 `A<n>` 行，与
+`R<n>` 分开编号：`| A1 | <假设，按方案依赖的事实陈述> | 中 | 高 | 反转条件：
+<什么情况下失效> → <怎么回退> |`。
 
 ## 问题现象
 
@@ -922,8 +1030,8 @@ orchestrator appends it. Section labels follow the work item's language.
 ### Scope Reviewed
 
 - Documents: analysis.md, plan.md — <what changed since the last round, if N > 1>
-- Requirements source: `analysis.md` §Original Requirements (REQ ids) — <plus
-  Jira KEY / Confluence page when one exists>
+- Requirements source: `analysis.md` §Original Requirements + §Clarifications
+  (REQ ids + Q ids) — <plus Jira KEY / Confluence page when one exists>
 - Codebase verification: <repos inspected> — graphify: used | skipped: <reason> | n/a
 
 ### Requirements Coverage
@@ -987,7 +1095,7 @@ treated as a new P0 in the next round.
 ### 审查范围
 
 - 文档：analysis.md、plan.md — <与上一轮的差异>
-- 需求来源：analysis.md §需求原文（REQ 编号）— <有 Jira / Confluence 时附编号>
+- 需求来源：analysis.md §需求原文 + §澄清记录（REQ ids + Q ids）— <有 Jira / Confluence 时附编号>
 - 代码核验：<检查的仓库> — graphify：已用 | 跳过：<理由> | 无
 
 ### 需求覆盖
