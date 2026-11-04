@@ -1,0 +1,22 @@
+mythril_agent_skills/skills/jira/API_REFERENCE.md
+  h_e0538e51a4c5ef 13-14,231-233,235-240,249-250,254
+mythril_agent_skills/skills/jira/README.md
+  h_e0538e51a4c5ef 12,16-17
+mythril_agent_skills/skills/jira/SKILL.md
+  h_e0538e51a4c5ef 4,10-11,22,24,26-31,33,35,37-45,47-50,54-59,61,63,65,81-92,96-247,261-262,264-268,272-277
+mythril_agent_skills/skills/jira/scripts/jira_api.py
+  h_e0538e51a4c5ef 5-6,19,60-71,114-116,331,334-338,455
+tests/skills/test_jira.py
+  h_e0538e51a4c5ef 8,13-14,248-268,298-316
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4b6d535d7d9b6ba5e23cc06ce8656ed4ff01aff7",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
