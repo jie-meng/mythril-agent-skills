@@ -2,8 +2,8 @@
 """Jira REST API client for common developer workflows.
 
 Required environment variables:
-  ATLASSIAN_API_TOKEN  — API token or Personal Access Token
-  ATLASSIAN_USER_EMAIL — Atlassian account email (for Jira Cloud basic auth)
+  ATLASSIAN_API_TOKEN  — Atlassian API token
+  ATLASSIAN_USER_EMAIL — Atlassian account email (Basic auth)
 
 Optional (one of):
   JIRA_BASE_URL        — e.g. https://jira.yourcompany.com (takes precedence)
@@ -16,7 +16,7 @@ Uses only Python 3.10+ standard library (zero dependencies).
 import os, sys, json, re, argparse, base64, ssl
 import urllib.request
 import urllib.error
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode
 
 
 def _create_ssl_context() -> ssl.SSLContext | None:
@@ -55,6 +55,18 @@ def get_token() -> str:
         print("Get token: https://id.atlassian.com/manage-profile/security/api-tokens", file=sys.stderr)
         sys.exit(1)
     return token
+
+
+def get_email() -> str:
+    """Return ATLASSIAN_USER_EMAIL from environment (required for Basic auth)."""
+    email = os.environ.get("ATLASSIAN_USER_EMAIL", "").strip()
+    if not email:
+        print("ERROR: ATLASSIAN_USER_EMAIL not set.", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Jira Cloud uses Basic auth with your Atlassian account email:", file=sys.stderr)
+        print('  export ATLASSIAN_USER_EMAIL="you@example.com"', file=sys.stderr)
+        sys.exit(1)
+    return email
 
 
 def get_base_url() -> str:
@@ -99,12 +111,9 @@ def parse_issue_input(input_str: str) -> tuple[str, str]:
 
 
 def _auth_header(token: str) -> str:
-    """Build auth header. Uses Basic auth if ATLASSIAN_USER_EMAIL is set, otherwise Bearer."""
-    email = os.environ.get("ATLASSIAN_USER_EMAIL", "").strip()
-    if email:
-        cred = base64.b64encode(f"{email}:{token}".encode()).decode()
-        return f"Basic {cred}"
-    return f"Bearer {token}"
+    """Build the Basic auth header used by the Jira Cloud REST API."""
+    cred = base64.b64encode(f"{get_email()}:{token}".encode()).decode()
+    return f"Basic {cred}"
 
 
 def jira_request(
@@ -137,10 +146,6 @@ def jira_request(
     except urllib.error.HTTPError as e:
         body_text = e.read().decode(errors="replace")
         print(f"ERROR: Jira API {e.code} {method} {path}: {body_text}", file=sys.stderr)
-        if e.code in (401, 403) and not os.environ.get("ATLASSIAN_USER_EMAIL", "").strip():
-            print("", file=sys.stderr)
-            print("HINT: Jira Cloud requires Basic auth. Set ATLASSIAN_USER_EMAIL:", file=sys.stderr)
-            print('  export ATLASSIAN_USER_EMAIL="you@example.com"', file=sys.stderr)
         sys.exit(1)
     except urllib.error.URLError as e:
         print(f"ERROR: Network error: {e.reason}", file=sys.stderr)
@@ -323,10 +328,14 @@ def format_issue_markdown(issue: dict) -> str:
 def format_search_results_markdown(data: dict) -> str:
     """Format JQL search results as a markdown table."""
     issues = data.get("issues", [])
-    total = data.get("total", len(issues))
+    total = data.get("total")
     next_page_token = data.get("nextPageToken")
 
-    lines = [f"## Search Results ({len(issues)} of {total} issues)"]
+    noun = "issue" if len(issues) == 1 else "issues"
+    if total is None:
+        lines = [f"## Search Results ({len(issues)} {noun})"]
+    else:
+        lines = [f"## Search Results ({len(issues)} of {total} {noun})"]
     lines.append("")
 
     if not issues:
@@ -443,7 +452,7 @@ def cmd_view(args: argparse.Namespace) -> None:
     base_url, issue_key = parse_issue_input(args.issue)
     fields_param = (
         "summary,status,issuetype,priority,assignee,reporter,labels,components,"
-        "fixVersions,description,created,updated,parent,subtasks,issuelinks,resolution,comment"
+        "fixVersions,description,created,updated,parent,subtasks,issuelinks,resolution"
     )
     data = jira_request("GET", f"/issue/{issue_key}", base_url, token,
                         params={"fields": fields_param})

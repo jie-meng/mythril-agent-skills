@@ -9,9 +9,11 @@ This skill helps AI assistants interact with Jira using the REST API for common 
 
 No third-party CLI tools required — uses only the Jira REST API via a bundled Python script (Python 3.10+ standard library, zero dependencies).
 
-**Jira REST API docs**: https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/
+**Jira Cloud REST API docs**: https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/
 
 **Full API reference**: See [`API_REFERENCE.md`](./API_REFERENCE.md) in this directory.
+
+**Scope**: Jira Cloud only. The script calls the Jira Cloud REST API v3 (`/rest/api/3`), so Jira Server/Data Center — which exposes only the v2 API (`/rest/api/2`) — is not supported.
 
 ## Prerequisites
 
@@ -34,8 +36,6 @@ Optionally, set the base URL to avoid passing full URLs every time:
 ```bash
 export ATLASSIAN_BASE_URL="https://yoursite.atlassian.net"  # optional
 ```
-
-For Jira Server/DC 8.14+ with PAT, only `ATLASSIAN_API_TOKEN` is needed (Bearer auth is used when `ATLASSIAN_USER_EMAIL` is not set).
 
 These variables are shared with other Atlassian skills (e.g. Confluence).
 

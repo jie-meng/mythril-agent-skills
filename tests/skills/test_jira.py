@@ -5,9 +5,12 @@ Covers pure formatter functions (no API/network calls):
 - format_issue_markdown: issue JSON → markdown
 - format_search_results_markdown: search response → markdown table
 - parse_issue_input: URL parsing (URL branch only)
+- _auth_header: Basic auth header construction
 """
 
 from __future__ import annotations
+
+import base64
 
 import pytest
 
@@ -242,6 +245,27 @@ class TestFormatSearchResultsMarkdown:
         md = self.fmt(data)
         assert "..." in md
 
+    def test_enhanced_search_without_total(self):
+        data = {
+            "issues": [
+                {
+                    "key": "PROJ-2",
+                    "fields": {
+                        "issuetype": {"name": "Bug"},
+                        "priority": {"name": "High"},
+                        "status": {"name": "Open"},
+                        "assignee": None,
+                        "summary": "No total field",
+                    },
+                }
+            ],
+            "isLast": False,
+            "nextPageToken": "CAEaAggB",
+        }
+        md = self.fmt(data)
+        assert "Search Results (1 issue)" in md
+        assert "Next Page Token" in md
+
 
 class TestParseIssueInputUrl:
     """Test parse_issue_input for URL inputs only (bare keys call get_base_url)."""
@@ -271,3 +295,22 @@ class TestParseIssueInputUrl:
         )
         assert base == "https://mysite.atlassian.net"
         assert key == "PROJ-789"
+
+
+class TestAuthHeader:
+    """Tests for jira_api._auth_header (Basic auth for Jira Cloud)."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from jira_api import _auth_header
+        self.build = _auth_header
+
+    def test_basic_auth_uses_email_and_token(self, monkeypatch):
+        monkeypatch.setenv("ATLASSIAN_USER_EMAIL", "dev@example.com")
+        encoded = base64.b64encode(b"dev@example.com:secret").decode()
+        assert self.build("secret") == f"Basic {encoded}"
+
+    def test_missing_email_exits(self, monkeypatch):
+        monkeypatch.delenv("ATLASSIAN_USER_EMAIL", raising=False)
+        with pytest.raises(SystemExit):
+            self.build("secret")

@@ -10,6 +10,8 @@ Base URL: `https://yoursite.atlassian.net/rest/api/3`
 Authorization: Basic base64(email:api_token)
 ```
 
+This is the only auth scheme the bundled script implements. OAuth 2.0 (3LO) and Forge call Jira through `https://api.atlassian.com/ex/jira/{cloudId}/...` instead and are out of scope.
+
 All requests should include `Accept: application/json`. Write requests also need `Content-Type: application/json`.
 
 ---
@@ -226,11 +228,16 @@ Transitions an issue to a new status.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `jql` | string | **Required.** JQL query |
-| `maxResults` | int | Max results (default: 50) |
-| `fields` | string | Comma-separated field names |
+| `jql` | string | JQL query |
+| `maxResults` | int | Max results |
+| `fields` | array | Comma-separated field names |
 | `expand` | string | Expand options |
-| `nextPageToken` | string | Pagination token |
+| `nextPageToken` | string | Pagination token from the previous response |
+| `properties` | array | Issue property keys to return |
+| `fieldsByKeys` | boolean | Reference fields by key instead of ID |
+| `failFast` | boolean | Fail the request on the first invalid field |
+| `reconcileIssues` | array | Issue IDs used for read-after-write consistency |
+| `includeArchivedProjects` | boolean | Include archived projects in results |
 
 **Response**
 
@@ -239,12 +246,12 @@ Transitions an issue to a new status.
   "issues": [
     { "key": "PROJ-123", "fields": { "summary": "...", "status": { "name": "..." }, ... } }
   ],
-  "total": 42,
-  "maxResults": 50
+  "isLast": false,
+  "nextPageToken": "CAEaAggB"
 }
 ```
 
-> Note: The legacy `/rest/api/3/search` endpoint has been removed from Jira Cloud. Use `/rest/api/3/search/jql` instead.
+> Note: The enhanced search endpoint does not return `total`. Use `isLast` and `nextPageToken` for pagination. The legacy `/rest/api/3/search` endpoint is being removed from Jira Cloud — use `/rest/api/3/search/jql` instead.
 
 ---
 
