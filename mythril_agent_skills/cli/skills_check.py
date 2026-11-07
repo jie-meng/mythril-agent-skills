@@ -91,6 +91,7 @@ SKILL_GLEAN = "glean"
 SKILL_EXCEL = "excel"
 SKILL_PDF = "pdf"
 SKILL_MD_TO_PDF = "md-to-pdf"
+SKILL_WEB_TESTER = "web-tester"
 
 CHECKABLE_SKILLS = [
     SKILL_GIT_REPO_READER,
@@ -108,6 +109,7 @@ CHECKABLE_SKILLS = [
     SKILL_MD_TO_PDF,
     SKILL_IMAGEMAGICK,
     SKILL_FFMPEG,
+    SKILL_WEB_TESTER,
 ]
 
 
@@ -971,6 +973,55 @@ def check_git(config_path: Path) -> bool:
     return True
 
 
+# --- web-tester ---
+
+
+_NODE_INSTALL_HINTS: dict[str, list[str]] = {
+    "macOS": ["brew install node"],
+    "Linux (Debian/Ubuntu)": ["sudo apt-get install nodejs npm"],
+    "Linux (Fedora/RHEL)": ["sudo dnf install nodejs npm"],
+    "Windows (winget)": ["winget install --id OpenJS.NodeJS.LTS"],
+}
+
+
+def check_web_tester(config_path: Path) -> bool:
+    """Check Node.js >= 18 and npm for the web-tester Playwright toolbox.
+
+    Chromium itself is installed per-project by the skill's setup.sh, so
+    nothing to configure here beyond the JS runtime.
+    """
+    print(f"\n{BOLD}web-tester (node >= 18 / npm):{NC}")
+
+    if not shutil.which("node"):
+        print(f"  Status:   {RED}NOT INSTALLED{NC}")
+        _print_install_hints(_NODE_INSTALL_HINTS, "https://nodejs.org/en/download")
+        return False
+
+    version = _run_command(["node", "-v"])
+    node_version = version.stdout.strip() if version.returncode == 0 else ""
+    major = int(node_version.lstrip("v").split(".")[0]) if node_version else 0
+    if major < 18:
+        print(
+            f"  Status:   {RED}node {node_version or '(unknown)'} found, "
+            f">= 18 required{NC}"
+        )
+        _print_install_hints(_NODE_INSTALL_HINTS, "https://nodejs.org/en/download")
+        return False
+
+    if not shutil.which("npm"):
+        print(f"  Status:   {RED}node {node_version} found but npm NOT FOUND{NC}")
+        print(
+            f"    {DIM}npm ships with Node.js — reinstall Node.js or check PATH.{NC}"
+        )
+        return False
+
+    print(f"  Status:   {GREEN}installed{NC}")
+    if node_version:
+        print(f"  Version:  {DIM}node {node_version}{NC}")
+
+    return True
+
+
 # --- Curses multi-select UI ---
 
 
@@ -1192,6 +1243,10 @@ def main() -> None:
 
     if SKILL_FFMPEG in skills:
         if not check_ffmpeg(config_path):
+            all_configured = False
+
+    if SKILL_WEB_TESTER in skills:
+        if not check_web_tester(config_path):
             all_configured = False
 
     print()

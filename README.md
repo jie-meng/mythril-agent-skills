@@ -417,11 +417,12 @@ You can use `/plugin discover` to interactively find and install plugins:
 
 | Plugin | Description |
 |---|---|
-| `all-skills` | All-in-one bundle (all 31 skills) |
+| `all-skills` | All-in-one bundle (all 32 skills) |
 | `skill-creator` | Create and improve skills/prompts for any AI platform |
 | `code-review-staged` | Code review for git staged changes |
 | `branch-diff-review` | Code review for local branch differences |
 | `github-code-review-pr` | PR code review via GitHub CLI |
+| `web-tester` | Black-box GUI testing of web apps in a real browser — desktop, mobile (touch), canvas games |
 | `git-repo-reader` | Clone, cache, and read any git repository |
 | `gh-operations` | GitHub CLI operations for issues and PRs |
 | `jira` | Jira REST API integration |

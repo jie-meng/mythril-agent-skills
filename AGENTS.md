@@ -304,19 +304,20 @@ Skills appear in multiple listings: the README "Available Skills" table, the `sk
 |---|---|---|---|
 | 1 | **Meta** | Tools for creating/managing skills themselves | skill-creator |
 | 2 | **Code Review** | Code review workflows (local and remote) | code-review-staged, branch-diff-review, github-code-review-pr |
-| 3 | **Git & GitHub** | Git operations and GitHub platform integration | git-repo-reader, gh-operations |
-| 4 | **API Integrations** | Third-party API clients requiring credentials | jira, confluence, figma, glean, glm-vision-fallback |
-| 5 | **Data Processing** | Python-based file processing tools | excel, pdf |
-| 6 | **Media Processing** | Standalone CLI tools for media files | imagemagick, ffmpeg |
-| 7 | **Content** | Content creation and writing tools | blog-writer |
-| 8 | **Project Planning** | Estimation, scoping, and planning tools | story-point-estimate |
-| 9 | **Fullstack Workspace** | Multi-repo workspace scaffolding, lifecycle, and cross-repo implementation | fullstack-init, fullstack-explore, fullstack-brief, fullstack-issue-create, fullstack-issue-archive, fullstack-propose, fullstack-apply, fullstack-archive, fullstack-docs-migration |
+| 3 | **Testing** | Black-box GUI testing of web apps in a real browser | web-tester |
+| 4 | **Git & GitHub** | Git operations and GitHub platform integration | git-repo-reader, gh-operations |
+| 5 | **API Integrations** | Third-party API clients requiring credentials | jira, confluence, figma, glean, glm-vision-fallback |
+| 6 | **Data Processing** | Python-based file processing tools | excel, pdf |
+| 7 | **Media Processing** | Standalone CLI tools for media files | imagemagick, ffmpeg |
+| 8 | **Content** | Content creation and writing tools | blog-writer |
+| 9 | **Project Planning** | Estimation, scoping, and planning tools | story-point-estimate |
+| 10 | **Fullstack Workspace** | Multi-repo workspace scaffolding, lifecycle, and cross-repo implementation | fullstack-init, fullstack-explore, fullstack-brief, fullstack-issue-create, fullstack-issue-archive, fullstack-propose, fullstack-apply, fullstack-archive, fullstack-docs-migration |
 
 **Within each category**, order by dependency complexity — no deps first, then CLI deps, then API credential deps:
 - No external dependencies → CLI tool dependency (`git`) → Platform CLI dependency (`gh`) → API token dependency
 
 **For `skills-check`**: The execution order follows a different principle — **dependency layers** (check foundational tools before things that depend on them):
-1. Foundation CLI (`git`) — almost everything depends on it
+1. Foundation CLI (`git`, `node`/`npm`) — almost everything depends on one of these
 2. Platform CLI (`gh`) — builds on git
 3. API credentials (Atlassian, Figma) — need tokens configured
 4. Python packages (openpyxl, pypdf, pdfplumber) — pip-installable
