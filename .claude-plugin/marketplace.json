@@ -112,6 +112,25 @@
       "strict": false
     },
     {
+      "name": "web-tester",
+      "source": "./plugins/web-tester",
+      "description": "Black-box GUI testing of web apps in a real browser — desktop, mobile (device emulation, touch gestures), canvas games; cross-agent with a bundled Playwright fallback toolbox",
+      "version": "0.3.1",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "development",
+      "tags": [
+        "testing",
+        "playwright",
+        "mobile",
+        "game",
+        "browser"
+      ],
+      "strict": false
+    },
+    {
       "name": "git-repo-reader",
       "source": "./plugins/git-repo-reader",
       "description": "Clone, cache, and read any git repository for code exploration and analysis",

@@ -410,11 +410,12 @@ skills-clean-cache --repos  # 交互式：选择要删除的仓库
 
 | 插件 | 描述 |
 |---|---|
-| `all-skills` | 全部技能包（共 31 个） |
+| `all-skills` | 全部技能包（共 32 个） |
 | `skill-creator` | 为任意 AI 平台创建/改进技能和提示词 |
 | `code-review-staged` | 暂存区代码审查 |
 | `branch-diff-review` | 本地分支差异代码审查 |
 | `github-code-review-pr` | 通过 GitHub CLI 审查 PR |
+| `web-tester` | 真实浏览器中的 web 应用黑盒 GUI 测试 — 桌面、移动端（touch 手势）、canvas 游戏 |
 | `git-repo-reader` | 克隆、缓存并阅读任意 git 仓库 |
 | `gh-operations` | GitHub CLI 操作（issue 和 PR） |
 | `jira` | Jira REST API 集成 |
