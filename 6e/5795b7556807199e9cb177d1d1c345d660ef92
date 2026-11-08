@@ -1,0 +1,20 @@
+mythril_agent_skills/skills/fullstack-apply/SKILL.md
+  h_e0538e51a4c5ef 141-166,465-467
+mythril_agent_skills/skills/fullstack-archive/SKILL.md
+  h_e0538e51a4c5ef 72-85
+mythril_agent_skills/skills/fullstack-docs-migration/SKILL.md
+  h_e0538e51a4c5ef 54-66
+mythril_agent_skills/skills/fullstack-issue-archive/SKILL.md
+  h_e0538e51a4c5ef 73-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6e5795b7556807199e9cb177d1d1c345d660ef92",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
