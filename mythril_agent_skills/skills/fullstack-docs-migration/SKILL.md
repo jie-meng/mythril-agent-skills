@@ -51,6 +51,19 @@ Legacy work directories have `analysis.md` / `plan.md` / `progress.md` /
 The user provides the docs repo path. If they don't, ask for it. The
 migration runs inside that directory. No code repos are touched.
 
+## Language Selection
+
+The migration report and user-facing messages MUST match the language of
+the user's prompt.
+
+1. If the user **explicitly requests a language** → use that language.
+2. If the user's prompt contains **any Chinese characters** → use Chinese.
+3. Otherwise → use English (default).
+
+This does NOT affect directory names the migration creates (always
+lowercase-hyphenated English) and does NOT rewrite the body of migrated
+documents — their existing language stays as it is.
+
 ## Step 1 — Scan the Repo
 
 Run the bundled scanner to inventory the legacy structure:

@@ -70,6 +70,20 @@ print(result.stdout)
 Record `DOCS_DIR` from the output — every issue path below is relative
 to it.
 
+## Language Selection
+
+Closing messages, the final report, and other user-facing messages MUST
+match the language of the user's prompt.
+
+1. If the user **explicitly requests a language** → use that language.
+2. If the user's prompt contains **any Chinese characters** → use Chinese.
+3. Otherwise → use English (default).
+
+This does NOT affect issue directory names (always lowercase-hyphenated
+English). Content written INTO an existing issue follows that issue's
+own language (see Step 5) — the rule above governs only what this skill
+itself originates.
+
 ## Step 1 — Route by Target Type (auto-detection)
 
 There are two archives in a fullstack workspace: work items under

@@ -69,6 +69,20 @@ print(result.stdout)
 
 Record `DOCS_DIR` for the archive path.
 
+## Language Selection
+
+The archive report, changelog entry text, and user-facing messages MUST
+match the language of the user's prompt.
+
+1. If the user **explicitly requests a language** → use that language.
+2. If the user's prompt contains **any Chinese characters** → use Chinese.
+3. Otherwise → use English (default).
+
+This does NOT affect archive directory names or moved file names (always
+lowercase-hyphenated English). Text written into an existing document
+(the `### Verdict` / `### 结论` section check, changelog entries) follows
+that document's own language.
+
 ## Step 1 — Route by Target Type, Then Identify the Work Item
 
 There are two archives in a fullstack workspace: work items under

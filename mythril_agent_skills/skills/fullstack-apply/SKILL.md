@@ -138,6 +138,32 @@ names (always English Title-Case-With-Hyphens), work directory names
 (always lowercase-hyphenated English), or Git commit messages (follow
 each repo's own convention).
 
+## Code Comment Policy
+
+Generated and modified code has **no comments by default**. Do not add
+comments that restate what the code does — the code should say what it
+does already. This applies to both new code and edits.
+
+Two exceptions, checked in order:
+
+1. **Repo convention wins.** If the target repo has an established
+   comment style (mandatory docstrings, license headers, a particular
+   comment format — including comment language, e.g. a repo whose
+   comments are in Chinese), follow it. No repo convention = no
+   comments.
+2. **Only critical "why" comments.** In the absence of a repo
+   convention, a comment is justified only for non-obvious *why*:
+   a subtle design trade-off, a workaround and the reason behind it,
+   a bug/issue reference, an order-sensitive constraint. Never
+   explain *what*.
+
+When editing existing code, keep the comments that are already there —
+do not delete or rewrite them unless the lines they describe are
+removed.
+
+This policy MUST reach the code-writing subagents: carry it in every
+per-repo brief (see Step 4a).
+
 ## Step 1 — Identify the Work Item
 
 Locate the work directory the user means:
@@ -436,6 +462,9 @@ a slice of the plan, not the whole thing:
   verbatim. Repo-private skills are invisible to the skill tool from the
   workspace root, so this index is the developer's only discovery path.
 - The repo's branch name and its wave position ("wave N of k")
+- The **Code Comment Policy** (see the section of that name) verbatim —
+  the developer is a fresh-context subagent and cannot see this
+  document's standing rules
 - Work-dir path and where progress/review updates go (return them —
   you, the orchestrator, write the files)
 
