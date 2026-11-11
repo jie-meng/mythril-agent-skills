@@ -1,0 +1,20 @@
+.claude-plugin/marketplace.json
+  h_e0538e51a4c5ef 14,50,67,84,102,119,138,156,174,192,210,227,245,262,280,298,316,334,351,369,387,405,423,443,462,480,499,518,537,557,576,595,614
+.workbuddy-plugin/marketplace.json
+  h_e0538e51a4c5ef 13,49,66,83,101,118,137,155,173,191,209,226,244,261,279,297,315,333,350,368,386,404,422,442,461,479,498,517,536,556,575,594,613
+mythril_agent_skills/__init__.py
+  h_e0538e51a4c5ef 3
+pyproject.toml
+  h_e0538e51a4c5ef 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7ac24a790574d4ae66909394abdd5330a6c2fec9",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
