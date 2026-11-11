@@ -117,6 +117,13 @@ Skill（技能）是一个提示词/指令包，用于教 AI 助手如何处理�
 - **示例：** 看一下这个 Confluence 页面 https://yourorg.atlassian.net/wiki/spaces/XX/pages/123
 - **依赖：** `ATLASSIAN_API_TOKEN`, `ATLASSIAN_USER_EMAIL`, `ATLASSIAN_BASE_URL`
 
+**[Notion](./mythril_agent_skills/skills/notion/)**
+
+通过 Notion REST API（内置 Python 脚本）以 Markdown 读写页面、搜索、创建/编辑页面、查询 data source、管理 ticket 条目。固定使用 `Notion-Version: 2026-03-11`。
+
+- **示例：** 看一下这个 Notion 页面 https://www.notion.so/My-Page-1234567890abcdef1234567890abcdef
+- **依赖：** `NOTION_API_KEY`
+
 **[Figma](./mythril_agent_skills/skills/figma/)**
 
 从 Figma 文件提取设计规格用于实现，涵盖布局、颜色、字体、组件规格，遇到 Figma 链接自动触发。
@@ -420,6 +427,7 @@ skills-clean-cache --repos  # 交互式：选择要删除的仓库
 | `gh-operations` | GitHub CLI 操作（issue 和 PR） |
 | `jira` | Jira REST API 集成 |
 | `confluence` | Confluence REST API 集成 |
+| `notion` | Notion REST API 集成 — 页面、data source、ticket 条目 |
 | `figma` | 提取 Figma 设计规格 |
 | `glean` | Glean CLI 企业知识搜索与 AI 对话 |
 | `excel` | 读取、写入、搜索和操作 Excel 工作簿（.xlsx） |

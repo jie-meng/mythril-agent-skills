@@ -83,6 +83,7 @@ SKILL_CODE_REVIEW_PR = "github-code-review-pr"
 SKILL_PR_CREATE = "github-pr-create"
 SKILL_JIRA = "jira"
 SKILL_CONFLUENCE = "confluence"
+SKILL_NOTION = "notion"
 SKILL_FIGMA = "figma"
 SKILL_IMAGEMAGICK = "imagemagick"
 SKILL_FFMPEG = "ffmpeg"
@@ -102,6 +103,7 @@ CHECKABLE_SKILLS = [
     SKILL_PR_CREATE,
     SKILL_JIRA,
     SKILL_CONFLUENCE,
+    SKILL_NOTION,
     SKILL_FIGMA,
     SKILL_GLEAN,
     SKILL_EXCEL,
@@ -452,6 +454,32 @@ def check_atlassian(config_path: Path, skills: list[str]) -> bool:
                 _append_env_var(config_path, "CONFLUENCE_BASE_URL", value)
 
     return all_ok
+
+
+# --- Notion ---
+
+
+def check_notion(config_path: Path) -> bool:
+    """Check and configure the Notion personal access token (PAT)."""
+    print(f"\n{BOLD}Notion:{NC}")
+
+    token = os.environ.get("NOTION_API_KEY")
+    if token:
+        masked = f"...{token[-4:]}" if len(token) >= 4 else "set"
+        print(f"  NOTION_API_KEY:  {GREEN}set{NC} (ending in {masked})")
+        return True
+
+    print(f"  NOTION_API_KEY:  {RED}NOT SET{NC}")
+    print("    How to get it:")
+    print(f"    1. Open {BOLD}https://www.notion.so/developers/tokens{NC}")
+    print('    2. Select "New token", choose the "Notion API" capability, set an expiration')
+    print('    3. Select "Create token" and copy it — it is shown only once')
+    print("    4. Business/Enterprise: ask a workspace owner to allow PATs in Settings -> Connections")
+    value = _prompt_value("Paste your Notion API key (or Enter to skip)", secret=True)
+    if value:
+        _append_env_var(config_path, "NOTION_API_KEY", value)
+        return True
+    return False
 
 
 # --- Figma ---
@@ -1215,6 +1243,10 @@ def main() -> None:
 
     if SKILL_JIRA in skills or SKILL_CONFLUENCE in skills:
         if not check_atlassian(config_path, skills):
+            all_configured = False
+
+    if SKILL_NOTION in skills:
+        if not check_notion(config_path):
             all_configured = False
 
     if SKILL_FIGMA in skills:

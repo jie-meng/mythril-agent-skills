@@ -24,6 +24,7 @@
         "github",
         "jira",
         "confluence",
+        "notion",
         "figma",
         "glean",
         "excel",
@@ -216,6 +217,24 @@
         "confluence",
         "wiki",
         "atlassian"
+      ],
+      "strict": false
+    },
+    {
+      "name": "notion",
+      "source": "./plugins/notion",
+      "description": "Notion REST API integration — read/write pages as markdown, search, query data sources, and manage ticket items",
+      "version": "0.3.1",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "productivity",
+      "tags": [
+        "notion",
+        "wiki",
+        "pages",
+        "markdown"
       ],
       "strict": false
     },

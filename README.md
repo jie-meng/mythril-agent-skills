@@ -117,6 +117,13 @@ Use Confluence REST API (via bundled Python script) for page, space, comment, an
 - **Try:** Look at this Confluence page: https://yourorg.atlassian.net/wiki/spaces/XX/pages/123
 - **Deps:** `ATLASSIAN_API_TOKEN`, `ATLASSIAN_USER_EMAIL`, `ATLASSIAN_BASE_URL`
 
+**[Notion](./mythril_agent_skills/skills/notion/)**
+
+Use the Notion REST API (via bundled Python script) to read/write pages as markdown, search, create and edit pages, query data sources, and manage ticket items. Pinned to `Notion-Version: 2026-03-11`.
+
+- **Try:** Look at this Notion page: https://www.notion.so/My-Page-1234567890abcdef1234567890abcdef
+- **Deps:** `NOTION_API_KEY`
+
 **[Figma](./mythril_agent_skills/skills/figma/)**
 
 Extract design specs from Figma files for implementation. Covers layout, colors, typography, component specs, auto-triggering on Figma links.
@@ -427,6 +434,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `gh-operations` | GitHub CLI operations for issues and PRs |
 | `jira` | Jira REST API integration |
 | `confluence` | Confluence REST API integration |
+| `notion` | Notion REST API integration — pages, data sources, ticket items |
 | `figma` | Extract Figma design specs |
 | `glean` | Glean CLI for enterprise knowledge search and AI chat |
 | `excel` | Read, write, search, and manipulate Excel workbooks (.xlsx) |
