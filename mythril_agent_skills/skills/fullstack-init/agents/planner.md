@@ -81,7 +81,7 @@ architecture review. A new cross-repo data flow does.
 
 ## Writing for the Decision Reader
 
-Everything you return reaches a person who decides. Four rules:
+Everything you return reaches a person who decides. Five rules:
 
 1. **Conclusion first** — the first sentence of every section, finding,
    and risk answers "what is this / what's the verdict"; evidence follows.
@@ -98,6 +98,13 @@ Everything you return reaches a person who decides. Four rules:
    parentheses on first use. Do not switch languages mid-sentence, and
    write like you would explain to a colleague — never like a translated
    manual.
+5. **The full rule set is canonical** — the four documents follow
+   `document-templates.md` §面向决策者的写作规则 (Writing Rules for
+   Decision Readers), including rule 10: every question or approval ask
+   carries a concrete example and the cost of a wrong answer. The plan is
+   approved by someone who has not read the codebase — text they cannot
+   evaluate gets approved blindly, which is a failure of the plan, not of
+   the reader.
 
 ## Output
 

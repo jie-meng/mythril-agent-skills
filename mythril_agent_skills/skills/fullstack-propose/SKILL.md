@@ -281,13 +281,45 @@ Ask `Q1..Qn` with `n <= 5`, all in one message. Each question carries:
 
 | Part | Content |
 |------|---------|
-| Title | `Q<n> — <the decision>` |
-| Why it matters | which part of the plan the answer changes |
+| Title | `Q<n> — <the decision, in words the user can read>` |
+| Example | one `比如：…` / `for example: …` line grounded in the feature being planned, showing what each answer makes happen |
+| Why it matters | one plain sentence: what the user will see, or what later work depends on, when the answer goes one way or the other |
 | Recommendation | the answer you would choose, with its reason |
-| Cost of being wrong | the rework a wrong answer causes, and whether it is reversible |
+| Cost of being wrong | what has to be redone and roughly how much work; when it is cheap to reverse, say so in so many words |
 
 `按推荐` / `全部按推荐` / `all recommendations` accepts every recommendation
 in the round and closes the interrogation.
+
+#### Plain words and a concrete example (MANDATORY)
+
+The user reads the questions; the planner reads the records. A question
+the user cannot evaluate is worse than no question — they answer `按推荐`
+blindly, and the gate learns nothing. In the text the user sees:
+
+1. **No planner jargon.** Contract, schema, migration, rollback, baseline,
+   plan-shaping (契约、数据形状、迁移、回滚、基线) name plan anatomy, not
+   behavior — replace each with what actually happens. Jargon stays legal
+   in the `### Clarifications` table and the derived REQ lines, which the
+   planner reads.
+2. **One concrete example per question, from this feature.** Not a
+   textbook case: `比如：这次把设置项的存法改了，手机上还装着旧版 App，
+   旧版读到新格式要不要照样能打开设置页？`
+3. **Options speak in outcomes, not mechanisms.** "旧版 App 打不开设置页"
+   is an outcome; "数据形状变更缺少兼容层" is a mechanism — write the
+   former.
+4. **Label the stakes.** A cheap-to-reverse decision says so —
+   `这个拿不准可以直接按推荐，改起来很快` — so the user spends attention
+   only where a wrong answer really costs days.
+
+These are decision-reader writing rules applied to questions; the full set
+lives in [`references/document-templates.md`](references/document-templates.md)
+§面向决策者的写作规则. Translated examples:
+
+| Planner phrasing (do not send) | Plain question (send this shape) |
+|---|---|
+| `Q1 — 跨仓库契约：类型变更同步发布还是渐进迁移？` | `Q1 — 改了共享类型，其他端要一起改吗？比如：shared-lib 的主题类型加一个字段，网页和 App 不跟着改会直接编译报错。推荐：同一批改完，一次提交把三个端都带上，免得哪个端漏掉。` |
+| `Q2 — persisted schema backward-compatibility strategy` | `Q2 — Old app versions must keep working? For example: the settings file gets a new format, and a phone still running the old build must still open settings. Recommendation: keep the old format readable — the old build just won't show the new setting. This is cheap to change later.` |
+| `Q3 — rollout 是否保留 feature flag 以支持回滚` | `Q3 — 上线后发现问题，怎么退回来？比如：加一个设置页里的开关，出问题关掉几秒就恢复；不加就得重新发版，可能等一两天。推荐：加开关（多半天工作量，换一个能秒回退的保险）。` |
 
 - **Standard mode** — at most two rounds. A second round runs only when an
   answer opens a new plan-shaping decision, and it asks that new frontier
@@ -422,12 +454,18 @@ interface names to be improvised during apply.
 Then write `progress.md` (initial state) and `review.md` (header, plus the
 plan review rounds the gate below records) yourself. Follow the templates
 in
-[`references/document-templates.md`](references/document-templates.md).
+[`references/document-templates.md`](references/document-templates.md),
+including its **§面向决策者的写作规则 (Writing Rules for Decision
+Readers)** — they bind every section of all four documents, not just the
+shapes. Conclusion first, terms explained on first use, costs stated as
+concrete rework: the user approves this plan without having read the
+codebase, and text they cannot evaluate gets approved blindly.
 
 Write `plan.md`'s opening summary (`## 摘要` / `## Summary`) in the same
-pass — the decision-maker's entry point, five lines (one sentence /
-status / decisions needed / not solved / where to read), the one-sentence
-line carrying no ids and no file refs. It is the only section of the
+pass — the decision-maker's entry point, six lines (one sentence / plain
+words / status / decisions needed / not solved / where to read), the
+one-sentence line carrying no ids and no file refs, the plain-words line
+saying what will be different once this ships. It is the only section of the
 work item updated in place as the item evolves; template in
 [`references/document-templates.md`](references/document-templates.md#planmd).
 
@@ -870,6 +908,8 @@ Mode: standard | deep (spike) — tier: lean | full
 - Parallel waves: W1(<repos>) → W2(<repos>) → …
 - Contracts frozen in analysis.md: <list or "single-repo — none">
 - Design: <one-line summary of chosen option>
+- In plain words: <what will be different once this ships, and the biggest
+  remaining risk — one line, no ids>
 - Plan review: <PASS | PASS_WITH_RISKS> — <N> rounds, <N> findings fixed
 - Open decisions: <none | list>
 
@@ -877,6 +917,11 @@ Next: tell me to "implement this" to run fullstack-apply — preferably in
 a fresh session (orchestrator context slows as the session grows; the
 work-directory documents are the handoff interface).
 ```
+
+The report follows the Writing Rules for Decision Readers — verdict
+first, terms explained on first use. The `In plain words` line is what
+the user reads before deciding; the ids and paths below it are the
+audit trail, not the message.
 
 When the verdict was `NEEDS_USER_DECISION`, replace the `Next:` line with
 a request for the decisions instead:

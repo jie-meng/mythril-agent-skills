@@ -21,7 +21,9 @@ languages; only the labels differ.
 
 ## 面向决策者的写作规则（Writing Rules for Decision Readers）
 
-These rules apply to **all four documents, in both languages** — they are
+These rules apply to **all four documents, in both languages, and to
+every message that asks the user to decide** — interrogation questions,
+confirmations, review verdicts, and the Step 5 report. They are
 the "reads like it was written for a person" layer on top of the
 machine-checked structure. They bound *how* things are written, never
 *what* may be recorded: no rule below is permission to drop evidence,
@@ -94,6 +96,20 @@ caveats, or audit detail.
    事件推送，因为轮询每 5 秒查一次库，成本太高。" Bad: "本方案拟对现有
    同步机制实施基于事件驱动范式的替代性迁移，以规避高频轮询所衍生的资
    源开销问题。"
+10. **Decisions come with an example and the stakes（决策带例子，带代价）
+    ** — every question or approval ask that reaches the user carries a
+    concrete `比如` / `for example` line grounded in the feature being
+    planned, states what a wrong answer costs to redo and whether that is
+    cheap, and marks cheap-to-reverse decisions as safe to default. An
+    approval ask quotes the plain-words summary, never a wall of ids. A
+    question the user cannot evaluate gets a blind `按推荐`, which teaches
+    the process nothing. 每个送到用户面前的追问或确认都带一个落在当前
+    功能上的具体例子，说清答错要返工什么、好不好改；好改的明说"拿不准
+    就按推荐"。请求确认时引用大白话摘要，而不是一串编号。Good: "旧版
+    App 打不开设置页怎么办？比如：设置项换了存法，还装着旧版的手机要照
+    样能打开设置。推荐：保留旧格式的读法——旧版只是看不到新设置项，改
+    起来也快。" Bad: "Q2 — persisted schema backward-compatibility
+    strategy？（无解释、无例子、无代价）"
 
 ---
 
@@ -123,6 +139,8 @@ write a `**Status**:` field in `plan.md`.
 ## Summary
 
 **In one sentence**: <what the problem is and what we'll do — no ids, no file refs>
+
+**In plain words**: <what will be different once this ships — one line a non-engineer can read, no ids; include the biggest remaining risk when there is one>
 
 **Status**: <planning | ready to implement | in progress | done> — <one-line latest verdict>
 
@@ -242,6 +260,8 @@ live exposure readable at a glance.)
 ## 摘要（给人读的——全工作项唯一允许原地更新的章节）
 
 **一句话**：<这是什么问题、打算怎么解决。不引用编号，不引用文件名。>
+
+**大白话**：<上线之后哪里会变得不一样——一行给不写代码的人看的话，不引用编号；有残留风险就带一句最大的风险。>
 
 **状态**：<规划中 | 审查通过待实施 | 实施中 | 已完成>——<一行最新结论>
 

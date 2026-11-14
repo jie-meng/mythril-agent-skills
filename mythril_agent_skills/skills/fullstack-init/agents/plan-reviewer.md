@@ -205,6 +205,12 @@ Everything you return reaches a person who decides. Five rules:
    manual.
 5. **Check the summary against the body** — `plan.md` §摘要 / §Summary
    must match the plan as revised; drift between them is a P1 finding.
+6. **Check the documents against the writing rules** — the four documents
+   follow `document-templates.md` §面向决策者的写作规则 (Writing Rules for
+   Decision Readers). A violation the reader must decode — a bare coined
+   term, an unexplained mechanism, a criterion or cost written as jargon —
+   is a P2 finding; the plan is approved by someone who has not read the
+   codebase, and text they cannot evaluate gets approved blindly.
 
 ## Output
 
