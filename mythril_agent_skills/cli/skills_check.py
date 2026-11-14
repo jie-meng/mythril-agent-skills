@@ -84,6 +84,7 @@ SKILL_PR_CREATE = "github-pr-create"
 SKILL_JIRA = "jira"
 SKILL_CONFLUENCE = "confluence"
 SKILL_NOTION = "notion"
+SKILL_JENKINS = "jenkins"
 SKILL_FIGMA = "figma"
 SKILL_IMAGEMAGICK = "imagemagick"
 SKILL_FFMPEG = "ffmpeg"
@@ -104,6 +105,7 @@ CHECKABLE_SKILLS = [
     SKILL_JIRA,
     SKILL_CONFLUENCE,
     SKILL_NOTION,
+    SKILL_JENKINS,
     SKILL_FIGMA,
     SKILL_GLEAN,
     SKILL_EXCEL,
@@ -480,6 +482,62 @@ def check_notion(config_path: Path) -> bool:
         _append_env_var(config_path, "NOTION_API_KEY", value)
         return True
     return False
+
+
+# --- Jenkins ---
+
+
+def check_jenkins(config_path: Path) -> bool:
+    """Check and configure Jenkins URL, username, and API token."""
+    print(f"\n{BOLD}Jenkins:{NC}")
+
+    all_ok = True
+
+    url = os.environ.get("JENKINS_URL")
+    if url:
+        print(f"  JENKINS_URL:       {GREEN}{url}{NC}")
+    else:
+        print(f"  JENKINS_URL:       {RED}NOT SET{NC}")
+        print("    Example: https://ci.example.com:8443 (a context path is allowed)")
+        value = _prompt_value("Enter your Jenkins base URL (or Enter to skip)")
+        if value:
+            _append_env_var(config_path, "JENKINS_URL", value)
+            url = value
+        else:
+            all_ok = False
+
+    user = os.environ.get("JENKINS_USER")
+    if user:
+        print(f"  JENKINS_USER:      {GREEN}set{NC} ({user})")
+    else:
+        print(f"  JENKINS_USER:      {RED}NOT SET{NC}")
+        value = _prompt_value("Enter your Jenkins username (or Enter to skip)")
+        if value:
+            _append_env_var(config_path, "JENKINS_USER", value)
+        else:
+            all_ok = False
+
+    token = os.environ.get("JENKINS_API_TOKEN")
+    if token:
+        masked = f"...{token[-4:]}" if len(token) >= 4 else "set"
+        print(f"  JENKINS_API_TOKEN: {GREEN}set{NC} (ending in {masked})")
+    else:
+        print(f"  JENKINS_API_TOKEN: {RED}NOT SET{NC}")
+        print("    How to get it:")
+        print(
+            f"    1. Open your Jenkins ({BOLD}{url or 'JENKINS_URL'}{NC}),"
+            " click your username (top right) -> Security"
+        )
+        print('    2. Under "API Token" click "Add new Token" -> Generate')
+        print("    3. Copy the token — it is shown only once")
+        print("    Official docs: https://www.jenkins.io/doc/book/managing/security/#api-tokens")
+        value = _prompt_value("Paste your Jenkins API token (or Enter to skip)", secret=True)
+        if value:
+            _append_env_var(config_path, "JENKINS_API_TOKEN", value)
+        else:
+            all_ok = False
+
+    return all_ok
 
 
 # --- Figma ---
@@ -1247,6 +1305,10 @@ def main() -> None:
 
     if SKILL_NOTION in skills:
         if not check_notion(config_path):
+            all_configured = False
+
+    if SKILL_JENKINS in skills:
+        if not check_jenkins(config_path):
             all_configured = False
 
     if SKILL_FIGMA in skills:

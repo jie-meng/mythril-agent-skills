@@ -238,6 +238,25 @@
       "strict": false
     },
     {
+      "name": "jenkins",
+      "source": "./plugins/jenkins",
+      "description": "Jenkins REST API integration — trigger/wait builds, check status and pipeline stages, tail console logs, abort builds",
+      "version": "0.3.2",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "devops",
+      "tags": [
+        "jenkins",
+        "ci",
+        "cd",
+        "build",
+        "deploy"
+      ],
+      "strict": false
+    },
+    {
       "name": "figma",
       "source": "./plugins/figma",
       "description": "Extract Figma design specs (layout, colors, typography, components) for implementation",

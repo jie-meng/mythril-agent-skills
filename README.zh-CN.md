@@ -124,6 +124,13 @@ Skill（技能）是一个提示词/指令包，用于教 AI 助手如何处理�
 - **示例：** 看一下这个 Notion 页面 https://www.notion.so/My-Page-1234567890abcdef1234567890abcdef
 - **依赖：** `NOTION_API_KEY`
 
+**[Jenkins](./mythril_agent_skills/skills/jenkins/)**
+
+操作任意 Jenkins 实例（内置 Python 脚本）——带参数触发构建并等待完成（感知队列）、查看状态与流水线 stage 进度、tail/跟踪 console 日志、中止构建。支持自签名 TLS。
+
+- **示例：** 触发 robo-server-build 并等它跑完
+- **依赖：** `JENKINS_URL`, `JENKINS_USER`, `JENKINS_API_TOKEN`
+
 **[Figma](./mythril_agent_skills/skills/figma/)**
 
 从 Figma 文件提取设计规格用于实现，涵盖布局、颜色、字体、组件规格，遇到 Figma 链接自动触发。
@@ -428,6 +435,7 @@ skills-clean-cache --repos  # 交互式：选择要删除的仓库
 | `jira` | Jira REST API 集成 |
 | `confluence` | Confluence REST API 集成 |
 | `notion` | Notion REST API 集成 — 页面、data source、ticket 条目 |
+| `jenkins` | Jenkins REST API 集成 — 触发/等待构建、状态、stage 进度、console 日志、中止 |
 | `figma` | 提取 Figma 设计规格 |
 | `glean` | Glean CLI 企业知识搜索与 AI 对话 |
 | `excel` | 读取、写入、搜索和操作 Excel 工作簿（.xlsx） |

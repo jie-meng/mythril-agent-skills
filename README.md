@@ -124,6 +124,13 @@ Use the Notion REST API (via bundled Python script) to read/write pages as markd
 - **Try:** Look at this Notion page: https://www.notion.so/My-Page-1234567890abcdef1234567890abcdef
 - **Deps:** `NOTION_API_KEY`
 
+**[Jenkins](./mythril_agent_skills/skills/jenkins/)**
+
+Operate any Jenkins instance (via bundled Python script) — trigger builds with parameters and queue-aware waiting, check status and pipeline stage progress, tail/follow console logs, and abort builds. Works with self-signed TLS.
+
+- **Try:** Trigger the robo-server-build job and wait for it to finish
+- **Deps:** `JENKINS_URL`, `JENKINS_USER`, `JENKINS_API_TOKEN`
+
 **[Figma](./mythril_agent_skills/skills/figma/)**
 
 Extract design specs from Figma files for implementation. Covers layout, colors, typography, component specs, auto-triggering on Figma links.
@@ -435,6 +442,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `jira` | Jira REST API integration |
 | `confluence` | Confluence REST API integration |
 | `notion` | Notion REST API integration — pages, data sources, ticket items |
+| `jenkins` | Jenkins REST API integration — build trigger/wait, status, stages, console, stop |
 | `figma` | Extract Figma design specs |
 | `glean` | Glean CLI for enterprise knowledge search and AI chat |
 | `excel` | Read, write, search, and manipulate Excel workbooks (.xlsx) |
