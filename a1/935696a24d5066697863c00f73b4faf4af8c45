@@ -1,0 +1,26 @@
+README.md
+  h_e0538e51a4c5ef 297
+mythril_agent_skills/shared/plan/document-templates.md
+  h_e0538e51a4c5ef 24-26,99-112,143-144,264-265
+mythril_agent_skills/skills/fullstack-apply/references/document-templates.md
+  h_e0538e51a4c5ef 24-26,99-112,143-144,264-265
+mythril_agent_skills/skills/fullstack-init/agents/plan-reviewer.md
+  h_e0538e51a4c5ef 208-213
+mythril_agent_skills/skills/fullstack-init/agents/planner.md
+  h_e0538e51a4c5ef 84,101-107
+mythril_agent_skills/skills/fullstack-propose/SKILL.md
+  h_e0538e51a4c5ef 284-286,288,293-323,457-462,465-468,911-912,921-925
+mythril_agent_skills/skills/fullstack-propose/references/document-templates.md
+  h_e0538e51a4c5ef 24-26,99-112,143-144,264-265
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a1935696a24d5066697863c00f73b4faf4af8c45",
+  "prompts": {},
+  "humans": {
+    "h_e0538e51a4c5ef": {
+      "author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
