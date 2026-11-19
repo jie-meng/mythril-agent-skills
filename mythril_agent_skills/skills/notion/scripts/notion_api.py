@@ -19,7 +19,7 @@ import ssl
 import sys
 import urllib.error
 import urllib.request
-from urllib.parse import urlencode
+from urllib.parse import urlsplit, urlencode
 
 BASE_URL = "https://api.notion.com/v1"
 API_VERSION = "2026-03-11"
@@ -149,7 +149,10 @@ def parse_page_input(value: str) -> str:
     v = value.strip()
     if _BARE_ID_RE.fullmatch(v):
         return v.replace("-", "")
-    matches = list(_ID_RE.finditer(v))
+    # Search only the URL path: the query string may carry other IDs
+    # (e.g. ?v=<database view id>) that must not be mistaken for the page.
+    path = urlsplit(v).path if "://" in v else v
+    matches = list(_ID_RE.finditer(path)) or list(_ID_RE.finditer(v))
     if not matches:
         print(f"ERROR: cannot find a Notion ID in: {value}", file=sys.stderr)
         sys.exit(1)

@@ -41,6 +41,11 @@ class TestParsePageInput:
     def test_app_notion_url(self):
         assert self.parse(f"https://app.notion.com/p/{UUID_ID}") == HEX_ID
 
+    def test_url_with_view_id_in_query_uses_page_id(self):
+        view_id = "41ab74688528809ea85c000cc3f0eb49"
+        url = f"https://app.notion.com/p/Setup-Cloudinary-access-{HEX_ID}?v={view_id}&source=copy_link"
+        assert self.parse(url) == HEX_ID
+
     def test_invalid_input_exits(self, capsys):
         with pytest.raises(SystemExit):
             self.parse("not-an-id")
