@@ -1,0 +1,59 @@
+mythril_agent_skills/shared/plan/document-templates.md
+  s_7efbb6f6a5907c::t_4d1e6a53bae236 9-13,131,253-255,370-371,393,432-434,473-474,498,614-616,725-726,729,863-865,990-991,994,1001-1002,1004,1019-1020,1031-1033,1040-1041,1056,1067,1071-1072,1079,1145-1147,1208-1209,1299-1301,1314
+mythril_agent_skills/shared/plan/review-formats.md
+  s_7efbb6f6a5907c::t_6ac08e87943353 6-10,43-46,70-71,73,81,85,104-106,114,118,140-141,262,275-277,315-316,319-326,344,369-371,396-397,423,437-439,455-456
+mythril_agent_skills/skills/fullstack-apply/SKILL.md
+  s_7efbb6f6a5907c::t_6ea8afe1534c3f 46-48,52-53,63-64,67-69,170-181,270,305-307,328-332,505,515-524,528-529,542-547,591,599,646,652-654,659,810-815,846,865-868,909-910,1042-1043,1047-1048,1052-1053,1089-1090,1096-1098
+mythril_agent_skills/skills/fullstack-apply/references/document-templates.en.md
+  s_7efbb6f6a5907c::t_a723e39c51a6a4 9-13,600-601,603,618-619,794-796,809
+mythril_agent_skills/skills/fullstack-apply/references/document-templates.zh.md
+  s_7efbb6f6a5907c::t_879a93636f636d 1-785
+mythril_agent_skills/skills/fullstack-apply/references/review-formats.en.md
+  s_7efbb6f6a5907c::t_82d81c051d956d 1-347
+mythril_agent_skills/skills/fullstack-apply/references/review-formats.zh.md
+  s_7efbb6f6a5907c::t_d1176ad5ba5d69 6-10,43-46,70-71,81,85,107,266,269-276,319
+mythril_agent_skills/skills/fullstack-archive/SKILL.md
+  s_7efbb6f6a5907c::t_234c316ca8ad4b 44-45,48-50
+mythril_agent_skills/skills/fullstack-brief/SKILL.md
+  s_7efbb6f6a5907c::t_b6c6c89173c6fa 98-101,104-106
+mythril_agent_skills/skills/fullstack-init/agents/code-reviewer.md
+  s_7efbb6f6a5907c::t_8f03474bb825a0 3,11-13,15-28,32-116,120-145,149-162,165-168,172-193,197,200-208,212-215
+mythril_agent_skills/skills/fullstack-init/agents/planner.md
+  s_7efbb6f6a5907c::t_7cbb744617b22e 102
+mythril_agent_skills/skills/fullstack-issue-archive/SKILL.md
+  s_7efbb6f6a5907c::t_fa737dc9723b5b 44-45,48-50
+mythril_agent_skills/skills/fullstack-issue-create/SKILL.md
+  s_7efbb6f6a5907c::t_eb04983080a8bc 59-60,63-65
+mythril_agent_skills/skills/fullstack-propose/SKILL.md
+  s_7efbb6f6a5907c::t_5c6d9b94ecd111 68-69,72-74,121-124,305,362,446-447,458,572-573,608-622,625-629,656,712,718-723,743,824-829
+mythril_agent_skills/skills/fullstack-propose/references/document-templates.en.md
+  s_7efbb6f6a5907c::t_3dadfe9b69e304 9-13,600-601,603,618-619,794-796,809
+mythril_agent_skills/skills/fullstack-propose/references/document-templates.zh.md
+  s_7efbb6f6a5907c::t_db2806d59aa6a9 1-785
+mythril_agent_skills/skills/fullstack-propose/references/review-formats.en.md
+  s_7efbb6f6a5907c::t_3ebd28ab39989c 1-347
+mythril_agent_skills/skills/fullstack-propose/references/review-formats.zh.md
+  s_7efbb6f6a5907c::t_d87a0d8105c82a 6-10,43-46,70-71,81,85,107,266,269-276,319
+scripts/sync-shared-assets.py
+  s_7efbb6f6a5907c::t_8ce50d0113e434 27,29,41-46,51-92,256-260,264-279,292,296,307,313
+tests/skills/test_fullstack_init.py
+  s_7efbb6f6a5907c::t_abe9d2b23a308f 815,942
+tests/test_shared_assets_sync.py
+  s_7efbb6f6a5907c::t_9c35e2f655c099 74-77,90,169-193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "52bd0a8bdea2daae8abe1c352d15f267c633554c",
+  "prompts": {},
+  "sessions": {
+    "s_7efbb6f6a5907c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eb758958-f6c6-4684-a027-60907acf517c",
+        "model": "unknown"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
