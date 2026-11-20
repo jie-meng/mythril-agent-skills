@@ -6,6 +6,11 @@ user's prompt — Chinese if the prompt contains any Chinese characters,
 otherwise English. The Markdown structure is identical between the two
 languages; only the labels differ.
 
+<!-- Canonical source. The lang:en and lang:zh marker blocks are split out by
+scripts/sync-shared-assets.py into the bundled `document-templates.en.md`
+and `document-templates.zh.md`; each skill reads only the one matching the
+document language. -->
+
 ## Table of contents
 
 - [Writing rules for decision readers](#面向决策者的写作规则writing-rules-for-decision-readers) — style contract for all four documents
@@ -244,119 +249,7 @@ where it was resolved. Rows are never deleted; the partition keeps the
 live exposure readable at a glance.)
 ```
 
-### Chinese
 
-```markdown
-# <工作名称>
-
-**来源**：<Jira 链接 / 用户需求 / Confluence 页面 / 前置工作项>
-
-**类型**：feat | refactor | fix
-
-**分支**：<branch-name>
-
-**创建时间**：<date>
-
-## 摘要（给人读的——全工作项唯一允许原地更新的章节）
-
-**一句话**：<这是什么问题、打算怎么解决。不引用编号，不引用文件名。>
-
-**大白话**：<上线之后哪里会变得不一样——一行给不写代码的人看的话，不引用编号；有残留风险就带一句最大的风险。>
-
-**状态**：<规划中 | 审查通过待实施 | 实施中 | 已完成>——<一行最新结论>
-
-**需要你决策的事**：<无；或每条一行：问题 → 选项 → 我们的推荐>
-
-**没解决的事**：<明确排除项、待验证项、残留风险——每条一行>
-
-**读哪里**：问题细节→analysis.md；怎么实施→本文件正文；审查与证据→review.md
-
-## 需求
-
-<根据采集到的上下文整理的需求摘要>
-
-## 成功标准
-
-<可测试、具体的验收标准 —— "能正常工作" 不算标准；"对输入 A、B、C
-返回符合 schema X 的 200 响应" 才算。每条标准在 review.md 中对照证据核验。>
-
-- [ ] 标准 1：<可观察行为 + 预期结果>
-- [ ] 标准 2：<...>
-
-## 涉及仓库（按依赖顺序）
-
-| # | 仓库 | 分支 | 变更内容 | 依赖 | 优先级 |
-|---|------|------|---------|------|--------|
-| 1 | shared-lib | feat/Dark-Mode-Toggle | 添加主题类型定义 | — | P0 |
-| 2 | api | feat/BE-450/Dark-Mode-Toggle | 添加偏好设置接口 | shared-lib | P0 |
-| 3 | android | feat/MOBILE-301/Dark-Mode-Toggle | 添加切换页面 | shared-lib, api | P1 |
-
-仓库必须按依赖顺序列出：上游优先（共享库、数据模型），然后是服务层
-（api、backend），最后是消费者（web、ios、android）。fullstack-apply
-依据本表推导并行波次——无依赖边交叉的仓库会同时开发与提交。所有被下
-游消费的跨仓接口必须在 analysis.md 中冻结（精确字段名、类型、错误码）：
-并行开发者以冻结契约为准，而非可能尚未实现的上游代码。
-
-## 代码地图（Code Map）
-
-<反向索引——本工作项拥有哪些文件。规划阶段先填计划要改的路径；
-fullstack-apply 在每一轮把预测路径换成实际改动路径。后来的人靠这张表
-从文件路径找回对应的工作项，因此"改了代码却没登记在这里"等于留下一处
-无法追溯的改动。>
-
-| 仓库 | 路径 | 符号 | 改了什么 |
-|------|------|------|---------|
-| api | `src/preferences/dark_mode.py` | `ThemePreference`、`GET /pref` | 新增偏好设置接口 |
-| android | `app/src/ui/SettingsScreen.kt` | `DarkModeToggle` | 设置页新增开关行 |
-
-规则：
-
-- **路径相对仓库根目录**（`src/preferences/dark_mode.py`），不写机器绝对
-  路径，也不只写文件名。仓库列 + 仓内相对路径这两列合起来，才能被工作区
-  相对路径反查到。确实在仓库根的文件写作 `./README.md`——`./` 表示"就在
-  根"，而光一个 `README.md` 让反查无法判断它和别的仓库同名文件谁是目标。
-- **符号列可留空**——文件名说不清改了什么时必填。它是"只知道 `computeWave`
-  这个函数算错了、不知道在哪个文件"这种提问的检索入口。
-- **整表原地更新**。与 progress.md 不同，这里记录当前状态而不是流水账：
-  改后又回滚的路径不再保留，历史留在 progress.md。但此前轮次改过的
-  路径要留着——这张表是整个工作项的归属清单，不是本轮的 diff。
-- **一行一个文件**，不写区间（`src/ui/*`），也不把多个文件塞进一格
-  （`src/a.py`、`src/b.py`）——通配符与合并格都无法被路径检索命中，等于
-  悄悄丢掉它覆盖的每个文件的追溯性。目录（`src/ui/`）与占位符（`—`、
-  `待定`）同样不算登记了一个文件。
-
-## 实现计划
-
-### 阶段一：<名称>
-- [ ] repo-x 中的任务 1
-- [ ] repo-y 中的任务 2
-
-### 阶段二：<名称>
-- [ ] repo-x 中的任务 3
-
-## 依赖关系
-
-<跨仓库依赖、顺序约束>
-
-## 风险 / 待确认问题
-
-**活风险**
-
-| # | 风险 | 可能性 | 影响 | 应对 |
-|---|------|--------|------|------|
-| R1 | <风险，直接写结论> | 中 | 高 | <应对> |
-
-**已闭环**
-
-（无——核销的风险移到这里，各保留一行：为何闭环、在哪里解决。行不删除；
-分区让"现在还悬着什么"一眼可读。）
-```
-
-Update timing for the summary（`## 摘要` / `## Summary`）: rewrite it when
-the plan-review verdict changes, when requirements change, and at
-implementation close-out. History stays in `progress.md` / `review.md` —
-this section states only the current position. 方案审查结论变化、需求变更、
-实施收尾时更新；历史留在 progress/review，本节只写当前。
 
 ### Successor addition
 
@@ -417,43 +310,7 @@ the human-readable narrative that ties changes to decisions.
 （Process notes: <AI workflow detail>）
 ```
 
-### Chinese
 
-```markdown
-# 进度：<工作名称>
-
-**最后更新**：<date>
-
-**分支**：<branch-name>
-
-## 已完成
-
-（暂无）
-
-## 进行中
-
-- [ ] <当前步骤>
-
-## 阻塞
-
-（无）
-
-## 变更记录
-
-### <date> — 启动
-
-**结果**：<一两句人话：发生了什么、现在状态如何——给决策者的第一行>
-- 创建工作计划
-- 确定涉及仓库：<list>
-- 创建分支：<list>
-（过程记录：<子代理运行情况、门禁输出、措辞同步等 AI 工作流细节>）
-
-### <date> — <发生了什么>
-
-**结果**：<一两句人话：发生了什么、现在状态如何>
-- <做了什么、为什么、结果如何>
-（过程记录：<AI 工作流细节>）
-```
 
 ### Successor back-link — `## Successors` table (optional)
 
@@ -593,113 +450,7 @@ flowchart LR
 | ... | Medium | High | ... |
 ```
 
-### Chinese
 
-```markdown
-# 分析：<工作名称>
-
-**创建时间**：<date>
-
-**类型**：feat | refactor
-
-**作者**：Planner
-
-## 现状
-
-<描述现有的系统行为、架构或用户流程。>
-
-### 现有架构
-
-```mermaid
-flowchart LR
-    A[组件 A] --> B[组件 B]
-    B --> C[组件 C]
-```
-
-## 需求原文
-
-**逐字**记录用户原话 / Jira description 原文 / 规格原文——不转述、不润色。
-这一节是方案审查判定"需求有没有被遗漏或收窄"的唯一基线：转述会把收窄藏成
-一条"已记录的边界"。每条诉求一个 `REQ<n>` 编号，plan.md 与 review.md 都
-引用编号（`R<n>` 留给风险表）。
-
-### 澄清记录
-
-Step 3.5 追问门的问答记录——规划前问过的每个问题一行，`Q1..Qn` 按工作项编号、
-不复用。允许出现未答行，但它的归宿必须在别处：`plan.md` §风险 / 待确认问题 的
-`A<n>` 行，或 `NEEDS_USER_DECISION`——不允许静默假设。追问门被跳过时，本节可以
-省略；`progress.md` 里记录的跳过原因就是记录。
-
-| Q | 问题 | 推荐答案 | 用户回答 | 对方案的影响 |
-|---|------|---------|---------|-------------|
-| Q1 | <只有用户能定的决策> | <推荐答案> | <用户回答；接受默认时写"（按推荐）"> | <会改变方案的哪一部分> |
-
-回答改变了"系统必须做什么"时，在本节里（与其他 `REQ` 行并列）派生一条需求：
-
-- **REQ<n>** "<用户回答原文>" — 来源：澄清 Q<n>
-
-用户接受推荐时，引号内引用推荐答案自己的措辞并标 `（按推荐）`——不能只写
-"按推荐"，否则审查基线里会是一条空需求。不改变"系统必须做什么"的实现选择
-留在本表；引用它的分析章节写明 Q 编号。
-
-未答且不影响验收的决策写成 `plan.md` §风险 / 待确认问题 的 `A<n>` 行，与
-`R<n>` 分开编号：`| A1 | <假设，按方案依赖的事实陈述> | 中 | 高 | 反转条件：
-<什么情况下失效> → <怎么回退> |`。
-
-## 需求分析
-
-<将需求拆解为具体的行为、输入、输出。>
-
-### 用户流程
-
-```mermaid
-sequenceDiagram
-    participant 用户
-    participant 前端
-    participant API
-    participant 数据库
-    用户->>前端: 操作
-    前端->>API: 请求
-    API->>数据库: 查询
-    数据库-->>API: 结果
-    API-->>前端: 响应
-    前端-->>用户: 展示
-```
-
-## 设计方案
-
-| 方案 | 思路 | 优势 | 劣势 | 复杂度 |
-|------|------|------|------|--------|
-| A | ... | ... | ... | 低 |
-| B | ... | ... | ... | 中 |
-
-**推荐**：方案 <X> — <理由>
-
-## 目标架构
-
-```mermaid
-flowchart LR
-    A[组件 A] --> B[组件 B]
-    B --> D[新组件 D]
-    D --> C[组件 C]
-```
-
-## 跨仓库影响
-
-| 仓库 | 影响 | 是否破坏性变更？ |
-|------|------|-----------------|
-| shared-lib | 新增类型定义 | 否 |
-| api | 新增接口 | 否 |
-| web | 新增页面 | 否 |
-
-## 风险与应对
-
-| 风险 | 可能性 | 影响 | 应对措施 |
-|------|--------|------|---------|
-| ... | 中 | 高 | ... |
-```
-
----
 
 ## `analysis.md` — fix
 
@@ -836,129 +587,7 @@ is a root cause.>
 - <Preventive measures: tests, monitoring, guards>
 ```
 
-### Chinese
 
-```markdown
-# 分析：<工作名称>
-
-**创建时间**：<date>
-
-**类型**：fix
-
-**严重程度**：<严重 | 高 | 中 | 低> — <一句话影响>
-
-**作者**：Debugger
-
-## 需求原文
-
-**逐字**记录用户原话（或 Jira description 原文、收到的报告原文）——不转述、
-不润色。这一节是方案审查判定"需求有没有被遗漏或收窄"的唯一基线：转述会把
-收窄藏成一条"已记录的边界"。每条诉求一个 `REQ<n>` 编号，plan.md 与
-review.md 都引用编号（`R<n>` 留给风险表）。引用了未声明的编号、或声明了
-却没有任何轮次引用，`plan_lint.py` 都会报错。
-
-- **REQ1** 「<原话>」——<来源：用户消息 / PROJ-123 / 页面>
-- **REQ2** 「<原话>」——<来源>
-
-### 澄清记录
-
-Step 3.5 追问门的问答记录——规划前问过的每个问题一行，`Q1..Qn` 按工作项编号、
-不复用。允许出现未答行，但它的归宿必须在别处：`plan.md` §风险 / 待确认问题 的
-`A<n>` 行，或 `NEEDS_USER_DECISION`——不允许静默假设。追问门被跳过时，本节可以
-省略；`progress.md` 里记录的跳过原因就是记录。
-
-| Q | 问题 | 推荐答案 | 用户回答 | 对方案的影响 |
-|---|------|---------|---------|-------------|
-| Q1 | <只有用户能定的决策> | <推荐答案> | <用户回答；接受默认时写"（按推荐）"> | <会改变方案的哪一部分> |
-
-回答改变了"系统必须做什么"时，在本节里（与其他 `REQ` 行并列）派生一条需求：
-
-- **REQ<n>** "<用户回答原文>" — 来源：澄清 Q<n>
-
-用户接受推荐时，引号内引用推荐答案自己的措辞并标 `（按推荐）`——不能只写
-"按推荐"，否则审查基线里会是一条空需求。不改变"系统必须做什么"的实现选择
-留在本表；引用它的分析章节写明 Q 编号。
-
-未答且不影响验收的决策写成 `plan.md` §风险 / 待确认问题 的 `A<n>` 行，与
-`R<n>` 分开编号：`| A1 | <假设，按方案依赖的事实陈述> | 中 | 高 | 反转条件：
-<什么情况下失效> → <怎么回退> |`。
-
-## 问题现象
-
-<确切的可观察行为：错误信息、日志、异常输出。>
-
-## 复现步骤
-
-1. <逐步复现>
-2. ...
-
-**环境**：<操作系统、版本、配置>
-
-## 根因分析
-
-### 系统模型
-
-```mermaid
-sequenceDiagram
-    participant A as 组件 A
-    participant B as 组件 B
-    participant C as 组件 C
-    A->>B: 正常调用
-    B->>C: 预期路径
-    Note over B,C: ✗ 故障发生在此
-    C-->>B: 错误 / 异常状态
-```
-
-### 根因
-
-<用证据解释根因。"X 为空"是表象；"API 改了响应格式但消费端仍按旧格式解析"
-是根因。>
-
-### 证据
-
-- 日志：`...`
-- 代码路径：`file:line` → `file:line`
-- 时序：...
-
-## 修复策略
-
-| 方案 | 描述 | 风险 | 影响范围 |
-|------|------|------|---------|
-| A | ... | 低 | 1 个文件 |
-| B | ... | 中 | 3 个文件 |
-
-**选择**：方案 <X> — <理由>
-
-### 修复前 vs 修复后
-
-**修复前：**
-```
-<问题流程或代码>
-```
-
-**修复后：**
-```
-<修复后流程或代码>
-```
-
-## 涉及仓库
-
-| 仓库 | 变更文件 | 变更性质 |
-|------|---------|---------|
-| ... | ... | ... |
-
-## 验证
-
-- [ ] 原始复现步骤 → 不再出现故障
-- [ ] 回归测试通过
-- [ ] 相邻功能不受影响
-
-## 后续
-
-- <预防措施：测试、监控、防护>
-```
-
----
 
 ## `review.md` header
 
@@ -968,11 +597,10 @@ sequenceDiagram
 # Review: <Work Name>
 
 This file is the work item's falsification record. Canonical order:
-status overview (updated in place) → Evidence (seeded here, filled at
-finalization) → plan review rounds
+status overview (updated in place) → Evidence (seeded here, filled by
+code review, closed at finalization) → plan review rounds
 (fullstack-propose) → code review rounds and the cross-repo check
-(fullstack-apply) → closing verdict. See
-[`review-formats.md`](review-formats.md#canonical-order-of-reviewmd).
+(fullstack-apply) → closing verdict.
 
 ## Status Overview (updated in place; all rounds and evidence below are append-only)
 
@@ -987,7 +615,8 @@ finalization) → plan review rounds
 ## Evidence
 
 Seeded by fullstack-propose with one row per Success Criterion from
-plan.md (all `待核验` / `Pending`), filled during finalization. A
+plan.md (all `待核验` / `Pending`); each repo's code review fills its
+rows, finalization closes the rest. A
 criterion without a row here is a criterion nobody verified —
 `plan_lint.py` fails the handoff and the finalization gate on it.
 
@@ -998,43 +627,7 @@ criterion without a row here is a criterion nobody verified —
 | Criterion 3 | ⚠️ Skipped | <tests not run — no harness or no documented run command> |
 ```
 
-### Chinese
 
-```markdown
-# 审查：<工作名称>
-
-本文件是该工作项的证伪记录。规范顺序：状态速览（原地更新）→ 证据核验
-（此处预填，收尾阶段填写）→ 方案审查轮次（fullstack-propose）→ 代码审查
-轮次与跨仓库审查（fullstack-apply）→ 最终结论。见
-[`review-formats.md`](review-formats.md#canonical-order-of-reviewmd)。
-
-## 状态速览（本节原地更新；其下所有轮次与证据 append-only）
-
-**最新结论**：<方案审查 PASS_WITH_RISKS（第 N 轮）| 已完成——最终结论见文末>
-
-**审查轮次**：<方案审查 N 轮；代码审查 M 轮（repo 名）>
-
-**活风险**：<N 项，每项一行：编号（人话描述，怎么跟进）>
-
-**待决策**：<无 | 列表>
-
-## 证据核验
-
-由 fullstack-propose 预填：plan.md 中每条成功标准一行（全部标 `待核验`），
-收尾阶段填写证据。这里没有行的成功标准就是没人核验的标准——
-`plan_lint.py` 会在交付门与收尾门上报错。
-
-| 成功标准 | 结果 | 证据 |
-|---------|------|------|
-| 标准 1 | ✅ 通过 | <测试结果 / PR 链接 / 截图> |
-| 标准 2 | ❌ 未通过 | <反证依据> |
-| 标准 3 | ⚠️ 跳过 | <测试未运行 — 无框架或无已记录的运行命令> |
-```
-
-The per-round review section format and cross-repo review format are
-defined in [`review-formats.md`](review-formats.md).
-
----
 
 ## Plan review round
 
@@ -1107,65 +700,7 @@ rejection in the same round:
 A finding dropped during revision without a `Rejected:` line is
 treated as a new P0 in the next round.
 
-### Chinese
 
-```markdown
-## 方案审查 — 第 <N> 轮 — <date>
-
-### 审查范围
-
-- 文档：analysis.md、plan.md — <与上一轮的差异>
-- 需求来源：analysis.md §需求原文 + §澄清记录（REQ ids + Q ids）— <有 Jira / Confluence 时附编号>
-- 代码核验：<检查的仓库> — graphify：已用 | 跳过：<理由> | 无
-
-### 需求覆盖
-
-`analysis.md` §需求原文 里每个 `REQ` 编号一行——声明了却在这里缺行，
-或这里引用了未声明的编号，`plan_lint.py` 都会报错。用编号，不要用转述：
-`R<n>` 是 plan.md 风险表的编号，`REQ<n>` 才是需求的编号。
-
-| 需求 | 对应成功标准 | 对应任务 | 状态 |
-|------|------------|---------|------|
-| REQ1 | 标准 1 | 阶段一 / 任务 2 | 覆盖 |
-| REQ2 | — | — | **遗漏** |
-| REQ3 | 标准 2 | 阶段一 / 任务 3 | **收窄** — <砍掉了什么，以及由谁裁定> |
-
-### 问题清单
-
-- [P0] <文档/章节> — <问题> — 影响：<会出什么错> — 建议：<如何解决>
-- [P1] <文档/章节> — <问题> — 影响：<返工成本> — 建议：<...>
-
-### 已核验
-
-- <已确认成立的论断>
-
-### 未核验
-
-- <无法核验的内容及所需条件>
-
-### 结论
-
-<PASS | PASS_WITH_RISKS | NEEDS_FIXES | NEEDS_USER_DECISION> — <总结>
-
-### 待决策事项（仅 NEEDS_USER_DECISION）
-
-| 决策点 | 选项 | 为何 AI 无法决定 | 是否阻塞 |
-|-------|------|----------------|---------|
-| <问题> | A / B | <产品或策略选择> | 是/否 |
-```
-
-结论含义：`PASS`（可直接实施）、`PASS_WITH_RISKS`（无未决 P0/P1，风险
-已列明）、`NEEDS_FIXES`（planner 可自行修复的 P0/P1）、
-`NEEDS_USER_DECISION`（阻塞项只能由人决定）。`FAIL` / `BLOCKED` 属于
-代码审查结论，不适用于方案。
-
-planner 拒绝某条问题时，orchestrator 在同一轮记录：
-
-```markdown
-- [P0] <问题> — **已拒绝**：<planner 的理由>
-```
-
-未经 `已拒绝` 标注即在修订中消失的问题，在下一轮按新的 P0 处理。
 
 ### Author self-check (optional section)
 
@@ -1256,9 +791,9 @@ end-to-end before authoring any new diagram. The two most common traps:
    This rule applies to flowchart-family diagrams only — sequence
    diagrams have separate rendering and are out of scope.
 
-After writing, run the **Mermaid Compatibility Gate**: invoke
-`mermaid_lint.py` (bundled at `fullstack-propose/scripts/` or
-`fullstack-apply/scripts/`) on every just-written or just-edited file.
+After writing, run the **Mermaid Compatibility Gate**:
+`python3 SKILL_PATH/scripts/mermaid_lint.py <file>...` on every
+just-written or just-edited file.
 The script accepts multiple files in one call. If `STATUS=FAIL`, read
 each `ERROR:` line, apply the suggested fix from
 [`MERMAID-RULES.md`](MERMAID-RULES.md), save, and re-run until
@@ -1271,12 +806,7 @@ The gate runs whenever a mermaid-bearing doc is just written:
 3. Once on resume, to confirm prior sessions did not leave broken
    diagrams behind
 
-Locating the script across AI tools: check candidate paths in this
-order, use the first that exists:
-`~/.config/opencode/skills/fullstack-propose/scripts/mermaid_lint.py`,
-`~/.claude/skills/fullstack-propose/scripts/mermaid_lint.py`,
-`~/.copilot/...`, `~/.cursor/...`, `~/.gemini/...`, `~/.codex/...`,
-`~/.qwen/...`, `~/.grok/...`. If none exist, fall back to manual
+If the script cannot be run, fall back to manual
 review against [`MERMAID-RULES.md`](MERMAID-RULES.md). Skipping the
 gate entirely is NOT an acceptable shortcut — broken diagrams block
 human reviewers.

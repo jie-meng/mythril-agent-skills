@@ -43,15 +43,14 @@ request, tell the user to run `fullstack-propose` first.
 
 ## How this skill is organized
 
-Cross-cutting details live in `references/` and are read when relevant:
+Cross-cutting details live in `references/`, one file per document
+language — `<lang>` is `en` or `zh`, chosen by Document Language Selection
+below. Read only the variant for the work item's language:
 
 | File | Read when |
 |------|-----------|
-| [`references/document-templates.md`](references/document-templates.md) | Writing/updating the four work-tracking documents (templates + Mermaid Compatibility Gate) |
-| [`references/review-formats.md`](references/review-formats.md) | Formatting per-repo and cross-repo review sections in `review.md` |
-
-Always read the files relevant to the current step. They are concise on
-purpose; do not skim.
+| `references/document-templates.<lang>.md` | Writing/updating the four work-tracking documents (templates + Mermaid Compatibility Gate) |
+| `references/review-formats.<lang>.md` | Formatting per-repo and cross-repo review sections in `review.md` |
 
 ## Prerequisites — Workspace Validation Gate (MANDATORY SCRIPT CALL)
 
@@ -61,26 +60,12 @@ hard precondition — skipping the script and "checking files manually" is
 forbidden, because the script also reports `docs_dir` and `github_repos`
 which are needed later.
 
-```python
-import pathlib, subprocess, sys
-
-candidates = [
-    pathlib.Path.home() / ".config/opencode/skills/fullstack-apply/scripts/check_workspace.py",
-    pathlib.Path.home() / ".claude/skills/fullstack-apply/scripts/check_workspace.py",
-    pathlib.Path.home() / ".copilot/skills/fullstack-apply/scripts/check_workspace.py",
-    pathlib.Path.home() / ".cursor/skills/fullstack-apply/scripts/check_workspace.py",
-    pathlib.Path.home() / ".gemini/skills/fullstack-apply/scripts/check_workspace.py",
-    pathlib.Path.home() / ".codex/skills/fullstack-apply/scripts/check_workspace.py",
-    pathlib.Path.home() / ".qwen/skills/fullstack-apply/scripts/check_workspace.py",
-    pathlib.Path.home() / ".grok/skills/fullstack-apply/scripts/check_workspace.py",
-]
-script = next((p for p in candidates if p.exists()), None)
-if not script:
-    print("ERROR: check_workspace.py not found", file=sys.stderr)
-    sys.exit(1)
-result = subprocess.run([sys.executable, str(script)], capture_output=True, text=True)
-print(result.stdout)
+```bash
+python3 SKILL_PATH/scripts/check_workspace.py
 ```
+
+`SKILL_PATH` is this skill's own installed directory (the folder holding
+this `SKILL.md`), wherever the host installed it.
 
 The script reports:
 
@@ -182,40 +167,18 @@ definition of done; `analysis.md` carries the technical approach;
 `progress.md` shows what's already complete; `review.md` shows review
 history.
 
-**Determine the tier (lean / full).** `plan.md` §摘要 / §Summary's status
-line records the tier `fullstack-propose` determined (`…—— lean 档` /
-`…—— lean tier`). Re-verify it against the same standard propose applies —
-the standard below, from "A work item runs at lean tier" through "stay in
-force unchanged", is written verbatim in `fullstack-propose` Step 4 too;
-keep that span byte-identical across the two copies. The closing paragraph
-is per-skill and is expected to differ.
+**Tier (lean / full).** `fullstack-propose` determines the tier and records
+it in `plan.md` §摘要 / §Summary's status line (`…—— lean 档` /
+`…—— lean tier`). Use it as recorded. Run `full` instead when no tier is
+recorded, when the user asks for `full`, or when the work has outgrown
+lean: it now spans a second repo or a cross-repo contract, or a small
+production change has grown past 5 files or into persisted data, a schema,
+a migration, or an API consumed outside its repo. Record an upgrade in
+`progress.md`. Step 4 ("Lean tier — how the loop contracts") says what lean
+changes; every gate stays in force at either tier.
 
-**A work item runs at lean tier only when ALL four conditions hold:**
-
-1. The change set consists entirely of skill definitions, documentation,
-   templates, and test files, or of skill-bundled gate scripts that have
-   test coverage (e.g. `plan_lint.py`) — no production code.
-2. Single repository.
-3. No product runtime behavior change — a bundled gate script's own
-   checking behavior does not count against this condition, provided it
-   has test coverage.
-4. No cross-repo contract — none added, none modified.
-
-An explicit user request for the `full` flow overrides this determination.
-If any of the four conditions cannot be confirmed, run `full` (fail-safe:
-prefer stricter). Tiering only limits review-loop counts and commit
-granularity — the four-document requirement, `plan_lint`, the Mermaid/DAG
-gates, the Evidence table, and the `**文档同步**` / `**Document Sync**`
-attestation all stay in force unchanged.
-
-If `plan.md` records no tier, or the repositories table and Code Map
-cannot confirm one of the four conditions, run the full flow. How the
-lean tier contracts the implementation loop is specified in Step 4
-("Lean tier — how the loop contracts").
-
-**Resume**: if the work is partially complete, resume from the last
-incomplete step recorded in `progress.md`. Check that branches still
-exist in the affected repos.
+**Resume**: if the work is partially complete, follow "Resuming Previous
+Work" below.
 
 ## Step 2 — Confirm Repos and Branches (MANDATORY)
 
@@ -304,8 +267,7 @@ follows for the WHOLE run — do not improvise per step:
 - In `review.md`, its per-repo section records a `### Changed files`
   / `### 改动文件` list INSTEAD of `### Commits` — one row per file,
   repo-relative path, concrete per-file change description (template
-  and rules in
-  [`references/review-formats.md`](references/review-formats.md)).
+  and rules in `references/review-formats.<lang>.md`).
   Without git there is no diff and no commit history to inspect
   later, so this list is the only durable change record the team has
   when they commit the repo by hand.
@@ -340,11 +302,9 @@ Wave 3:  web ∥ android             (mutually independent → parallel)
 Step 5:  ONE cross-repo review     (the single global barrier)
 ```
 
-**Why waves instead of strict serial:** dependency order is respected
-where it exists (downstream compilation/tests need upstream code), but
-repos the planner already analyzed as independent stop paying each
-other's latency. The plan's `Depends On` column IS the parallelization
-decision — made at planning time, honored mechanically here.
+The plan's `Depends On` column IS the parallelization decision — made at
+planning time, honored mechanically here. A fully chained plan degenerates
+to serial implementation; the wave model is never less safe than serial.
 
 **Quality invariants that do NOT change with parallelism** (parallelism
 changes *when* work happens, never *whether* checks happen):
@@ -356,11 +316,6 @@ changes *when* work happens, never *whether* checks happen):
    final diffs together, once, after everything is done.
 4. Success Criteria gate, Mermaid gate, four-file consistency: untouched.
 
-**Degeneration property:** a fully-chained plan produces waves of size
-1 → behavior identical to serial implementation. Wave width = degree of
-parallelism; there is no case where the wave model is less safe than
-serial, only faster when width > 1.
-
 ### Lean tier — how the loop contracts
 
 When Step 1 confirmed the lean tier, the wave machinery below runs
@@ -370,10 +325,11 @@ per-repo loop contracts:
 - **One developer run per repo.** Fix iterations happen inside that same
   developer session — do not spawn a fresh developer per fix round.
 - **One staged review per repo, then at most one confirmation re-review.**
-  When the staged review returns `NEEDS_FIXES` and the fix is mechanically
-  verifiable (tests / lint / build), re-run the mechanical checks in place
-  of a confirmation round. Otherwise dispatch one confirmation re-review
-  on the round-2+ brief from 4d — capped at one.
+  When the staged review returns `NEEDS_FIXES` with P1s only and each fix
+  is mechanically verifiable (tests / lint / build), re-run the mechanical
+  checks in place of a confirmation round. A P0, or a fix nothing
+  mechanical can prove, gets one confirmation re-review on the round-2+
+  brief from 4d — capped at one.
 - Single-repo items already skip Step 5's cross-repo review; lean does
   not change that, and every gate in this skill stays in force.
 
@@ -546,8 +502,7 @@ on a broken one:
    opens with a bold `**Result**:` / `**结果**：` line (the
    decision-maker's first line) and closes with a
    `（Process notes: …）` / `（过程记录：…）` tail for AI-workflow
-   detail (format in
-   [`references/document-templates.md`](references/document-templates.md)) —
+   detail (format in `references/document-templates.<lang>.md`) —
    then proceed to staged review for that repo.
 
 #### 4d. Per-repo staged review — delegate to a code-reviewer subagent per repo
@@ -557,15 +512,21 @@ As soon as a developer has staged changes in a repo, delegate to a
 different repos run as parallel instances and never wait for each
 other:
 
-1. Provide the code-reviewer with: `plan.md` (especially Success Criteria),
-   `analysis.md`, `progress.md`, the same frozen-contract sections from
-   4a, and the staged diff (`git diff --cached` in the repo) — for a
-   repo without version control, the changed-file list from 4b instead
-   (see Step 3 "Repos without version control").
+1. Provide the code-reviewer with the same per-repo slice the developer
+   got in 4a (the repo's tasks, the Success Criteria this repo proves,
+   the relevant `analysis.md` sections, the frozen contracts), the
+   developer's returned summary and test result, the work-dir path (so it
+   can read anything else on demand), and the staged diff
+   (`git diff --cached` in the repo) — for a repo without version
+   control, the changed-file list from 4b instead (see Step 3 "Repos
+   without version control"). Tell it the mode: per-repo.
+   Do not paste the four documents whole; the cross-repo review in Step 5
+   is where the full picture is checked.
    If the tool cannot load the `code-reviewer` subagent, delegate to any
    fresh-context read-only subagent with the agent file as its brief; if
    even that is impossible, review it yourself but say so in `review.md`.
-2. The code-reviewer returns findings in P0/P1/P2 format with a verdict
+2. The code-reviewer returns findings in P0/P1/P2 format, an Evidence
+   row for each Success Criterion this repo proves, and a verdict
    (PASS / PASS_WITH_RISKS / NEEDS_FIXES / FAIL), scoped to its repo.
 3. You append the code-reviewer's output to `review.md` — below the
    `## Plan Review` rounds that `fullstack-propose` wrote (never overwrite
@@ -578,7 +539,12 @@ other:
    the **debugger** subagent for that repo first (root cause + fix
    spec, scoped-edit rules) and route its findings through the same
    developer → code-reviewer loop.
-5. **If PASS**: proceed to commit for that repo.
+5. **If PASS / PASS_WITH_RISKS**: copy its Evidence rows into the
+   `review.md` Evidence table now (not at finalization), then commit that
+   repo.
+6. **If FAIL**: the approach cannot meet the plan — stop that repo's
+   loop, hold its dependents, and take it to the user (a re-plan goes
+   through `fullstack-propose`). Independent siblings continue.
 
 **Round 2+ briefs (incremental).** Every re-review after a fix round —
 and the lean tier's confirmation re-review — runs on a minimal brief
@@ -622,7 +588,7 @@ git commit -m "<message>"
 - **Append this round's `**文档同步**` / `**Document Sync**` line** to its
   `review.md` section — all four documents, one clause each, stating what
   the round did to each or why nothing changed (format in
-  [`references/review-formats.md`](references/review-formats.md)). A round
+  `references/review-formats.<lang>.md`). A round
   that moved a responsibility between modules or layers, changed a call
   order, or altered a frozen contract has invalidated `analysis.md`'s
   architecture or flow section — that is a change to write, not a "no".
@@ -630,7 +596,7 @@ git commit -m "<message>"
   ships skills under `.agents/skills/`: run
   `python3 SKILL_PATH/scripts/repo_skills.py <repo>` and record every
   indexed skill, naming which matched this round and were read (format in
-  [`references/review-formats.md`](references/review-formats.md)). The
+  `references/review-formats.<lang>.md`). The
   final `plan_lint.py` gate fails when the line is missing or omits an
   indexed skill.
 - Run `python3 SKILL_PATH/scripts/graphify_check.py <repo>` — if
@@ -677,25 +643,20 @@ named files instead (see Step 3 "Repos without version control").
 
 ### 5b. Delegate to code-reviewer subagent (cross-repo mode)
 
-Provide the code-reviewer with:
+Provide the code-reviewer (mode: cross-repo) with:
 - `plan.md`, `analysis.md`, `progress.md` — full work context
 - Cross-repo diffs from all affected repos
 - For successor work (`-vN`): the predecessor's shipped contracts
   (backward-compatibility check)
 
-The code-reviewer checks:
-- **API contracts**: request/response shapes match between producer and consumer
-- **Shared types**: type definitions in shared-lib match usage in consumers
-- **Environment variables**: new env vars documented in all affected repos
-- **Database migrations**: schema changes compatible across services
-- **Error contracts**: error codes/messages consistent across boundaries
-- **Version compatibility**: dependency version bumps aligned
-- **Backward-compat** (successor work): no breaking changes vs predecessor
+The code-reviewer's cross-repo checklist lives in its agent file (API
+contracts, shared types, env vars, migrations, error contracts, version
+alignment, and backward compatibility for successor work).
 
 ### 5c. Write cross-repo findings
 
 Append the code-reviewer's output to `review.md` using the template in
-[`references/review-formats.md`](references/review-formats.md). Even if
+`references/review-formats.<lang>.md`. Even if
 no issues are found, write a `PASS` confirmation documenting what was
 checked.
 
@@ -846,41 +807,12 @@ Run the bundled linter on the work directory:
 python3 SKILL_PATH/scripts/plan_lint.py <docs-dir>/changes/<type>/<work-name>
 ```
 
-`STATUS=PASS` is required before finalizing. It catches the drift that
-hand-checks miss, deterministically:
-
-- every Success Criterion in `plan.md` has exactly one Evidence row in
-  `review.md` (implementations add and rename criteria; the table rots)
-- the last plan-review round ended in `PASS` / `PASS_WITH_RISKS`
-- plan-review rounds are numbered `1..N` without gaps
-- every task id cited in `review.md` exists in `plan.md`
-- every task id cited anywhere in `plan.md` exists in its `## 实现计划` /
-  `## Implementation Plan` task list — a narrative reference to a task
-  that does not exist cannot be acted on
-- every `REQ` id cited in a review round's coverage matrix is declared
-  in `analysis.md` §需求原文, and every declared `REQ` has a matrix row
-  in at least one round
-- a plan-review round with more than five P2 findings, or with more
-  P0/P1 than the previous round, is reported as a warning
-- the status overview's `同一循环` / `same loop` line records more than 3
-  plan-review passes in one loop — a range (`第 2–4 轮同一循环`) counts as
-  Y−X+1, otherwise the stated total — is reported as a warning; items
-  without the annotation stay silent
-- unresolved `待确认` / `TBD` markers are surfaced as warnings
-- `plan.md` carries the `## 摘要` / `## Summary` section — its absence is
-  a warning (legacy work items predate it), and the heading may carry a
-  parenthetical suffix (`## 摘要（给人读的…）` matches)
-- `plan.md` carries a non-empty `## 代码地图` / `## Code Map` table of
-  repo-relative, one-file-per-row paths — its absence fails the gate,
-  because the work item then cannot be found from the code it produced
-- the **newest** `## 代码审查` / `## Code Review` round carries a
-  `**文档同步**` line naming all four documents — a follow-up fix cannot
-  skip the statement (rounds written before the convention are never
-  back-filled)
-- a repo that ships skills under `.agents/skills/` has a
-  `**Repo Skills**` / `**仓库技能**` line in its newest code-review round
-  naming every indexed skill — a missing line, or one that omits a skill,
-  fails the gate
+`STATUS=PASS` is required before finalizing. The linter checks the
+cross-document invariants deterministically (Success Criteria ↔ Evidence
+rows, REQ coverage, task ids, plan-review closure, Code Map, the newest
+code-review round's `**文档同步**` / `**Document Sync**` and
+`**Repo Skills**` lines); each `ERROR:` line names what to fix, `WARN:`
+lines are advisory. Fix and re-run — do not reason around a failure.
 
 **Reconciliation rule** — any change to the Success Criteria list during
 implementation (a criterion added, renamed, waived, or dropped) must sync
@@ -911,7 +843,7 @@ Verify all four documents exist and are internally consistent:
 Then run the **Mermaid Compatibility Gate** against EVERY `.md` file in
 the work directory that contains ` ```mermaid ` blocks. If `STATUS=FAIL`
 on any, fix and re-run; do NOT finalize with broken diagrams. See
-[`document-templates.md`](references/document-templates.md#mermaid-1023-compatibility).
+§Mermaid 10.2.3 compatibility in `references/document-templates.<lang>.md`.
 
 ### Finalization steps
 
@@ -930,9 +862,10 @@ After review passes (and PRs created in Step 6 if applicable):
    §摘要 / §Summary to the final state: the one-sentence line, the
    status (done), what is explicitly not solved, and where to read. It
    is the only section of the work item updated in place; template in
-   [`references/document-templates.md`](references/document-templates.md#planmd).
-4. **Fill the Evidence table** in `review.md` — map each Success
-   Criterion to concrete proof (test results, PR links, screenshots).
+   §`plan.md` of `references/document-templates.<lang>.md`.
+4. **Complete the Evidence table** in `review.md` — the per-repo reviews
+   already filled their rows (4d); add what only finalization knows
+   (PR links, cross-repo results) and close any row still open.
    Then refresh §状态速览 / §Status Overview — the latest verdict, the
    review rounds, the risks still active, the decisions still open —
    everything below it stays append-only. Then re-run `plan_lint.py` —
@@ -973,11 +906,8 @@ After review passes (and PRs created in Step 6 if applicable):
      2. api       — feat/BE-450/Dark-Mode-Toggle  (pushed to origin)
    ```
 
-   For `github_repos=false`, do NOT construct or guess merge-request /
-   compare URLs, shell out to `glab` / Gitee CLIs / Bitbucket CLIs, parse
-   `git push` output for "Create pull request" hints, or ask the user
-   "should I open a PR via the web UI?" Just push the branches, list
-   them, and stop.
+   For `github_repos=false`, the Step 6 anti-patterns still apply: just
+   push the branches, list them, and stop.
 
 8. **Remind the user** that the work item is ready to archive:
 
@@ -1109,26 +1039,18 @@ When the user references an existing work directory:
    Waves still apply on resume: recompute waves with `compute_waves.py`
    and resume per wave — a partially completed wave reruns only its
    unfinished repos.
+6. If the `Workspace:` line is not in the transcript, re-run
+   `check_workspace.py` once and re-announce it.
 
 ## Error Handling
 
-- **Test failures**: Fix test failures caused by your changes before
-  committing that repo (scoped dev→review loop, 4c). Never commit a red
-  repo, and never release its dependents — but do not block sibling
-  repos of the same wave from finishing their own cycles.
-- **Non-obvious failures**: when a failure's cause is not evident —
-  symptoms contradict the diff, a cross-repo boundary is suspected, or
-  a developer fix round did not make the tests pass — delegate the
-  **debugger** subagent for root cause before another developer round.
-  Do not "try and see".
+- **Test failures** are handled in 4c; **non-obvious failures** go to the
+  debugger first (4d) — do not "try and see".
 - **Environment issues**: If a venv is missing, node version is wrong,
   or dependencies can't be installed, check the repo's README for setup
   instructions. If setup fails, note in `progress.md` and ask.
-- **Cross-repo contract mismatch**: If a downstream repo's tests fail
-  because an upstream repo's API changed unexpectedly, go back and fix
-  the upstream repo first, then re-validate downstream. Prevent this
-  class of bug upstream of apply by freezing contracts in the plan
-  (fullstack-propose) and at every wave gate (4e).
+- **Cross-repo contract mismatch**: fix upstream first, then re-validate
+  downstream (wave gate, 4e).
 - **Pre-existing failures**: Document pre-existing failures in
   `progress.md` but do not block on them.
 - **Unexpected blockers**: Update `progress.md` with details and ask the
@@ -1164,20 +1086,16 @@ When the user references an existing work directory:
 - Every repo keeps its own staged review before commit, regardless of
   parallelism; a red repo never releases its dependents but also never
   blocks independent siblings.
-- A repo without version control gets a `### Changed files` record in
-  `review.md` — one row per file, repo-relative path, concrete per-file
-  change description — never a compressed prose list. That list is the
-  team's only change record for a repo they must commit by hand.
+- A repo without version control gets a per-file `### Changed files`
+  record in `review.md`, never a compressed prose list.
 - The cross-repo consistency review runs ONCE over all repos' final
   diffs — per-repo reviews do not substitute for it.
 - Subagents must not start long-running servers or occupy ports during
   parallel waves.
 - The docs repo does NOT use feature branches.
-- **Code and documents move in the same pass.** A round that invalidates
-  `analysis.md`'s structure or flow, a Success Criterion, or the Code Map
-  is not finished until those documents say so — and it states the outcome
-  for all four in its `**文档同步**` / `**Document Sync**` line. The user
-  must never have to ask for the documents a second time.
+- **Code and documents move in the same pass**, attested for all four
+  documents in each round's `**文档同步**` / `**Document Sync**` line. The
+  user must never have to ask for the documents a second time.
 - Never reopen an archived work directory; successors are new `-vN`
   work items via `fullstack-propose`.
 - Mermaid gate must PASS before finalizing.

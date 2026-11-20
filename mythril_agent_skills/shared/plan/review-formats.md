@@ -3,6 +3,11 @@
 Templates for sections appended to `review.md` during implementation
 and review. Use the language matching the user's prompt.
 
+<!-- Canonical source. The lang:en and lang:zh marker blocks are split out by
+scripts/sync-shared-assets.py into the bundled `review-formats.en.md` and
+`review-formats.zh.md`; each skill reads only the one matching the
+document language. -->
+
 ## Canonical order of `review.md`
 
 One work item has ONE falsification record. Every section carries an
@@ -35,8 +40,10 @@ Rules:
   never a full re-read of history: the brief holds only (1) the latest
   round's complete output, (2) a `review.md` status-overview snapshot,
   (3) the Evidence table, (4) this round's change list, and (5) the diff
-  or revised sections awaiting verification. Earlier rounds stay in
-  `review.md` and git — fetched on demand, not re-read wholesale.
+  or revised sections awaiting verification. A plan re-review adds (6) a
+  `grep` of where every renamed, removed, or redefined name is still used
+  in `analysis.md` / `plan.md`. Earlier rounds stay in `review.md` and
+  git — fetched on demand, not re-read wholesale.
 
 ### Status overview — `## 状态速览` / `## Status Overview`
 
@@ -60,9 +67,10 @@ Everything below this section stays append-only, as before.
 
 ## Per-repo staged review section (code review)
 
-Appended once per repo per review round. The full
-`code-review-staged` output is preserved verbatim — do not summarize.
+Appended once per repo per review round. The code-reviewer's full
+output is preserved verbatim — do not summarize.
 
+<!-- lang:en -->
 ### English
 
 ```markdown
@@ -70,11 +78,11 @@ Appended once per repo per review round. The full
 
 ### Staged Review Output
 
-<Full output from code-review-staged, preserving all sections>
+<Full code-reviewer output, preserving all sections>
 
 ### Verdict
 
-<PASS | NEEDS_FIXES> — <one-line summary>
+<PASS | PASS_WITH_RISKS | NEEDS_FIXES | FAIL> — <one-line summary>
 
 ### Commits
 
@@ -93,6 +101,9 @@ read; skill-b did not
 nothing changed>; `plan.md` — <…>; `progress.md` — <…>; `review.md` — <…>
 ```
 
+<!-- /lang -->
+
+<!-- lang:zh -->
 ### Chinese
 
 ```markdown
@@ -100,11 +111,11 @@ nothing changed>; `plan.md` — <…>; `progress.md` — <…>; `review.md` — 
 
 ### 暂存区审查输出
 
-<code-review-staged 的完整输出，保留所有章节>
+<code-reviewer 的完整输出，保留所有章节>
 
 ### 结论
 
-<PASS | NEEDS_FIXES> — <一句话总结>
+<PASS | PASS_WITH_RISKS | NEEDS_FIXES | FAIL> — <一句话总结>
 
 ### 提交记录
 
@@ -125,6 +136,8 @@ skill-b 不相关
 
 > Items created before this convention used `## <repo> — Review Round <N>`.
 > Leave them as they are; only new rounds use the prefixed form.
+
+<!-- /lang -->
 
 ### Commits section rules
 
@@ -246,6 +259,7 @@ is the ONLY durable record of what changed — there is no diff and no
 commit history to inspect later — so it must be exact and
 self-sufficient.
 
+<!-- lang:en -->
 ### English
 
 ```markdown
@@ -258,6 +272,9 @@ self-sufficient.
 | `assets/strings/en.json` | Added `UNBIND_SEND_FAILED`, `UNBIND_NOT_COMPLETED` keys |
 ```
 
+<!-- /lang -->
+
+<!-- lang:zh -->
 ### Chinese
 
 ```markdown
@@ -295,13 +312,18 @@ Rules:
 
 ---
 
+<!-- /lang -->
+
 ### Verdict mapping
 
-| code-review-staged output | Verdict | Action |
-|---------------------------|---------|--------|
-| Major Issues section has critical/high-severity items | `NEEDS_FIXES` | Fix and re-review |
-| Code Quality section has significant violations | `NEEDS_FIXES` | Fix and re-review |
-| Only minor suggestions or clean review | `PASS` | Proceed to commit |
+Severities and verdicts are defined in the `code-reviewer` agent file.
+The orchestrator acts on the verdict:
+
+| Verdict | Action |
+|---------|--------|
+| `PASS` / `PASS_WITH_RISKS` | Copy the Evidence rows, commit the repo; risks go to the status overview |
+| `NEEDS_FIXES` | P0/P1 back to the developer, then re-review on the minimal brief |
+| `FAIL` | Stop the repo's loop — the approach or the plan is wrong; tell the user |
 
 ### Fix-cycle convergence principle
 
@@ -319,6 +341,7 @@ Appended once per work item (multi-repo only). Skip entirely for
 single-repo work. Even when no issues are found, a `PASS` section
 documenting what was checked must be written.
 
+<!-- lang:en -->
 ### English
 
 ```markdown
@@ -343,6 +366,9 @@ documenting what was checked must be written.
 <PASS | NEEDS_FIXES> — <summary>
 ```
 
+<!-- /lang -->
+
+<!-- lang:zh -->
 ### Chinese
 
 ```markdown
@@ -366,6 +392,8 @@ documenting what was checked must be written.
 
 <PASS | NEEDS_FIXES> — <总结>
 ```
+
+<!-- /lang -->
 
 ### Backward-compatibility addendum (Follow-up Mode only)
 
@@ -392,6 +420,7 @@ still open, and what is on them. Write it in the work item's language;
 do not add or drop rows. Everything a reader might need beyond these
 four (evidence, rounds, per-repo detail) stays in the sections above.
 
+<!-- lang:zh -->
 ### Chinese
 
 ```markdown
@@ -405,6 +434,9 @@ four (evidence, rounds, per-repo detail) stays in the sections above.
 | 需要人做的事 | <无 | 清单> |
 ```
 
+<!-- /lang -->
+
+<!-- lang:en -->
 ### English
 
 ```markdown
@@ -419,6 +451,8 @@ four (evidence, rounds, per-repo detail) stays in the sections above.
 ```
 
 ---
+
+<!-- /lang -->
 
 ## Standard cross-repo checks (what each result line should answer)
 

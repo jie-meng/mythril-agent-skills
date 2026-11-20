@@ -812,7 +812,7 @@ class TestInstallAgents:
     def test_code_reviewer_does_not_fix(self, tmp_path: Path):
         self.func(tmp_path, "proj")
         content = (tmp_path / ".agents" / "agents" / "code-reviewer.md").read_text()
-        assert "Do not fix issues you find" in content
+        assert "Do not fix anything or edit any file" in content
 
     def test_debugger_root_cause(self, tmp_path: Path):
         self.func(tmp_path, "proj")
@@ -939,7 +939,7 @@ class TestAgentSourceFiles:
             assert "Writing for the Decision Reader" in content, f"{name}.md missing Writing for the Decision Reader section"
         plan_reviewer = (self.agents_dir / "plan-reviewer.md").read_text()
         assert "Summary" in plan_reviewer
-        assert "drift between them is a P1 finding" in plan_reviewer
+        assert "misstates scope, status,\n   or the open decisions is P1" in plan_reviewer
 
 
 # ---------------------------------------------------------------------------

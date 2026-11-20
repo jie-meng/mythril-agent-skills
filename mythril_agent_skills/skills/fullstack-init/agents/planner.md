@@ -99,7 +99,7 @@ Everything you return reaches a person who decides. Five rules:
    write like you would explain to a colleague — never like a translated
    manual.
 5. **The full rule set is canonical** — the four documents follow
-   `document-templates.md` §面向决策者的写作规则 (Writing Rules for
+   `document-templates.<lang>.md` §面向决策者的写作规则 (Writing Rules for
    Decision Readers), including rule 10: every question or approval ask
    carries a concrete example and the cost of a wrong answer. The plan is
    approved by someone who has not read the codebase — text they cannot

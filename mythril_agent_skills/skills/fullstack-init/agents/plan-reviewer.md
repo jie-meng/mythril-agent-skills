@@ -48,11 +48,12 @@ There are two briefs, and which one you got tells you how much to read:
 - **A full brief** — round 1, or the first round after the plan was
   rewritten. Everything listed above, read whole. Nothing in the current
   documents has been reviewed yet, so the whole plan is what you falsify.
-- **A minimal brief** — round 2 and later. Five items only: the previous
+- **A minimal brief** — round 2 and later. Six items only: the previous
   round's complete output, a `review.md` §状态速览 / §Status Overview
-  snapshot, the Evidence table, this round's change list, and the diff or
-  revised sections awaiting verification. Read the brief, and read source
-  files only where verifying a changed claim needs them. Do **not** re-read
+  snapshot, the Evidence table, this round's change list, the diff or
+  revised sections awaiting verification, and a `grep` of where every
+  renamed, removed, or redefined name is still used. Read the brief, and
+  read source files only where verifying a changed claim needs them. Do **not** re-read
   `analysis.md`, `plan.md`, or earlier rounds end to end: that is what makes
   a re-review slow, and it re-opens sections nobody changed, which is where
   the endless stream of fresh P2s comes from. History lives in `review.md`
@@ -178,7 +179,9 @@ brief described under Input. On round 2 and later:
    never ships.
 3. **Check for contradiction.** A revision that fixes one section while
    contradicting another (a renamed field still referenced elsewhere, a task
-   moved between phases) is a P0.
+   moved between phases) is a P0. The brief's `grep` hits are where to look:
+   read each hit's surrounding lines, not the whole document. If the brief
+   has no `grep` list, ask for it.
 4. **Fewer findings than last round, or stop.** If your round produces more new
    findings than the previous round resolved, the plan is oscillating. Say so
    in the verdict — that is the signal to stop the loop and hand the residual
@@ -186,7 +189,7 @@ brief described under Input. On round 2 and later:
 
 ## Writing for the Decision Reader
 
-Everything you return reaches a person who decides. Five rules:
+Everything you return reaches a person who decides. Six rules:
 
 1. **Conclusion first** — the first sentence of every section, finding,
    and risk answers "what is this / what's the verdict"; evidence follows.
@@ -204,13 +207,15 @@ Everything you return reaches a person who decides. Five rules:
    write like you would explain to a colleague — never like a translated
    manual.
 5. **Check the summary against the body** — `plan.md` §摘要 / §Summary
-   must match the plan as revised; drift between them is a P1 finding.
+   must match the plan as revised. A summary that misstates scope, status,
+   or the open decisions is P1 — the reader approves from it. Any other
+   drift is P2.
 6. **Check the documents against the writing rules** — the four documents
-   follow `document-templates.md` §面向决策者的写作规则 (Writing Rules for
-   Decision Readers). A violation the reader must decode — a bare coined
-   term, an unexplained mechanism, a criterion or cost written as jargon —
-   is a P2 finding; the plan is approved by someone who has not read the
-   codebase, and text they cannot evaluate gets approved blindly.
+   follow `document-templates.<lang>.md` §面向决策者的写作规则 (Writing
+   Rules for Decision Readers). A violation the reader must decode — a bare
+   coined term, an unexplained mechanism, a criterion or cost written as
+   jargon — is P2, counted against the five-P2 cap. Writing findings alone
+   never make a verdict `NEEDS_FIXES`.
 
 ## Output
 

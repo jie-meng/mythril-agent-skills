@@ -3,6 +3,11 @@
 Templates for sections appended to `review.md` during implementation
 and review. Use the language matching the user's prompt.
 
+<!-- Canonical source. The lang:en and lang:zh marker blocks are split out by
+scripts/sync-shared-assets.py into the bundled `review-formats.en.md` and
+`review-formats.zh.md`; each skill reads only the one matching the
+document language. -->
+
 ## Canonical order of `review.md`
 
 One work item has ONE falsification record. Every section carries an
@@ -35,8 +40,10 @@ Rules:
   never a full re-read of history: the brief holds only (1) the latest
   round's complete output, (2) a `review.md` status-overview snapshot,
   (3) the Evidence table, (4) this round's change list, and (5) the diff
-  or revised sections awaiting verification. Earlier rounds stay in
-  `review.md` and git — fetched on demand, not re-read wholesale.
+  or revised sections awaiting verification. A plan re-review adds (6) a
+  `grep` of where every renamed, removed, or redefined name is still used
+  in `analysis.md` / `plan.md`. Earlier rounds stay in `review.md` and
+  git — fetched on demand, not re-read wholesale.
 
 ### Status overview — `## 状态速览` / `## Status Overview`
 
@@ -60,8 +67,8 @@ Everything below this section stays append-only, as before.
 
 ## Per-repo staged review section (code review)
 
-Appended once per repo per review round. The full
-`code-review-staged` output is preserved verbatim — do not summarize.
+Appended once per repo per review round. The code-reviewer's full
+output is preserved verbatim — do not summarize.
 
 ### English
 
@@ -70,11 +77,11 @@ Appended once per repo per review round. The full
 
 ### Staged Review Output
 
-<Full output from code-review-staged, preserving all sections>
+<Full code-reviewer output, preserving all sections>
 
 ### Verdict
 
-<PASS | NEEDS_FIXES> — <one-line summary>
+<PASS | PASS_WITH_RISKS | NEEDS_FIXES | FAIL> — <one-line summary>
 
 ### Commits
 
@@ -93,38 +100,7 @@ read; skill-b did not
 nothing changed>; `plan.md` — <…>; `progress.md` — <…>; `review.md` — <…>
 ```
 
-### Chinese
 
-```markdown
-## 代码审查 — <repo> — 第 <N> 轮 — <date>
-
-### 暂存区审查输出
-
-<code-review-staged 的完整输出，保留所有章节>
-
-### 结论
-
-<PASS | NEEDS_FIXES> — <一句话总结>
-
-### 提交记录
-
-| Hash | Message |
-|------|---------|
-| `abc1234` | feat: add dark mode toggle |
-
-### 仓库技能
-
-**仓库技能**：`skill-a`、`skill-b` —— skill-a 与本次改动相关并已加载；
-skill-b 不相关
-
-### 文档同步
-
-**文档同步**：`analysis.md` —— <本轮推翻了什么，或为何无需改动>；
-`plan.md` —— <…>；`progress.md` —— <…>；`review.md` —— <…>
-```
-
-> Items created before this convention used `## <repo> — Review Round <N>`.
-> Leave them as they are; only new rounds use the prefixed form.
 
 ### Commits section rules
 
@@ -258,50 +234,18 @@ self-sufficient.
 | `assets/strings/en.json` | Added `UNBIND_SEND_FAILED`, `UNBIND_NOT_COMPLETED` keys |
 ```
 
-### Chinese
 
-```markdown
-### 改动文件（无版本控制）
-
-| 文件（相对仓库根目录） | 改动说明 |
-|----------------------|---------|
-| `Assets/Scripts/UI/SettingRobot.cs` | 新增解绑确认状态机（4 条结果路径）；OnDestroy 注销 disconnect 监听；新增常量 `UnbindTimeoutSeconds` |
-| `Assets/Scripts/Net/ShortRangeManager.cs` | 新增带完成回调的 `BleWriteCommand` 重载；`RequestStop`/`RequestReadBleStatus` 中暂停/恢复状态轮询 |
-| `Assets/Localization/StringTable_en-US.asset` | 新增本地化键 `UNBIND_SEND_FAILED`、`UNBIND_NOT_COMPLETED` |
-```
-
-Rules:
-
-- **One row per file** — never merge several files into one row and
-  never compress the list into flowing prose ("A（…）、B（…）、C（…）"
-  style is forbidden). Every file the round created or modified gets
-  its own row: code, tests, docs, assets, localization tables alike.
-- **Path is relative to the repo root** (`Assets/Scripts/X.cs`) — not
-  an absolute machine path, not a bare file name. The team uses these
-  paths to locate and hand-commit the changes.
-- **The description must let a reader who cannot run `git diff`
-  understand the change**: what was added / modified / removed, and
-  the key functions, states, keys, or constants involved. Vague label
-  stacks ("状态机 + 生命周期清理 + 常量") are not enough.
-- **Verify the list before recording it** — against the developer's
-  report and the filesystem (e.g. modification times). A file listed
-  but not actually changed, or changed but missing, misleads the team
-  when they commit this repo by hand. If an error is discovered after
-  the round is recorded, correct it with a dated errata note in the
-  same section — never silently rewrite a recorded round.
-- Note in the section (or the repo heading) that the repo has no
-  version control, whether the review was an orchestrator
-  self-review, and that the team must commit the changes by hand.
-
----
 
 ### Verdict mapping
 
-| code-review-staged output | Verdict | Action |
-|---------------------------|---------|--------|
-| Major Issues section has critical/high-severity items | `NEEDS_FIXES` | Fix and re-review |
-| Code Quality section has significant violations | `NEEDS_FIXES` | Fix and re-review |
-| Only minor suggestions or clean review | `PASS` | Proceed to commit |
+Severities and verdicts are defined in the `code-reviewer` agent file.
+The orchestrator acts on the verdict:
+
+| Verdict | Action |
+|---------|--------|
+| `PASS` / `PASS_WITH_RISKS` | Copy the Evidence rows, commit the repo; risks go to the status overview |
+| `NEEDS_FIXES` | P0/P1 back to the developer, then re-review on the minimal brief |
+| `FAIL` | Stop the repo's loop — the approach or the plan is wrong; tell the user |
 
 ### Fix-cycle convergence principle
 
@@ -343,29 +287,7 @@ documenting what was checked must be written.
 <PASS | NEEDS_FIXES> — <summary>
 ```
 
-### Chinese
 
-```markdown
-## 跨仓库一致性审查 — <date>
-
-### 检查项
-
-- API 契约：<结果>
-- 共享类型：<结果>
-- 环境变量：<结果>
-- 数据库迁移：<结果>
-- 错误契约：<结果>
-- 依赖版本兼容性：<结果>
-
-### 发现
-
-- [P0] <repo-A> ↔ <repo-B>：<契约不匹配> — 必须修复
-- [P2] 未发现跨仓库问题
-
-### 结论
-
-<PASS | NEEDS_FIXES> — <总结>
-```
 
 ### Backward-compatibility addendum (Follow-up Mode only)
 
@@ -392,18 +314,6 @@ still open, and what is on them. Write it in the work item's language;
 do not add or drop rows. Everything a reader might need beyond these
 four (evidence, rounds, per-repo detail) stays in the sections above.
 
-### Chinese
-
-```markdown
-## 最终结论
-
-| 项 | 内容 |
-|----|------|
-| 交付了什么 | <一段人话 + 提交哈希> |
-| 明确没交付什么 | <排除项——及原因/去向> |
-| 残留风险与待办 | <逐条：谁在什么条件下跟进> |
-| 需要人做的事 | <无 | 清单> |
-```
 
 ### English
 
@@ -419,6 +329,7 @@ four (evidence, rounds, per-repo detail) stays in the sections above.
 ```
 
 ---
+
 
 ## Standard cross-repo checks (what each result line should answer)
 

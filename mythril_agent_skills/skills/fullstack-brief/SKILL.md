@@ -95,29 +95,14 @@ auto-detection override the user's instruction:
 
 ### Auto-detection (MANDATORY SCRIPT CALL)
 
-Run `detect_scope.py` the same way other fullstack skills run their gate
-scripts:
+Run `detect_scope.py` from this skill's bundled `scripts/` directory:
 
-```python
-import pathlib, subprocess, sys
-
-candidates = [
-    pathlib.Path.home() / ".config/opencode/skills/fullstack-brief/scripts/detect_scope.py",
-    pathlib.Path.home() / ".claude/skills/fullstack-brief/scripts/detect_scope.py",
-    pathlib.Path.home() / ".copilot/skills/fullstack-brief/scripts/detect_scope.py",
-    pathlib.Path.home() / ".cursor/skills/fullstack-brief/scripts/detect_scope.py",
-    pathlib.Path.home() / ".gemini/skills/fullstack-brief/scripts/detect_scope.py",
-    pathlib.Path.home() / ".codex/skills/fullstack-brief/scripts/detect_scope.py",
-    pathlib.Path.home() / ".qwen/skills/fullstack-brief/scripts/detect_scope.py",
-    pathlib.Path.home() / ".grok/skills/fullstack-brief/scripts/detect_scope.py",
-]
-script = next((p for p in candidates if p.exists()), None)
-if not script:
-    print("ERROR: detect_scope.py not found", file=sys.stderr)
-    sys.exit(1)
-result = subprocess.run([sys.executable, str(script)], capture_output=True, text=True)
-print(result.stdout)
+```bash
+python3 SKILL_PATH/scripts/detect_scope.py
 ```
+
+`SKILL_PATH` is this skill's own installed directory (the folder holding
+this `SKILL.md`), wherever the host installed it.
 
 Output keys:
 

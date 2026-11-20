@@ -56,26 +56,12 @@ project history. The close itself is performed by
 This skill MUST NOT proceed past this gate. Run `check_workspace.py`
 and inspect its output.
 
-```python
-import pathlib, subprocess, sys
-
-candidates = [
-    pathlib.Path.home() / ".config/opencode/skills/fullstack-issue-create/scripts/check_workspace.py",
-    pathlib.Path.home() / ".claude/skills/fullstack-issue-create/scripts/check_workspace.py",
-    pathlib.Path.home() / ".copilot/skills/fullstack-issue-create/scripts/check_workspace.py",
-    pathlib.Path.home() / ".cursor/skills/fullstack-issue-create/scripts/check_workspace.py",
-    pathlib.Path.home() / ".gemini/skills/fullstack-issue-create/scripts/check_workspace.py",
-    pathlib.Path.home() / ".codex/skills/fullstack-issue-create/scripts/check_workspace.py",
-    pathlib.Path.home() / ".qwen/skills/fullstack-issue-create/scripts/check_workspace.py",
-    pathlib.Path.home() / ".grok/skills/fullstack-issue-create/scripts/check_workspace.py",
-]
-script = next((p for p in candidates if p.exists()), None)
-if not script:
-    print("ERROR: check_workspace.py not found", file=sys.stderr)
-    sys.exit(1)
-result = subprocess.run([sys.executable, str(script)], capture_output=True, text=True)
-print(result.stdout)
+```bash
+python3 SKILL_PATH/scripts/check_workspace.py
 ```
+
+`SKILL_PATH` is this skill's own installed directory (the folder holding
+this `SKILL.md`), wherever the host installed it.
 
 - `WORKSPACE_VALID=true` → proceed to Step 1
 - `WORKSPACE_VALID=false` → STOP and tell the user the workspace is not

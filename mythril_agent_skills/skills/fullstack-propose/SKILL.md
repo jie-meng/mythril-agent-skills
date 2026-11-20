@@ -65,26 +65,12 @@ user request. Then `fullstack-apply` implements the plan.
 This skill MUST NOT proceed past this gate. Run `check_workspace.py` and
 inspect its output before planning anything.
 
-```python
-import pathlib, subprocess, sys
-
-candidates = [
-    pathlib.Path.home() / ".config/opencode/skills/fullstack-propose/scripts/check_workspace.py",
-    pathlib.Path.home() / ".claude/skills/fullstack-propose/scripts/check_workspace.py",
-    pathlib.Path.home() / ".copilot/skills/fullstack-propose/scripts/check_workspace.py",
-    pathlib.Path.home() / ".cursor/skills/fullstack-propose/scripts/check_workspace.py",
-    pathlib.Path.home() / ".gemini/skills/fullstack-propose/scripts/check_workspace.py",
-    pathlib.Path.home() / ".codex/skills/fullstack-propose/scripts/check_workspace.py",
-    pathlib.Path.home() / ".qwen/skills/fullstack-propose/scripts/check_workspace.py",
-    pathlib.Path.home() / ".grok/skills/fullstack-propose/scripts/check_workspace.py",
-]
-script = next((p for p in candidates if p.exists()), None)
-if not script:
-    print("ERROR: check_workspace.py not found", file=sys.stderr)
-    sys.exit(1)
-result = subprocess.run([sys.executable, str(script)], capture_output=True, text=True)
-print(result.stdout)
+```bash
+python3 SKILL_PATH/scripts/check_workspace.py
 ```
+
+`SKILL_PATH` is this skill's own installed directory (the folder holding
+this `SKILL.md`), wherever the host installed it.
 
 The script reports:
 
@@ -131,6 +117,10 @@ language of the user's prompt.
 This applies independently per invocation. It does NOT affect work
 directory names (always lowercase-hyphenated English) or branch names
 (always English Title-Case-With-Hyphens).
+
+The language also picks the reference variant: `references/document-templates.<lang>.md`
+and `references/review-formats.<lang>.md`, with `<lang>` = `en` or `zh`.
+Read only that variant.
 
 ## Step 1 — Gather Context
 
@@ -312,7 +302,7 @@ blindly, and the gate learns nothing. In the text the user sees:
    only where a wrong answer really costs days.
 
 These are decision-reader writing rules applied to questions; the full set
-lives in [`references/document-templates.md`](references/document-templates.md)
+lives in `references/document-templates.<lang>.md`
 §面向决策者的写作规则. Translated examples:
 
 | Planner phrasing (do not send) | Plain question (send this shape) |
@@ -369,7 +359,7 @@ Every open decision ends in exactly one of two states:
   decision in the Step 5 report.
 
 No silent assumptions. The exact table and row shape are frozen in
-[`references/document-templates.md`](references/document-templates.md);
+`references/document-templates.<lang>.md`;
 Step 4 writes this content to disk before the planner is delegated to.
 
 ## Step 4 — Create the Work Plan
@@ -453,10 +443,8 @@ interface names to be improvised during apply.
 
 Then write `progress.md` (initial state) and `review.md` (header, plus the
 plan review rounds the gate below records) yourself. Follow the templates
-in
-[`references/document-templates.md`](references/document-templates.md),
-including its **§面向决策者的写作规则 (Writing Rules for Decision
-Readers)** — they bind every section of all four documents, not just the
+in `references/document-templates.<lang>.md`, including its
+**§面向决策者的写作规则 (Writing Rules for Decision Readers)** — they bind every section of all four documents, not just the
 shapes. Conclusion first, terms explained on first use, costs stated as
 concrete rework: the user approves this plan without having read the
 codebase, and text they cannot evaluate gets approved blindly.
@@ -467,7 +455,7 @@ words / status / decisions needed / not solved / where to read), the
 one-sentence line carrying no ids and no file refs, the plain-words line
 saying what will be different once this ships. It is the only section of the
 work item updated in place as the item evolves; template in
-[`references/document-templates.md`](references/document-templates.md#planmd).
+§`plan.md` of `references/document-templates.<lang>.md`.
 
 Write `plan.md`'s **Code Map** (`## 代码地图` / `## Code Map`) in the same
 pass too: one row per file the item is expected to touch, as
@@ -581,19 +569,10 @@ cd <repo-2> && git checkout .
 
 ### Mermaid Compatibility Gate (MANDATORY when diagrams are written)
 
-After writing any doc with ` ```mermaid ` blocks, invoke `mermaid_lint.py`
-from this skill's own bundled `scripts/` directory. Read
+After writing any doc with ` ```mermaid ` blocks, run
+`python3 SKILL_PATH/scripts/mermaid_lint.py <file>...`. Read
 [`references/MERMAID-RULES.md`](references/MERMAID-RULES.md) before
 authoring any diagram.
-
-Locating the script across AI tools — check candidate paths in this
-order, use the first that exists:
-`~/.config/opencode/skills/fullstack-propose/scripts/mermaid_lint.py`,
-`~/.claude/skills/fullstack-propose/scripts/mermaid_lint.py`,
-`~/.copilot/...`, `~/.cursor/...`, `~/.gemini/...`, `~/.codex/...`,
-`~/.qwen/...`, `~/.grok/...`. (If `fullstack-propose` is not installed
-but `fullstack-apply` is, the same script lives under that skill's
-bundled `scripts/` directory.)
 
 If `STATUS=FAIL`, read each `ERROR:` line, apply the suggested fix,
 save, and re-run until `STATUS=PASS`. Do NOT proceed with `STATUS=FAIL`.
@@ -626,30 +605,28 @@ Do NOT finalize the plan with a failing DAG gate.
 ### Work-item tier — determine lean or full (after plan.md is written)
 
 Once `plan.md` is written — the repositories table and the Code Map are
-formed — determine the tier this work item runs at. The standard that
-follows, from "A work item runs at lean tier" through "stay in force
-unchanged", is written verbatim in `fullstack-apply` Step 1 as well; keep
-that span byte-identical across the two copies. The closing paragraph is
-per-skill and is expected to differ — this copy records where the result
-goes, apply's states the fallback when no tier was recorded.
+formed — determine the tier. `fullstack-apply` uses the recorded tier as
+is, so this is the one place the standard lives.
 
-**A work item runs at lean tier only when ALL four conditions hold:**
+**A work item runs at lean tier only when ALL of these hold:**
 
-1. The change set consists entirely of skill definitions, documentation,
-   templates, and test files, or of skill-bundled gate scripts that have
-   test coverage (e.g. `plan_lint.py`) — no production code.
-2. Single repository.
-3. No product runtime behavior change — a bundled gate script's own
-   checking behavior does not count against this condition, provided it
-   has test coverage.
-4. No cross-repo contract — none added, none modified.
+1. Single repository.
+2. No cross-repo contract — none added, none modified.
+3. One of:
+   - **Non-production change** — the change set is only skill
+     definitions, documentation, templates, and tests, or skill-bundled
+     gate scripts with test coverage (e.g. `plan_lint.py`); no product
+     runtime behavior change.
+   - **Small production change** — the Code Map lists at most 5 files,
+     and the change touches no persisted data format, schema, or
+     migration, and no API consumed outside this repo.
 
 An explicit user request for the `full` flow overrides this determination.
-If any of the four conditions cannot be confirmed, run `full` (fail-safe:
-prefer stricter). Tiering only limits review-loop counts and commit
-granularity — the four-document requirement, `plan_lint`, the Mermaid/DAG
-gates, the Evidence table, and the `**文档同步**` / `**Document Sync**`
-attestation all stay in force unchanged.
+If any condition cannot be confirmed, run `full` (fail-safe: prefer
+stricter). Tiering only limits review-loop counts and commit granularity —
+the four-document requirement, `plan_lint`, the Mermaid/DAG gates, the
+Evidence table, and the `**文档同步**` / `**Document Sync**` attestation
+all stay in force unchanged.
 
 Record the result in `plan.md` §摘要 / §Summary's status line
 (`…—— lean 档` / `…—— lean tier`); the Step 5 report's `Mode:` line
@@ -676,7 +653,7 @@ Every work item is reviewed; the *loop* is what scales.
 
 | Work item shape | Review depth |
 |-----------------|--------------|
-| **Lean tier** — the Step 4 four-condition standard holds and the user has not upgraded to full | **1 pass + 1 confirmation, capped.** On `NEEDS_FIXES`: planner revises, then the SAME round re-runs the mechanical gates (`plan_lint` / Mermaid / DAG) — a mechanical-gate re-check does not count as a review round. The confirmation round runs as a fresh agent on the round-2+ brief below. If it still does not converge, record the residual items as known risks in `plan.md` and close as `PASS_WITH_RISKS` — no third round |
+| **Lean tier** — the Step 4 lean standard holds and the user has not upgraded to full | **1 pass + 1 confirmation, capped.** On `NEEDS_FIXES`: planner revises, then the SAME round re-runs the mechanical gates (`plan_lint` / Mermaid / DAG) — a mechanical-gate re-check does not count as a review round. The confirmation round runs as a fresh agent on the round-2+ brief below. If it still does not converge, record residual P1/P2 items as known risks in `plan.md` and close as `PASS_WITH_RISKS` — no third round. A P0 still open after the confirmation round is never closed this way: the item moves to the full loop |
 | Multi-repo, any frozen contract, deep (spike) mode, or architectural refactor | **Loop.** Pass → revise → re-review. Cap: 2 revision rounds (3 passes total) |
 
 **Counting the rounds — the cap counts passes, and a re-plan starts a new
@@ -732,13 +709,18 @@ than a labelled one.
 ### Round 2+ briefs — incremental, minimal, fresh
 
 From round 2 on — every re-review after a revision — the brief holds ONLY
-five items:
+six items:
 
 1. The latest round's complete output;
 2. A `review.md` status-overview snapshot (§状态速览 / §Status Overview);
 3. The Evidence table;
 4. This round's change list — what the planner revised and where;
-5. The diff or revised sections awaiting verification.
+5. The diff or revised sections awaiting verification;
+6. **Where the changed names are still used** — `grep -n` across
+   `analysis.md` and `plan.md` for every id, field, endpoint, task, or
+   criterion the revision renamed, removed, or redefined, with each hit's
+   line. This is how a reviewer that does not re-read untouched sections
+   still catches a revision that contradicts one.
 
 A full re-read of earlier rounds and of the four documents is forbidden
 in this brief — history lives in `review.md` and git, fetched on demand.
@@ -758,7 +740,7 @@ the plan promising something the user already declined.
 Append the plan-reviewer's output to `review.md` as a
 `## Plan Review — Round <N> — <date>` / `## 方案审查 — 第 <N> 轮 — <date>`
 section, in the document's language (format in
-[`references/document-templates.md`](references/document-templates.md)).
+`references/document-templates.<lang>.md`).
 
 | Verdict | What you do |
 |---------|-------------|
@@ -839,41 +821,12 @@ python3 SKILL_PATH/scripts/plan_lint.py <docs-dir>/changes/<type>/<work-name>
 ```
 
 `STATUS=PASS` is required; `ERROR:` lines are the exit-criteria failures,
-`WARN:` lines are advisory. It checks, deterministically:
-
-- every Success Criterion in `plan.md` has exactly one Evidence row in
-  `review.md` (both directions — a stale row counts too)
-- the last plan-review round ends in `PASS` / `PASS_WITH_RISKS` — an
-  unverified `NEEDS_FIXES` revision is caught here
-- plan-review rounds are numbered `1..N` without gaps
-- every task id cited in `review.md` exists in `plan.md`
-- every task id cited anywhere in `plan.md` exists in its `## 实现计划` /
-  `## Implementation Plan` task list — a narrative reference to a task
-  that does not exist cannot be acted on
-- every `REQ` id cited in a review round's coverage matrix is declared
-  in `analysis.md` §需求原文, and every declared `REQ` has a row in some
-  round's matrix — a prose mention never counts as coverage; a
-  requirement nobody mapped is the silent-drop case, made checkable
-- a round carrying more than five P2 findings, or more P0/P1 than the
-  round before it, is reported as a warning (both caps exist in the
-  reviewer's brief and both are invisible to a reader scanning the file)
-- the status overview's `同一循环` / `same loop` line records more than 3
-  plan-review passes — counted as Y−X+1 when a range is written
-  (`第 2–4 轮同一循环` is 3), otherwise from the `方案审查 N 轮` total —
-  is reported as a warning; items that do not write the annotation stay
-  silent
-- unresolved `待确认` / `TBD` markers are surfaced as warnings (they must
-  become a formal `NEEDS_USER_DECISION`, not stay a parenthetical)
-- `plan.md` carries the `## 摘要` / `## Summary` section — its absence is
-  a warning (legacy work items predate it), and the heading may carry a
-  parenthetical suffix (`## 摘要（给人读的…）` matches)
-- `plan.md` carries a non-empty `## 代码地图` / `## Code Map` table, one
-  repo-relative file per row — its absence is an error, because the work
-  item then cannot be found from the code it will produce
-- the **newest** `## 代码审查` / `## Code Review` round carries a
-  `**文档同步**` line naming all four documents (none exist yet at
-  planning time; this is what fails an apply round that skipped the
-  statement)
+`WARN:` lines are advisory (unresolved `待确认` / `TBD` markers among them —
+turn each into a formal `NEEDS_USER_DECISION`). The linter checks the
+cross-document invariants deterministically — Success Criteria ↔ Evidence
+rows, REQ ids ↔ coverage matrix, task ids, plan-review closure and
+numbering, the Summary and Code Map sections — and each `ERROR:` line
+names what to fix. Fix and re-run; do not reason around a failure.
 
 Then, in the SAME revision as any document edit:
 

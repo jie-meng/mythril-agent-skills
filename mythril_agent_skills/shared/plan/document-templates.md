@@ -6,6 +6,11 @@ user's prompt — Chinese if the prompt contains any Chinese characters,
 otherwise English. The Markdown structure is identical between the two
 languages; only the labels differ.
 
+<!-- Canonical source. The lang:en and lang:zh marker blocks are split out by
+scripts/sync-shared-assets.py into the bundled `document-templates.en.md`
+and `document-templates.zh.md`; each skill reads only the one matching the
+document language. -->
+
 ## Table of contents
 
 - [Writing rules for decision readers](#面向决策者的写作规则writing-rules-for-decision-readers) — style contract for all four documents
@@ -123,6 +128,7 @@ location, NOT a text field. Active work lives in
 `<docs-dir>/changes/archive/YYYY-MM-DD-<type>-<work-name>/`. Do NOT
 write a `**Status**:` field in `plan.md`.
 
+<!-- lang:en -->
 ### English
 
 ```markdown
@@ -244,6 +250,9 @@ where it was resolved. Rows are never deleted; the partition keeps the
 live exposure readable at a glance.)
 ```
 
+<!-- /lang -->
+
+<!-- lang:zh -->
 ### Chinese
 
 ```markdown
@@ -358,6 +367,8 @@ implementation close-out. History stays in `progress.md` / `review.md` —
 this section states only the current position. 方案审查结论变化、需求变更、
 实施收尾时更新；历史留在 progress/review，本节只写当前。
 
+<!-- /lang -->
+
 ### Successor addition
 
 When this work item inherits from an archived predecessor, add a
@@ -379,6 +390,7 @@ first line — and **closes with a process-notes tail**
 Git history is the authoritative record of code changes; this file is
 the human-readable narrative that ties changes to decisions.
 
+<!-- lang:en -->
 ### English
 
 ```markdown
@@ -417,6 +429,9 @@ the human-readable narrative that ties changes to decisions.
 （Process notes: <AI workflow detail>）
 ```
 
+<!-- /lang -->
+
+<!-- lang:zh -->
 ### Chinese
 
 ```markdown
@@ -455,6 +470,8 @@ the human-readable narrative that ties changes to decisions.
 （过程记录：<AI 工作流细节>）
 ```
 
+<!-- /lang -->
+
 ### Successor back-link — `## Successors` table (optional)
 
 The forward link is what always carries the chain forward: the
@@ -478,6 +495,7 @@ forward link instead.
 decisions were made. Unlike `plan.md` (an execution checklist),
 `analysis.md` visualizes system behavior and documents trade-offs.
 
+<!-- lang:en -->
 ### English
 
 ```markdown
@@ -593,6 +611,9 @@ flowchart LR
 | ... | Medium | High | ... |
 ```
 
+<!-- /lang -->
+
+<!-- lang:zh -->
 ### Chinese
 
 ```markdown
@@ -701,8 +722,11 @@ flowchart LR
 
 ---
 
+<!-- /lang -->
+
 ## `analysis.md` — fix
 
+<!-- lang:en -->
 ### English
 
 ```markdown
@@ -836,6 +860,9 @@ is a root cause.>
 - <Preventive measures: tests, monitoring, guards>
 ```
 
+<!-- /lang -->
+
+<!-- lang:zh -->
 ### Chinese
 
 ```markdown
@@ -960,19 +987,21 @@ sequenceDiagram
 
 ---
 
+<!-- /lang -->
+
 ## `review.md` header
 
+<!-- lang:en -->
 ### English
 
 ```markdown
 # Review: <Work Name>
 
 This file is the work item's falsification record. Canonical order:
-status overview (updated in place) → Evidence (seeded here, filled at
-finalization) → plan review rounds
+status overview (updated in place) → Evidence (seeded here, filled by
+code review, closed at finalization) → plan review rounds
 (fullstack-propose) → code review rounds and the cross-repo check
-(fullstack-apply) → closing verdict. See
-[`review-formats.md`](review-formats.md#canonical-order-of-reviewmd).
+(fullstack-apply) → closing verdict.
 
 ## Status Overview (updated in place; all rounds and evidence below are append-only)
 
@@ -987,7 +1016,8 @@ finalization) → plan review rounds
 ## Evidence
 
 Seeded by fullstack-propose with one row per Success Criterion from
-plan.md (all `待核验` / `Pending`), filled during finalization. A
+plan.md (all `待核验` / `Pending`); each repo's code review fills its
+rows, finalization closes the rest. A
 criterion without a row here is a criterion nobody verified —
 `plan_lint.py` fails the handoff and the finalization gate on it.
 
@@ -998,15 +1028,17 @@ criterion without a row here is a criterion nobody verified —
 | Criterion 3 | ⚠️ Skipped | <tests not run — no harness or no documented run command> |
 ```
 
+<!-- /lang -->
+
+<!-- lang:zh -->
 ### Chinese
 
 ```markdown
 # 审查：<工作名称>
 
 本文件是该工作项的证伪记录。规范顺序：状态速览（原地更新）→ 证据核验
-（此处预填，收尾阶段填写）→ 方案审查轮次（fullstack-propose）→ 代码审查
-轮次与跨仓库审查（fullstack-apply）→ 最终结论。见
-[`review-formats.md`](review-formats.md#canonical-order-of-reviewmd)。
+（此处预填，代码审查逐仓库填写，收尾补齐）→ 方案审查轮次（fullstack-propose）→ 代码审查
+轮次与跨仓库审查（fullstack-apply）→ 最终结论。
 
 ## 状态速览（本节原地更新；其下所有轮次与证据 append-only）
 
@@ -1021,7 +1053,7 @@ criterion without a row here is a criterion nobody verified —
 ## 证据核验
 
 由 fullstack-propose 预填：plan.md 中每条成功标准一行（全部标 `待核验`），
-收尾阶段填写证据。这里没有行的成功标准就是没人核验的标准——
+各仓库代码审查时填写对应证据，收尾阶段补齐其余。这里没有行的成功标准就是没人核验的标准——
 `plan_lint.py` 会在交付门与收尾门上报错。
 
 | 成功标准 | 结果 | 证据 |
@@ -1032,9 +1064,11 @@ criterion without a row here is a criterion nobody verified —
 ```
 
 The per-round review section format and cross-repo review format are
-defined in [`review-formats.md`](review-formats.md).
+defined in `review-formats.<lang>.md`.
 
 ---
+
+<!-- /lang -->
 
 ## Plan review round
 
@@ -1042,6 +1076,7 @@ Written by **fullstack-propose** (Step 4.5), one section per round, before
 any implementation starts. The plan-reviewer subagent returns the content; the
 orchestrator appends it. Section labels follow the work item's language.
 
+<!-- lang:en -->
 ### English
 
 ```markdown
@@ -1107,6 +1142,9 @@ rejection in the same round:
 A finding dropped during revision without a `Rejected:` line is
 treated as a new P0 in the next round.
 
+<!-- /lang -->
+
+<!-- lang:zh -->
 ### Chinese
 
 ```markdown
@@ -1166,6 +1204,8 @@ planner 拒绝某条问题时，orchestrator 在同一轮记录：
 ```
 
 未经 `已拒绝` 标注即在修订中消失的问题，在下一轮按新的 P0 处理。
+
+<!-- /lang -->
 
 ### Author self-check (optional section)
 
@@ -1256,9 +1296,9 @@ end-to-end before authoring any new diagram. The two most common traps:
    This rule applies to flowchart-family diagrams only — sequence
    diagrams have separate rendering and are out of scope.
 
-After writing, run the **Mermaid Compatibility Gate**: invoke
-`mermaid_lint.py` (bundled at `fullstack-propose/scripts/` or
-`fullstack-apply/scripts/`) on every just-written or just-edited file.
+After writing, run the **Mermaid Compatibility Gate**:
+`python3 SKILL_PATH/scripts/mermaid_lint.py <file>...` on every
+just-written or just-edited file.
 The script accepts multiple files in one call. If `STATUS=FAIL`, read
 each `ERROR:` line, apply the suggested fix from
 [`MERMAID-RULES.md`](MERMAID-RULES.md), save, and re-run until
@@ -1271,12 +1311,7 @@ The gate runs whenever a mermaid-bearing doc is just written:
 3. Once on resume, to confirm prior sessions did not leave broken
    diagrams behind
 
-Locating the script across AI tools: check candidate paths in this
-order, use the first that exists:
-`~/.config/opencode/skills/fullstack-propose/scripts/mermaid_lint.py`,
-`~/.claude/skills/fullstack-propose/scripts/mermaid_lint.py`,
-`~/.copilot/...`, `~/.cursor/...`, `~/.gemini/...`, `~/.codex/...`,
-`~/.qwen/...`, `~/.grok/...`. If none exist, fall back to manual
+If the script cannot be run, fall back to manual
 review against [`MERMAID-RULES.md`](MERMAID-RULES.md). Skipping the
 gate entirely is NOT an acceptable shortcut — broken diagrams block
 human reviewers.

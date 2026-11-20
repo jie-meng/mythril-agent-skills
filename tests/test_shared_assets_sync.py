@@ -13,7 +13,6 @@ source. To fix drift, run:
 
 from __future__ import annotations
 
-import filecmp
 import hashlib
 import importlib.util
 import sys
@@ -72,7 +71,10 @@ def test_at_least_one_consumer_per_spec(sync_module):
 
 
 def test_no_drift(sync_module):
-    """Every bundled copy must be byte-identical to its canonical source.
+    """Every bundled copy must match its canonical source.
+
+    Plain specs require a byte-identical copy; specs with a `transform`
+    (one language of a bilingual template) require the transformed bytes.
 
     Fix drift by running: python3 scripts/sync-shared-assets.py
     """
@@ -85,7 +87,7 @@ def test_no_drift(sync_module):
                     f"(should be a copy of {spec.source.relative_to(REPO_ROOT)})"
                 )
                 continue
-            if not filecmp.cmp(spec.source, target, shallow=False):
+            if target.read_bytes() != sync_module.expected_bytes(spec):
                 drift.append(
                     f"  - DRIFTED: {target.relative_to(REPO_ROOT)} "
                     f"differs from {spec.source.relative_to(REPO_ROOT)}"
@@ -164,3 +166,28 @@ def test_no_undeclared_duplicates(sync_module):
         "to notice. Register them in scripts/sync-shared-assets.py, or remove "
         "the duplicate:\n" + "\n".join(undeclared)
     )
+
+
+class TestSelectLanguage:
+    """Tests for sync-shared-assets.select_language."""
+
+    def test_keeps_shared_and_selected_language(self, sync_module):
+        text = "head\n<!-- lang:en -->\nEN\n<!-- /lang -->\n<!-- lang:zh -->\nZH\n<!-- /lang -->\ntail"
+        assert sync_module.select_language(text, "en") == "head\nEN\ntail"
+        assert sync_module.select_language(text, "zh") == "head\nZH\ntail"
+
+    def test_inline_marker_text_is_not_a_marker(self, sync_module):
+        text = "see `<!-- lang:en -->` blocks"
+        assert sync_module.select_language(text, "zh") == text
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "<!-- lang:en -->\nx",
+            "x\n<!-- /lang -->",
+            "<!-- lang:en -->\n<!-- lang:zh -->\n<!-- /lang -->",
+        ],
+    )
+    def test_malformed_blocks_raise(self, sync_module, text):
+        with pytest.raises(ValueError):
+            sync_module.select_language(text, "en")

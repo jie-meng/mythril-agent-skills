@@ -24,9 +24,9 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
-import filecmp
-import shutil
+import re
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -38,11 +38,58 @@ SKILLS_ROOT = PACKAGE_ROOT / "skills"
 
 @dataclass(frozen=True)
 class SyncSpec:
-    """One (canonical-file → bundled-target) mapping."""
+    """One (canonical-file → bundled-target) mapping.
+
+    `transform`, when set, derives the bundled bytes from the canonical text
+    (e.g. one language of a bilingual template); otherwise targets are
+    byte-identical copies.
+    """
 
     source: Path
     targets: tuple[Path, ...]
     description: str
+    transform: Callable[[str], str] | None = None
+
+
+_LANG_OPEN = re.compile(r"^<!-- lang:(en|zh) -->$")
+_LANG_CLOSE = "<!-- /lang -->"
+
+
+def select_language(text: str, lang: str) -> str:
+    """Keep `<!-- lang:<lang> -->` blocks, drop other languages' blocks.
+
+    Marker lines themselves are removed; text outside any block is kept.
+    """
+    out: list[str] = []
+    current: str | None = None
+    for line in text.split("\n"):
+        opened = _LANG_OPEN.match(line)
+        if opened:
+            if current is not None:
+                raise ValueError(f"nested lang block: {line!r}")
+            current = opened.group(1)
+            continue
+        if line == _LANG_CLOSE:
+            if current is None:
+                raise ValueError("unmatched <!-- /lang -->")
+            current = None
+            continue
+        if current is None or current == lang:
+            out.append(line)
+    if current is not None:
+        raise ValueError(f"unclosed lang:{current} block")
+    return "\n".join(out)
+
+
+def _language(lang: str) -> Callable[[str], str]:
+    return lambda text: select_language(text, lang)
+
+
+def expected_bytes(spec: SyncSpec) -> bytes:
+    """Return the bytes every target of `spec` must contain."""
+    if spec.transform is None:
+        return spec.source.read_bytes()
+    return spec.transform(spec.source.read_text(encoding="utf-8")).encode("utf-8")
 
 
 def specs() -> list[SyncSpec]:
@@ -206,41 +253,30 @@ def specs() -> list[SyncSpec]:
         )
     )
 
-    # --- shared/plan/review-formats.md → <skill>/references/review-formats.md
-    # The review-record format both stages of the fullstack flow write to.
-    review_format_consumers = (
+    # --- shared/plan/{review-formats,document-templates}.md
+    #     → <skill>/references/<name>.{en,zh}.md
+    # Bilingual canonical sources; each bundled file keeps one language so a
+    # skill reads only the templates it will write.
+    plan_doc_consumers = (
         "fullstack-apply",
         "fullstack-propose",
     )
-    review_format_source = SHARED_ROOT / "plan" / "review-formats.md"
-    out.append(
-        SyncSpec(
-            source=review_format_source,
-            targets=tuple(
-                SKILLS_ROOT / skill / "references" / "review-formats.md"
-                for skill in review_format_consumers
-            ),
-            description="review record format",
-        )
-    )
-
-    # --- shared/plan/document-templates.md → <skill>/references/document-templates.md
-    # The four work-tracking document templates.
-    templates_consumers = (
-        "fullstack-apply",
-        "fullstack-propose",
-    )
-    templates_source = SHARED_ROOT / "plan" / "document-templates.md"
-    out.append(
-        SyncSpec(
-            source=templates_source,
-            targets=tuple(
-                SKILLS_ROOT / skill / "references" / "document-templates.md"
-                for skill in templates_consumers
-            ),
-            description="work-tracking document templates",
-        )
-    )
+    for stem, label in (
+        ("review-formats", "review record format"),
+        ("document-templates", "work-tracking document templates"),
+    ):
+        for lang in ("en", "zh"):
+            out.append(
+                SyncSpec(
+                    source=SHARED_ROOT / "plan" / f"{stem}.md",
+                    targets=tuple(
+                        SKILLS_ROOT / skill / "references" / f"{stem}.{lang}.md"
+                        for skill in plan_doc_consumers
+                    ),
+                    description=f"{label} ({lang})",
+                    transform=_language(lang),
+                )
+            )
 
     return out
 
@@ -253,10 +289,11 @@ def check_one(spec: SyncSpec) -> tuple[list[Path], list[Path]]:
     """
     if not spec.source.is_file():
         raise FileNotFoundError(f"canonical source missing: {spec.source}")
+    expected = expected_bytes(spec)
     in_sync: list[Path] = []
     out_of_sync: list[Path] = []
     for target in spec.targets:
-        if target.is_file() and filecmp.cmp(spec.source, target, shallow=False):
+        if target.is_file() and target.read_bytes() == expected:
             in_sync.append(target)
         else:
             out_of_sync.append(target)
@@ -267,12 +304,13 @@ def copy_one(spec: SyncSpec, dry_run: bool) -> list[Path]:
     """Copy spec.source → each missing/drifted target. Returns updated list."""
     updated: list[Path] = []
     _, out_of_sync = check_one(spec)
+    expected = expected_bytes(spec)
     for target in out_of_sync:
         if dry_run:
             updated.append(target)
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(spec.source, target)
+        target.write_bytes(expected)
         updated.append(target)
     return updated
 
