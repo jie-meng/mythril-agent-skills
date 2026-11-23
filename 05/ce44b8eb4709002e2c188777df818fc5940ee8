@@ -1,0 +1,45 @@
+.claude-plugin/marketplace.json
+  s_cbf69b99f94dbd::t_fdc5fdf937f5ab 13,28,33,35,45-46,317-334,353-370,389-407
+.workbuddy-plugin/marketplace.json
+  s_cbf69b99f94dbd::t_3616890a5ed176 12,27,32,34,44-45,316-333,352-369,388-406
+README.md
+  s_cbf69b99f94dbd::t_c855f763b1468c 75-85,186-192,200-206,459,467,474,477,479,762-766,768-773,775-776,778,780-783,786,791,796
+README.zh-CN.md
+  s_cbf69b99f94dbd::t_c92a800a1ddac2 75-85,186-192,200-206,306-312,459,467,474,477,479,489,720-721,729-733,735-740,742-743,745,747-750,754,757-758,763,767
+docs/INSTALLATION.md
+  s_cbf69b99f94dbd::t_f12f0fcd4106ad 187-212
+mythril_agent_skills/cli/skills_check.py
+  s_cbf69b99f94dbd::t_9ce604096615fd 96,115,816-869,1390-1393
+mythril_agent_skills/skills/qrcode/SKILL.md
+  s_cbf69b99f94dbd::t_c2d687998bd066 1-140
+mythril_agent_skills/skills/qrcode/scripts/qr_ops.py
+  s_cbf69b99f94dbd::t_e5c6db420402e7 1-278
+plugins/glm-vision-fallback/skills/glm-vision-fallback
+  s_cbf69b99f94dbd::t_858e596f093d16 1
+plugins/notion/skills/notion
+  s_cbf69b99f94dbd::t_3a516df06f62a5 1
+plugins/qrcode/skills/qrcode
+  s_cbf69b99f94dbd::t_ef0ce09908dfd8 1
+plugins/word/skills/word
+  s_cbf69b99f94dbd::t_a13892a0fe0a66 1
+pyproject.toml
+  s_cbf69b99f94dbd::t_f7349dc107cdc0 55-59,81
+tests/skills/test_qrcode.py
+  s_cbf69b99f94dbd::t_47a5d359d3ed3a 1-184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "05ce44b8eb4709002e2c188777df818fc5940ee8",
+  "prompts": {},
+  "sessions": {
+    "s_cbf69b99f94dbd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38cb57fa-c287-48cd-8a3f-8fe67dfc8b43",
+        "model": "unknown"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
