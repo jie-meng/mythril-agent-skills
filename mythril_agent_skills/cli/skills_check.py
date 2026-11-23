@@ -93,6 +93,7 @@ SKILL_GLEAN = "glean"
 SKILL_EXCEL = "excel"
 SKILL_PDF = "pdf"
 SKILL_MD_TO_PDF = "md-to-pdf"
+SKILL_QRCODE = "qrcode"
 SKILL_WEB_TESTER = "web-tester"
 
 CHECKABLE_SKILLS = [
@@ -111,6 +112,7 @@ CHECKABLE_SKILLS = [
     SKILL_EXCEL,
     SKILL_PDF,
     SKILL_MD_TO_PDF,
+    SKILL_QRCODE,
     SKILL_IMAGEMAGICK,
     SKILL_FFMPEG,
     SKILL_WEB_TESTER,
@@ -811,6 +813,60 @@ def check_md_to_pdf(config_path: Path) -> bool:
         return False
 
 
+# --- QR code (segno + zxing-cpp + Pillow) ---
+
+# (pip distribution name, import name)
+_QRCODE_PACKAGES = (("segno", "segno"), ("zxing-cpp", "zxingcpp"), ("pillow", "PIL"))
+
+
+def _check_dist_version(dist: str, module: str) -> str | None:
+    """Return installed version of a distribution if its module imports."""
+    try:
+        result = _run_command(
+            [
+                sys.executable,
+                "-c",
+                f"import {module}; from importlib.metadata import version; "
+                f"print(version('{dist}'))",
+            ]
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return None
+
+
+def check_qrcode(config_path: Path) -> bool:
+    """Check that segno, zxing-cpp and Pillow are installed for the qrcode skill."""
+    print(f"\n{BOLD}QR code (segno + zxing-cpp + pillow):{NC}")
+    all_ok = True
+
+    for dist, module in _QRCODE_PACKAGES:
+        version = _check_dist_version(dist, module)
+        if version:
+            print(f"  {dist}: {GREEN}installed{NC} ({DIM}{version}{NC})")
+            continue
+        print(f"  {dist}: {RED}NOT INSTALLED{NC}")
+        if not _confirm(f"Install {dist} now?"):
+            print(f"    {DIM}Skipped.{NC} Install manually: pip install {dist}")
+            all_ok = False
+            continue
+        if not _install_pip_package(dist):
+            print(f"    {RED}Installation failed.{NC}")
+            print(f"    {BOLD}Install manually:{NC} pip install {dist}")
+            all_ok = False
+            continue
+        version = _check_dist_version(dist, module)
+        if not version:
+            print(f"    {RED}{dist} still not importable after install.{NC}")
+            all_ok = False
+            continue
+        print(f"    {GREEN}{dist} {version} installed successfully.{NC}")
+
+    return all_ok
+
+
 # --- ImageMagick ---
 
 
@@ -1329,6 +1385,10 @@ def main() -> None:
 
     if SKILL_MD_TO_PDF in skills:
         if not check_md_to_pdf(config_path):
+            all_configured = False
+
+    if SKILL_QRCODE in skills:
+        if not check_qrcode(config_path):
             all_configured = False
 
     if SKILL_IMAGEMAGICK in skills:

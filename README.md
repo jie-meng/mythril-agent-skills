@@ -73,6 +73,17 @@ Context-aware code review for Pull Requests via `gh` CLI. Supports github.com an
 </details>
 
 <details>
+<summary><b>Testing</b></summary>
+<br>
+
+**[Web Tester](./mythril_agent_skills/skills/web-tester/)**
+
+Black-box GUI testing of web apps in a real browser — click/tap/type/scroll/swipe through the page, capture screenshots, collect console and page errors, and produce an evidence-backed test report. Profiles for desktop, mobile web (device emulation, touch gestures, portrait/landscape), and canvas games. Uses the session's native browser tooling when available, then `@playwright/mcp`, then the bundled Playwright toolbox.
+
+- **Try:** Test this page on mobile: http://localhost:3000
+- **Deps:** `node` >= 18, `npm` (for the bundled Playwright toolbox)
+
+<details>
 <summary><b>Git & GitHub</b></summary>
 <br>
 
@@ -172,12 +183,26 @@ Read, extract, and manipulate PDF files via bundled Python script. Supports text
 - **Try:** Read the text from document.pdf
 - **Deps:** `pypdf`, `pdfplumber` (auto-installed with pip); `pypdfium2` (optional, for PDF-to-image)
 
+**[Word](./mythril_agent_skills/skills/word/)**
+
+Read, extract, and inspect Word documents (.docx/.docm) via bundled Python script. Supports text extraction with heading detection, table extraction (markdown/JSON/CSV), metadata inspection, embedded image extraction, and full Markdown conversion.
+
+- **Try:** Convert spec.docx to Markdown
+- **Deps:** `python-docx` (install with `pip install mythril-agent-skills[word]`)
+
 **[Markdown to PDF](./mythril_agent_skills/skills/md-to-pdf/)**
 
 Convert Markdown files to PDF with optional table of contents, custom CSS styling, paper size selection, and metadata. Powered by markdown-pdf (markdown-it-py + PyMuPDF).
 
 - **Try:** Convert README.md to PDF
 - **Deps:** `markdown-pdf` (install with `pip install mythril-agent-skills[md-to-pdf]`)
+
+**[QR Code](./mythril_agent_skills/skills/qrcode/)**
+
+Encode text/URLs into QR code images (PNG/SVG, custom colors, error-correction level, terminal preview) and decode QR codes from images back to text — multiple codes per image, batch decoding, JSON output, and other barcode formats on demand. Powered by segno + zxing-cpp (no native zbar needed).
+
+- **Try:** 把 https://example.com 转成二维码 / What does the QR code in screenshot.png say?
+- **Deps:** `segno`, `zxing-cpp`, `pillow` (install with `pip install mythril-agent-skills[qrcode]`)
 
 </details>
 
@@ -431,7 +456,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 
 | Plugin | Description |
 |---|---|
-| `all-skills` | All-in-one bundle (all 32 skills) |
+| `all-skills` | All-in-one bundle (all 36 skills) |
 | `skill-creator` | Create and improve skills/prompts for any AI platform |
 | `code-review-staged` | Code review for git staged changes |
 | `branch-diff-review` | Code review for local branch differences |
@@ -439,15 +464,19 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `web-tester` | Black-box GUI testing of web apps in a real browser — desktop, mobile (touch), canvas games |
 | `git-repo-reader` | Clone, cache, and read any git repository |
 | `gh-operations` | GitHub CLI operations for issues and PRs |
+| `github-pr-create` | Create GitHub PRs via `gh` — template-aware, content filled from code changes |
 | `jira` | Jira REST API integration |
 | `confluence` | Confluence REST API integration |
 | `notion` | Notion REST API integration — pages, data sources, ticket items |
 | `jenkins` | Jenkins REST API integration — build trigger/wait, status, stages, console, stop |
 | `figma` | Extract Figma design specs |
 | `glean` | Glean CLI for enterprise knowledge search and AI chat |
+| `glm-vision-fallback` | Vision fallback for models that cannot see images — GLM-4.6V-Flash OCR / image analysis |
 | `excel` | Read, write, search, and manipulate Excel workbooks (.xlsx) |
 | `pdf` | Read, extract, and manipulate PDF files |
+| `word` | Read, extract, and inspect Word documents (.docx) |
 | `md-to-pdf` | Convert Markdown files to PDF |
+| `qrcode` | Encode text to QR images and decode QR images to text |
 | `imagemagick` | Image processing via ImageMagick CLI |
 | `ffmpeg` | Video and audio processing via FFmpeg CLI |
 | `android-screen-reader` | Read the current screen of a connected Android device via adb |
@@ -730,29 +759,41 @@ mythril-agent-skills/
 │   │   └── skills_check.py      # Dependency checker & configurator
 │   └── skills/                  # Bundled skill definitions
 │       ├── skill-creator/       # Create and improve skills
-│       ├── figma/               # Design extraction from Figma
-│       ├── gh-operations/       # GitHub CLI issue/PR/commit workflows
-│       ├── ffmpeg/              # Video & audio processing via FFmpeg CLI
-│       ├── imagemagick/         # Image processing via ImageMagick CLI
-│       ├── glean/               # Glean CLI enterprise knowledge search & AI chat
-│       ├── excel/              # Excel workbook operations via openpyxl
-│       ├── pdf/                 # PDF reading, extraction, and manipulation
-│       ├── md-to-pdf/           # Markdown to PDF conversion
-│       ├── jira/                # Jira REST API issue/sprint/board workflows
-│       ├── code-review-staged/  # Structured code reviews
+│       ├── code-review-staged/  # Code review for staged changes
+│       ├── branch-diff-review/  # Code review for local branch diffs
+│       ├── github-code-review-pr/ # PR code review via gh CLI
+│       ├── web-tester/          # Black-box web GUI testing in a real browser
 │       ├── git-repo-reader/     # Clone and read any git repo
+│       ├── gh-operations/       # GitHub CLI issue/PR/commit workflows
+│       ├── github-pr-create/    # Create GitHub PRs via gh CLI
+│       ├── jira/                # Jira REST API issue/sprint/board workflows
+│       ├── confluence/          # Confluence REST API page workflows
+│       ├── notion/              # Notion REST API pages & data sources
+│       ├── jenkins/             # Jenkins REST API build/stage/console ops
+│       ├── figma/               # Design extraction from Figma
+│       ├── glean/               # Glean CLI enterprise knowledge search & AI chat
+│       ├── glm-vision-fallback/ # GLM vision fallback for non-vision models
+│       ├── excel/               # Excel workbook operations via openpyxl
+│       ├── pdf/                 # PDF reading, extraction, and manipulation
+│       ├── word/                # Word (.docx) reading and extraction
+│       ├── md-to-pdf/           # Markdown to PDF conversion
+│       ├── qrcode/              # QR code encode (text → image) / decode (image → text)
+│       ├── imagemagick/         # Image processing via ImageMagick CLI
+│       ├── ffmpeg/              # Video & audio processing via FFmpeg CLI
+│       ├── android-screen-reader/ # Read Android device screen via adb
 │       ├── blog-writer/         # Tech-first multilingual blog writing
 │       ├── image-reference/     # Reference images in docs via <stem>.assets/
+│       ├── story-point-estimate/ # Fibonacci story point estimation
 │       ├── user-journey/        # User journey maps & lo-fi wireframes via natural language
 │       ├── fullstack-init/      # Initialize multi-repo workspace
 │       ├── fullstack-explore/   # Read-only knowledge exploration
 │       ├── fullstack-brief/     # Export context brief for web AI sessions
-│       ├── fullstack-issue-create/  # Record issues before they become work items
+│       ├── fullstack-issue-create/ # Record issues before they become work items
 │       ├── fullstack-issue-archive/ # Close issues (issues/archive/)
 │       ├── fullstack-propose/   # Plan a work item + validate unknowns
 │       ├── fullstack-apply/     # Implement a planned work item
 │       ├── fullstack-archive/   # Archive completed work items
-│       └── fullstack-docs-migration/  # Migrate legacy docs repos
+│       └── fullstack-docs-migration/ # Migrate legacy docs repos
 ├── plugins/                     # Per-skill plugin wrappers (symlinks into skills/)
 ├── scripts/                     # Dev scripts & backward-compatible wrappers
 │   ├── sync-upstream.py         # Fork upstream sync tool

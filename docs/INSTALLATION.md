@@ -184,6 +184,32 @@ pip install markdown-pdf
 
 ---
 
+### QR code (`segno`, `zxing-cpp`, `pillow`)
+
+**Required by**: [qrcode](../mythril_agent_skills/skills/qrcode/)
+
+`segno` is needed for encoding; `zxing-cpp` + `pillow` for decoding. The `zxing-cpp` wheels bundle the native library, so no system `zbar` install is required.
+
+Check:
+
+```bash
+python3 -c "import segno, zxingcpp, PIL; print('qrcode deps OK')"
+```
+
+If not installed:
+
+```bash
+pip install mythril-agent-skills[qrcode]
+```
+
+Or standalone:
+
+```bash
+pip install segno zxing-cpp pillow
+```
+
+---
+
 ### FFmpeg (`ffmpeg`, `ffprobe`)
 
 **Required by**: [ffmpeg](../mythril_agent_skills/skills/ffmpeg/)

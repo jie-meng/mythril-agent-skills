@@ -10,7 +10,7 @@
     {
       "name": "all-skills",
       "source": "./mythril_agent_skills",
-      "description": "All-in-one bundle: code review, Git/GitHub, Jira, Confluence, Figma, Glean, Excel, PDF, Markdown-to-PDF, ImageMagick, FFmpeg, Android screen reading, GLM vision fallback, blog writer, story point estimation, image reference, user-journey map drafter, skill creator, and fullstack workspace tools",
+      "description": "All-in-one bundle: code review, web testing, Git/GitHub, Jira, Confluence, Notion, Jenkins, Figma, Glean, Excel, PDF, Word, Markdown-to-PDF, QR code encode/decode, ImageMagick, FFmpeg, Android screen reading, GLM vision fallback, blog writer, story point estimation, image reference, user-journey map drafter, skill creator, and fullstack workspace tools",
       "version": "0.3.3",
       "author": {
         "name": "Jie Meng"
@@ -25,11 +25,14 @@
         "jira",
         "confluence",
         "notion",
+        "jenkins",
         "figma",
         "glean",
         "excel",
         "pdf",
+        "word",
         "md-to-pdf",
+        "qrcode",
         "glm-vision-fallback",
         "imagemagick",
         "ffmpeg",
@@ -39,7 +42,8 @@
         "blog-writer",
         "image-reference",
         "story-point-estimate",
-        "user-journey"
+        "user-journey",
+        "web-tester"
       ],
       "strict": false
     },
@@ -311,6 +315,24 @@
       "strict": false
     },
     {
+      "name": "glm-vision-fallback",
+      "source": "./plugins/glm-vision-fallback",
+      "description": "Vision fallback for models that cannot see images — analyze screenshots via the free GLM-4.6V-Flash API (OCR / text extraction)",
+      "version": "0.3.3",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "productivity",
+      "tags": [
+        "vision",
+        "ocr",
+        "image",
+        "glm"
+      ],
+      "strict": false
+    },
+    {
       "name": "pdf",
       "source": "./plugins/pdf",
       "description": "Read, extract, and manipulate PDF files — text, tables, metadata, images, merge, split, rotate",
@@ -329,6 +351,24 @@
       "strict": false
     },
     {
+      "name": "word",
+      "source": "./plugins/word",
+      "description": "Read, extract, and inspect Word documents (.docx) — text, tables, metadata, images, Markdown conversion",
+      "version": "0.3.3",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "productivity",
+      "tags": [
+        "word",
+        "docx",
+        "document",
+        "markdown"
+      ],
+      "strict": false
+    },
+    {
       "name": "md-to-pdf",
       "source": "./plugins/md-to-pdf",
       "description": "Convert Markdown files to PDF with TOC, custom CSS, paper size, and metadata",
@@ -343,6 +383,25 @@
         "pdf",
         "converter",
         "export"
+      ],
+      "strict": false
+    },
+    {
+      "name": "qrcode",
+      "source": "./plugins/qrcode",
+      "description": "Encode text/URLs into QR code images (PNG/SVG) and decode QR codes from images back to text",
+      "version": "0.3.3",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "productivity",
+      "tags": [
+        "qrcode",
+        "qr",
+        "barcode",
+        "encode",
+        "decode"
       ],
       "strict": false
     },

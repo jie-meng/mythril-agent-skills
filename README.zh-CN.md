@@ -73,6 +73,17 @@ Skill（技能）是一个提示词/指令包，用于教 AI 助手如何处理�
 </details>
 
 <details>
+<summary><b>测试</b></summary>
+<br>
+
+**[Web Tester](./mythril_agent_skills/skills/web-tester/)**
+
+在真实浏览器中对 web 应用做黑盒 GUI 测试——点击/轻触/输入/滚动/滑动页面，截图，收集 console 与页面错误，输出有证据支撑的测试报告。支持桌面、移动端 web（设备模拟、touch 手势、横竖屏）和 canvas 游戏三种模式。优先使用当前会话自带的浏览器工具，其次 `@playwright/mcp`，最后使用内置 Playwright 工具箱。
+
+- **示例：** 帮我在移动端测试一下 http://localhost:3000
+- **依赖：** `node` >= 18、`npm`（用于内置 Playwright 工具箱）
+
+<details>
 <summary><b>Git & GitHub</b></summary>
 <br>
 
@@ -172,12 +183,26 @@ Skill（技能）是一个提示词/指令包，用于教 AI 助手如何处理�
 - **示例：** 读一下 document.pdf 的内容
 - **依赖：** `pypdf`、`pdfplumber`（通过 pip 自动安装）；`pypdfium2`（可选，用于 PDF 转图片）
 
+**[Word](./mythril_agent_skills/skills/word/)**
+
+通过内置 Python 脚本读取、提取和查看 Word 文档（.docx/.docm）。支持带标题识别的文本提取、表格提取（markdown/JSON/CSV）、元信息查看、嵌入图片提取，以及整篇转换为 Markdown。
+
+- **示例：** 把 spec.docx 转成 Markdown
+- **依赖：** `python-docx`（通过 `pip install mythril-agent-skills[word]` 安装）
+
 **[Markdown to PDF](./mythril_agent_skills/skills/md-to-pdf/)**
 
 将 Markdown 文件转换为 PDF，支持目录生成、自定义 CSS 样式、纸张大小选择和元数据设置。基于 markdown-pdf（markdown-it-py + PyMuPDF）。
 
 - **示例：** 把 README.md 转成 PDF
 - **依赖：** `markdown-pdf`（通过 `pip install mythril-agent-skills[md-to-pdf]` 安装）
+
+**[QR Code](./mythril_agent_skills/skills/qrcode/)**
+
+将文本/URL 编码为二维码图片（PNG/SVG，可设置颜色、纠错级别、终端预览），或从图片中解码二维码得到文本——支持单图多码、批量解码、JSON 输出，按需识别其他条形码格式。基于 segno + zxing-cpp（无需安装原生 zbar）。
+
+- **示例：** 把 https://example.com 转成二维码 / screenshot.png 里的二维码是什么内容？
+- **依赖：** `segno`、`zxing-cpp`、`pillow`（通过 `pip install mythril-agent-skills[qrcode]` 安装）
 
 </details>
 
@@ -277,6 +302,13 @@ Skill（技能）是一个提示词/指令包，用于教 AI 助手如何处理�
 
 - **示例：** 哪个仓库负责用户认证？
 - **依赖：** 工作区需先通过 `fullstack-init` 初始化
+
+**[Fullstack Brief](./mythril_agent_skills/skills/fullstack-brief/)**
+
+把整个工作区、单个仓库或用户指定目录的完整上下文导出为**一份**自包含、面向 AI 优化的 Markdown 简报——粘贴到网页 AI（ChatGPT、Claude.ai、Gemini）里继续讨论方案，节省本地 CLI 的 token。允许 mermaid 图，不引用本地文件/图片，强制脱敏密钥，写入前确认目标路径。你指定了目录或主题时，以你的指定为准，不走自动识别。
+
+- **示例：** 导出一份上下文简报，我要去 ChatGPT 上讨论
+- **依赖：** 一个 git 仓库，或通过 `fullstack-init` 初始化的工作区
 
 **[Fullstack Issue Create](./mythril_agent_skills/skills/fullstack-issue-create/)**
 
@@ -424,7 +456,7 @@ skills-clean-cache --repos  # 交互式：选择要删除的仓库
 
 | 插件 | 描述 |
 |---|---|
-| `all-skills` | 全部技能包（共 32 个） |
+| `all-skills` | 全部技能包（共 36 个） |
 | `skill-creator` | 为任意 AI 平台创建/改进技能和提示词 |
 | `code-review-staged` | 暂存区代码审查 |
 | `branch-diff-review` | 本地分支差异代码审查 |
@@ -432,15 +464,19 @@ skills-clean-cache --repos  # 交互式：选择要删除的仓库
 | `web-tester` | 真实浏览器中的 web 应用黑盒 GUI 测试 — 桌面、移动端（touch 手势）、canvas 游戏 |
 | `git-repo-reader` | 克隆、缓存并阅读任意 git 仓库 |
 | `gh-operations` | GitHub CLI 操作（issue 和 PR） |
+| `github-pr-create` | 通过 `gh` 创建 GitHub PR——识别 PR 模板，根据代码变更填写内容 |
 | `jira` | Jira REST API 集成 |
 | `confluence` | Confluence REST API 集成 |
 | `notion` | Notion REST API 集成 — 页面、data source、ticket 条目 |
 | `jenkins` | Jenkins REST API 集成 — 触发/等待构建、状态、stage 进度、console 日志、中止 |
 | `figma` | 提取 Figma 设计规格 |
 | `glean` | Glean CLI 企业知识搜索与 AI 对话 |
+| `glm-vision-fallback` | 模型无法识图时的视觉兜底——通过 GLM-4.6V-Flash 做 OCR / 图片分析 |
 | `excel` | 读取、写入、搜索和操作 Excel 工作簿（.xlsx） |
 | `pdf` | 读取、提取和操作 PDF 文件 |
+| `word` | 读取、提取和查看 Word 文档（.docx） |
 | `md-to-pdf` | 将 Markdown 文件转换为 PDF |
+| `qrcode` | 文本编码为二维码图片，或从图片解码二维码为文本 |
 | `imagemagick` | 通过 ImageMagick CLI 处理图片 |
 | `ffmpeg` | 通过 FFmpeg CLI 处理视频和音频 |
 | `android-screen-reader` | 通过 adb 读取已连接 Android 设备的当前屏幕 |
@@ -450,6 +486,7 @@ skills-clean-cache --repos  # 交互式：选择要删除的仓库
 | `story-point-estimate` | 斐波那契点数估算——任意输入、CFR 覆盖、Buffer 策略、XLSX 输出 |
 | `fullstack-init` | 初始化多仓库全栈工作区 |
 | `fullstack-explore` | 全栈工作区只读知识探索 |
+| `fullstack-brief` | 将工作区/仓库/指定目录的上下文导出为一份面向网页 AI 的简报 |
 | `fullstack-issue-create` | 把暂无法立项的问题连同 log/ 证据记录或更新到 docs 仓库的 issues/ 目录 |
 | `fullstack-issue-archive` | 把 issue 移入 issues/archive/ 关闭——proposed / resolved / wontfix / merged |
 | `fullstack-propose` | 规划工作项 + Success Criteria；先验证未知项（spike）；交付前经独立方案审查 |
@@ -680,6 +717,8 @@ cp -r mythril_agent_skills/skills/skill-name ./your-project/.claude/skills/
 mythril-agent-skills/
 ├── .claude-plugin/              # Claude Code 插件市场
 │   └── marketplace.json         # 插件目录，供 /plugin install 使用
+├── .workbuddy-plugin/           # WorkBuddy AI / CodeBuddy Code 插件市场
+│   └── marketplace.json         # 由 .claude-plugin/ 生成（同步脚本）
 ├── mythril_agent_skills/        # Python 包（同时也是全量插件）
 │   ├── cli/                     # CLI 入口点
 │   │   ├── skills_setup.py      # 交互式安装器
@@ -687,32 +726,45 @@ mythril-agent-skills/
 │   │   └── skills_check.py      # 依赖检查器与配置器
 │   └── skills/                  # 内置技能定义
 │       ├── skill-creator/       # 创建和改进技能
-│       ├── figma/               # 从 Figma 提取设计规格
-│       ├── gh-operations/       # GitHub CLI issue/PR/commit 工作流
-│       ├── ffmpeg/              # 通过 FFmpeg CLI 处理视频和音频
-│       ├── imagemagick/         # 通过 ImageMagick CLI 处理图片
-│       ├── glean/               # Glean CLI 企业知识搜索与 AI 对话
-│       ├── excel/              # 通过 openpyxl 操作 Excel 工作簿
-│       ├── pdf/                 # PDF 读取、提取和操作
-│       ├── md-to-pdf/           # Markdown 转 PDF
-│       ├── jira/                # Jira REST API issue/sprint/board 工作流
-│       ├── code-review-staged/  # 结构化代码审查
+│       ├── code-review-staged/  # 暂存区代码审查
+│       ├── branch-diff-review/  # 本地分支差异代码审查
+│       ├── github-code-review-pr/ # 通过 gh CLI 审查 PR
+│       ├── web-tester/          # 真实浏览器中的 web 黑盒 GUI 测试
 │       ├── git-repo-reader/     # 克隆并阅读任意 git 仓库
+│       ├── gh-operations/       # GitHub CLI issue/PR/commit 工作流
+│       ├── github-pr-create/    # 通过 gh CLI 创建 GitHub PR
+│       ├── jira/                # Jira REST API issue/sprint/board 工作流
+│       ├── confluence/          # Confluence REST API 页面工作流
+│       ├── notion/              # Notion REST API 页面与 data source
+│       ├── jenkins/             # Jenkins REST API 构建/stage/console 操作
+│       ├── figma/               # 从 Figma 提取设计规格
+│       ├── glean/               # Glean CLI 企业知识搜索与 AI 对话
+│       ├── glm-vision-fallback/ # 非视觉模型的 GLM 识图兜底
+│       ├── excel/               # 通过 openpyxl 操作 Excel 工作簿
+│       ├── pdf/                 # PDF 读取、提取和操作
+│       ├── word/                # Word（.docx）读取与提取
+│       ├── md-to-pdf/           # Markdown 转 PDF
+│       ├── qrcode/              # 二维码编码（文本 → 图片）/ 解码（图片 → 文本）
+│       ├── imagemagick/         # 通过 ImageMagick CLI 处理图片
+│       ├── ffmpeg/              # 通过 FFmpeg CLI 处理视频和音频
+│       ├── android-screen-reader/ # 通过 adb 读取 Android 设备屏幕
 │       ├── blog-writer/         # 以技术为主的多语言博客写作
 │       ├── image-reference/     # 在文档中引用图片（<文档名>.assets/）
-│       ├── user-journey/        # 自然语言起草用户旅程地图与线框图
 │       ├── story-point-estimate/ # 斐波那契点数估算 — 含 CFR + Buffer + XLSX
+│       ├── user-journey/        # 自然语言起草用户旅程地图与线框图
 │       ├── fullstack-init/      # 初始化多仓库工作区
 │       ├── fullstack-explore/   # 只读知识探索
-│       ├── fullstack-issue-create/  # 记录暂无法立项的工作区 issue
+│       ├── fullstack-brief/     # 导出供网页 AI 使用的上下文简报
+│       ├── fullstack-issue-create/ # 记录暂无法立项的工作区 issue
 │       ├── fullstack-issue-archive/ # 关闭 issue（issues/archive/）
 │       ├── fullstack-propose/   # 规划工作项 + 验证未知项
 │       ├── fullstack-apply/     # 实现已规划的工作项
 │       ├── fullstack-archive/   # 归档已完成工作项
-│       └── fullstack-docs-migration/  # 迁移旧版文档仓库
+│       └── fullstack-docs-migration/ # 迁移旧版文档仓库
 ├── plugins/                     # 单技能插件包装器（symlink 指向 skills/）
 ├── scripts/                     # 开发脚本及向后兼容包装器
 │   ├── sync-upstream.py         # Fork 上游同步工具
+│   ├── sync-marketplaces.py     # 重新生成 WorkBuddy/CodeBuddy 插件目录
 │   └── init-fork.py             # 一次性 Fork 初始化（脱钩 + git 重初始化）
 ├── tests/                       # 技能脚本单元测试
 │   └── skills/                  # 每个技能一个测试文件

@@ -52,6 +52,11 @@ md-to-pdf = [
 word = [
     "python-docx>=1.2.0,<2",
 ]
+qrcode = [
+    "segno>=1.6,<2",
+    "zxing-cpp>=3.1,<4",
+    "pillow>=10.0",
+]
 test = [
     "pytest>=8.0,<10",
     "pyyaml>=6.0,<7",
@@ -73,6 +78,7 @@ extraPaths = [
     "mythril_agent_skills/skills/pdf/scripts",
     "mythril_agent_skills/skills/word/scripts",
     "mythril_agent_skills/skills/md-to-pdf/scripts",
+    "mythril_agent_skills/skills/qrcode/scripts",
     "mythril_agent_skills/skills/fullstack-apply/scripts",
     "mythril_agent_skills/skills/fullstack-brief/scripts",
     "mythril_agent_skills/skills/fullstack-propose/scripts",
