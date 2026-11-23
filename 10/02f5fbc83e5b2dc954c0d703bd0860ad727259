@@ -1,0 +1,21 @@
+docs/INSTALLATION.md
+  s_cbf69b99f94dbd::t_a0cf14549e81aa 163-186
+mythril_agent_skills/cli/skills_check.py
+  s_cbf69b99f94dbd::t_8efd98e1efeb79 95,115,872-899,1416-1419
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1002f5fbc83e5b2dc954c0d703bd0860ad727259",
+  "prompts": {},
+  "sessions": {
+    "s_cbf69b99f94dbd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38cb57fa-c287-48cd-8a3f-8fe67dfc8b43",
+        "model": "unknown"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
