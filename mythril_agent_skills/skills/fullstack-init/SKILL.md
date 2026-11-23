@@ -140,7 +140,7 @@ subagent systems automatically discover these agents:
 
 | Agent | File | Role | Permissions |
 |-------|------|------|-------------|
-| Planner | `planner.md` | Analyzes requirements and architecture, returns content for `analysis.md`/`plan.md` | read-only on code |
+| Planner | `planner.md` | Analyzes requirements and architecture, writes `analysis.md`/`plan.md` directly into the work directory (full-tier items), returns a short summary | writes the work directory only; read-only on code |
 | Plan Reviewer | `plan-reviewer.md` | Audits the written plan against the original requirements before implementation (coverage, contracts, referenced-code existence, testability), returns findings for `review.md` | read-only on code |
 | Developer | `developer.md` | Implements code — the only agent that writes production code; stages changes, orchestrator commits | full access |
 | Code Reviewer | `code-reviewer.md` | Reviews with falsification mindset, returns findings for `review.md` | read-only on code |
@@ -191,7 +191,8 @@ If a tool's agents directory already exists as a regular directory
 - Code Reviewer is **read-only on source code** — fixes are done by Developer
 - Plan Reviewer is **read-only too**, and audits plans instead of diffs:
   it runs during propose (before code exists), never during apply, and
-  never rewrites the plan — the Planner revises, the orchestrator writes
+  never rewrites the plan — the plan's author (Planner, or the orchestrator
+  on a lean item) revises
 - Debugger debugs hands-on with **temporary, uncommitted**
   instrumentation and returns root-cause analysis + a fix spec; it
   never commits — Developer implements and ships the fix

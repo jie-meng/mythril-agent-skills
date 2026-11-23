@@ -22,1002 +22,370 @@ license: Apache-2.0
 
 # Fullstack Propose
 
-Turn an idea into a planned work item in a multi-repo fullstack workspace
-initialized by `fullstack-init`. This skill produces the work-tracking
-documents that `fullstack-apply` later implements.
+Turn an idea into a planned work item in a workspace initialized by
+`fullstack-init`. The output is a work directory of four documents that
+`fullstack-apply` implements:
+
+```text
+<docs-dir>/changes/<type>/<work-name>/
+├── analysis.md   requirements baseline + technical analysis (always first)
+├── plan.md       Summary, Success Criteria, repos, Code Map, tasks
+├── progress.md   dated change log
+└── review.md     Status Overview, Evidence table, plan review rounds
+```
 
 ## How this skill works
 
-Two modes, one work directory:
+| | Lean tier | Full tier |
+|---|---|---|
+| **When** | Single repo, no cross-repo contract, no persisted-data / schema / migration change, no API consumed outside the repo (any non-production change — docs, skills, tests — also qualifies) | Everything else: multi-repo, any frozen contract, data/schema/migration, external API, architectural refactor, deep (spike) mode |
+| **Who writes the plan** | You (the orchestrator) — you already hold the context | The **planner** subagent, writing straight to disk |
+| **Plan review** | 1 independent pass + at most 1 confirmation | Loop, capped at 3 passes |
 
-| Mode | When | What happens |
-|------|------|--------------|
-| **Standard** | Requirements are clear, no major unknowns | Write the four work-tracking documents directly |
-| **Deep (spike)** | Unknowns need validation first | Record Objective/Hypothesis/Unknowns/Success Criteria in `analysis.md`, run experiments, append Design Options / Target Architecture to the **same file**, then write `plan.md` |
+Both tiers write the same four documents, pass the same mechanical gates
+(`plan_lint`, Mermaid, DAG) and the same independent plan review. The tier
+changes who writes and how many review rounds run — never whether checks
+run. If a condition cannot be confirmed, use full. An explicit user request
+for either tier wins.
 
-The deep mode's output IS the final work directory — there is no rewrite
-on handoff to `fullstack-apply`. One directory, one analysis, one
-lifecycle.
+**Modes.** *Standard* when requirements are clear. *Deep (spike)* when
+unknowns need validating first — read `references/spike-mode.md`. Deep mode
+is always full tier and its output IS the final work directory.
 
-Both modes end at the same gate: the **Plan Review Gate** (Step 4.5),
-where an independent `plan-reviewer` subagent audits the written
-documents against the original requirements before `fullstack-apply` is
-allowed to start.
+**Reading discipline — load only what the current step needs.** Each
+reference below is read at the step that names it, never up front.
+
+| File | Read when |
+|------|-----------|
+| `references/template-analysis.<lang>.md` | Writing `analysis.md` (lean: you; full: the planner) |
+| `references/template-plan.<lang>.md` | Writing `plan.md` |
+| `references/template-progress.<lang>.md` | Writing `progress.md` |
+| `references/template-review.<lang>.md` | Writing `review.md` and a plan review round |
+| `references/template-rules.<lang>.md` | Writing any document or user-facing question (writing rules + visualization rules) |
+| `references/interrogation.md` | Step 3.5 runs |
+| `references/spike-mode.md` | Deep mode |
+| `references/plan-review-rounds.md` | A review round returns `NEEDS_FIXES` / a decision sends the plan back |
+| `references/review-only.md` | The user asks to review an existing plan |
+| `references/issue-sourced.md` | The work comes from an active issue under `<docs-dir>/issues/` |
+| `references/MERMAID-RULES.md` | Before drawing a diagram |
+
+`SKILL_PATH` is this skill's installed directory (the folder holding this
+`SKILL.md`). `<lang>` is `en` or `zh` (see Language).
 
 ## Planning Boundary (MANDATORY)
 
-This skill creates planning artifacts only. The user request that
-triggered this skill authorizes planning only — **even if it asks to
-build or fix something**. Do not:
+The request authorizes planning only — **even if it asks to build or fix
+something**. No project code edits (except temporary, uncommitted spike
+changes, cleaned up before finishing), no branches, no commits outside the
+docs repo, no PRs, no implementation in the same response. After the
+documents are complete, **stop**; `fullstack-apply` implements on a new
+request.
 
-- Edit project code (except temporary, uncommitted spike changes in deep
-  mode — and those are cleaned up before finishing)
-- Create branches (`git checkout -b`)
-- Commit changes or push to any code repo
-- Create Pull Requests
-- Start implementation in the same response
-
-After the planning artifacts are complete, **stop** and wait for a new
-user request. Then `fullstack-apply` implements the plan.
-
-## Prerequisites — Workspace Validation Gate (MANDATORY SCRIPT CALL)
-
-This skill MUST NOT proceed past this gate. Run `check_workspace.py` and
-inspect its output before planning anything.
+## Workspace Validation Gate (MANDATORY SCRIPT CALL)
 
 ```bash
 python3 SKILL_PATH/scripts/check_workspace.py
 ```
 
-`SKILL_PATH` is this skill's own installed directory (the folder holding
-this `SKILL.md`), wherever the host installed it.
+It prints `WORKSPACE_VALID`, `MISSING`, `DOCS_DIR`, `GITHUB_REPOS`.
 
-The script reports:
+- `WORKSPACE_VALID=false` → STOP: tell the user the workspace was not
+  detected, list the `MISSING=` markers, and ask them to `cd` to the
+  workspace root and restart the agent, or run `fullstack-init` first.
+- `WORKSPACE_VALID=true` → output EXACTLY this line (always English, a
+  machine-readable marker), then continue:
 
-| Key | Meaning |
-|-----|---------|
-| `WORKSPACE_VALID=true\|false` | All three markers present? |
-| `MISSING=<list>` | Comma-separated list of missing markers |
-| `DOCS_DIR=<name>` | Docs directory name |
-| `GITHUB_REPOS=true\|false` | Whether apply should create PRs later |
+  ```
+  Workspace: VALID | docs_dir=<DOCS_DIR> | github_repos=<true|false>
+  ```
 
-Decision logic:
+## Language
 
-- `WORKSPACE_VALID=true` → announce the Workspace contract line (below), then proceed to Step 1
-- `WORKSPACE_VALID=false` → STOP and tell the user:
-
-  > **Workspace not detected.** This skill requires a fullstack
-  > workspace initialized by `fullstack-init`. Missing markers:
-  > _(list from `MISSING=`)_.
-  >
-  > Please `cd` to your project workspace root and restart your AI
-  > agent there, or run `fullstack-init` first to set up the workspace.
-
-### Announce the Workspace contract (MANDATORY OUTPUT)
-
-When `WORKSPACE_VALID=true`, output EXACTLY this line before doing
-anything else:
-
-```
-Workspace: VALID | docs_dir=<DOCS_DIR> | github_repos=<true|false>
-```
-
-Use English for this line regardless of conversation language — it is a
-machine-readable contract marker.
-
-## Document Language Selection
-
-All four work-tracking documents and user-facing messages MUST match the
-language of the user's prompt.
-
-1. If the user **explicitly requests a language** → use that language.
-2. If the user's prompt contains **any Chinese characters** → use Chinese.
-3. Otherwise → use English (default).
-
-This applies independently per invocation. It does NOT affect work
-directory names (always lowercase-hyphenated English) or branch names
-(always English Title-Case-With-Hyphens).
-
-The language also picks the reference variant: `references/document-templates.<lang>.md`
-and `references/review-formats.<lang>.md`, with `<lang>` = `en` or `zh`.
-Read only that variant.
+Documents and user-facing messages match the user's prompt: an explicitly
+requested language wins; otherwise any Chinese character → Chinese (`zh`);
+otherwise English (`en`). Work directory names are always
+lowercase-hyphenated English; branch names English Title-Case-With-Hyphens.
 
 ## Step 1 — Gather Context
 
-### 1a. Read external links in the user's prompt
-
-| Link type | Skill | What to extract |
-|-----------|-------|-----------------|
-| Jira URL or issue key (e.g. `PROJ-123`) | `jira` | Summary, description, acceptance criteria, subtasks |
-| Confluence URL | `confluence` | Page content, requirements, specs |
-| GitHub PR/issue URL | `gh-operations` | Description, comments, linked issues |
-| Figma URL | `figma` | Design specs, components, layout, colors, typography |
-
-Read ALL linked resources BEFORE proceeding.
-
-**Capture them verbatim.** Whatever the requirements turn out to be — the
-user's own sentences, the Jira description, the reported symptom as
-received — are re-emitted word-for-word into `analysis.md`
-§Original Requirements / §需求原文 in Step 4, one `REQ<n>` id per ask.
-That section is the baseline the plan review is falsified against; a
-summary written by the same agent being audited cannot show whether a
-requirement was narrowed.
-
-### 1b. Read workspace context
-
-1. **`fullstack.json`** — get the docs directory name and `github_repos`
-2. **`AGENTS.md`** — repo table, conventions, structure
-3. **`<docs-dir>/AGENTS.md`** — documentation conventions
-
-### 1c. Check knowledge graphs (checking is MANDATORY; using it is recorded)
-
-For each repo relevant to the request, run
-`python3 SKILL_PATH/scripts/graphify_check.py <repo>` to check for
-`graphify-out/`. This script uses a direct filesystem check immune to
-`.gitignore` filtering — do NOT use Glob. graphify is an optional
-dependency: a user who never installed it has no `graphify-out/`, and
-that is a normal state, not a defect.
-
-When `graphify-out/` exists, prefer `graphify query "<question>"` to
-locate code BEFORE grep/read — it resolves cross-file structure faster.
-If output shows `TRUNCATED`, raise the budget (`--budget 8000`) or
-narrow the query.
-
-When a claim set is already small enough to verify by direct read (a
-dozen named files, exact line numbers), reading the files is the better
-tool — graphify is not a substitute for confirming that `chat_service_impl.py:959`
-says what you cite it as saying. Skip it in that case, but **record the
-skip**: every review round states `graphify: used | skipped: <reason> |
-n/a` in its scope. An unrecorded deviation from a MUST is invisible; a
-recorded one can be read and challenged.
-
-### 1d. Check prior context
-
-- If the user references a previous work item or spike, read its
-  documents from `<docs-dir>/changes/<type>/<name>/` (or the archive)
-  to build on prior work. Record it under `**Source**` in the plan.
-- If the referenced work item is **archived** and this is genuinely new
-  work on the same scope, plan a `-vN` successor (see Step 2).
-- **Scan active issues** — list the active issue directories under
-  `<docs-dir>/issues/` (not `issues/archive/`) for items related to the
-  request. An active issue is a recorded, not-yet-triaged problem
-  (`fullstack-issue-create`) and can serve as a requirements source:
-  when the request plans work for one, read its README (symptom,
-  evidence, analysis) and follow the issue-sourced procedure in Step 5.
+1. **External links** — read every linked resource before going further:
+   Jira key/URL → `jira`; Confluence → `confluence`; GitHub PR/issue →
+   `gh-operations`; Figma → `figma`. **Capture requirements verbatim** —
+   the user's sentences, the ticket text, the symptom as reported. They go
+   word-for-word into `analysis.md` §Original Requirements / §需求原文, one
+   `REQ<n>` per ask; a summary by the agent being audited cannot show a
+   narrowed requirement.
+2. **Workspace** — `fullstack.json`, the workspace `AGENTS.md` (repo
+   table, conventions), `<docs-dir>/AGENTS.md`.
+3. **Knowledge graphs** — for each relevant repo run
+   `python3 SKILL_PATH/scripts/graphify_check.py <repo>` (not Glob — it is
+   immune to `.gitignore`). No `graphify-out/` is a normal state. When it
+   exists, prefer `graphify query "<question>"` before grep/read (raise
+   `--budget 8000` on `TRUNCATED`). When the claims are few enough to
+   verify by direct read, skip it — but every review round records
+   `graphify: used | skipped: <reason> | n/a`.
+4. **Prior context** — a referenced work item: read its documents under
+   `changes/` or the archive and cite it under `**Source**`; new work on
+   an archived item's scope is a `<name>-vN` successor. Scan active
+   issues under `<docs-dir>/issues/` (not `issues/archive/`); if the
+   request plans work for one, read `references/issue-sourced.md`.
 
 ## Step 2 — Determine Work Type
 
-| Category | Directory | Branch prefix | When to use |
-|----------|-----------|--------------|-------------|
-| Feature | `changes/feat/` | `feat/` | New features, capabilities, enhancements |
-| Refactor | `changes/refactor/` | `refactor/` | Code restructuring, tech debt, cleanup |
-| Fix | `changes/fix/` | `fix/` | Bug fixes, issue resolution |
+`feat` (new capability) → `changes/feat/`; `refactor` (restructure, tech
+debt) → `changes/refactor/`; `fix` (bug) → `changes/fix/`. Ask if
+ambiguous. A successor is `<work-name>-vN/` in the same type directory,
+with a predecessor reference under `**Source**`.
 
-If ambiguous, ask.
+## Step 3 — Confirm Repos, Work Name, and Tier (MANDATORY)
 
-For a successor to an archived work item, the directory is
-`<work-name>-vN/` in the same `<type>/`, and `analysis.md` must carry a
-predecessor reference under `**Source**`.
-
-## Step 3 — Identify Affected Repos
-
-### Decision tree
-
-1. **User explicitly listed repos** → use those, but still confirm
-2. **User's description implies specific repos** → propose your analysis
-3. **Ambiguous** → ask explicitly
-
-### Confirmation (MANDATORY)
-
-ALWAYS present your analysis to the user for confirmation, even when
-confident. Format:
+Always present your analysis and wait for confirmation, even when
+confident:
 
 ```
 Based on the requirements, I plan to involve these repositories:
 
   1. shared-lib/ — Add theme constants to shared types
   2. api/ — Add user preference endpoint for theme setting
-  3. android/ — Add dark mode toggle to settings screen
 
 Work type: feat
 Work name: add-dark-mode
+Tier: full (two repos share a new contract)
 
-Does this look correct? You can:
-- Confirm to proceed
-- Remove repos that shouldn't be involved
-- Add repos I missed
-- Change the work type or work name
+Confirm, or add/remove repos, or change the type, name, or tier.
 ```
 
-Do NOT proceed until the user confirms. If the user corrects you,
-update and reconfirm.
+Do NOT proceed until the user confirms; on a correction, update and
+reconfirm. The tier given here is provisional — Step 4 re-checks it once
+the Code Map exists.
 
 ## Step 3.5 — Requirements Interrogation Gate
 
-Planning starts from requirements, and a one-line request leaves most
-plan-shaping decisions unstated. Before the planner writes anything, ask
-the questions whose answers change the plan — and only those.
-
-### Trigger
-
-Run the gate when at least one **plan-shaping decision** is unresolved. A
-decision is plan-shaping when its answer changes any of:
-
-- scope — what is in and what is out;
-- user-visible behavior or acceptance criteria;
-- a cross-repo contract, data shape, or migration order;
-- rollout, rollback, or backward compatibility;
-- priority, when two requirements conflict.
-
-### Skip conditions
-
-Skip the gate when **any** of these holds:
-
-1. The requirements already pin every plan-shaping decision above.
-2. The user explicitly said not to ask — "don't ask", "just plan",
-   "直接出方案", "别问", "你定".
-3. The change is mechanical — typo, version bump, formatting — with no
-   behavior change.
-4. Review-only re-entry: the plan exists and only its plan review is being
-   re-run.
-
-A skip is a decision too. Its reason becomes the first `progress.md` entry
-at the moment Step 4 creates the work directory, and that entry is the
-record — do not invent a clarification row. Do not skip silently.
-
-### One round, at most five questions
-
-Ask `Q1..Qn` with `n <= 5`, all in one message. Each question carries:
-
-| Part | Content |
-|------|---------|
-| Title | `Q<n> — <the decision, in words the user can read>` |
-| Example | one `比如：…` / `for example: …` line grounded in the feature being planned, showing what each answer makes happen |
-| Why it matters | one plain sentence: what the user will see, or what later work depends on, when the answer goes one way or the other |
-| Recommendation | the answer you would choose, with its reason |
-| Cost of being wrong | what has to be redone and roughly how much work; when it is cheap to reverse, say so in so many words |
-
-`按推荐` / `全部按推荐` / `all recommendations` accepts every recommendation
-in the round and closes the interrogation.
-
-#### Plain words and a concrete example (MANDATORY)
-
-The user reads the questions; the planner reads the records. A question
-the user cannot evaluate is worse than no question — they answer `按推荐`
-blindly, and the gate learns nothing. In the text the user sees:
-
-1. **No planner jargon.** Contract, schema, migration, rollback, baseline,
-   plan-shaping (契约、数据形状、迁移、回滚、基线) name plan anatomy, not
-   behavior — replace each with what actually happens. Jargon stays legal
-   in the `### Clarifications` table and the derived REQ lines, which the
-   planner reads.
-2. **One concrete example per question, from this feature.** Not a
-   textbook case: `比如：这次把设置项的存法改了，手机上还装着旧版 App，
-   旧版读到新格式要不要照样能打开设置页？`
-3. **Options speak in outcomes, not mechanisms.** "旧版 App 打不开设置页"
-   is an outcome; "数据形状变更缺少兼容层" is a mechanism — write the
-   former.
-4. **Label the stakes.** A cheap-to-reverse decision says so —
-   `这个拿不准可以直接按推荐，改起来很快` — so the user spends attention
-   only where a wrong answer really costs days.
-
-These are decision-reader writing rules applied to questions; the full set
-lives in `references/document-templates.<lang>.md`
-§面向决策者的写作规则. Translated examples:
-
-| Planner phrasing (do not send) | Plain question (send this shape) |
-|---|---|
-| `Q1 — 跨仓库契约：类型变更同步发布还是渐进迁移？` | `Q1 — 改了共享类型，其他端要一起改吗？比如：shared-lib 的主题类型加一个字段，网页和 App 不跟着改会直接编译报错。推荐：同一批改完，一次提交把三个端都带上，免得哪个端漏掉。` |
-| `Q2 — persisted schema backward-compatibility strategy` | `Q2 — Old app versions must keep working? For example: the settings file gets a new format, and a phone still running the old build must still open settings. Recommendation: keep the old format readable — the old build just won't show the new setting. This is cheap to change later.` |
-| `Q3 — rollout 是否保留 feature flag 以支持回滚` | `Q3 — 上线后发现问题，怎么退回来？比如：加一个设置页里的开关，出问题关掉几秒就恢复；不加就得重新发版，可能等一两天。推荐：加开关（多半天工作量，换一个能秒回退的保险）。` |
-
-- **Standard mode** — at most two rounds. A second round runs only when an
-  answer opens a new plan-shaping decision, and it asks that new frontier
-  only.
-- **Grill mode** — the user said "grill me", "拷问我", "盘问我", or
-  "别急着给方案". No round cap and no five-question cap: ask the current
-  frontier, wait for the answers, recompute the frontier from them, repeat
-  until no plan-shaping decision is left. Stop on decisions, not on a
-  count.
-
-### Facts are the agent's job, decisions are the user's
-
-Check the repository first. If the answer is in the code, the docs, or the
-workspace `AGENTS.md`, it is a fact — look it up and state it; a question
-spent on a fact wastes the user's attention. When the fact-find is deep
-(a call path, an existing contract, a migration history), dispatch the
-`explore` subagent instead of asking; if the host has no `explore`
-subagent, do the fact-find yourself. Ask only what code cannot answer:
-intent, priority, acceptable trade-offs, rollout policy, and conflicts
-between requirements.
-
-### Record the answers
-
-The answers are part of the requirements baseline the Step 4.5 review
-falsifies against. After the round, `analysis.md` §Original Requirements /
-§需求原文 carries a `### Clarifications` / `### 澄清记录` subsection, one row
-per question:
-
-| Q | Question | Recommendation | User answer | Plan impact |
-|---|----------|----------------|-------------|-------------|
-| Q1 | <the decision> | <recommended answer> | <the user's answer, or `(as recommended)`> | <which part of the plan changes> |
-
-An answer that changes what the system must do derives a requirement line
-in the same section: `- **REQ<n>** "<the answer>" — Source: clarification
-Q<n>`. When the user accepted the recommendation, quote the
-recommendation's own wording and mark it `(as recommended)` — never just
-"as recommended", which leaves the baseline with an empty requirement.
-
-Every open decision ends in exactly one of two states:
-
-- `A<n>` — assumed, and only when it does not block acceptance. The row
-  goes in `plan.md`'s risk table with the reversal condition — what makes
-  the assumption false and how to back out — in the `Mitigation` /
-  `应对` column.
-- `NEEDS_USER_DECISION` — the decision blocks acceptance; do not write a
-  plan around it — ask the user now. Until answered, it stays an open
-  decision in the Step 5 report.
-
-No silent assumptions. The exact table and row shape are frozen in
-`references/document-templates.<lang>.md`;
-Step 4 writes this content to disk before the planner is delegated to.
-
-## Step 4 — Create the Work Plan
-
-Create a work directory under `<docs-dir>/changes/<type>/`:
-
-```
-<docs-dir>/changes/<type>/<work-name>/
-├── analysis.md   (technical analysis — ALWAYS created first)
-├── plan.md       (execution plan — derived from analysis)
-├── progress.md   (status tracking — initial state)
-└── review.md     (review findings — header only, filled during apply)
-```
-
-### Four-File Invariant (MANDATORY)
-
-All four files MUST be created. `analysis.md` is NEVER optional — even
-for "trivial" work. A one-page analysis is fine; a missing analysis is
-not. The four files form a causal chain:
-`analysis.md → plan.md → progress.md → review.md`. Removing any link
-breaks traceability.
-
-**Scaling by complexity** — analysis depth should match the work:
-
-| Work complexity | analysis.md depth |
-|----------------|-------------------|
-| Trivial (typo, config, version bump) | 1-2 sections: brief current state + change rationale |
-| Simple (single repo, clear scope) | 3-4 sections: current state, requirements, chosen approach |
-| Complex (multi-repo, architectural) | Full template: diagrams, options, trade-offs, risk matrix |
-
-### Write the requirements baseline first
-
-The orchestrator writes the requirements baseline; the planner returns the
-rest.
-
-1. Create the work directory and the four files (invariant above).
-2. Immediately write `analysis.md`'s `## Original Requirements` / §需求原文
-   from the user's own words, plus `### Clarifications` / §澄清记录 from
-   Step 3.5. If the gate was skipped, omit `### 澄清记录`; the first
-   `progress.md` entry records the skip reason at this same moment.
-3. Only then delegate to the planner, passing that same content in the
-   brief. Do not tell the planner to read a section that does not exist on
-   disk yet — a missing section is how the answers and the skip reason get
-   silently dropped.
-
-The Step 3.5 answers live in the conversation until this point; this is
-where they become an artifact the Step 4.5 review can falsify against.
-
-### Standard mode — write the four documents
-
-Delegate to the **planner** subagent (read-only, returns content; you
-write the files):
-
-| Work type | Analysis | Planning |
-|-----------|----------|----------|
-| `feat/` / `refactor/` | Delegate to **planner** | Delegate to **planner** |
-| `fix/` | Delegate to **debugger** (root cause) → then **planner** | From debugger's analysis |
-
-The planner must include testable **Success Criteria** in `plan.md` —
-not subjective ones. "Works correctly" is not a criterion; "returns 200
-with valid JSON matching schema X for inputs A, B, C" is.
-
-**Freeze cross-repo contracts (MANDATORY for multi-repo plans).** The
-`Depends On` column of the repositories table is a promise consumed by
-two later steps:
-
-1. `fullstack-apply` derives its parallel execution waves from it —
-   repos that share no dependency edge are developed, reviewed, and
-   committed concurrently.
-2. Downstream developers write code against the interfaces you freeze
-   here — while their upstream is still being implemented in parallel.
-
-Therefore, every interface that crosses a dependency edge MUST be
-frozen in `analysis.md` under explicit contract entries: endpoint /
-function signatures with exact field names and types, error codes,
-shared type definitions, env-var names, and migration ordering. A
-downstream repo's brief cites these as immutable unless `analysis.md`
-amends them. Parallel implementation without frozen contracts produces
-integration drift discovered only at final review — do not leave the
-interface names to be improvised during apply.
-
-Then write `progress.md` (initial state) and `review.md` (header, plus the
-plan review rounds the gate below records) yourself. Follow the templates
-in `references/document-templates.<lang>.md`, including its
-**§面向决策者的写作规则 (Writing Rules for Decision Readers)** — they bind every section of all four documents, not just the
-shapes. Conclusion first, terms explained on first use, costs stated as
-concrete rework: the user approves this plan without having read the
-codebase, and text they cannot evaluate gets approved blindly.
-
-Write `plan.md`'s opening summary (`## 摘要` / `## Summary`) in the same
-pass — the decision-maker's entry point, six lines (one sentence / plain
-words / status / decisions needed / not solved / where to read), the
-one-sentence line carrying no ids and no file refs, the plain-words line
-saying what will be different once this ships. It is the only section of the
-work item updated in place as the item evolves; template in
-§`plan.md` of `references/document-templates.<lang>.md`.
-
-Write `plan.md`'s **Code Map** (`## 代码地图` / `## Code Map`) in the same
-pass too: one row per file the item is expected to touch, as
-`repo | repo-relative path | symbols | what changed`. Planned paths are
-what you have at this point, and that is fine — this table is the reverse
-index a later reader uses to find the work item *from* a file, and the
-follow-up fix that never finds the item never updates the document it
-just invalidated. `fullstack-apply` replaces planned paths with the ones
-it actually changed. Fill the `symbols` column whenever the file name does
-not say what changes: it is what a lookup on a function name resolves
-through.
-
-### Deep mode (spike) — validate unknowns first
-
-Use this when Step 1 reveals significant unknowns (technical risk,
-unproven feasibility, unclear design choice). The output is the SAME
-work directory — no separate spike directory, no rewrite later.
-
-**4a. Write the spike part of `analysis.md`:**
-
-```markdown
-# Analysis: <Work Name>
-**Created**: <date>   **Type**: <feat|fix|refactor>   **Author**: Planner
-
-## Objective
-<What are we trying to find out? What question does this spike answer?>
-
-## Current State
-<Existing system behavior / architecture / limitations>
-### Architecture (as-is)
-```mermaid
-flowchart LR
-    A[Component A] --> B[Component B]
-```
-
-## Hypothesis
-<What do we believe will work? What assumptions are we testing?>
-
-## Spike Approach
-| Step | What to try | Repo | Expected outcome | Risk |
-|------|-------------|------|-----------------|------|
-| 1 | ... | api/ | ... | Low |
-
-## Unknowns
-- <What we don't know and need to find out>
-
-## Success Criteria
-<How do we know the validation succeeded? What evidence do we need?>
-- [ ] Criterion 1
-- [ ] Criterion 2
-```
-
-**4b. Execute the spike (temporary, uncommitted):**
-
-1. Read each affected repo's `AGENTS.md` and `README.md`; use graphify
-   when available (same protocol as Step 1c).
-2. Make temporary code changes to validate the hypothesis. Do NOT run
-   `git add` or `git commit` on any code repo.
-3. Run tests, start dev servers, check logs — whatever validates the
-   criteria.
-4. Record each experiment, its result, and evidence directly in
-   `analysis.md` under a `## Experiments` section (appended as you go).
-
-**4c. Complete the analysis — same file:**
-
-After validation, append to `analysis.md` (still the same file):
-
-```markdown
-## Experiments
-### Experiment 1: <title>
-**What was tried**: ...   **Result**: ...   **Evidence**: ...
-
-## Verdict
-<FEASIBLE | NOT_FEASIBLE | NEEDS_MORE_RESEARCH> — one paragraph
-summarizing whether the approach works and what was learned.
-
-## Design Options
-| Option | Approach | Pros | Cons | Complexity |
-|--------|----------|------|------|-----------|
-| A (chosen) | ... | ... | ... | Medium |
-
-## Target Architecture
-```mermaid
-flowchart LR
-    A[Component A] --> B[Component B]
-```
-
-## Cross-Repo Impact
-| Repo | Impact | Breaking Change? |
-|------|--------|------------------|
-| api/ | ... | No |
-
-## Risks & Mitigations
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
-```
-
-**4d. Write `plan.md` from the verdict.** If NOT_FEASIBLE, write the
-plan documenting why it's not proceeding (the plan still exists — the
-record matters). If FEASIBLE, the plan reflects the chosen Design Option.
-
-**4e. Clean up temporary spike changes** before finishing:
-
-```bash
-cd <repo-1> && git checkout .
-cd <repo-2> && git checkout .
-```
-
-...unless the user explicitly says to keep the spike changes for
-`fullstack-apply`.
-
-### Mermaid Compatibility Gate (MANDATORY when diagrams are written)
-
-After writing any doc with ` ```mermaid ` blocks, run
-`python3 SKILL_PATH/scripts/mermaid_lint.py <file>...`. Read
-[`references/MERMAID-RULES.md`](references/MERMAID-RULES.md) before
-authoring any diagram.
-
-If `STATUS=FAIL`, read each `ERROR:` line, apply the suggested fix,
-save, and re-run until `STATUS=PASS`. Do NOT proceed with `STATUS=FAIL`.
-
-### Dependency DAG Gate (MANDATORY for multi-repo plans)
-
-After writing `plan.md` for a multi-repo work item, run
-`compute_waves.py` from this skill's bundled `scripts/` directory on
-the work directory:
-
-```bash
-python3 SKILL_PATH/scripts/compute_waves.py <docs-dir>/changes/<type>/<work-name>
-```
-
-This validates the repositories table exactly as `fullstack-apply`
-will later consume it — before implementation starts, not after:
-
-- `REPOS/WAVES/WAVE_i=…` → PASS. Record the wave summary in `plan.md`
-  under the repositories table (one line: "Parallel waves:
-  W1(a,b) → W2(c)") so reviewers see the intended grouping.
-- `ERROR_NO_REPOS_TABLE` / `ERROR_DUPLICATE_REPO` /
-  `ERROR_SELF_DEPENDENCY` / `ERROR_UNKNOWN_DEP` → fix the table, re-run.
-- `CYCLE_REPOS=a,b,…` → repos depend on each other in a circle; apply
-  cannot order them. Break the cycle by restructuring dependencies or
-  splitting the work item, then update `analysis.md` and `plan.md`
-  accordingly.
-
-Do NOT finalize the plan with a failing DAG gate.
-
-### Work-item tier — determine lean or full (after plan.md is written)
-
-Once `plan.md` is written — the repositories table and the Code Map are
-formed — determine the tier. `fullstack-apply` uses the recorded tier as
-is, so this is the one place the standard lives.
-
-**A work item runs at lean tier only when ALL of these hold:**
-
-1. Single repository.
-2. No cross-repo contract — none added, none modified.
-3. One of:
-   - **Non-production change** — the change set is only skill
-     definitions, documentation, templates, and tests, or skill-bundled
-     gate scripts with test coverage (e.g. `plan_lint.py`); no product
-     runtime behavior change.
-   - **Small production change** — the Code Map lists at most 5 files,
-     and the change touches no persisted data format, schema, or
-     migration, and no API consumed outside this repo.
-
-An explicit user request for the `full` flow overrides this determination.
-If any condition cannot be confirmed, run `full` (fail-safe: prefer
-stricter). Tiering only limits review-loop counts and commit granularity —
-the four-document requirement, `plan_lint`, the Mermaid/DAG gates, the
-Evidence table, and the `**文档同步**` / `**Document Sync**` attestation
-all stay in force unchanged.
-
-Record the result in `plan.md` §摘要 / §Summary's status line
-(`…—— lean 档` / `…—— lean tier`); the Step 5 report's `Mode:` line
-carries the tier.
+Ask only the questions whose answers change the plan. A decision is
+**plan-shaping** when its answer changes scope, user-visible behavior or
+acceptance criteria, a cross-repo contract / data shape / migration order,
+rollout / rollback / compatibility, or priority between conflicting
+requirements.
+
+**Skip** when any holds: the requirements already pin every plan-shaping
+decision; the user said not to ask ("just plan", "直接出方案", "别问",
+"你定"); the change is mechanical (typo, version bump, formatting);
+review-only re-entry. A skip is recorded — its reason becomes the first
+`progress.md` entry in Step 4. Never skip silently.
+
+**Facts are your job, decisions are the user's.** If the code, docs, or
+`AGENTS.md` answer it, look it up (dispatch the `explore` subagent for a
+deep fact-find if the host has one). Ask only intent, priority, acceptable
+trade-offs, rollout policy, and requirement conflicts.
+
+**When the gate runs, read `references/interrogation.md` first** — it
+holds the question format (plain words, a concrete example, a
+recommendation, the cost of being wrong; at most five per round), standard
+vs. grill mode, and the `### Clarifications` / `### 澄清记录` record. Every
+open decision ends answered, assumed as `A<n>` with a reversal condition
+(non-blocking only), or `NEEDS_USER_DECISION`. No silent assumptions.
+
+## Step 4 — Write the Plan
+
+### 4a. Baseline first (you, both tiers)
+
+1. Create the work directory and all four files. **All four are
+   mandatory** — `analysis.md` is never optional; scale its depth to the
+   work (trivial: 1–2 sections; simple: 3–4; complex: full template).
+2. Write `analysis.md` §Original Requirements / §需求原文 (one `REQ<n>` per
+   ask, verbatim) plus §Clarifications / §澄清记录 from Step 3.5 — or, if
+   the gate was skipped, the skip reason as the first `progress.md` entry.
+   Templates: `template-analysis.<lang>.md`, `template-progress.<lang>.md`.
+3. Write the `review.md` header (Status Overview, empty Evidence table)
+   from `template-review.<lang>.md`. Once `plan.md` exists (4b), seed one
+   Evidence row per Success Criterion — read only that section.
+
+The baseline exists on disk before anyone writes the plan, so the review
+can falsify the plan against the user's words rather than a restatement.
+
+### 4b. The plan itself
+
+**`fix` type, either tier:** delegate root-cause analysis to the
+**debugger** subagent first; the plan is built on its findings.
+
+**Lean tier — write it yourself.** Read `template-analysis`,
+`template-plan`, and `template-rules` for `<lang>`, then write the rest of
+`analysis.md` and `plan.md` directly. No planner subagent: you already hold
+the gathered context, and handing it to a fresh agent would re-gather it.
+
+**Full tier — the planner writes to disk.** Delegate to the **planner**
+subagent with a brief holding:
+
+- the absolute work-directory path, and the absolute paths of
+  `SKILL_PATH/references/template-{analysis,plan,rules}.<lang>.md`;
+- the requirements baseline (point at the section on disk — it exists
+  now) and the confirmed repos, work type, and tier;
+- the context you gathered: external-link content, relevant `AGENTS.md`
+  rows, graphify findings, prior work items;
+- for `fix`, the debugger's findings.
+
+The planner writes `analysis.md` (below the baseline) and `plan.md`, and
+returns a short report — files written, approach, repos/waves, open
+decisions. Do not ask it to return document text and do not re-read the
+documents just to restate them; read a section only when a later step
+needs it. (A planner from an older workspace may still return full text —
+write it to disk yourself, and suggest re-running `fullstack-init` to
+refresh the workspace agents.)
+
+### 4c. What every plan must carry
+
+These bind whoever writes. The templates hold the exact shapes.
+
+- **Testable Success Criteria.** "Works correctly" is not one; "returns 200
+  with JSON matching schema X for inputs A, B, C" is.
+- **Frozen cross-repo contracts (multi-repo).** `fullstack-apply` derives
+  parallel waves from the `Depends On` column, and downstream repos code
+  against interfaces while upstream is still being built. So every
+  interface crossing a dependency edge is frozen in `analysis.md`: exact
+  signatures and field names/types, error codes, shared types, env-var
+  names, migration order. Never leave names to be improvised during apply.
+- **`plan.md` §Summary / §摘要** — the decision-maker's six-line entry point
+  (one sentence with no ids or file refs / plain words: what is different
+  once this ships / status incl. tier / decisions needed / not solved /
+  where to read). The only section updated in place as the item evolves.
+- **`plan.md` §Code Map / §代码地图** — one row per expected file:
+  `repo | repo-relative path | symbols | what changed`. Planned paths are
+  fine; apply replaces them with actual ones. It is the reverse index a
+  later fix uses to find this item from a file.
+- **Writing Rules for Decision Readers** (`template-rules.<lang>.md`) bind
+  every section: conclusion first, terms explained on first use, costs as
+  concrete rework. The user approves without reading the codebase.
+
+### 4d. Mechanical gates
+
+Run each that applies; fix and re-run until it passes.
+
+| Gate | When | Command |
+|------|------|---------|
+| Mermaid | Any document has a ` ```mermaid ` block | `python3 SKILL_PATH/scripts/mermaid_lint.py <file>...` → `STATUS=PASS` |
+| DAG | Multi-repo | `python3 SKILL_PATH/scripts/compute_waves.py <work-dir>` → `REPOS/WAVES/WAVE_i`; record "Parallel waves: W1(a,b) → W2(c)" under the repositories table. `ERROR_*` → fix the table; `CYCLE_REPOS` → restructure dependencies or split the item |
+| Consistency | Before each plan review round, and before reporting | `python3 SKILL_PATH/scripts/plan_lint.py <work-dir>` → `STATUS=PASS`. `ERROR:` lines name what to fix; turn `WARN:` `TBD` / `待确认` markers into `NEEDS_USER_DECISION`. Fix — never reason around a failure |
+
+### 4e. Re-check the tier
+
+Now that `plan.md` has its repositories table and Code Map, confirm the
+tier against the table in "How this skill works". If a lean item turned out
+to need full (a second repo, a contract, a schema change), upgrade it,
+tell the user in one line, and continue at full. Record the tier in the
+§Summary status line (`…—— lean 档` / `…—— lean tier`).
 
 ## Step 4.5 — Plan Review Gate (MANDATORY)
 
-The documents are written; the Mermaid and DAG gates are green. None of
-that says the plan is *right* — those gates check shape, this one checks
-meaning. Before reporting the plan, delegate to the **plan-reviewer**
-subagent to falsify it against the original requirements.
+The gates above check shape; this checks meaning. Delegate to the
+**plan-reviewer** subagent to falsify the plan against the original
+requirements. It must be a fresh context: whoever wrote the plan carries
+its assumptions, and a self-review re-runs them.
 
-**Why an independent subagent and not a self-check.** You wrote these
-files from the planner's returned text, so you have already absorbed the
-planner's reasoning and its assumptions; a self-review re-runs the same
-assumptions and finds nothing. The plan-reviewer gets a clean context,
-the raw requirements, and the files **as written to disk** — which also
-means it catches what was lost in transcription, a failure class no other
-gate covers.
+**The reviewer receives:** the path to the work directory and the
+instruction to read `analysis.md` §Original Requirements and
+§Clarifications plus `analysis.md` and `plan.md` **from disk** (never your
+summary); the workspace `AGENTS.md` repo table; the affected repos'
+`AGENTS.md` / `README.md` paths; the round number. If §Original
+Requirements is missing or has no `REQ` ids, stop and write it first.
+§Clarifications may be absent only when `progress.md` records a Step 3.5
+skip.
 
-### Review depth — scaled to the work
+If the host cannot load `plan-reviewer`, use any fresh-context read-only
+subagent with the agent file as its brief; if even that is impossible,
+review it yourself and **label it a self-review in `review.md`**.
 
-Every work item is reviewed; the *loop* is what scales.
+**Depth.** Lean: 1 pass; on `NEEDS_FIXES`, fix, re-run the mechanical
+gates (not a round), then one confirmation pass; still not converged →
+record residual P1/P2 as known risks and close `PASS_WITH_RISKS` (an open
+P0 moves the item to the full loop). Full: pass → revise → re-review, at
+most 3 passes. Do not skip the gate because the plan "looks fine".
 
-| Work item shape | Review depth |
-|-----------------|--------------|
-| **Lean tier** — the Step 4 lean standard holds and the user has not upgraded to full | **1 pass + 1 confirmation, capped.** On `NEEDS_FIXES`: planner revises, then the SAME round re-runs the mechanical gates (`plan_lint` / Mermaid / DAG) — a mechanical-gate re-check does not count as a review round. The confirmation round runs as a fresh agent on the round-2+ brief below. If it still does not converge, record residual P1/P2 items as known risks in `plan.md` and close as `PASS_WITH_RISKS` — no third round. A P0 still open after the confirmation round is never closed this way: the item moves to the full loop |
-| Multi-repo, any frozen contract, deep (spike) mode, or architectural refactor | **Loop.** Pass → revise → re-review. Cap: 2 revision rounds (3 passes total) |
-
-**Counting the rounds — the cap counts passes, and a re-plan starts a new
-loop.** Three things follow from that:
-
-- A **re-plan** starts a new loop. When the user answers a
-  `NEEDS_USER_DECISION` with a different design and the planner rewrites the
-  documents instead of amending them, the rewritten plan is a new proposal:
-  its review is pass 1 of the new loop, and the cap is measured from there.
-  Earlier rounds stay in `review.md` as history and are not re-counted. A
-  rewrite changes design choices — a different option, a different data
-  shape, a scope that moved — not wording.
-- An answer that only **amends** the existing plan continues the current
-  loop: the review of the amendment is the next pass of that same loop.
-- A **mechanical-gate re-check** after a revision (`plan_lint` / Mermaid /
-  DAG) is never a pass.
-
-Record which loop the current round belongs to in `review.md` §状态速览 /
-§Status Overview, next to the round count — `方案审查 4 轮（第 2–4 轮同一循环，
-上限 3 轮）`. Without it a reader cannot tell a run that reached the cap from
-one that quietly ignored it, and neither can the next agent.
-
-Do not skip the gate because the plan "looks fine" — that judgment is the
-thing being tested.
-
-### What the plan-reviewer receives
-
-- **The requirements baseline** — `analysis.md` §Original Requirements /
-  §需求原文, the user's words as written to disk, plus §Clarifications /
-  §澄清记录, the decisions the user already answered. Not your restatement
-  of either. Without a baseline that exists outside this conversation, the
-  reviewer cannot detect a dropped requirement — and cannot detect a
-  narrowed one either, which is the failure that hides as "a documented
-  limitation". If `§Original Requirements` is missing or has no `REQ` ids,
-  stop and write it before reviewing. `§Clarifications` may be absent only
-  when the first `progress.md` entry records a Step 3.5 skip; an absent
-  section with no recorded skip is a finding. Do not brief the reviewer
-  from your own summary.
-- `analysis.md` and `plan.md` **as written to disk** — not the planner's
-  returned message.
-- The workspace `AGENTS.md` repo table, plus `AGENTS.md` / `README.md` of
-  the affected repos.
-
-The plan-reviewer is read-only (`edit: deny`) and returns findings; you write
-them into `review.md`.
-
-If the tool cannot load the `plan-reviewer` subagent (no subagent system, or
-it rejects the agent files), delegate to any fresh-context read-only subagent
-with the agent file as its brief. If even that is impossible, do the review
-yourself but **say so in `review.md`** — an unlabelled self-review is worse
-than a labelled one.
-
-### Round 2+ briefs — incremental, minimal, fresh
-
-From round 2 on — every re-review after a revision — the brief holds ONLY
-six items:
-
-1. The latest round's complete output;
-2. A `review.md` status-overview snapshot (§状态速览 / §Status Overview);
-3. The Evidence table;
-4. This round's change list — what the planner revised and where;
-5. The diff or revised sections awaiting verification;
-6. **Where the changed names are still used** — `grep -n` across
-   `analysis.md` and `plan.md` for every id, field, endpoint, task, or
-   criterion the revision renamed, removed, or redefined, with each hit's
-   line. This is how a reviewer that does not re-read untouched sections
-   still catches a revision that contradicts one.
-
-A full re-read of earlier rounds and of the four documents is forbidden
-in this brief — history lives in `review.md` and git, fetched on demand.
-Dispatch the round-2+ confirmation as a **fresh agent** with this minimal
-brief; do not continue an existing heavyweight subagent session — context
-that grows every round is what makes repeats slow and unconvergent. When
-no agent can be spawned, the fallback above applies unchanged.
-
-**A plan that contradicts an answered clarification is a P0.** The
-`§Clarifications` answers are part of the baseline the reviewer falsifies
-against; a plan that re-opens a settled decision, or silently substitutes
-its own assumption for the user's answer, is not a wording issue — it is
-the plan promising something the user already declined.
-
-### Handling the verdict
-
-Append the plan-reviewer's output to `review.md` as a
+**Verdicts.** Append each round to `review.md` as
 `## Plan Review — Round <N> — <date>` / `## 方案审查 — 第 <N> 轮 — <date>`
-section, in the document's language (format in
-`references/document-templates.<lang>.md`).
+(format: `template-review.<lang>.md`).
 
-| Verdict | What you do |
-|---------|-------------|
-| `PASS` | Proceed to Step 5 |
-| `PASS_WITH_RISKS` | Proceed to Step 5; make sure the risks appear in `plan.md` §Risks / Open Questions |
-| `NEEDS_FIXES` | Delegate the P0/P1 findings back to the **planner** verbatim; apply the returned revisions to the affected sections only (do not regenerate untouched sections); record what changed; re-run the plan-reviewer as round N+1 |
-| `NEEDS_USER_DECISION` | Stop the loop. Put the open decisions in the Step 5 report and ask the user — planning is not complete until they are answered |
+| Verdict | Action |
+|---------|--------|
+| `PASS` | Step 5 |
+| `PASS_WITH_RISKS` | Step 5; the risks appear in `plan.md` §Risks |
+| `NEEDS_FIXES` | **Read `references/plan-review-rounds.md`.** Send the P0/P1 findings verbatim to the planner (full) or fix them yourself (lean) — affected sections only, every P0/P1 fixed or rejected with a written reason; then the next round on the minimal round-2+ brief, as a fresh agent |
+| `NEEDS_USER_DECISION` | Stop the loop; ask the user in the Step 5 report |
 
-Rules that keep the loop convergent:
+Non-negotiable in every round:
 
-- **The planner must answer every P0/P1** — fix it, or reject it with a
-  written rationale, which you record in the same round as
-  `Rejected: <reason>`. A finding silently dropped during revision becomes
-  a P0 in the next round.
-- **Round 2+ verifies the previous findings and the content changed to
-  resolve them only** — never a fresh full audit. Otherwise every round
-  harvests new P2s and the plan never converges.
-- **Never weaken a plan to satisfy a reviewer.** Deleting a criterion,
-  widening a contract to "TBD", or dropping a requirement to reach `PASS`
-  is worse than shipping with a documented P1. If the honest fix is a
-  choice only the user can make, that is `NEEDS_USER_DECISION`.
-- **A finding whose fix narrows a `REQ` is not the planner's to resolve.**
-  When the only available fix shrinks what a requirement promises — the
-  accepted behavior becomes a subset of what `REQ<n>` says as the user
-  wrote it — reporting `NEEDS_USER_DECISION` is required, with the
-  requirement quoted and the subset named. Writing the subset down as a
-  documented boundary is correct engineering *and* still a scope
-  decision; from inside the plan the two look identical, which is why
-  this needs its own rule rather than riding on the one above.
-- **Oscillation stops the loop.** If a round produces more new findings
-  than the previous round resolved, stop, record the residual items as
-  known risks in `plan.md`, and report them in Step 5.
-- **Re-run the affected mechanical gates after revisions** — `plan_lint`
-  after any document edit, the Mermaid gate if a diagram changed, the DAG
-  gate if the repositories table changed. At lean tier this mechanical
-  re-check runs in the same round as the revision and does not count as
-  a review round.
+- **Never weaken a plan to pass** — no deleting criteria, widening a
+  contract to "TBD", or dropping a requirement. An honest choice only the
+  user can make is `NEEDS_USER_DECISION`.
+- **A fix that narrows a `REQ` is the user's call** — report
+  `NEEDS_USER_DECISION`, quoting the requirement and naming the subset.
+- **A plan that contradicts an answered clarification is a P0.**
+- **In the same edit as any revision**, keep the documents in step:
+  Success Criteria ↔ `review.md` Evidence rows; `REQ` ids ↔ coverage
+  matrix; tasks ↔ affected-task list; touched files ↔ Code Map; a moved
+  responsibility / changed flow / altered contract ↔ the `analysis.md`
+  section and diagram, rewritten (never a contradicting note appended);
+  a dated `progress.md` entry; `plan.md` §Summary and `review.md` §Status
+  Overview updated in place. Then re-run the affected mechanical gates.
 
-### Exit criteria — "implementable" is a definition, not a feeling
-
-The plan may be handed to `fullstack-apply` only when ALL of these hold:
-
-- [ ] Plan review verdict is `PASS` or `PASS_WITH_RISKS` — no unresolved
-      P0/P1 (residual items are recorded as known risks, not as open fixes)
-- [ ] `analysis.md` carries §Original Requirements / §需求原文 with one
-      `REQ<n>` id per ask, in the user's words — not a summary
-- [ ] Every plan-shaping decision is answered, recorded as `A<n>` with a
-      reversal condition, or escalated as `NEEDS_USER_DECISION` — no silent
-      assumptions; `analysis.md` carries `§澄清记录`, or `progress.md`
-      records a Step 3.5 skip
-- [ ] Every requirement maps to ≥ 1 Success Criterion, and every criterion
-      maps to ≥ 1 task
-- [ ] Every frozen contract passes the completeness check, or is explicitly
-      marked `TBD` with the user's decision recorded
-- [ ] Every path / symbol / endpoint referenced as **existing** has been
-      verified to exist
-- [ ] Dependency edges verified semantically, not just structurally
-- [ ] No unanswered `NEEDS_USER_DECISION`
-- [ ] Mermaid gate PASS, and (multi-repo) DAG gate PASS
-- [ ] `plan.md` §摘要 / §Summary matches the body — the one-sentence
-      line, the status, and the open decisions reflect the plan as it
-      now stands
-- [ ] `plan_lint.py` reports `STATUS=PASS`
-
-If a box is unchecked, do NOT report the plan as ready — report the
+**Exit criteria — all must hold before reporting the plan as ready:**
+verdict `PASS` / `PASS_WITH_RISKS` with no open P0/P1; §Original
+Requirements has one verbatim `REQ<n>` per ask; every plan-shaping
+decision is answered, `A<n>` with a reversal condition, or escalated; every
+requirement maps to ≥1 Success Criterion and every criterion to ≥1 task;
+frozen contracts complete (or `TBD` with the user's decision recorded);
+every path / symbol / endpoint cited as existing is verified; dependency
+edges verified semantically; Mermaid and DAG gates pass; §Summary matches
+the body; `plan_lint.py` reports `STATUS=PASS`. Otherwise report the
 blocking items instead.
 
-### Consistency gate (MANDATORY — run it after every revision)
+## Step 5 — Commit and Report
 
-Revisions are where the four documents drift apart, because each edit
-touches one file. A review-driven revision that adds a Success Criterion
-and forgets the matching Evidence row leaves the definition of done
-unverifiable — and nothing in the prose above catches it. Run the
-bundled linter on the work directory:
-
-```bash
-python3 SKILL_PATH/scripts/plan_lint.py <docs-dir>/changes/<type>/<work-name>
-```
-
-`STATUS=PASS` is required; `ERROR:` lines are the exit-criteria failures,
-`WARN:` lines are advisory (unresolved `待确认` / `TBD` markers among them —
-turn each into a formal `NEEDS_USER_DECISION`). The linter checks the
-cross-document invariants deterministically — Success Criteria ↔ Evidence
-rows, REQ ids ↔ coverage matrix, task ids, plan-review closure and
-numbering, the Summary and Code Map sections — and each `ERROR:` line
-names what to fix. Fix and re-run; do not reason around a failure.
-
-Then, in the SAME revision as any document edit:
-
-| What changed | What must follow it |
-|--------------|---------------------|
-| Success Criteria added / renamed / removed | Evidence table rows in `review.md` |
-| `REQ` ids added / renamed / removed | Coverage rows in `review.md`'s matrix |
-| A task added / removed / rescoped | The affected-task list recorded in `review.md` |
-| A file this item touches, planned or actual | Its `plan.md` Code Map row |
-| Structure or flow: a responsibility moved between modules or layers, a call order changed, a component appeared or vanished, a frozen contract altered | The affected `analysis.md` section (*Current State / Target Architecture / User Flow / Cross-Repo Impact*) and its diagram — rewritten, not appended a note that contradicts the body above it |
-| Any review round or revision | A dated entry in `progress.md` |
-| Any review round or revision | `plan.md` §摘要 / §Summary and `review.md` §状态速览 / §Status Overview (both updated in place) |
-| A diagram | Re-run the Mermaid gate |
-| The repositories table | Re-run the DAG gate |
-
-Never report the plan as ready with `STATUS=FAIL` standing.
-
-## Step 5 — Report the Plan
-
-1. **Commit the work directory to the docs repo** (the ONLY repo that
-   gets commits in this skill).
-2. **Report to the user**:
+1. Commit the work directory to the docs repo (the only repo this skill
+   commits to).
+2. Report — verdict first, plain words:
 
 ```
 Planned: <work-name> (<feat|fix|refactor>)
 Location: <docs-dir>/changes/<type>/<work-name>/
 Mode: standard | deep (spike) — tier: lean | full
 
-- Requirements: <summary>
-- Success Criteria: <N criteria>
-- Repos: <list>
-- Parallel waves: W1(<repos>) → W2(<repos>) → …
-- Contracts frozen in analysis.md: <list or "single-repo — none">
-- Design: <one-line summary of chosen option>
-- In plain words: <what will be different once this ships, and the biggest
-  remaining risk — one line, no ids>
+- In plain words: <what will be different once this ships, and the biggest remaining risk — no ids>
+- Requirements: <summary>   Success Criteria: <N>
+- Repos: <list>   Parallel waves: W1(<repos>) → W2(<repos>)
+- Contracts frozen: <list | single-repo — none>
+- Design: <one line>
 - Plan review: <PASS | PASS_WITH_RISKS> — <N> rounds, <N> findings fixed
 - Open decisions: <none | list>
 
-Next: tell me to "implement this" to run fullstack-apply — preferably in
-a fresh session (orchestrator context slows as the session grows; the
-work-directory documents are the handoff interface).
+Next: tell me to "implement this" to run fullstack-apply — preferably in a
+fresh session; the work-directory documents are the handoff.
 ```
 
-The report follows the Writing Rules for Decision Readers — verdict
-first, terms explained on first use. The `In plain words` line is what
-the user reads before deciding; the ids and paths below it are the
-audit trail, not the message.
+On `NEEDS_USER_DECISION`, replace `Next:` with a request for the decisions
+("answer the open decisions above — I will re-run the plan review").
 
-When the verdict was `NEEDS_USER_DECISION`, replace the `Next:` line with
-a request for the decisions instead:
+3. Issue-sourced work: close the issue as described in
+   `references/issue-sourced.md`.
 
-```
-Next: answer the open decisions above — I will re-run the plan review,
-      then hand the plan to fullstack-apply.
-```
+## Resuming and Re-reviewing
 
-3. **Issue-sourced proposals** — when the work item originated from an
-   active issue under `<docs-dir>/issues/` (see Step 1d):
-
-   - **Requirements**: the issue's symptom and analysis (its `## 现象` /
-     `## 分析` sections, or `## Symptom` / `## Analysis` in English
-     issues) are quoted verbatim into `analysis.md` §Original
-     Requirements / §需求原文, one `REQ<n>` id per ask — the same
-     mechanism as user-provided requirements (Step 1a).
-   - **Source**: `plan.md`'s **Source** / **来源** points at the issue's
-     archive path (`issues/archive/<name>/…`) — the post-move path, never
-     the pre-move active path; the active path stops resolving the moment
-     the close below lands.
-   - **Close (after the four documents are committed to the docs
-     repo)**: invoke `fullstack-issue-archive` (mode `proposed`) — the
-     other three modes (`resolved`, `wontfix`, `merged`) belong to the
-     issue's own close flow, not the propose flow. The mandatory order
-     still applies — move first, then write:
-
-     ```bash
-     mv <docs-dir>/issues/<name> <docs-dir>/issues/archive/<name>
-     ```
-
-     Then append `## 闭环` (`## Closure` in English issues) to the
-     issue's README — the mode, the date, the pointer to the work item
-     directory this skill just created, and `验证: n/a` / `Verification:
-     n/a` (a `proposed` close tracks the problem, it does not claim it is
-     fixed). Then commit the docs repo
-     in the same round — `git add issues/` (the parent directory) stages
-     both sides of the move above (the new archive path and the old
-     active path's deletion):
-
-     ```bash
-     cd <docs-dir>
-     git add issues/
-     git commit -m "docs: close issue <name> (proposed)"
-     ```
-
-## Resuming a Previous Plan
-
-When invoked with a reference to an existing un-archived work item
-(e.g. "continue planning X", "继续规划 X"):
-
-1. Read the existing four documents in `<docs-dir>/changes/<type>/<name>/`
-2. Determine what's incomplete (missing sections, unanswered Success
-   Criteria, unfilled verdict, unresolved plan-review findings or open
-   decisions in `review.md`)
-3. Resume from the last incomplete step; re-confirm repos if the plan
-   has changed
-
-**Accretion rule** — when resuming because requirements changed and the
-scope grows significantly (a new repository joins, the task list roughly
-doubles, or a second independent goal appears), recommend splitting a
-successor work item by default; only fold the growth into this one when
-the user explicitly asks for it. A work item that accretes until it
-holds two work items is the shape review rounds cannot converge on, and
-its `## 摘要` stops being a 30-second read.
-
-### Review-only re-entry — re-run the Plan Review Gate
-
-When the user points at an existing plan and asks for it to be
-**reviewed** rather than replanned ("审一下这个方案", "review the plan
-for X", "re-review the plan", "方案靠谱吗", "is this plan ready?"), do
-NOT re-run Steps 1–4 — the plan already exists. Run the gate alone:
-
-1. **Locate the work item** — `<docs-dir>/changes/<type>/<name>/`. Search
-   the active type directories; if several match, ask. If `plan.md` is
-   missing, this is not a re-review — tell the user to plan it first.
-2. **Determine the round** — read `review.md`, take the highest existing
-   `## Plan Review — Round <N>` / `## 方案审查 — 第 <N> 轮`; the new round is N+1. If there are no
-   rounds yet, this is a first review (round 1) — fine, proceed.
-3. **Recover the requirements source** — read `**Source**` in `plan.md`
-   and fetch it (`jira`, `confluence`, `gh-operations`, or the referenced
-   work item). If the original requirements cannot be recovered — only a
-   paraphrase survived — ask the user for them. A coverage check without
-   the requirements is theater.
-4. **Collect what changed since the last round** — the docs repo is a
-   git repo:
-
-   ```bash
-   cd <docs-dir>
-   git log --oneline -- changes/<type>/<name>/
-   git log -p --since=<last round date> -- changes/<type>/<name>/
-   ```
-
-   Hand the plan-reviewer the changed sections, not "please re-read
-   everything" — round discipline (see Step 4.5) is what keeps repeats
-   convergent.
-5. **Delegate to plan-reviewer** with the round number, the documents as
-   written to disk, the requirements source, and the diff — the same
-   inputs Step 4.5 specifies.
-6. **Handle the verdict** exactly as Step 4.5 does: `PASS` /
-   `PASS_WITH_RISKS` → report with the Step 5 template; `NEEDS_FIXES` →
-   the planner revises the affected sections only, then round N+2;
-   `NEEDS_USER_DECISION` → ask the user. Re-run the Mermaid gate if a
-   diagram changed and the DAG gate if the repositories table changed.
-7. **Commit the docs repo** (the review rounds are part of the record)
-   and report using the Step 5 template. Run `plan_lint.py` first — the
-   consistency gate applies to a re-review exactly as it does to Step 4.5.
-
-Boundaries for this path: it reviews and revises only. It never re-plans
-the item from scratch, never creates branches, and never touches project
-code. If the review shows the plan is wrong at the **requirements** level
-rather than merely incomplete, stop — that is a new planning round; say so
-and run the normal steps.
-
-## Requirements
-
-- Python 3.10+
-- Workspace initialized by `fullstack-init` (must pass workspace
-  validation gate)
-- Other skills as needed: `jira`, `confluence`, `gh-operations`, `figma`
+- **Resume** ("continue planning X"): read the work directory, find what is
+  incomplete (missing sections, unfilled verdict, open findings or
+  decisions in `review.md`), resume from that step; re-confirm repos if the
+  plan changed. If the scope grows a lot (a new repo joins, the task list
+  roughly doubles, a second independent goal appears), recommend splitting
+  a successor work item unless the user asks to fold it in.
+- **Review only** ("审一下这个方案", "is this plan ready?"): do not re-run
+  Steps 1–4 — read `references/review-only.md`.
 
 ## Guardrails
 
-- Planning only. Any implementation instruction in the request does not
-  carry forward — stop after artifacts are presented.
-- Every work item passes the Plan Review Gate. Reporting a plan as ready
-  with an unresolved P0/P1, an unanswered `NEEDS_USER_DECISION`, or a
-  failing mechanical gate is a failure of this skill.
-- Never weaken a plan — delete a criterion, widen a contract to `TBD`, or
-  drop a requirement — to reach a `PASS` verdict.
-- No branches, no commits to code repos, no PRs.
-- Review-only re-entry re-runs the gate; it does not replan. A plan whose
-  requirements are wrong needs a new planning round, not a review round.
-- The four documents are mandatory — a missing `analysis.md` is a failure.
-- Success Criteria must be testable and specific, not subjective.
-- Multi-repo plans MUST freeze cross-repo contracts in `analysis.md`
-  and pass the Dependency DAG Gate before reporting the plan — apply
-  derives parallel waves from this table, so a malformed dependency is
-  an implementation-time failure you were asked to prevent.
-- Deep mode's output IS the work directory — never create a separate
-  spike directory and never rewrite analysis on handoff.
-- `plan.md` carries the Code Map. A plan without it cannot be found again
-  from the code it produces: the follow-up fix that cannot locate the work
-  item is the one that leaves the documents behind. `plan_lint.py` fails
-  the gate on a missing or empty map.
-- Mermaid gate must PASS before finalizing.
+- Planning only; no branches, no code-repo commits, no PRs.
+- Four documents, always; `plan.md` always carries §Summary and the Code Map.
+- Every plan passes the Plan Review Gate; never report it ready with an
+  open P0/P1, an unanswered `NEEDS_USER_DECISION`, or a failing gate.
+- Never weaken a plan to reach `PASS`.
+- Multi-repo plans freeze cross-repo contracts and pass the DAG gate.
+- Deep mode's output IS the work directory — no separate spike directory.
+- Requirements: Python 3.10+; `jira`, `confluence`, `gh-operations`,
+  `figma` skills as needed.

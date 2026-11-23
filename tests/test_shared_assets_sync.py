@@ -191,3 +191,30 @@ class TestSelectLanguage:
     def test_malformed_blocks_raise(self, sync_module, text):
         with pytest.raises(ValueError):
             sync_module.select_language(text, "en")
+
+
+class TestSelectPart:
+    """Tests for sync-shared-assets.select_part."""
+
+    def test_drops_preamble_and_other_parts(self, sync_module):
+        text = "intro\n<!-- part:a -->\nA1\n<!-- part:b -->\nB1\n"
+        assert sync_module.select_part(text, "a") == "A1\n"
+        assert sync_module.select_part(text, "b") == "B1\n"
+
+    def test_repeated_part_is_concatenated(self, sync_module):
+        text = "<!-- part:a -->\nA1\n<!-- part:b -->\nB\n<!-- part:a -->\nA2\n"
+        assert sync_module.select_part(text, "a") == "A1\n\nA2\n"
+
+    def test_missing_part_raises(self, sync_module):
+        with pytest.raises(ValueError):
+            sync_module.select_part("<!-- part:a -->\nA\n", "zzz")
+
+    def test_canonical_template_has_every_part(self, sync_module):
+        source = sync_module.SHARED_ROOT / "plan" / "document-templates.md"
+        text = source.read_text(encoding="utf-8")
+        for part in sync_module.TEMPLATE_PARTS:
+            for lang in ("en", "zh"):
+                body = sync_module.select_part(
+                    sync_module.select_language(text, lang), part
+                )
+                assert body.strip(), (part, lang)

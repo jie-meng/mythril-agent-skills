@@ -87,9 +87,8 @@ code exists, by an independent `plan-reviewer` subagent in propose
 | **Plan review** | Requirements coverage, contract completeness, referenced-code existence, testability, dependency semantics | Whether the code, once written, is correct — that is apply's `code-reviewer` |
 
 Shape gates passing does not mean the plan is right. The review is
-independent rather than a self-check because the orchestrator wrote the
-files from the planner's reasoning; a self-review re-runs the same
-assumptions. Findings land in `review.md` as `## Plan Review — Round <N>`,
+independent rather than a self-check because whoever wrote the plan
+carries its assumptions; a self-review re-runs them. Findings land in `review.md` as `## Plan Review — Round <N>`,
 so the file holds the whole falsification history of the item.
 
 The gate is a **step inside propose, not a separate skill**: a review whose

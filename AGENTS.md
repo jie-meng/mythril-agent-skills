@@ -511,14 +511,18 @@ NEVER hand-edit a bundled copy directly — your changes will be lost on the nex
 | `plan_lint.py` | `shared/plan/plan_lint.py` | `fullstack-propose`, `fullstack-apply` |
 | `repo_skills.py` | `shared/workspace/repo_skills.py` | `fullstack-init`, `fullstack-explore`, `fullstack-apply` |
 | `check_workspace.py` | `shared/workspace/check_workspace.py` | `fullstack-apply`, `fullstack-archive`, `fullstack-issue-archive`, `fullstack-issue-create`, `fullstack-propose` |
-| `document-templates.{en,zh}.md` | `shared/plan/document-templates.md` (bilingual) | `fullstack-apply`, `fullstack-propose` |
+| `template-<part>.{en,zh}.md` | `shared/plan/document-templates.md` (bilingual, split into parts) | `fullstack-apply`, `fullstack-propose` |
 | `review-formats.{en,zh}.md` | `shared/plan/review-formats.md` (bilingual) | `fullstack-apply`, `fullstack-propose` |
 
 The two bilingual templates are the one exception to byte-identical copies:
 the canonical file wraps each language's templates in `<!-- lang:en -->` /
 `<!-- lang:zh -->` … `<!-- /lang -->` blocks, and the sync script emits one
 bundled file per language so a skill reads only the language it writes.
-Edit the canonical file, never a `.en.md` / `.zh.md` copy.
+`document-templates.md` is additionally split by `<!-- part:<name> -->`
+markers (`rules`, `plan`, `progress`, `analysis`, `review`) into
+`references/template-<part>.<lang>.md`, so each step reads only the
+template it is about to write. Edit the canonical file, never a
+`.en.md` / `.zh.md` copy.
 
 Note this is a different pattern from the `git-repo-reader` shared cache (above): the cache is **runtime** shared state on the user's machine, while shared assets are **build-time** duplicated files inside the repo. Both keep installed skills fully self-contained.
 

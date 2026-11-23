@@ -772,10 +772,11 @@ class TestInstallAgents:
             assert "description" in parsed, f"{name} missing description field"
             assert parsed.get("mode") == "subagent", f"{name} missing mode"
 
-    def test_planner_read_only(self, tmp_path: Path):
+    def test_planner_writes_plan_documents(self, tmp_path: Path):
         self.func(tmp_path, "proj")
         content = (tmp_path / ".agents" / "agents" / "planner.md").read_text()
-        assert "edit: deny" in content
+        assert "edit: allow" in content
+        assert "Files written:" in content
 
     def test_developer_has_full_access(self, tmp_path: Path):
         self.func(tmp_path, "proj")

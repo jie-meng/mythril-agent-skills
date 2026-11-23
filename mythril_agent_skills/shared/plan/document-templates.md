@@ -6,10 +6,20 @@ user's prompt — Chinese if the prompt contains any Chinese characters,
 otherwise English. The Markdown structure is identical between the two
 languages; only the labels differ.
 
-<!-- Canonical source. The lang:en and lang:zh marker blocks are split out by
-scripts/sync-shared-assets.py into the bundled `document-templates.en.md`
-and `document-templates.zh.md`; each skill reads only the one matching the
-document language. -->
+<!-- Canonical source. scripts/sync-shared-assets.py splits it twice: by
+language (the lang:en / lang:zh blocks) and by part (each `part:<name>`
+marker starts a part that runs to the next marker). Every consumer skill
+bundles one file per part and language — `references/template-<part>.<lang>.md`
+— so a step reads only the template it is about to write:
+
+  rules     writing rules for decision readers + visualization rules
+  plan      plan.md
+  progress  progress.md
+  analysis  analysis.md (feat / refactor and fix)
+  review    review.md header, plan review round, design self-check
+
+Text before the first part marker (this header and the table of contents)
+is not bundled. -->
 
 ## Table of contents
 
@@ -23,6 +33,8 @@ document language. -->
 - [Visualization rules for analysis.md](#visualization-rules-for-analysismd)
 
 ---
+
+<!-- part:rules -->
 
 ## 面向决策者的写作规则（Writing Rules for Decision Readers）
 
@@ -117,6 +129,8 @@ caveats, or audit detail.
     strategy？（无解释、无例子、无代价）"
 
 ---
+
+<!-- part:plan -->
 
 ## `plan.md`
 
@@ -379,6 +393,8 @@ When this work item inherits from an archived predecessor, add a
 
 ---
 
+<!-- part:progress -->
+
 ## `progress.md`
 
 `progress.md` is a **dated log**. Every meaningful change — kickoff,
@@ -488,6 +504,8 @@ never edited; discovery relies on the `-vN` naming convention plus the
 forward link instead.
 
 ---
+
+<!-- part:analysis -->
 
 ## `analysis.md` — feature / refactor
 
@@ -989,6 +1007,8 @@ sequenceDiagram
 
 <!-- /lang -->
 
+<!-- part:review -->
+
 ## `review.md` header
 
 <!-- lang:en -->
@@ -1252,6 +1272,8 @@ Evidence row missing for a criterion, broken round numbering, and task
 ids that no longer exist.
 
 ---
+
+<!-- part:rules -->
 
 ## Visualization rules for `analysis.md`
 

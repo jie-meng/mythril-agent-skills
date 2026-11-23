@@ -85,6 +85,40 @@ def _language(lang: str) -> Callable[[str], str]:
     return lambda text: select_language(text, lang)
 
 
+_PART_OPEN = re.compile(r"^<!-- part:([a-z][a-z0-9-]*) -->$")
+
+TEMPLATE_PARTS = ("rules", "plan", "progress", "analysis", "review")
+
+
+def select_part(text: str, part: str) -> str:
+    """Keep the text of every `<!-- part:<part> -->` section, in order.
+
+    A part runs from its marker to the next part marker (or end of file).
+    Text before the first marker is dropped; marker lines are removed and
+    a part that appears more than once is concatenated. Raises ValueError
+    when the part does not occur at all.
+    """
+    chunks: list[list[str]] = []
+    current: str | None = None
+    for line in text.split("\n"):
+        opened = _PART_OPEN.match(line)
+        if opened:
+            current = opened.group(1)
+            if current == part:
+                chunks.append([])
+            continue
+        if current == part:
+            chunks[-1].append(line)
+    if not chunks:
+        raise ValueError(f"part not found: {part!r}")
+    body = "\n\n".join("\n".join(c).strip("\n") for c in chunks)
+    return body + "\n"
+
+
+def _language_part(lang: str, part: str) -> Callable[[str], str]:
+    return lambda text: select_part(select_language(text, lang), part)
+
+
 def expected_bytes(spec: SyncSpec) -> bytes:
     """Return the bytes every target of `spec` must contain."""
     if spec.transform is None:
@@ -253,28 +287,41 @@ def specs() -> list[SyncSpec]:
         )
     )
 
-    # --- shared/plan/{review-formats,document-templates}.md
-    #     → <skill>/references/<name>.{en,zh}.md
-    # Bilingual canonical sources; each bundled file keeps one language so a
-    # skill reads only the templates it will write.
+    # --- shared/plan/review-formats.md → <skill>/references/review-formats.{en,zh}.md
+    # Bilingual canonical source; each bundled file keeps one language so a
+    # skill reads only the format it will write.
     plan_doc_consumers = (
         "fullstack-apply",
         "fullstack-propose",
     )
-    for stem, label in (
-        ("review-formats", "review record format"),
-        ("document-templates", "work-tracking document templates"),
-    ):
+    for lang in ("en", "zh"):
+        out.append(
+            SyncSpec(
+                source=SHARED_ROOT / "plan" / "review-formats.md",
+                targets=tuple(
+                    SKILLS_ROOT / skill / "references" / f"review-formats.{lang}.md"
+                    for skill in plan_doc_consumers
+                ),
+                description=f"review record format ({lang})",
+                transform=_language(lang),
+            )
+        )
+
+    # --- shared/plan/document-templates.md
+    #     → <skill>/references/template-<part>.{en,zh}.md
+    # Split by language AND by part, so each step reads only the template
+    # it is about to write (see the header comment in the canonical file).
+    for part in TEMPLATE_PARTS:
         for lang in ("en", "zh"):
             out.append(
                 SyncSpec(
-                    source=SHARED_ROOT / "plan" / f"{stem}.md",
+                    source=SHARED_ROOT / "plan" / "document-templates.md",
                     targets=tuple(
-                        SKILLS_ROOT / skill / "references" / f"{stem}.{lang}.md"
+                        SKILLS_ROOT / skill / "references" / f"template-{part}.{lang}.md"
                         for skill in plan_doc_consumers
                     ),
-                    description=f"{label} ({lang})",
-                    transform=_language(lang),
+                    description=f"document template: {part} ({lang})",
+                    transform=_language_part(lang, part),
                 )
             )
 

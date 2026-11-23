@@ -38,16 +38,19 @@ see — name them under **Unverified** for the cross-repo review instead.
   `unknown` / `none`)
 - The work-dir path — read `plan.md`, `analysis.md`, or anything else there
   on demand when the slice is not enough
-- The staged diff (`git diff --cached`), or for a repo without version control
-  the changed-file list
+- The staged diff — run `git diff --cached` in the repo yourself when the
+  brief does not carry it; for a repo without version control, the
+  changed-file list
 
-**Cross-repo:** `plan.md`, `analysis.md`, `progress.md`, and
-`git diff <default>...<feature>` for every affected repo; for successor work
-(`-vN`), the predecessor's shipped contracts.
+**Cross-repo:** the work-dir path (read `plan.md` and `analysis.md` from
+disk), and per affected repo its path, default branch, and feature branch —
+run `git diff <default>...<feature>` yourself; for successor work (`-vN`),
+the predecessor's shipped contracts.
 
 **Round 2 and later (either mode)** arrive on a minimal brief — the previous
 round's complete output, a `review.md` status-overview snapshot, the Evidence
-table, this round's change list, and the diff awaiting verification. Read
+table, this round's change list, and the diff awaiting verification (run
+`git diff --cached` yourself when it is not pasted). Read
 that, plus whatever the diff makes you check. Do not re-read the work
 documents end to end.
 

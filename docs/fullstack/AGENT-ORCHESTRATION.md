@@ -60,7 +60,7 @@ delegating detail work, and aggregating results.
 
 | Agent | Permission | Primary output | Boundary |
 |-------|-----------|---------------|----------|
-| **Planner** | `edit: deny`, `bash: allow` | `analysis.md` content, `plan.md` content | Reads source code only to verify the contracts it freezes. Analyzes requirements and architecture. |
+| **Planner** | `edit: allow`, `bash: allow` | `analysis.md` and `plan.md`, written directly into the work directory; returns a short summary | Edits only those two files in the work directory; never code, never commits. Reads source code only to verify the contracts it freezes. Used for full-tier items — on lean items the orchestrator writes the plan itself. |
 | **Plan Reviewer** | `edit: deny`, `bash: allow` | Plan review findings (P0/P1/P2 + verdict) for `review.md` | Never edits files, never rewrites the plan. Audits the written documents against the **original requirements** before implementation starts. |
 | **Developer** | `edit: allow`, `bash: allow` | Production code, tests, config (staged — orchestrator commits) | Never touches `review.md` or `progress.md`. Implements and validates per repo. |
 | **Code Reviewer** | `edit: deny`, `bash: allow` | Review findings (P0/P1/P2 + verdict) | Never touches source code. Two modes: per-repo staged, cross-repo. |
@@ -87,10 +87,13 @@ delegating detail work, and aggregating results.
 
 ### The orchestrator's role
 
-The main AI agent is the **only agent that writes files** from subagent
-output. Subagents return structured text; the orchestrator writes it
-into the work directory. This keeps subagents truly independent (no
-shared file system state) and creates a clean audit trail.
+The main AI agent writes `progress.md`, `review.md`, and every file
+built from reviewer output. The one exception is the Planner, which
+writes `analysis.md` and `plan.md` itself and returns only a short
+summary: routing a whole plan through the orchestrator meant generating
+it twice. Reviewers stay read-only — their independence is the point —
+and fetch diffs and documents from disk themselves rather than having
+them pasted into briefs.
 
 The orchestrator also handles:
 - Gathering external context (Jira, Confluence, Figma, GitHub)
@@ -134,12 +137,12 @@ sequenceDiagram
 
     alt feat / refactor
         Orch->>Planner: Delegate: analyze requirements
-        Planner-->>Orch: Analysis + plan content
+        Planner-->>Orch: Writes analysis.md + plan.md, returns summary
     else fix
         Orch->>Debugger: Delegate: find root cause
         Debugger-->>Orch: Root cause analysis
         Orch->>Planner: Delegate: create fix plan (from debugger's analysis)
-        Planner-->>Orch: Fix plan content
+        Planner-->>Orch: Writes fix plan, returns summary
     end
 
     Orch->>Orch: Write analysis.md, plan.md<br/>Write progress.md, review.md header<br/>Run Mermaid Compatibility Gate
@@ -151,7 +154,7 @@ sequenceDiagram
         Orch->>Orch: Append to review.md<br/>as ## Plan Review — Round N
         alt NEEDS_FIXES
             Orch->>Planner: Delegate: resolve P0/P1<br/>or reject with a written reason
-            Planner-->>Orch: Revised sections
+            Planner-->>Orch: Revises sections in place, returns notes
             Orch->>Orch: Rewrite affected sections only<br/>Re-run affected gates
         else NEEDS_USER_DECISION
             Orch->>User: Ask the open decisions

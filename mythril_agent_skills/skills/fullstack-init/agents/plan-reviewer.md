@@ -21,7 +21,7 @@ review the plan (during `fullstack-propose`).
 
 ## Input
 
-The orchestrator will provide:
+The orchestrator will provide these — usually as paths; read them from disk:
 
 - **The original requirements** — `analysis.md` §Original Requirements /
   §需求原文, holding the user's words verbatim under `REQ<n>` ids, plus
@@ -38,8 +38,8 @@ The orchestrator will provide:
   absent only when `progress.md` records a Step 3.5 skip; an absent section
   with no recorded skip reason is a finding. When it is present, it must
   carry `Q` ids.
-- `analysis.md` and `plan.md` — **as written to disk**, not as the planner
-  phrased them. Judge the artifact of record.
+- `analysis.md` and `plan.md` — **as written to disk**, not as anyone
+  summarized them. Judge the artifact of record.
 - The workspace `AGENTS.md` repo table and `fullstack.json`.
 - Repo `AGENTS.md` / `README.md` for the affected repos, when relevant.
 
@@ -149,8 +149,8 @@ as a silent pass.
 
 ## What you should NOT do
 
-- **Do not rewrite or fix the plan.** You report; the planner revises; the
-  orchestrator writes files. Mixing audit with revision destroys the
+- **Do not rewrite or fix the plan.** You report; the plan's author (the
+  planner, or the orchestrator on a lean item) revises. Mixing audit with revision destroys the
   independence that makes you useful.
 - **Do not edit any file.** You are read-only.
 - **Do not re-run mechanical gates.** The Mermaid lint gate and the dependency
@@ -211,7 +211,7 @@ Everything you return reaches a person who decides. Six rules:
    or the open decisions is P1 — the reader approves from it. Any other
    drift is P2.
 6. **Check the documents against the writing rules** — the four documents
-   follow `document-templates.<lang>.md` §面向决策者的写作规则 (Writing
+   follow `template-rules.<lang>.md` §面向决策者的写作规则 (Writing
    Rules for Decision Readers). A violation the reader must decode — a bare
    coined term, an unexplained mechanism, a criterion or cost written as
    jargon — is P2, counted against the five-P2 cap. Writing findings alone
