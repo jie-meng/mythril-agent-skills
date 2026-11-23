@@ -160,6 +160,30 @@ If `magick` is not installed:
 
 ---
 
+### Word (`python-docx`)
+
+**Required by**: [word](../mythril_agent_skills/skills/word/)
+
+Check:
+
+```bash
+python3 -c "import docx; print('python-docx OK')"
+```
+
+If not installed:
+
+```bash
+pip install mythril-agent-skills[word]
+```
+
+Or standalone:
+
+```bash
+pip install python-docx
+```
+
+---
+
 ### Markdown to PDF (`markdown-pdf`)
 
 **Required by**: [md-to-pdf](../mythril_agent_skills/skills/md-to-pdf/)

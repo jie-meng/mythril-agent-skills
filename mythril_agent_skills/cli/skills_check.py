@@ -92,6 +92,7 @@ SKILL_GIT_REPO_READER = "git-repo-reader"
 SKILL_GLEAN = "glean"
 SKILL_EXCEL = "excel"
 SKILL_PDF = "pdf"
+SKILL_WORD = "word"
 SKILL_MD_TO_PDF = "md-to-pdf"
 SKILL_QRCODE = "qrcode"
 SKILL_WEB_TESTER = "web-tester"
@@ -111,6 +112,7 @@ CHECKABLE_SKILLS = [
     SKILL_GLEAN,
     SKILL_EXCEL,
     SKILL_PDF,
+    SKILL_WORD,
     SKILL_MD_TO_PDF,
     SKILL_QRCODE,
     SKILL_IMAGEMAGICK,
@@ -867,6 +869,34 @@ def check_qrcode(config_path: Path) -> bool:
     return all_ok
 
 
+# --- Word (python-docx) ---
+
+
+def check_word(config_path: Path) -> bool:
+    """Check that python-docx is installed for the Word skill."""
+    print(f"\n{BOLD}Word (python-docx):{NC}")
+
+    version = _check_dist_version("python-docx", "docx")
+    if version:
+        print(f"  python-docx: {GREEN}installed{NC} ({DIM}{version}{NC})")
+        return True
+
+    print(f"  python-docx: {RED}NOT INSTALLED{NC}")
+    if not _confirm("Install python-docx now?"):
+        print(f"    {DIM}Skipped.{NC} Install manually: pip install python-docx")
+        return False
+    if not _install_pip_package("python-docx"):
+        print(f"    {RED}Installation failed.{NC}")
+        print(f"    {BOLD}Install manually:{NC} pip install python-docx")
+        return False
+    version = _check_dist_version("python-docx", "docx")
+    if not version:
+        print(f"    {RED}python-docx still not importable after install.{NC}")
+        return False
+    print(f"    {GREEN}python-docx {version} installed successfully.{NC}")
+    return True
+
+
 # --- ImageMagick ---
 
 
@@ -1381,6 +1411,10 @@ def main() -> None:
 
     if SKILL_PDF in skills:
         if not check_pdf(config_path):
+            all_configured = False
+
+    if SKILL_WORD in skills:
+        if not check_word(config_path):
             all_configured = False
 
     if SKILL_MD_TO_PDF in skills:
