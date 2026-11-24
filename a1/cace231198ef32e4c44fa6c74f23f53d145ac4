@@ -1,0 +1,25 @@
+mythril_agent_skills/skills/fullstack-apply/SKILL.md
+  s_facbb649ee537c::t_12aa019cbd8e02 18-19,39-41,68,124-127
+mythril_agent_skills/skills/fullstack-apply/references/quick-fix.md
+  s_facbb649ee537c::t_21b97984159434 1,3-11,15-22,43,69-71
+mythril_agent_skills/skills/fullstack-propose/SKILL.md
+  s_facbb649ee537c::t_96d829e2d54727 39-48
+tests/test_fullstack_rule_consistency.py
+  s_facbb649ee537c::t_e3f1ebe84b833e 1-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a1cace231198ef32e4c44fa6c74f23f53d145ac4",
+  "prompts": {},
+  "sessions": {
+    "s_facbb649ee537c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "924eefb8-0c42-4b42-88fb-d3e90f2a1678",
+        "model": "unknown"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
