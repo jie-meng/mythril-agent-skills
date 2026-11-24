@@ -510,7 +510,7 @@ NEVER hand-edit a bundled copy directly — your changes will be lost on the nex
 | `compute_waves.py` | `shared/waves/compute_waves.py` | `fullstack-propose`, `fullstack-apply` |
 | `plan_lint.py` | `shared/plan/plan_lint.py` | `fullstack-propose`, `fullstack-apply` |
 | `repo_skills.py` | `shared/workspace/repo_skills.py` | `fullstack-init`, `fullstack-explore`, `fullstack-apply` |
-| `check_workspace.py` | `shared/workspace/check_workspace.py` | `fullstack-apply`, `fullstack-archive`, `fullstack-issue-archive`, `fullstack-issue-create`, `fullstack-propose` |
+| `check_workspace.py` | `shared/workspace/check_workspace.py` | `fullstack-apply`, `fullstack-archive`, `fullstack-explore`, `fullstack-issue-archive`, `fullstack-issue-create`, `fullstack-propose` |
 | `template-<part>.{en,zh}.md` | `shared/plan/document-templates.md` (bilingual, split into parts) | `fullstack-apply`, `fullstack-propose` |
 | `review-formats.{en,zh}.md` | `shared/plan/review-formats.md` (bilingual) | `fullstack-apply`, `fullstack-propose` |
 

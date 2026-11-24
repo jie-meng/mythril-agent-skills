@@ -2,7 +2,8 @@
 """Validate a fullstack workspace and report key configuration in one call.
 
 This script is the single source of truth for the Workspace Validation Gate
-shared by the fullstack skill family (propose, apply). It replaces ad-hoc
+shared by the fullstack skill family (propose, apply, archive, explore, and
+the issue skills). It replaces ad-hoc
 LLM checks of "does fullstack.json exist", "does AGENTS.md exist", etc.
 with a deterministic answer.
 
@@ -61,6 +62,11 @@ def check_workspace(root: Path) -> dict[str, str]:
         except (json.JSONDecodeError, OSError):
             if "fullstack.json" not in missing:
                 missing.append("fullstack.json (corrupt)")
+
+    # A configured docs directory that is gone (moved, renamed, never
+    # cloned) would send every later step to a path that does not exist.
+    if docs_dir and not (root / docs_dir).is_dir():
+        missing.append(f"{docs_dir}/ (docs_dir from fullstack.json)")
 
     return {
         "WORKSPACE_VALID": "true" if not missing else "false",

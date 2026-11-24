@@ -31,6 +31,16 @@ class TestCheckWorkspace:
         (tmp_path / "fullstack.json").write_text(json.dumps(config))
         (tmp_path / "AGENTS.md").write_text("# AGENTS")
         (tmp_path / ".agents").mkdir()
+        docs = config.get("docs_dir")
+        if docs:
+            (tmp_path / docs).mkdir()
+
+    def test_missing_docs_dir_is_reported(self, tmp_path: Path):
+        self._make_valid_workspace(tmp_path)
+        (tmp_path / "docs").rmdir()
+        result = self.func(tmp_path)
+        assert result["WORKSPACE_VALID"] == "false"
+        assert "docs/" in result["MISSING"]
 
     def test_valid_workspace(self, tmp_path: Path):
         self._make_valid_workspace(tmp_path)
