@@ -1,0 +1,23 @@
+README.md
+  s_facbb649ee537c::t_28f334c5a2325b 294,336
+docs/fullstack/LIGHTWEIGHT-ROADMAP.md
+  s_facbb649ee537c::t_fabd01bcc4b196 21,29-30,36,45-54,60-63,69,71,73-76,247-285,303-307,311-312,321-327
+docs/fullstack/workflows.md
+  s_facbb649ee537c::t_c2092d581712c3 115-119,150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e863707f100dc6f312b3245b48b64a03cf6f6ca2",
+  "prompts": {},
+  "sessions": {
+    "s_facbb649ee537c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "924eefb8-0c42-4b42-88fb-d3e90f2a1678",
+        "model": "unknown"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
