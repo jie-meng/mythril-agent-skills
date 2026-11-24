@@ -58,6 +58,17 @@ their edits). Then read the report:
    Explain the template change in plain words, propose a merged text that
    keeps the user's intent, and apply it **only after the user confirms**.
    Then delete that pending file. Never resolve one silently.
+
+   **Keeping old content is not the same as keeping old rules.** These
+   files instruct every agent in the workspace, so a merged section must
+   not tell an agent to do what the current skills forbid. When you keep
+   something the template dropped because the workspace still has data in
+   that shape, rewrite it as **history**, not as an instruction. Example:
+   legacy `changes/archive/*-spike-*/` directories are kept as a
+   "read-only legacy records" note, never as a *Spike* row in the category
+   table, because today a spike runs as `fullstack-propose` deep mode inside
+   the work item's `analysis.md`, and a category row would make an agent
+   create new spike directories.
 2. **`Review once`** appears on the first run after the baseline was
    introduced: the script cannot tell whether a difference is the user's
    edit or a template update the workspace never received. Ask; old

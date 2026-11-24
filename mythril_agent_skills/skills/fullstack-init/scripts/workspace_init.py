@@ -710,8 +710,17 @@ def parse_agents_md_sections(content: str) -> tuple[str, list[tuple[str, str]]]:
     current_title = ""
     current_body: list[str] = []
 
+    in_fence = False
     for line in lines:
         stripped = line.strip()
+        # A heading inside a fenced block is example text (a document
+        # template quoted in AGENTS.md), not a section of this file.
+        if stripped.startswith(("```", "~~~")):
+            in_fence = not in_fence
+        if in_fence or stripped.startswith(("```", "~~~")):
+            if current_title:
+                current_body.append(line)
+            continue
         if stripped.startswith("# ") and not current_title:
             h1_line = line
             continue
@@ -1124,9 +1133,12 @@ def _preamble(content: str) -> str:
     lines = content.split("\n")
     out: list[str] = []
     seen_h1 = False
+    in_fence = False
     for line in lines:
         stripped = line.strip()
-        if stripped.startswith("## "):
+        if stripped.startswith(("```", "~~~")):
+            in_fence = not in_fence
+        if stripped.startswith("## ") and not in_fence:
             break
         if stripped.startswith("# ") and not seen_h1:
             seen_h1 = True
@@ -1833,8 +1845,14 @@ def create_agent_symlinks(root: Path) -> list[str]:
     target = Path("..") / ".agents" / "agents"
     messages: list[str] = []
 
+    expected = agents_dir.resolve()
     for tool_name, link_path in AGENT_SYMLINK_TOOLS.items():
         full_link = root / link_path
+
+        # Already reaches .agents/agents — e.g. the whole tool directory is
+        # itself a symlink to .agents. Nothing to do, nothing to report.
+        if full_link.exists() and full_link.resolve() == expected:
+            continue
 
         if full_link.is_symlink():
             resolved = full_link.resolve()

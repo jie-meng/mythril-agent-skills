@@ -1873,3 +1873,38 @@ class TestMergeKeepsTheUsersLayout:
             < merged.index("## Quick Fixes")
             < merged.index("## Work Tracking")
         )
+
+
+class TestFencedHeadings:
+    def test_heading_inside_a_code_block_is_not_a_section(self):
+        from workspace_init import parse_agents_md_sections
+
+        text = (
+            "# Docs\n\n## Templates\n\n```markdown\n# Title\n\n## Background\n\n"
+            "text\n```\n\n## Conventions\n\n- x\n"
+        )
+        _, sections = parse_agents_md_sections(text)
+        assert [title for title, _ in sections] == ["## Templates", "## Conventions"]
+        assert "## Background" in sections[0][1]
+
+    def test_merge_leaves_a_quoted_template_intact(self):
+        from workspace_init import merge_agents_md
+
+        text = (
+            "# Docs\n\n## Templates\n\n```markdown\n## Background\n<desc>\n"
+            "## Impact\n<desc>\n```\n\n## Conventions\n\n- x\n"
+        )
+        merged = merge_agents_md(text, "# Docs\n\n## Conventions\n\n- x\n")
+        assert "## Background\n<desc>\n## Impact\n<desc>\n```" in merged
+
+
+class TestSymlinkedToolDirectory:
+    def test_tool_dir_that_is_itself_a_symlink_to_agents_is_accepted(
+        self, tmp_path: Path
+    ):
+        from workspace_init import create_agent_symlinks
+
+        (tmp_path / ".agents" / "agents").mkdir(parents=True)
+        (tmp_path / ".opencode").symlink_to(".agents", target_is_directory=True)
+        messages = create_agent_symlinks(tmp_path)
+        assert not any("opencode" in m and "skipped" in m for m in messages)
