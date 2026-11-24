@@ -1,0 +1,43 @@
+AGENTS.md
+  s_facbb649ee537c::t_72f8faa9381921 513
+mythril_agent_skills/shared/workspace/check_workspace.py
+  s_facbb649ee537c::t_f48827ea41bcb2 5-6,66-70
+mythril_agent_skills/skills/fullstack-apply/scripts/check_workspace.py
+  s_facbb649ee537c::t_91c8a4575ac97c 5-6,66-70
+mythril_agent_skills/skills/fullstack-archive/scripts/check_workspace.py
+  s_facbb649ee537c::t_1e7863b7d8617e 5-6,66-70
+mythril_agent_skills/skills/fullstack-explore/SKILL.md
+  s_facbb649ee537c::t_5f98fe2d9f6659 23-26,28,30-33,37-39,41,43-46,48,50,52-53,56-59,61,63-64,68-167,171-173
+mythril_agent_skills/skills/fullstack-explore/references/answer-format.md
+  s_facbb649ee537c::t_cf78adb1c5ccda 1-50
+mythril_agent_skills/skills/fullstack-explore/references/graphify-queries.md
+  s_facbb649ee537c::t_b0d50a81b9a53a 1-53
+mythril_agent_skills/skills/fullstack-explore/scripts/check_workspace.py
+  s_facbb649ee537c::t_a61675f1429d65 1-102
+mythril_agent_skills/skills/fullstack-issue-archive/scripts/check_workspace.py
+  s_facbb649ee537c::t_5e5290595fdccb 5-6,66-70
+mythril_agent_skills/skills/fullstack-issue-create/scripts/check_workspace.py
+  s_facbb649ee537c::t_e830093a96c8a0 5-6,66-70
+mythril_agent_skills/skills/fullstack-propose/scripts/check_workspace.py
+  s_facbb649ee537c::t_1717c5a3d1b867 5-6,66-70
+scripts/sync-shared-assets.py
+  s_facbb649ee537c::t_3858109db88eb1 235
+tests/skills/test_fullstack_apply.py
+  s_facbb649ee537c::t_7bc72721792c53 34-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d416a433c732f66b403d4765e5d7556176ce742b",
+  "prompts": {},
+  "sessions": {
+    "s_facbb649ee537c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "924eefb8-0c42-4b42-88fb-d3e90f2a1678",
+        "model": "unknown"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
