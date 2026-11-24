@@ -60,8 +60,9 @@ directory:
    record.
 
 5. Re-run the Mermaid gate and four-file consistency check, then
-   `plan_lint.py` — it fails the round if the attestation or a Code Map
-   row is missing.
+   `plan_lint.py` — it fails the round on a broken chain (a missing Code
+   Map row, a criterion with no Evidence row) and warns on a missing
+   attestation; fix both.
 
 A small fix gets a small loop, never a skipped one: every code-touching
 round gets a progress entry, an independent code review, and the one-line

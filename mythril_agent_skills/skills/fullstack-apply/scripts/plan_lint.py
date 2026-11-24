@@ -116,10 +116,12 @@ Checks:
     line forces the judgement to be written down. Repos with no skills
     are silent, and so is a work directory outside a fullstack workspace.
 
-Checks 5, 7, 8 and 13 are warnings because none of them breaks the chain.
-Checks 1-4, 6, 9, 10, 11, 12 and 14 are errors: each one lets an
-unverifiable claim enter the definition of done, or leaves the work item
-untraceable from its own code. Item 6 stays silent for work items that
+Checks 5, 7, 8, 10, 12, 13 and 14 are warnings: they check how a document
+is written or kept, and none of them breaks the chain — a missing
+attestation, a stale summary line, or an unrecorded skill index is worth
+fixing but must not block a commit. Checks 1-4, 6, 9 and 11 are errors:
+each one lets an unverifiable claim enter the definition of done, or leaves
+the work item untraceable from its own code. Item 6 stays silent for work items that
 have neither the section nor a coverage matrix, so legacy items do not
 generate noise. Items 8 and 12 are silent in mirror image: a work item
 written before the summary existed has no section to find — item 8
@@ -744,7 +746,7 @@ def _check_document_sync(review_text: str) -> list[Finding]:
     if not lines[newest]:
         findings.append(
             Finding(
-                "ERROR",
+                "WARN",
                 f"'{rounds[newest][0]}' is the newest code review round and "
                 "carries no '**文档同步**' / '**Document Sync**' line — state "
                 "for each of analysis.md, plan.md, progress.md, review.md "
@@ -759,7 +761,7 @@ def _check_document_sync(review_text: str) -> list[Finding]:
             if not lines[index]:
                 findings.append(
                     Finding(
-                        "ERROR",
+                        "WARN",
                         f"'{rounds[index][0]}' changes code but carries no "
                         "'**文档同步**' / '**Document Sync**' line, while an "
                         "earlier round does — state the outcome for each of "
@@ -772,7 +774,7 @@ def _check_document_sync(review_text: str) -> list[Finding]:
         if missing:
             findings.append(
                 Finding(
-                    "ERROR",
+                    "WARN",
                     f"'{rounds[index][0]}' Document Sync line omits "
                     + ", ".join(missing)
                     + " — all four documents must be answered, each with one "
@@ -783,7 +785,7 @@ def _check_document_sync(review_text: str) -> list[Finding]:
         if silent:
             findings.append(
                 Finding(
-                    "ERROR",
+                    "WARN",
                     f"'{rounds[index][0]}' Document Sync line names "
                     + ", ".join(silent)
                     + " with no clause after it — the line exists to force the "
@@ -1165,7 +1167,7 @@ def _check_summary_freshness(plan_text: str, review_text: str) -> list[Finding]:
 
     return [
         Finding(
-            "ERROR",
+            "WARN",
             f"{PLAN_FILE}'s '## 摘要' / '## Summary' does not reflect the "
             "newest plan-review round — missing "
             + " and ".join(missing)
@@ -1323,7 +1325,7 @@ def _check_repo_skills(work_dir: Path, review_text: str) -> list[Finding]:
         if not line:
             findings.append(
                 Finding(
-                    "ERROR",
+                    "WARN",
                     f"'{heading}' is the newest code review round for "
                     f"'{repo}', which ships repo skills, and carries no "
                     "'**Repo Skills**' / '**仓库技能**' line — the index was "
@@ -1346,7 +1348,7 @@ def _check_repo_skills(work_dir: Path, review_text: str) -> list[Finding]:
         if missing:
             findings.append(
                 Finding(
-                    "ERROR",
+                    "WARN",
                     f"'{heading}' Repo Skills line does not account for "
                     + ", ".join(missing)
                     + f" — the repo's index lists: {', '.join(skills)}. Name "

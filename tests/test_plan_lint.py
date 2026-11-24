@@ -334,7 +334,7 @@ class TestLintWorkDir:
             _work_dir(tmp_path, PLAN_OK, review, analysis="D7 待确认\n")
         )
         assert "STATUS=FAIL" in format_findings(findings)
-        assert 'WARNINGS=1' in format_findings(findings)
+        assert 'WARNINGS=2' in format_findings(findings)
 
     def test_summary_section_present_no_warning(self, tmp_path: Path):
         # The heading carries a parenthetical suffix on purpose: the
@@ -637,19 +637,19 @@ class TestDocumentSync:
         findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, REVIEW_OK))
         assert not [f for f in findings if "文档同步" in f.message]
 
-    def test_newest_round_without_attestation_is_an_error(self, tmp_path: Path):
+    def test_newest_round_without_attestation_is_a_warning(self, tmp_path: Path):
         findings = lint_work_dir(
             _work_dir(tmp_path, PLAN_OK, REVIEW_OK + _code_round("api", 1))
         )
         assert any(
-            "newest code review round" in m for m in _errors(findings)
+            "newest code review round" in m for m in _warnings(findings)
         )
 
     def test_older_rounds_are_not_back_filled(self, tmp_path: Path):
         # two rounds, neither attested: only the newest is demanded
         review = REVIEW_OK + _code_round("api", 1) + _code_round("api", 2)
         findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, review))
-        missing = [m for m in _errors(findings) if "文档同步" in m]
+        missing = [m for m in _warnings(findings) if "文档同步" in m]
         assert len(missing) == 1
         assert "第 2 轮" in missing[0]
 
@@ -666,19 +666,19 @@ class TestDocumentSync:
             + _code_round("web", 2)
         )
         findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, review))
-        errors = _errors(findings)
+        errors = _warnings(findings)
         assert any(
             "changes code but carries no" in m and "web — 第 1 轮" in m
             for m in errors
         )
         assert any("newest code review round" in m for m in errors)
 
-    def test_attestation_naming_three_of_four_is_an_error(self, tmp_path: Path):
+    def test_attestation_naming_three_of_four_is_a_warning(self, tmp_path: Path):
         partial = ATTESTATION.replace("`progress.md` —— 新增当日条目；", "")
         findings = lint_work_dir(
             _work_dir(tmp_path, PLAN_OK, REVIEW_OK + _code_round("api", 1, partial))
         )
-        errors = _errors(findings)
+        errors = _warnings(findings)
         assert any("omits progress.md" in m for m in errors)
 
     def test_heading_without_line_is_not_an_attestation(self, tmp_path: Path):
@@ -687,7 +687,7 @@ class TestDocumentSync:
         )
         findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, review))
         assert any(
-            "newest code review round" in m for m in _errors(findings)
+            "newest code review round" in m for m in _warnings(findings)
         )
 
 
@@ -723,10 +723,10 @@ def _lint_in_workspace(work: Path, review: str) -> list:
 
 
 class TestRepoSkills:
-    def test_missing_line_is_an_error(self, tmp_path: Path):
+    def test_missing_line_is_a_warning(self, tmp_path: Path):
         work = _workspace_work_dir(tmp_path, ["deploy-helper", "release-helper"])
         review = REVIEW_OK + _code_round("api", 1, ATTESTATION)
-        errors = _errors(_lint_in_workspace(work, review))
+        errors = _warnings(_lint_in_workspace(work, review))
         assert any(
             "Repo Skills" in message and "deploy-helper" in message
             for message in errors
@@ -746,7 +746,7 @@ class TestRepoSkills:
         work = _workspace_work_dir(tmp_path, ["deploy-helper", "release-helper"])
         partial = "### 仓库技能\n\n**仓库技能**：deploy-helper —— 已加载\n\n"
         review = REVIEW_OK + _code_round("api", 1, ATTESTATION) + partial
-        errors = _errors(_lint_in_workspace(work, review))
+        errors = _warnings(_lint_in_workspace(work, review))
         assert any("release-helper" in message for message in errors)
 
     def test_repo_without_skills_is_silent(self, tmp_path: Path):
@@ -764,7 +764,7 @@ class TestRepoSkills:
             + ATTESTATION
             + "\n"
         )
-        errors = _errors(_lint_in_workspace(work, review))
+        errors = _warnings(_lint_in_workspace(work, review))
         assert any(
             "Repo Skills" in message and "deploy-helper" in message
             for message in errors
@@ -1080,7 +1080,7 @@ class TestAttestationFormat:
                 REVIEW_OK + _code_round("api", 1, ATTESTATION_NAMES_ONLY),
             )
         )
-        assert any("no clause" in m for m in _errors(findings))
+        assert any("no clause" in m for m in _warnings(findings))
 
     def test_legacy_review_round_heading_is_still_a_code_round(
         self, tmp_path: Path
@@ -1092,7 +1092,7 @@ class TestAttestationFormat:
             "### Verdict\n\nPASS — no blockers.\n"
         )
         findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, review))
-        named = [m for m in _errors(findings) if "newest code review round" in m]
+        named = [m for m in _warnings(findings) if "newest code review round" in m]
         assert named and "Review Round 3" in named[0]
 
 
@@ -1177,7 +1177,7 @@ class TestAttestationLocation:
 
     def test_table_quote_does_not_count_as_attestation(self, tmp_path: Path):
         findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, REVIEW_OK + self.QUOTING_TABLE))
-        named = [m for m in _errors(findings) if "newest code review round" in m]
+        named = [m for m in _warnings(findings) if "newest code review round" in m]
         assert named and "第 5 轮" in named[0]
 
     def test_real_paragraph_after_a_quoting_table_is_read(self, tmp_path: Path):
@@ -1275,16 +1275,16 @@ PLAN_SUMMARY_ROUND_TWO = PLAN_OK.replace(
 
 
 class TestSummaryFreshness:
-    def test_stale_summary_is_an_error(self, tmp_path: Path):
+    def test_stale_summary_is_a_warning(self, tmp_path: Path):
         findings = lint_work_dir(
             _work_dir(tmp_path, PLAN_STALE_SUMMARY, REVIEW_TWO_ROUNDS)
         )
         stale = [
-            m for m in _errors(findings) if "newest plan-review round" in m
+            m for m in _warnings(findings) if "newest plan-review round" in m
         ]
         assert len(stale) == 1
         assert "PASS_WITH_RISKS" in stale[0]
-        assert "STATUS=FAIL" in format_findings(findings)
+        assert "STATUS=PASS" in format_findings(findings)
 
     def test_unnamed_round_is_reported_by_number(self, tmp_path: Path):
         # The summary stops at round 1 while round 2 is in the record.
@@ -1292,7 +1292,7 @@ class TestSummaryFreshness:
             _work_dir(tmp_path, PLAN_OK, REVIEW_TWO_ROUNDS)
         )
         stale = [
-            m for m in _errors(findings) if "newest plan-review round" in m
+            m for m in _warnings(findings) if "newest plan-review round" in m
         ]
         assert len(stale) == 1
         assert "round 2" in stale[0]
@@ -1313,7 +1313,7 @@ class TestSummaryFreshness:
             "**读哪里**：第 2 轮 PASS_WITH_RISKS 见 review.md",
         )
         findings = lint_work_dir(_work_dir(tmp_path, plan, REVIEW_TWO_ROUNDS))
-        assert any("newest plan-review round" in m for m in _errors(findings))
+        assert any("newest plan-review round" in m for m in _warnings(findings))
 
     def test_summary_without_a_status_field_stays_silent(self, tmp_path: Path):
         # Older prose summaries carry no status field, so nothing claims a
