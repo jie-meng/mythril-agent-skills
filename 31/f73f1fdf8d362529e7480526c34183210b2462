@@ -1,0 +1,23 @@
+mythril_agent_skills/skills/fullstack-init/SKILL.md
+  s_facbb649ee537c::t_a9f8ebc4e2e6ec 61-71
+mythril_agent_skills/skills/fullstack-init/scripts/workspace_init.py
+  s_facbb649ee537c::t_68f23661310b2b 713,716-723,1136,1139-1141,1848,1852-1856
+tests/skills/test_fullstack_init.py
+  s_facbb649ee537c::t_069b12097bc575 1876-1910
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "31f73f1fdf8d362529e7480526c34183210b2462",
+  "prompts": {},
+  "sessions": {
+    "s_facbb649ee537c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "924eefb8-0c42-4b42-88fb-d3e90f2a1678",
+        "model": "unknown"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
