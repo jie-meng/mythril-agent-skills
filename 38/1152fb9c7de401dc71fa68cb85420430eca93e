@@ -1,0 +1,41 @@
+README.md
+  s_facbb649ee537c::t_a3c423f98a68dc 336
+docs/fullstack/overview.md
+  s_facbb649ee537c::t_df68b9d7f1359f 71-76
+docs/fullstack/workflows.md
+  s_facbb649ee537c::t_881d2c2c03b35e 112-118,149
+mythril_agent_skills/skills/fullstack-apply/SKILL.md
+  s_facbb649ee537c::t_b552cd18aeccde 9-11,17-19,38-40,67,123-127,401-402
+mythril_agent_skills/skills/fullstack-apply/references/follow-up.md
+  s_facbb649ee537c::t_9e5fba218c9649 33-44,53-60,67-68
+mythril_agent_skills/skills/fullstack-apply/references/quick-fix.md
+  s_facbb649ee537c::t_de4e7e2b0d111a 1-99
+mythril_agent_skills/skills/fullstack-explore/SKILL.md
+  s_facbb649ee537c::t_166596ff540572 449
+mythril_agent_skills/skills/fullstack-init/agents/plan-reviewer.md
+  s_facbb649ee537c::t_8b3091b60f3f53 160-166,218-220
+mythril_agent_skills/skills/fullstack-init/agents/planner.md
+  s_facbb649ee537c::t_fa92d9c143b4d4 45-50
+mythril_agent_skills/skills/fullstack-propose/SKILL.md
+  s_facbb649ee537c::t_bd5d437a1357cc 18-19,39-47,163,218-222,252-258,404-406
+docs/fullstack/LIGHTWEIGHT-ROADMAP.md
+  s_facbb649ee537c::t_cd5fd581cdfe08 1-273
+docs/fullstack/README.md
+  s_facbb649ee537c::t_9d0fabe8159f30 67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "381152fb9c7de401dc71fa68cb85420430eca93e",
+  "prompts": {},
+  "sessions": {
+    "s_facbb649ee537c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "924eefb8-0c42-4b42-88fb-d3e90f2a1678",
+        "model": "unknown"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
