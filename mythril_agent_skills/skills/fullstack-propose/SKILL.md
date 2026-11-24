@@ -36,14 +36,16 @@ Turn an idea into a planned work item in a workspace initialized by
 
 ## How this skill works
 
-**Quick fix first — not every bug is a work item.** A `fix` whose root
-cause is already established (in this session, with evidence), confined to
-one repo, with no cross-repo contract / persisted-data / schema / external
-API change, small enough to review in one sitting, and touching no code an
-active work item owns, does not get a work directory. Recommend
-`fullstack-apply`'s quick-fix path in the Step 3 message (`Tier: quick fix
-— no work item`); if the user accepts, stop here — write nothing, commit
-nothing — and hand off. The user can always insist on a work item.
+**Quick fix first — not every change is a work item.** A bug whose root
+cause is already established with evidence, or a fully specified small
+tweak — confined to one repo, with no cross-repo contract / persisted-data /
+schema / external API change, small enough to review in one sitting, and
+touching no code an active work item owns — does not get a work directory.
+The full conditions live in `fullstack-apply`'s
+`references/quick-fix.md`. Recommend that path in the Step 3 message
+(`Tier: quick fix — no work item`); if the user accepts, stop here — write
+nothing, commit nothing — and hand off. The user can always insist on a
+work item.
 
 | | Lean tier | Full tier |
 |---|---|---|

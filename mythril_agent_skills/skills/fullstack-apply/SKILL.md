@@ -15,8 +15,8 @@ description: |
   "this is wrong", "fix this", "调一下", "再改一下", "这里不对",
   "log 报错", pasted error/log; or when continuing an existing work
   item under changes/{feat,refactor,fix}/. ALSO a quick fix with no
-  work item (bug already root-caused, one repo, small) — "直接修",
-  "quick fix", "just fix it".
+  work item (root-caused bug or small tweak, one repo) — "直接修",
+  "直接改", "quick fix", "just fix it".
 license: Apache-2.0
 ---
 
@@ -36,8 +36,9 @@ Implement a planned work item in a workspace initialized by
 
 This skill does NOT plan. No work directory for the request → tell the
 user to run `fullstack-propose` first — except a **quick fix**: a bug whose
-root cause is already established, in one repo, small, with no contract
-change, is fixed directly with no work item (`references/quick-fix.md`).
+root cause is already established (or a fully specified small tweak), in
+one repo, small, with no contract change, is made directly with no work
+item (`references/quick-fix.md`).
 
 ## How this skill works
 
@@ -64,7 +65,7 @@ it costs a full context rebuild and buys no parallelism.
 | `references/cross-repo-review.md` | After the final wave of a multi-repo item |
 | `references/pr-creation.md` | Step 6, only when `github_repos=true` |
 | `references/no-vcs-repos.md` | A repo in scope has no git metadata |
-| `references/quick-fix.md` | A root-caused, one-repo, small bug fix with no work directory |
+| `references/quick-fix.md` | A root-caused bug or fully specified small tweak — one repo, small — with no work directory |
 | `references/follow-up.md` | Feedback, a log, or a fix request on an implemented item; resuming |
 | `references/lessons-learned.md` | Step 8, only when a lesson clears its value bar |
 | `references/MERMAID-RULES.md` | Before editing a diagram |
@@ -120,10 +121,10 @@ removed. This policy goes verbatim into every developer brief.
    `<docs-dir>/changes/<type>/<name>/`.
 2. Unnamed reference → list active items under `changes/{feat,refactor,fix}/`
    and ask.
-3. A bug fix with no work directory → if it meets every condition in
-   `references/quick-fix.md` (root cause established, one repo, no
-   contract change, small, code not owned by an active item), read it and
-   follow it instead of Steps 2–7. Any other new requirement → STOP;
+3. A bug fix or small tweak with no work directory → if it meets every
+   condition in `references/quick-fix.md` (cause or change fully
+   understood, one repo, no contract change, small, code not owned by an
+   active item), read it and follow it instead of Steps 2–7. Any other new requirement → STOP;
    `fullstack-propose` first.
 4. Feedback / a log / a fix on an already-implemented item → read
    `references/follow-up.md` and follow it instead of Steps 2–7.

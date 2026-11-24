@@ -1,17 +1,25 @@
-# Quick Fix — a small bug fix with no work item
+# Quick Fix — a small change with no work item
 
-Most bugs do not need a plan. When the root cause is already known and the
-fix is small, writing four documents and running a plan review costs more
-than the fix itself and catches nothing the code review would not. The
-quick-fix path goes straight from the known cause to a reviewed commit.
+Most bugs and small tweaks do not need a plan. When the cause (or the
+intended change) is already known and the change is small, writing four
+documents and running a plan review costs more than the change itself and
+catches nothing the code review would not. The quick-fix path goes
+straight from the known cause to a reviewed commit.
+
+This file is the single source of the quick-fix conditions. Other places
+(`fullstack-propose`, `fullstack-explore`, the workspace `AGENTS.md`)
+summarize them and point here; change them here first.
 
 ## When it applies — all must hold
 
-1. **The root cause is established** — in this session, with evidence
-   (log lines, a code path, a failing test, data), or it is obvious from
-   the error itself. A symptom with a guessed cause is not established:
-   find the cause first (the **debugger** subagent, or inline), then come
-   back here.
+1. **The change is fully understood** — for a bug, the root cause is
+   established in this session with evidence (log lines, a code path, a
+   failing test, data) or is obvious from the error itself; for a tweak
+   (a copy change, a constant, a config value, a small behavior
+   adjustment), the user has specified exactly what should change. A
+   symptom with a guessed cause is not established: find the cause first
+   (the **debugger** subagent, or inline), then come back here. A tweak
+   that needs design choices is not fully specified.
 2. **One repo.**
 3. **No contract change** — no cross-repo interface, persisted data /
    schema / migration, or API consumed outside the repo changes shape.
@@ -32,7 +40,7 @@ Any condition fails → this is a work item: send the user to
 
 ## The fix is the smallest one that removes the symptom
 
-Fix what was reported. Generalized hardening — "while we are here, also
+Fix what was reported; for a tweak, change exactly what was asked. Generalized hardening — "while we are here, also
 guard every other caller", a new framework-level fallback, a refactor —
 is not part of a quick fix even if it would prevent a related bug. Name
 it in the report as a possible follow-up and let the user decide; if they
@@ -58,8 +66,9 @@ meets the conditions above — never folded silently into the first one.
 
 2. **Branch** — Step 3 naming (`fix/<Title-Hyphenated>`).
 3. **Implement** — the implementer checklist (Step 4) and the Code Comment
-   Policy. Add a regression test that fails without the fix whenever the
-   repo has tests.
+   Policy. For a bug, add a regression test that fails without the fix
+   whenever the repo has tests; for a tweak, update the tests that assert
+   the old behavior.
 4. **Independent review** — one fresh **code-reviewer** pass, mode
    per-repo. Brief: the symptom, the root-cause evidence, the fix in one
    paragraph, the test result, and the acceptance line "the reported
