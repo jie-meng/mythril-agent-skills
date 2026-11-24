@@ -963,7 +963,7 @@ class TestFormatReport:
     def test_updated_items(self):
         report = {"created": [], "updated": ["AGENTS.md"], "skipped": []}
         result = self.func(report)
-        assert "Regenerated:" in result
+        assert "Refreshed:" in result
         assert "~ AGENTS.md" in result
 
     def test_all_empty(self):
@@ -1160,17 +1160,31 @@ class TestBootstrapWorkspace:
         result = (tmp_path / "AGENTS.md").read_text()
         assert "My custom note here" in result
 
-    def test_rerun_regenerates_agent_templates(self, tmp_path: Path):
+    def test_rerun_keeps_a_user_edited_agent(self, tmp_path: Path):
         _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
         self.func(tmp_path)
 
         dev_agent = tmp_path / ".agents" / "agents" / "developer.md"
-        dev_agent.write_text("# Outdated content\n")
+        dev_agent.write_text("# My team's developer rules\n")
+
+        report = self.func(tmp_path)
+        assert dev_agent.read_text() == "# My team's developer rules\n"
+        assert ".agents/agents/developer.md" in report["kept"]
+
+    def test_rerun_refreshes_an_untouched_agent(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.func(tmp_path)
+
+        from workspace_init import load_baseline, save_baseline
+
+        dev_agent = tmp_path / ".agents" / "agents" / "developer.md"
+        baseline = load_baseline(tmp_path)
+        baseline["agents/developer.md"] = "# Old template\n"
+        save_baseline(tmp_path, baseline)
+        dev_agent.write_text("# Old template\n")
 
         self.func(tmp_path)
-        content = dev_agent.read_text()
-        assert "Outdated content" not in content
-        assert "Developer" in content
+        assert "Developer" in dev_agent.read_text()
 
     def test_no_workspace_git_init(self, tmp_path: Path):
         _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
@@ -1564,3 +1578,298 @@ class TestMergeRefreshesShippedRules:
         existing = "# proj\n\n## My Own Rules\n\nHand-written.\n"
         merged = merge_agents_md(existing, generated)
         assert "Hand-written." in merged
+
+
+# ---------------------------------------------------------------------------
+# Three-way refresh: template updates land, user edits survive
+# ---------------------------------------------------------------------------
+
+
+class TestThreeWay:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from workspace_init import three_way
+
+        self.func = three_way
+
+    def test_absent_unit_is_created(self):
+        assert self.func(None, None, "new") == ("new", "created")
+
+    def test_matching_unit_is_unchanged(self):
+        assert self.func("same\n", "old", "same") == ("same\n", "unchanged")
+
+    def test_untouched_unit_takes_the_template(self):
+        assert self.func("old", "old", "new") == ("new", "updated")
+
+    def test_user_edit_is_kept_when_template_did_not_move(self):
+        assert self.func("mine", "old", "old") == ("mine", "kept")
+
+    def test_both_changed_is_a_conflict_that_keeps_the_user_text(self):
+        assert self.func("mine", "old", "new") == ("mine", "conflict")
+
+    def test_no_baseline_and_a_difference_keeps_the_user_text(self):
+        assert self.func("mine", None, "new") == ("mine", "conflict")
+
+
+def _agents_md(work_tracking: str = "Template work tracking.", extra: str = "") -> str:
+    return (
+        "# ws\n\n## Project Overview\n\nOverview.\n\n"
+        "## Repositories\n\n"
+        "| # | Repository | Role | Tech Stack | Description |\n"
+        "|---|-----------|------|-----------|-------------|\n"
+        "| 1 | [api](./api/) | Backend / API | Python | — |\n"
+        "| 2 | [web](./web/) | Web Frontend | TypeScript | — |\n\n"
+        "## Workspace Conventions\n\n- **Scripts**: in scripts/.\n\n"
+        f"## Work Tracking\n\n{work_tracking}\n{extra}"
+    )
+
+
+class TestMergeAgentsMdThreeWay:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from workspace_init import merge_agents_md_report
+
+        self.func = merge_agents_md_report
+
+    def test_untouched_section_takes_the_new_template(self):
+        old = _agents_md("Old rule.")
+        new = _agents_md("New rule.")
+        merged, report = self.func(old, new, baseline=old)
+        assert "New rule." in merged and "Old rule." not in merged
+        assert "Work Tracking" in report["updated"]
+
+    def test_edited_section_is_kept_when_template_did_not_move(self):
+        base = _agents_md("Rule.")
+        mine = _agents_md("Rule. Our team also tags releases.")
+        merged, report = self.func(mine, base, baseline=base)
+        assert "Our team also tags releases." in merged
+        assert "Work Tracking" in report["kept"]
+
+    def test_both_changed_is_reported_and_keeps_the_user_text(self):
+        base = _agents_md("Rule.")
+        mine = _agents_md("Rule. Mine.")
+        new = _agents_md("Rule v2.")
+        merged, report = self.func(mine, new, baseline=base)
+        assert "Rule. Mine." in merged and "Rule v2." not in merged
+        assert "Work Tracking" in report["conflicts"]
+
+    def test_no_baseline_lists_a_difference_for_one_time_review(self):
+        merged, report = self.func(_agents_md("Mine."), _agents_md("New."))
+        assert "Mine." in merged
+        assert report["conflicts"] == []
+        assert report["review"] == ["Work Tracking"]
+
+    def test_hand_written_file_gets_no_sections_without_a_baseline(self):
+        mine = "# Docs\n\n## 产品背景\n\n手写内容。\n"
+        merged, _ = self.func(
+            mine, _agents_md(), add_missing_without_baseline=False
+        )
+        assert "## Work Tracking" not in merged
+        assert "手写内容。" in merged
+
+    def test_user_edited_repo_description_survives(self):
+        base = _agents_md()
+        mine = base.replace(
+            "| 1 | [api](./api/) | Backend / API | Python | — |",
+            "| 1 | [api](./api/) | Backend / API | Python | Device gateway |",
+        )
+        merged, report = self.func(mine, base, baseline=base)
+        assert "Device gateway" in merged
+        assert "Repositories → api" in report["kept"]
+
+    def test_untouched_repo_row_refreshes_and_rows_follow_the_repo_set(self):
+        base = _agents_md()
+        new = base.replace(
+            "| 2 | [web](./web/) | Web Frontend | TypeScript | — |",
+            "| 2 | [web](./web/) | Web Frontend | TypeScript | Admin portal |\n"
+            "| 3 | [ios](./ios/) | iOS | Swift | — |",
+        )
+        merged, _ = self.func(base, new, baseline=base)
+        assert "Admin portal" in merged
+        assert "| 3 | [ios](./ios/)" in merged
+
+    def test_note_around_the_repos_table_survives(self):
+        base = _agents_md()
+        mine = base.replace(
+            "|---|-----------|------|-----------|-------------|\n"
+            "| 1 | [api](./api/) | Backend / API | Python | — |\n"
+            "| 2 | [web](./web/) | Web Frontend | TypeScript | — |\n",
+            "|---|-----------|------|-----------|-------------|\n"
+            "| 1 | [api](./api/) | Backend / API | Python | — |\n"
+            "| 2 | [web](./web/) | Web Frontend | TypeScript | — |\n\n"
+            "> api deploys through Jenkins.\n",
+        )
+        merged, _ = self.func(mine, base, baseline=base)
+        assert "> api deploys through Jenkins." in merged
+
+    def test_section_the_user_deleted_is_not_re_added(self):
+        base = _agents_md()
+        mine = base.split("## Work Tracking")[0]
+        merged, _ = self.func(mine, base, baseline=base)
+        assert "## Work Tracking" not in merged
+
+    def test_section_the_template_dropped_is_removed_when_untouched(self):
+        base = _agents_md(extra="\n## Old Section\n\nGone.\n")
+        new = _agents_md()
+        merged, _ = self.func(base, new, baseline=base)
+        assert "## Old Section" not in merged
+
+    def test_user_only_section_survives(self):
+        base = _agents_md()
+        mine = base + "\n## Deployment\n\nUse devops.\n"
+        merged, _ = self.func(mine, base, baseline=base)
+        assert "## Deployment" in merged
+
+    def test_convention_bullet_the_user_deleted_is_not_re_added(self):
+        base = _agents_md()
+        mine = base.replace("- **Scripts**: in scripts/.\n", "")
+        merged, _ = self.func(mine, base, baseline=base)
+        assert "**Scripts**" not in merged
+
+    def test_untouched_convention_bullet_takes_the_new_template(self):
+        base = _agents_md()
+        new = base.replace("in scripts/.", "in scripts/, run from the root.")
+        merged, _ = self.func(base, new, baseline=base)
+        assert "run from the root." in merged
+
+    def test_merge_is_idempotent(self):
+        base = _agents_md("Rule.")
+        mine = _agents_md("Rule. Mine.")
+        new = _agents_md("Rule v2.")
+        once, _ = self.func(mine, new, baseline=base)
+        twice, _ = self.func(once, new, baseline=new)
+        assert once == twice
+
+
+class TestBootstrapThreeWay:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from workspace_init import bootstrap_workspace, load_baseline, save_baseline
+
+        self.run = bootstrap_workspace
+        self.load = load_baseline
+        self.save = save_baseline
+
+    def test_first_run_records_a_baseline(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.run(tmp_path)
+        baseline = self.load(tmp_path)
+        assert {"AGENTS.md", "README.md", "agents/planner.md"} <= set(baseline)
+
+    def test_template_update_reaches_an_untouched_section(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.run(tmp_path)
+        agents_md = tmp_path / "AGENTS.md"
+        stale = agents_md.read_text().replace(
+            "Work directories are **never deleted**", "OLD TEMPLATE TEXT"
+        )
+        agents_md.write_text(stale)
+        baseline = self.load(tmp_path)
+        baseline["AGENTS.md"] = stale
+        self.save(tmp_path, baseline)
+
+        self.run(tmp_path)
+        assert "OLD TEMPLATE TEXT" not in agents_md.read_text()
+
+    def test_both_changed_parks_the_template_for_a_manual_merge(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.run(tmp_path)
+        agents_md = tmp_path / "AGENTS.md"
+        current = agents_md.read_text()
+        baseline = self.load(tmp_path)
+        baseline["AGENTS.md"] = current.replace(
+            "Work directories are **never deleted**", "OLD TEMPLATE TEXT"
+        )
+        self.save(tmp_path, baseline)
+        agents_md.write_text(
+            current.replace("Work directories are **never deleted**", "MY EDIT")
+        )
+
+        report = self.run(tmp_path)
+        assert "MY EDIT" in agents_md.read_text()
+        assert any("Work Tracking" in c for c in report["conflicts"])
+        assert (tmp_path / ".agents" / "init-pending" / "AGENTS.md").is_file()
+
+    def test_readme_language_is_persisted(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.run(tmp_path, lang="zh")
+        self.run(tmp_path)
+        assert "快速上手" in (tmp_path / "README.md").read_text()
+        from workspace_init import load_config
+
+        assert load_config(tmp_path)["readme_lang"] == "zh"
+
+    def test_legacy_workspace_keeps_its_readme_language(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.run(tmp_path, lang="zh")
+        (tmp_path / ".agents" / ".fullstack-init-baseline.json").unlink()
+        from workspace_init import load_config, save_config
+
+        config = load_config(tmp_path)
+        config.pop("readme_lang")
+        save_config(tmp_path, config)
+
+        self.run(tmp_path)
+        assert "快速上手" in (tmp_path / "README.md").read_text()
+
+    def test_force_overwrites_user_edits(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.run(tmp_path)
+        agent = tmp_path / ".agents" / "agents" / "planner.md"
+        agent.write_text("# mine\n")
+        self.run(tmp_path, force=True)
+        assert agent.read_text() != "# mine\n"
+
+    def test_second_run_is_a_no_op(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.run(tmp_path)
+        before = (tmp_path / "AGENTS.md").read_text()
+        report = self.run(tmp_path)
+        assert (tmp_path / "AGENTS.md").read_text() == before
+        assert report["conflicts"] == [] and report["kept"] == []
+
+
+class TestResolveReadmeLang:
+    def test_english_readme_quoting_chinese_triggers_stays_english(self, tmp_path: Path):
+        from workspace_init import generate_readme, resolve_readme_lang
+
+        (tmp_path / "README.md").write_text(generate_readme("ws", "docs", "en"))
+        assert resolve_readme_lang(tmp_path, None) == "en"
+
+    def test_cli_flag_wins(self, tmp_path: Path):
+        from workspace_init import resolve_readme_lang
+
+        assert resolve_readme_lang(tmp_path, "zh") == "zh"
+
+
+class TestMergeKeepsTheUsersLayout:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from workspace_init import merge_agents_md_report
+
+        self.func = merge_agents_md_report
+
+    def test_text_between_h1_and_first_section_survives(self):
+        mine = "# ws\n\nIntro paragraph.\n\n## Project Overview\n\nOverview.\n"
+        merged, _ = self.func(mine, _agents_md())
+        assert "Intro paragraph." in merged
+        assert merged.index("Intro paragraph.") < merged.index("## Project Overview")
+
+    def test_the_users_section_order_survives(self):
+        base = _agents_md()
+        head, tail = base.split("## Work Tracking")
+        mine = head.replace("# ws\n\n", "# ws\n\n## Work Tracking" + tail + "\n")
+        merged, _ = self.func(mine, base, baseline=base)
+        assert merged.index("## Work Tracking") < merged.index("## Project Overview")
+
+    def test_new_template_section_lands_after_its_template_neighbour(self):
+        base = _agents_md()
+        new = base.replace(
+            "## Work Tracking", "## Quick Fixes\n\nNew section.\n\n## Work Tracking"
+        )
+        merged, _ = self.func(base, new, baseline=base)
+        assert (
+            merged.index("## Workspace Conventions")
+            < merged.index("## Quick Fixes")
+            < merged.index("## Work Tracking")
+        )

@@ -16,50 +16,55 @@ android, and other repos live as sibling directories under one root.
 
 ## Design Philosophy
 
-**First run is a full refresh; subsequent runs do incremental updates.**
-On first run (or if `--force` is passed), the script regenerates all
-scaffolding files from scratch. On subsequent runs, it detects that the
-workspace has already been initialized and performs an **incremental
-update** on `AGENTS.md` — preserving existing content while adding new
-sections, updating the repos table, and merging Workspace Conventions
-bullet points introduced by template updates.
+**Re-run it whenever repos, the skills, or the docs change — it never
+loses your edits and still brings template updates in.** Every generated
+unit is refreshed three-way: what is on disk, what this script generated
+last time (the baseline, `.agents/.fullstack-init-baseline.json`), and what
+it generates now.
 
-| Category | First run / `--force` | Subsequent run |
-|----------|----------------------|----------------|
-| **Generated from scratch** | `AGENTS.md`, `README.md`, `.agents/agents/*.md` | `README.md`, `.agents/agents/*.md` |
-| **Merged incrementally** | — | `AGENTS.md` (add new sections, update repos table, merge conventions, preserve user content) |
-| **Preserved** | `fullstack.json`, `<docs-dir>/`, `scripts/`, `.agents/skills/` | same |
-| **Create-only** | `<docs-dir>/` + git init, `<docs-dir>/issues/` + `<docs-dir>/issues/archive/`, `scripts/`, `.agents/skills/` — created if missing, never touched if present | same |
+| Unit | How it is refreshed |
+|------|---------------------|
+| `AGENTS.md` H2 sections | Three-way per section. Skill-owned sections (*Directory Structure*, *Docs-Code Lockstep*, *Documentation Diagrams*) always take the template |
+| *Workspace Conventions* bullets | Three-way per bullet; shipped bullets (*Repo Skills*, *Knowledge Graph*) always take the template; your own bullets are never touched |
+| *Repositories* table | Row by row: rows follow the current repo set, an untouched row refreshes its detected role / stack / description, an edited row keeps your cells, notes around the table stay |
+| `.agents/agents/*.md` | Three-way per file |
+| `README.md` | Three-way as a whole file; language saved in `fullstack.json` |
+| `<docs-dir>/AGENTS.md` | Three-way per section; with no baseline it is treated as hand-written (nothing is added) |
+| `fullstack.json`, `<docs-dir>/` content, `scripts/`, `.agents/skills/` | Never overwritten; directories created if missing |
 
-This allows the workspace's AGENTS.md to evolve organically — users can add
-project-specific sections, conventions, or documentation — while still
-receiving template updates (like the Knowledge Graph section) on re-runs.
+Three-way outcomes, as the report prints them:
 
-## What It Does
+| Disk vs baseline | Template vs baseline | Result | Report |
+|---|---|---|---|
+| untouched | changed | takes the new template | `Refreshed` |
+| edited | unchanged | your text stays | `Kept your edits` |
+| edited | changed | your text stays; new template written to `.agents/init-pending/<unit>` | `Needs a by-hand merge` |
+| no baseline yet, differs | — | your text stays; template parked in `init-pending/` | `Review once` |
+| untouched | section dropped by the template | removed | `Refreshed` |
+| you deleted it | still in template | stays deleted | — |
 
-1. **Discovers** all git repos in immediate subdirectories
-2. **Analyzes** each repo's README.md, AGENTS.md, tech stack, and role
-3. **Regenerates** workspace-level infrastructure from scratch
-4. **Preserves** user content in docs dir, scripts/, and .agents/skills/
+User-only sections and bullets always stay, in your order; new template
+sections are inserted next to their template neighbour. `--force`
+overwrites every generated unit with the template (your edits are lost).
 
 ## How the AI Agent MUST Handle Already-Initialized Workspaces
 
-When `fullstack.json` **and** `AGENTS.md` both exist in the workspace root,
-the workspace has already been initialized. The script automatically
-performs an **incremental merge** on AGENTS.md:
+When `fullstack.json` **and** `AGENTS.md` both exist, just run the script
+— no flags needed (do not pass `--force` unless the user asks to discard
+their edits). Then read the report:
 
-- **Repos table**: Updated to match current repos (new repos may have been added)
-- **Workspace Conventions bullet points**: New ones are appended; the
-  skill-shipped ones (`Repo Skills`, `Knowledge Graph (graphify)`) are
-  replaced with the current template text, because their commands and rules
-  move with the skill. Every other bullet is user territory — kept exactly
-  as written, so a re-run never overwrites your own wording.
-- **Directory Structure**: Updated to match current scaffolding layout
-- **New H2 sections**: Inserted if they appear in the generated template but not in the existing file
-- **User-customized content**: Preserved — sections that exist in both versions keep the user's version
-
-The AI agent simply runs the script — no post-hoc merge steps needed.
-To bypass merging and do a full overwrite, pass `--force`.
+1. **`Needs a by-hand merge` / `Review once`** — for each listed unit, diff
+   the file on disk against its template in `.agents/init-pending/`.
+   Explain the template change in plain words, propose a merged text that
+   keeps the user's intent, and apply it **only after the user confirms**.
+   Then delete that pending file. Never resolve one silently.
+2. **`Review once`** appears on the first run after the baseline was
+   introduced: the script cannot tell whether a difference is the user's
+   edit or a template update the workspace never received. Ask; old
+   template text (e.g. a *Work Tracking* section describing a layout that
+   no longer exists) is usually the second case.
+3. Pending files left from an earlier run are listed on every run until
+   they are merged and deleted.
 
 ## Docs Directory — Independent Git Repo
 
@@ -87,8 +92,8 @@ python3 SKILL_PATH/scripts/workspace_init.py --docs-dir my-docs      # custom do
 python3 SKILL_PATH/scripts/workspace_init.py --lang zh               # Chinese README
 python3 SKILL_PATH/scripts/workspace_init.py --github                # repos are on GitHub
 python3 SKILL_PATH/scripts/workspace_init.py --no-github             # repos are NOT on GitHub
-python3 SKILL_PATH/scripts/workspace_init.py                         # re-run: incremental merge
-python3 SKILL_PATH/scripts/workspace_init.py --force                 # re-run: full overwrite
+python3 SKILL_PATH/scripts/workspace_init.py                         # re-run: three-way refresh
+python3 SKILL_PATH/scripts/workspace_init.py --force                 # re-run: overwrite, discard edits
 python3 SKILL_PATH/scripts/workspace_init.py --dry-run               # preview only
 python3 SKILL_PATH/scripts/workspace_init.py --json                  # JSON output
 ```
@@ -120,14 +125,15 @@ Its language is controlled by the `--lang` flag:
 - `--lang zh` — Chinese
 - `--lang en` — English (default)
 
-**How the AI agent MUST choose the language**:
+**How the AI agent MUST choose the language**: the language is saved to
+`fullstack.json` (`readme_lang`), so a re-run in another conversation
+language does not flip the README.
 
-1. Examine the user's prompt that triggered this skill.
-2. If the prompt contains **any Chinese characters** → pass `--lang zh`.
-3. Otherwise → pass `--lang en` (or omit `--lang`).
-
-This applies to every invocation, including re-runs. The README is
-regenerated each time, so the language always reflects the latest run.
+1. **First run** (no `fullstack.json`): any Chinese character in the
+   user's prompt → `--lang zh`; otherwise `--lang en`.
+2. **Re-run**: omit `--lang` — the saved language is used (a workspace
+   that predates the setting keeps its current README's language). Pass
+   it only when the user asks to switch.
 
 ## Workspace Agents
 
@@ -146,8 +152,11 @@ subagent systems automatically discover these agents:
 | Code Reviewer | `code-reviewer.md` | Reviews with falsification mindset, returns findings for `review.md` | read-only on code |
 | Debugger | `debugger.md` | Root-cause analysis for fix work type; temporary debug edits allowed, never commits | scoped debug edits |
 
-These are regenerated on every run. Any customization will be overwritten.
-For persistent custom agents, use `.agents/skills/` or repo-level agents.
+These are refreshed three-way on every run: an untouched file takes the
+new template, a file you edited is kept, and when both changed the new
+template waits in `.agents/init-pending/agents/` for a by-hand merge.
+Agent files written before the baseline existed count as untouched,
+because earlier releases always regenerated them.
 
 ### How AI tools discover these agents
 
@@ -203,9 +212,9 @@ If a tool's agents directory already exists as a regular directory
 
 ```
 project-workspace/
-├── AGENTS.md                     # Merged incrementally on re-runs
-├── README.md                     # Regenerated each run
-├── fullstack.json                # Only persistent state
+├── AGENTS.md                     # Refreshed three-way on re-runs
+├── README.md                     # Refreshed three-way (language saved)
+├── fullstack.json                # docs_dir, github_repos, readme_lang
 ├── .opencode/
 │   └── agents -> ../.agents/agents/   # OpenCode subagent symlink
 ├── .claude/
@@ -215,7 +224,9 @@ project-workspace/
 ├── .copilot/
 │   └── agents -> ../.agents/agents/   # Copilot subagent symlink
 ├── .agents/
-│   ├── agents/                   # Regenerated each run
+│   ├── .fullstack-init-baseline.json  # What the last run generated (three-way base)
+│   ├── init-pending/             # Templates awaiting a by-hand merge (if any)
+│   ├── agents/                   # Refreshed three-way
 │   │   ├── planner.md            # + YAML frontmatter for subagent tools
 │   │   ├── plan-reviewer.md
 │   │   ├── developer.md

@@ -5,10 +5,16 @@ Scans a root directory for git repositories, analyzes their README.md and
 AGENTS.md files, and generates workspace-level infrastructure: AGENTS.md,
 agent templates, and shared docs directory.
 
-Design: every run is a full refresh. AGENTS.md, README.md, and agent
-templates are regenerated from scratch. The only persistent state is
-fullstack.json (stores docs_dir). The docs directory and user directories
-(scripts/, .agents/skills/) are created if missing but never overwritten.
+Design: every re-run is a three-way refresh. Each managed unit (an
+AGENTS.md section, a Workspace Conventions bullet, a repos-table row, an
+agent file, README.md, the docs AGENTS.md) is compared across three
+versions — what is on disk, what this script generated last time (the
+baseline in `.agents/.fullstack-init-baseline.json`), and what it
+generates now. A unit the user never touched takes the new template; a
+unit the user edited is kept; a unit both sides changed is kept and the new
+template is written to `.agents/init-pending/` for a by-hand merge. The
+docs directory content and user directories (scripts/, .agents/skills/)
+are created if missing but never overwritten.
 
 The workspace root is NOT a git repo — no .gitignore, no .git. This is
 intentional: all major AI agents (Cursor, Claude Code, Copilot, Codex,
@@ -25,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -49,6 +56,8 @@ INFRA_DIRS = {
 # Agent manifest lives beside the generated agents; subagent discovery
 # globs `*.md`, so the dot-file stays invisible to it.
 AGENT_MANIFEST_NAME = ".generated-agents.json"
+BASELINE_FILENAME = ".fullstack-init-baseline.json"
+PENDING_DIRNAME = "init-pending"
 
 # Agent names this skill generated in releases that predate the manifest.
 # Workspaces created then have the files on disk with no manifest to
@@ -322,14 +331,11 @@ def upgrade_legacy_skill_commands(text: str, home: Path | None = None) -> str:
 
 
 DOCS_LOCKSTEP_BULLET = (
-    "- **Docs-Code Lockstep**: these documents are the record of why the code\n"
-    "  looks the way it does, so a code change — including a follow-up fix\n"
-    "  asked for after implementation — updates the documents it invalidates in\n"
-    "  the same pass, and each code-review round attests to that in a\n"
-    "  `**文档同步**` / `**Document Sync**` paragraph naming all four documents\n"
-    "  with one clause each. The full rule, the reverse lookup\n"
-    "  (`plan_lint.py --find <path-or-symbol>`), and the document routing table\n"
-    "  live in the workspace root `AGENTS.md` →\n"
+    "- **Docs-Code Lockstep**: these documents record why the code looks the\n"
+    "  way it does, and they move with it. The rule — owner lookup\n"
+    "  (`plan_lint.py --find <path-or-symbol>`), which documents a change must\n"
+    "  update, and when a small change may skip the work item as a quick fix —\n"
+    "  lives in one place: the workspace root `AGENTS.md` →\n"
     "  *Docs-Code Lockstep (MANDATORY)*."
 )
 
@@ -497,55 +503,52 @@ the user explicitly accepts an unresolved close.
 
 ## Docs-Code Lockstep (MANDATORY)
 
-Code in this workspace is implemented from a work item under
-`{docs_dir}/changes/`. Its four documents are the record of *why* the code
-looks the way it does, so an edit that leaves them behind makes the next
-reader — person or agent — implement against a spec that is no longer
-true. This applies to **every** code change here, including a follow-up
-fix asked for after implementation, whether or not the fullstack skills
-are invoked.
+A work item's four documents under `{docs_dir}/changes/` record *why* its
+code looks the way it does; an edit that leaves them behind makes the next
+reader implement against a spec that is no longer true. Before editing code
+in this workspace — whether or not the fullstack skills are invoked — decide
+which path the change takes.
 
-1. **Find the owning work item before editing.** A file or symbol belongs
-   to the work item whose `## Code Map` lists it:
+1. **Find the owner.** A file or symbol belongs to the work item whose
+   `## Code Map` lists it:
 
    ```bash
    {plan_lint_cmd}
    ```
 {plan_lint_caveat and f'\n   {plan_lint_caveat}\n'}
-   Only `CODEMAP:` lines are ownership. `SUBSTRING:` (a row written
-   without a directory) and `MENTION:` (prose) are candidates — confirm
-   before treating one as the specification. `STATUS=OWNER` exits 0;
-   `CANDIDATE` and `NONE` exit 1, so exit 0 can be read as "the owner is
-   known". Exit 2 means no docs directory was found — run it from the
-   workspace root.
-2. **Update, in the same pass, every document the change invalidates.**
+   Only `CODEMAP:` lines are ownership, and only under an active
+   `changes/<type>/` directory; `SUBSTRING:` and `MENTION:` lines are
+   candidates to confirm. `STATUS=OWNER` exits 0, `CANDIDATE` / `NONE`
+   exit 1, and 2 means no docs directory (run it from the workspace root).
+2. **Pick the path.**
+
+   | Situation | Path |
+   |---|---|
+   | An active work item owns the code | Follow-up on that item (`fullstack-apply`): update the documents the change invalidates (table below) and record a code-review round with a one-line `**文档同步**` / `**Document Sync**` attestation |
+   | No active owner (none, or only an archived one) and the change is a **quick fix** — a bug whose root cause is established with evidence, or a fully specified small tweak; one repo; no cross-repo contract, persisted data / schema, or external API change; small | Quick fix (`fullstack-apply` → quick fix): no work item; a regression test where the repo has tests, one independent code review, and a commit message carrying what changed, why, and how it was verified |
+   | Anything else | Ask whether to open a work item (`fullstack-propose`); never edit silently because "no doc applies". An archived item is never reopened — new work on its scope is a new item |
+
+3. **Keep an active item's documents in step**, in the same pass as the
+   code:
 
    | What the change did | Must change |
    |---|---|
    | any code edit | `progress.md` — new dated entry |
-   | moved a responsibility between modules or layers, changed a call order, added or removed a component, altered a frozen contract | `analysis.md` — *Current State / Target Architecture / User Flow / Cross-Repo Impact* and their diagrams. These describe structure, so a structural fix makes them false: rewrite the affected section, do not append a note that contradicts the body above it |
+   | moved a responsibility, changed a call order, added or removed a component, altered a frozen contract | `analysis.md` — rewrite the affected section and its diagram; never append a note that contradicts the body |
    | touched behavior a Success Criterion covers | `plan.md` criterion + its `review.md` Evidence row |
-   | was reviewed or verified | `review.md` — new round |
-3. **Attest it.** Each code-review round — `## 代码审查` / `## Code Review`,
-   or the legacy `## <repo> — Review Round N` the item already uses — carries
-   a `**文档同步**` / `**Document Sync**` paragraph naming all four documents,
-   each followed by one clause: what the round did to it, or why nothing
-   changed. Four bare names are not an answer. For `analysis.md`, "small
-   fix" is only valid when it says why (e.g. 仅修正拼写，结构与流程未变).
-4. **Gate before committing** — it must report `STATUS=PASS`:
+   | touched a file the Code Map does not list | `plan.md` Code Map row |
+   | was reviewed or verified | `review.md` — a compact round: findings, verdict, Document Sync line |
+
+4. **Gate an active item before committing** — it must report
+   `STATUS=PASS`:
 
    ```bash
    {gate_cmd}
    ```
 
-   It fails when the newest code round carries no attestation, when the
-   Code Map is missing or its rows name no file, or when a document is
-   named with no clause after it.
-
-If the lookup matches nothing, the code is untraceable to any work item —
-say so and ask whether to open one; never edit silently because "no doc
-applies". If the match is under `{docs_dir}/changes/archive/`, do not
-reopen it: work on archived scope is a new work item.
+   Errors are broken chains (a criterion with no Evidence row, a missing
+   Code Map, a dangling task id); warnings (a missing attestation, a stale
+   summary) should be fixed but do not block.
 
 ## Branch Naming Convention
 
@@ -776,38 +779,104 @@ def _convention_blocks(section: str) -> list[tuple[str, int, int]]:
     return blocks
 
 
-def _merge_conventions(existing_section: str, generated_section: str) -> str:
-    """Merge Workspace Conventions: keep the user's bullets, refresh shipped ones.
+def three_way(
+    existing: str | None, baseline: str | None, generated: str
+) -> tuple[str, str]:
+    """Decide one managed unit's text from its three versions.
 
-    Shipped bullets (`SHIPPED_CONVENTION_BULLETS`) are replaced in place with
-    the generated text, because their commands and rules move with the skill.
-    Anything else is preserved exactly as the workspace has it, and generated
-    bullets the workspace does not carry are appended at the end. When nothing
-    is replaced or appended the section is returned byte-for-byte unchanged,
-    so a no-op re-init leaves the file alone.
+    `existing` is what is on disk (None when absent), `baseline` what this
+    script generated last time (None when unknown), `generated` what it
+    generates now. Returns `(text, outcome)`:
+
+    - `created`   — nothing on disk; take the template
+    - `unchanged` — disk already matches the template
+    - `updated`   — the user never touched it; take the new template
+    - `kept`      — the user edited it and the template did not move; keep it
+    - `conflict`  — both moved, or there is no baseline to tell; keep the
+      user's text and let the caller surface the new template
+
+    Comparison ignores surrounding whitespace, because sections are
+    re-joined with normalized blank lines.
+    """
+    if existing is None:
+        return generated, "created"
+    if existing.strip() == generated.strip():
+        return existing, "unchanged"
+    if baseline is not None and existing.strip() == baseline.strip():
+        return generated, "updated"
+    if baseline is not None and generated.strip() == baseline.strip():
+        return existing, "kept"
+    return existing, "conflict"
+
+
+def _merge_conventions_report(
+    existing_section: str, generated_section: str, baseline_section: str | None
+) -> tuple[str, list[str], list[str]]:
+    """Merge Workspace Conventions bullet by bullet.
+
+    Returns `(section, conflicts, review)`: `conflicts` are bullets both the
+    user and the template changed; `review` are bullets that differ from the
+    template when there is no baseline to tell who changed them.
+
+    - Shipped bullets (`SHIPPED_CONVENTION_BULLETS`) are replaced in place —
+      their commands and rules move with the skill.
+    - Other bullets present on both sides go through `three_way` against the
+      baseline bullet of the same title: untouched ones take the new
+      template, edited ones are kept, and both-changed ones are kept and
+      reported as conflicts.
+    - Generated bullets the workspace lacks are appended — unless the
+      baseline shows the template already offered them, which means the
+      user deleted them on purpose.
+    - Bullets only the workspace has are user territory and stay as written.
+
+    When nothing changes the section is returned byte-for-byte unchanged, so
+    a no-op re-init leaves the file alone.
     """
     lines = existing_section.split("\n")
     blocks = _convention_blocks(existing_section)
+    generated_lines = generated_section.split("\n")
     generated_blocks = [
-        (title, generated_section.split("\n")[start:end])
+        (title, generated_lines[start:end])
         for title, start, end in _convention_blocks(generated_section)
     ]
+    baseline_blocks: dict[str, str] = {}
+    if baseline_section is not None:
+        baseline_lines = baseline_section.split("\n")
+        baseline_blocks = {
+            title: "\n".join(baseline_lines[start:end])
+            for title, start, end in _convention_blocks(baseline_section)
+            if title
+        }
+
+    existing_text = {
+        title: "\n".join(lines[start:end]) for title, start, end in blocks if title
+    }
     replacements: dict[str, list[str]] = {}
     appends: list[list[str]] = []
-    existing_titles = {title for title, _, _ in blocks if title}
+    conflicts: list[str] = []
+    review: list[str] = []
     for title, body in generated_blocks:
         if not title:
             continue
-        if title in SHIPPED_CONVENTION_BULLETS:
-            if title in existing_titles:
-                replacements[title] = body
-            else:
-                appends.append(body)
-        elif title not in existing_titles:
+        if title not in existing_text:
+            if baseline_section is not None and title in baseline_blocks:
+                continue
             appends.append(body)
+            continue
+        if title in SHIPPED_CONVENTION_BULLETS:
+            replacements[title] = body
+            continue
+        _, outcome = three_way(
+            existing_text[title], baseline_blocks.get(title), "\n".join(body)
+        )
+        if outcome == "updated":
+            replacements[title] = body
+        elif outcome == "conflict":
+            target = conflicts if baseline_section is not None else review
+            target.append(f"Workspace Conventions → {title}")
 
     if not replacements and not appends:
-        return existing_section
+        return existing_section, conflicts, review
 
     out: list[str] = []
     cursor = 0
@@ -839,70 +908,240 @@ def _merge_conventions(existing_section: str, generated_section: str) -> str:
         out.append("")
         out.extend(stripped_body)
 
-    return "\n".join(out)
+    return "\n".join(out), conflicts, review
 
 
-def merge_agents_md(existing: str, generated: str) -> str:
-    """Incrementally merge an existing AGENTS.md with a freshly generated template.
+def _merge_conventions(
+    existing_section: str,
+    generated_section: str,
+    baseline_section: str | None = None,
+) -> str:
+    """Merge Workspace Conventions; see `_merge_conventions_report`."""
+    merged, _, _ = _merge_conventions_report(
+        existing_section, generated_section, baseline_section
+    )
+    return merged
 
-    Merge rules:
-    - Repositories section: always replace with generated (new repos may appear)
-    - Directory Structure section: always replace with generated
-    - Skill-shipped rule sections (Docs-Code Lockstep, Documentation
-      Diagrams): always replace — their text is the skill's, not the
-      user's, and a merged copy keeps dead commands alive across re-runs
-    - Workspace Conventions: user bullets kept as written, new generated
-      bullets appended, and shipped bullets (`SHIPPED_CONVENTION_BULLETS`)
-      replaced in place — the same rule as the shipped sections, one level
-      down
-    - New H2 sections (only in generated): insert at the expected position
-    - User-only H2 sections (only in existing): preserve (append after generated)
-    - Everything else: keep existing content (may be user-customized)
+
+REPO_ROW_RE = re.compile(r"^\|\s*\d+\s*\|\s*\[([^\]]+)\]\(")
+REPO_ROW_NUMBER_RE = re.compile(r"^\|\s*\d+\s*\|")
+
+
+def _repo_rows(section: str | None) -> dict[str, str]:
+    """Return `{repo name: row}` for the repos table in a section."""
+    rows: dict[str, str] = {}
+    for line in (section or "").split("\n"):
+        match = REPO_ROW_RE.match(line.strip())
+        if match:
+            rows[match.group(1)] = line.strip()
+    return rows
+
+
+def _row_cells(row: str) -> str:
+    """A row without its `#` cell, so renumbering is not an edit."""
+    return REPO_ROW_NUMBER_RE.sub("", row, count=1).strip()
+
+
+def _merge_repositories(
+    existing_section: str, generated_section: str, baseline_section: str | None
+) -> tuple[str, list[str]]:
+    """Merge the Repositories section row by row; return (section, kept repos).
+
+    Rows follow the generated set — a new repo gets a row, a removed repo
+    loses it — and are renumbered in generated order. A row the user edited
+    (it differs from the baseline row, or there is no baseline row to compare
+    with) keeps the user's cells; an untouched row takes the freshly detected
+    role, tech stack, and description. Text around the table — notes above or
+    below it — is kept as written.
     """
-    existing_h1, existing_sections = parse_agents_md_sections(existing)
-    generated_h1, generated_sections = parse_agents_md_sections(generated)
+    existing_rows = _repo_rows(existing_section)
+    baseline_rows = _repo_rows(baseline_section)
+    generated_lines = generated_section.split("\n")
 
-    existing_map: dict[str, str] = {}
-    for title, body in existing_sections:
-        existing_map[title[3:]] = body
+    header: list[str] = []
+    rows: list[str] = []
+    kept: list[str] = []
+    for line in generated_lines:
+        stripped = line.strip()
+        match = REPO_ROW_RE.match(stripped)
+        if not match:
+            if stripped.startswith("|"):
+                header.append(stripped)
+            continue
+        name = match.group(1)
+        row = stripped
+        old = existing_rows.get(name)
+        if old is not None and _row_cells(old) != _row_cells(row):
+            base = baseline_rows.get(name)
+            if base is None or _row_cells(old) != _row_cells(base):
+                row = REPO_ROW_NUMBER_RE.sub(f"| {len(rows) + 1} |", old, count=1)
+                kept.append(name)
+        rows.append(row)
 
-    REPLACE_SECTIONS = {
-        "Repositories",
+    existing_lines = existing_section.split("\n")
+    table_start = next(
+        (i for i, line in enumerate(existing_lines) if line.strip().startswith("|")),
+        None,
+    )
+    if table_start is None:
+        return generated_section, []
+    table_end = table_start
+    while table_end < len(existing_lines) and existing_lines[
+        table_end
+    ].strip().startswith("|"):
+        table_end += 1
+    merged = existing_lines[:table_start] + header + rows + existing_lines[table_end:]
+    return "\n".join(merged), kept
+
+
+# Sections whose text belongs to the skill, not the workspace: replaced
+# wholesale on every run, because a merged copy keeps dead commands alive.
+SKILL_OWNED_SECTIONS = frozenset(
+    {
         "Directory Structure",
         "Docs-Code Lockstep (MANDATORY)",
         "Documentation Diagrams (Mermaid Compatibility)",
     }
-    MERGE_SECTIONS = {"Workspace Conventions"}
+)
 
-    merged: list[tuple[str, str]] = []
-    seen_keys: set[str] = set()
+
+def merge_agents_md_report(
+    existing: str,
+    generated: str,
+    baseline: str | None = None,
+    add_missing_without_baseline: bool = True,
+) -> tuple[str, dict[str, list[str]]]:
+    """Three-way merge of a Markdown file by H2 section.
+
+    Used for the workspace `AGENTS.md` and the docs-directory `AGENTS.md`.
+    Returns the merged text and a report with `updated`, `kept`,
+    `conflicts`, and `review` lists naming the units involved. `review`
+    holds units that differ from the template when no baseline exists yet —
+    either the user's edit or a template update a pre-baseline workspace
+    never received; only a person can tell, once.
+
+    - Skill-owned sections (`SKILL_OWNED_SECTIONS`): always the template.
+    - Repositories: row-by-row (`_merge_repositories`).
+    - Workspace Conventions: bullet-by-bullet (`_merge_conventions_report`).
+    - Any other section on both sides: `three_way` against the baseline
+      section. With no baseline the user's text is kept and a difference is
+      listed under `review` for a one-time look; the baseline recorded by
+      that run settles it for every later run.
+    - A template section the workspace lacks is added, unless the baseline
+      shows it was offered before (the user deleted it on purpose). With no
+      baseline, `add_missing_without_baseline=False` adds nothing — for a
+      file that was create-only before and may be entirely hand-written.
+    - A section only the workspace has stays — unless it is a template
+      section the template dropped and the user never edited.
+    """
+    existing_h1, existing_sections = parse_agents_md_sections(existing)
+    generated_h1, generated_sections = parse_agents_md_sections(generated)
+    baseline_map: dict[str, str] = {}
+    if baseline is not None:
+        baseline_map = {
+            title[3:]: body for title, body in parse_agents_md_sections(baseline)[1]
+        }
+    existing_map = {title[3:]: body for title, body in existing_sections}
+
+    report: dict[str, list[str]] = {
+        "updated": [],
+        "kept": [],
+        "conflicts": [],
+        "review": [],
+    }
+    bodies: dict[str, str] = {}
+    additions: list[tuple[str, str, str | None]] = []
+    previous_key: str | None = None
 
     for gen_title, gen_body in generated_sections:
         key = gen_title[3:]
-        seen_keys.add(key)
-
-        if key in REPLACE_SECTIONS:
-            merged.append((gen_title, gen_body))
-        elif key in MERGE_SECTIONS and key in existing_map:
-            merged.append(
-                (gen_title, _merge_conventions(existing_map[key], gen_body))
+        if key in SKILL_OWNED_SECTIONS and key in existing_map:
+            bodies[key] = gen_body
+        elif key == "Repositories" and key in existing_map:
+            body, kept_rows = _merge_repositories(
+                existing_map[key], gen_body, baseline_map.get(key)
             )
+            report["kept"].extend(f"Repositories → {name}" for name in kept_rows)
+            bodies[key] = body
+        elif key == "Workspace Conventions" and key in existing_map:
+            body, conflicts, review = _merge_conventions_report(
+                existing_map[key], gen_body, baseline_map.get(key)
+            )
+            report["conflicts"].extend(conflicts)
+            report["review"].extend(review)
+            bodies[key] = body
         elif key in existing_map:
-            merged.append((gen_title, existing_map[key]))
+            text, outcome = three_way(
+                existing_map[key], baseline_map.get(key), gen_body
+            )
+            if outcome == "updated":
+                report["updated"].append(key)
+            elif outcome == "kept":
+                report["kept"].append(key)
+            elif outcome == "conflict":
+                report["conflicts" if baseline is not None else "review"].append(key)
+            bodies[key] = text
+        elif key in SKILL_OWNED_SECTIONS:
+            additions.append((key, gen_body, previous_key))
+        elif baseline is not None and key in baseline_map:
+            pass
+        elif baseline is None and not add_missing_without_baseline:
+            pass
         else:
-            merged.append((gen_title, gen_body))
+            additions.append((key, gen_body, previous_key))
+        previous_key = key
 
+    generated_keys = {title[3:] for title, _ in generated_sections}
+    order: list[tuple[str, str]] = []
     for title, body in existing_sections:
         key = title[3:]
-        if key not in seen_keys:
-            merged.append((title, body))
+        if (
+            key not in generated_keys
+            and key in baseline_map
+            and body.strip() == baseline_map[key].strip()
+        ):
+            report["updated"].append(f"removed {key}")
+            continue
+        order.append((key, bodies.get(key, body)))
+
+    for key, body, after in additions:
+        keys = [k for k, _ in order]
+        index = keys.index(after) + 1 if after in keys else 0
+        order.insert(index, (key, body))
 
     result_lines = [existing_h1 or generated_h1, ""]
-    for title, body in merged:
+    preamble = _preamble(existing).strip()
+    if preamble:
+        result_lines.extend([preamble, ""])
+    for _, body in order:
         result_lines.append(body.strip())
         result_lines.append("")
+    return "\n".join(result_lines), report
 
-    return "\n".join(result_lines)
+
+def _preamble(content: str) -> str:
+    """Return the text between the H1 line and the first H2 heading."""
+    lines = content.split("\n")
+    out: list[str] = []
+    seen_h1 = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            break
+        if stripped.startswith("# ") and not seen_h1:
+            seen_h1 = True
+            continue
+        if seen_h1:
+            out.append(line)
+    return "\n".join(out)
+
+
+def merge_agents_md(
+    existing: str, generated: str, baseline: str | None = None
+) -> str:
+    """Merge an existing AGENTS.md with a fresh template; see the report form."""
+    merged, _ = merge_agents_md_report(existing, generated, baseline)
+    return merged
 
 
 def detect_language(text: str) -> str:
@@ -996,6 +1235,20 @@ The skill will:
 5. Run tests and linting in each repo
 6. Review changes against the plan's Success Criteria
 7. Create Pull Requests for each repo (if repos are on GitHub)
+
+### Quick fix — no work item
+
+A bug whose root cause is already known — one repo, small, no contract or
+schema change — does not need a plan. Ask `fullstack-apply` to fix it
+directly:
+
+```
+> The root cause is clear, just fix it
+```
+
+It branches, adds a regression test, runs one independent code review,
+and commits. No work directory is created; the commit message is the
+record.
 
 ### Archive completed work
 
@@ -1163,6 +1416,17 @@ propose 会在 `{docs_dir}/changes/` 下创建工作计划。如果有未知项�
 5. 在每个仓库中运行测试和代码检查
 6. 对照方案的 Success Criteria 审查
 7. 为每个仓库创建 Pull Request（仓库在 GitHub 上时）
+
+### 快修——不建工作项
+
+根因已经查清、只涉及一个仓库、改动小、不改契约和 schema 的 bug，不需要先出方案，
+直接让 `fullstack-apply` 修：
+
+```
+> 根因已经清楚了，直接修
+```
+
+它会开分支、补回归测试、做一次独立代码审查并提交。不建工作目录，提交信息就是记录。
 
 ### 归档已完成的工作
 
@@ -1359,17 +1623,30 @@ def _resolve_skill_agents_dir() -> Path:
 
 
 def install_agents(
-    target_root: Path, project_name: str
+    target_root: Path,
+    project_name: str,
+    baseline: dict[str, str] | None = None,
+    outcomes: dict[str, str] | None = None,
+    force: bool = False,
 ) -> tuple[list[str], list[str]]:
     """Sync the workspace's `.agents/agents/` with the bundled agents.
 
-    Reads each .md file from the bundled agents directory, replaces
-    {project_name}, and writes to <workspace>/.agents/agents/<name>.md.
+    Each bundled `.md` gets `{project_name}` substituted and is refreshed
+    three-way against `baseline` (the text written last time, keyed
+    `agents/<name>.md`): an untouched file takes the new template, a file the
+    user edited is kept, and a file both sides changed is kept while the new
+    template goes to `.agents/init-pending/agents/`. With no baseline entry
+    the file on disk is treated as the previous template — agent files were
+    always regenerated before the baseline existed, so nobody could have kept
+    edits in them. `force` overwrites unconditionally.
 
     Agents this skill generated in an earlier release but no longer
     generates are removed — a renamed role must not linger as a second,
     stale agent that delegation can still resolve to. The generated set is
     recorded in a manifest so the next release can do the same to it.
+
+    `outcomes`, when given, receives `{name: three_way outcome}`; `baseline`,
+    when given, is updated in place with the newly generated text.
 
     Returns (installed, pruned) agent-name lists.
     """
@@ -1381,15 +1658,100 @@ def install_agents(
 
     for src_file in sorted(source_dir.glob("*.md")):
         name = src_file.stem
-        content = src_file.read_text(encoding="utf-8")
-        content = content.replace("{project_name}", project_name)
-        (target_dir / f"{name}.md").write_text(content, encoding="utf-8")
+        generated = src_file.read_text(encoding="utf-8").replace(
+            "{project_name}", project_name
+        )
+        target = target_dir / f"{name}.md"
+        existing = target.read_text(encoding="utf-8") if target.is_file() else None
+        key = f"agents/{name}.md"
+        previous = (baseline or {}).get(key, existing)
+        if force:
+            text, outcome = generated, "updated"
+        else:
+            text, outcome = three_way(existing, previous, generated)
+        if text != existing:
+            target.write_text(text, encoding="utf-8")
+        if outcome == "conflict":
+            write_pending(target_root, key, generated)
+        if outcomes is not None:
+            outcomes[name] = outcome
+        if baseline is not None:
+            baseline[key] = generated
         agent_names.append(name)
 
     pruned = prune_stale_agents(target_dir, set(agent_names))
     write_agent_manifest(target_dir, agent_names)
 
     return agent_names, pruned
+
+
+def load_baseline(root: Path) -> dict[str, str] | None:
+    """Return the per-unit text this script generated last time, or None."""
+    path = root / ".agents" / BASELINE_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    units = data.get("units") if isinstance(data, dict) else None
+    if not isinstance(units, dict):
+        return None
+    return {str(k): str(v) for k, v in units.items()}
+
+
+def save_baseline(root: Path, units: dict[str, str]) -> None:
+    """Record what this run generated, for the next run's three-way refresh."""
+    path = root / ".agents" / BASELINE_FILENAME
+    ensure_directory(path.parent)
+    path.write_text(
+        json.dumps({"version": 1, "units": units}, indent=2, ensure_ascii=False)
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def write_pending(root: Path, unit: str, text: str) -> Path:
+    """Write a template that could not be applied, for a by-hand merge."""
+    path = root / ".agents" / PENDING_DIRNAME / unit
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def list_pending(root: Path) -> list[str]:
+    """Return pending templates still waiting for a by-hand merge."""
+    pending = root / ".agents" / PENDING_DIRNAME
+    if not pending.is_dir():
+        return []
+    return sorted(
+        str(path.relative_to(root)) for path in pending.rglob("*") if path.is_file()
+    )
+
+
+def resolve_readme_lang(root: Path, cli_lang: str | None) -> str:
+    """Pick the README language: CLI flag, then saved config, then the file.
+
+    The language is persisted so a re-run in another conversation language
+    does not flip the README. A workspace that predates the setting keeps
+    the language its current README is written in.
+    """
+    if cli_lang:
+        return cli_lang
+    saved = load_config(root).get("readme_lang")
+    if saved in ("en", "zh"):
+        return str(saved)
+    readme = root / "README.md"
+    if readme.is_file():
+        text = readme.read_text(encoding="utf-8")
+        # The English README quotes Chinese trigger phrases, so a character
+        # scan misreads it; the template's own headings do not.
+        if "## 快速上手" in text:
+            return "zh"
+        if "## Quick Start" in text:
+            return "en"
+        return detect_language(text)
+    return "en"
 
 
 def prune_stale_agents(target_dir: Path, current_names: set[str]) -> list[str]:
@@ -1505,26 +1867,65 @@ def create_agent_symlinks(root: Path) -> list[str]:
     return messages
 
 
+def _agent_baseline(
+    previous: dict[str, str] | None, baseline: dict[str, str]
+) -> dict[str, str]:
+    """Seed the agent baseline: last run's agent texts, updated in place.
+
+    `install_agents` reads the old text per file and overwrites the entry
+    with the new one, so the dict it returns into is the next baseline.
+    Without a previous baseline the entries are absent and each agent file on
+    disk counts as the previous template.
+    """
+    if previous is not None:
+        baseline.update(
+            {key: text for key, text in previous.items() if key.startswith("agents/")}
+        )
+    return baseline
+
+
+def _record_merge(
+    report: dict[str, list[str]],
+    root: Path,
+    unit: str,
+    generated: str,
+    merge_report: dict[str, list[str]],
+) -> None:
+    """Fold a section merge report into the run report; park conflicts."""
+    report["kept"].extend(f"{unit} → {item}" for item in merge_report["kept"])
+    if merge_report["conflicts"] or merge_report["review"]:
+        write_pending(root, unit, generated)
+    for key in ("conflicts", "review"):
+        for item in merge_report[key]:
+            report[key].append(
+                f"{unit} → {item} (template: .agents/{PENDING_DIRNAME}/{unit})"
+            )
+
+
 def bootstrap_workspace(
     root: Path,
     docs_dir: str | None = None,
     dry_run: bool = False,
-    lang: str = "en",
+    lang: str | None = None,
     github_repos: bool | None = None,
     force: bool = False,
 ) -> dict[str, list[str]]:
     """Bootstrap or update workspace infrastructure. Return a report.
 
-    Design: every run is a full refresh. Generated files are overwritten
-    except AGENTS.md, which is merged incrementally when it already exists
-    (--force bypasses the merge and does a full overwrite).
-    Only fullstack.json, docs dir content, scripts/, and .agents/skills/
-    are preserved across runs.
+    Design: every re-run is a three-way refresh (see the module docstring).
+    Untouched generated units take the new template, user edits are kept,
+    and units both sides changed are kept with the new template written to
+    `.agents/init-pending/`. `--force` overwrites every generated unit.
+    fullstack.json, docs dir content, scripts/, and .agents/skills/ are
+    never overwritten.
     """
     report: dict[str, list[str]] = {
         "created": [],
         "updated": [],
         "skipped": [],
+        "kept": [],
+        "conflicts": [],
+        "review": [],
     }
 
     project_name = root.name
@@ -1550,13 +1951,18 @@ def bootstrap_workspace(
         return report
 
     # --- Save config ---
+    readme_lang = resolve_readme_lang(root, lang)
     config = load_config(root)
     config["docs_dir"] = resolved_docs_dir
     config["github_repos"] = resolved_github
+    config["readme_lang"] = readme_lang
     save_config(root, config)
     report["updated"].append(
-        f"{CONFIG_FILENAME} (docs_dir: {resolved_docs_dir}, github_repos: {resolved_github})"
+        f"{CONFIG_FILENAME} (docs_dir: {resolved_docs_dir}, "
+        f"github_repos: {resolved_github}, readme_lang: {readme_lang})"
     )
+    previous = None if force else load_baseline(root)
+    baseline: dict[str, str] = {}
 
     # --- Create-only directories (never overwrite contents) ---
     for dirname, desc in [
@@ -1585,30 +1991,53 @@ def bootstrap_workspace(
             f"{resolved_docs_dir}/.git (initialized docs as independent repo)"
         )
 
-    # --- Docs dir AGENTS.md (content preserved; the lockstep pointer is
-    # added when missing, so a workspace predating the rule still gets it) ---
+    # --- Docs dir AGENTS.md (three-way by section; the lockstep pointer
+    # is added when missing, so a workspace predating the rule still gets it)
     docs_agents = docs_path / "AGENTS.md"
+    docs_unit = f"{resolved_docs_dir}/AGENTS.md"
+    docs_generated = generate_docs_agents_md(resolved_docs_dir)
+    baseline[docs_unit] = docs_generated
     if not docs_agents.exists():
-        docs_agents.write_text(
-            generate_docs_agents_md(resolved_docs_dir), encoding="utf-8"
-        )
-        report["created"].append(f"{resolved_docs_dir}/AGENTS.md")
+        docs_agents.write_text(docs_generated, encoding="utf-8")
+        report["created"].append(docs_unit)
     else:
         existing = docs_agents.read_text(encoding="utf-8")
-        patched = inject_docs_lockstep(existing)
+        if force:
+            patched = docs_generated
+        else:
+            merged, merge_report = merge_agents_md_report(
+                existing,
+                docs_generated,
+                previous.get(docs_unit) if previous is not None else None,
+                add_missing_without_baseline=False,
+            )
+            patched = inject_docs_lockstep(
+                merged if merged.strip() != existing.strip() else existing
+            )
+            _record_merge(report, root, docs_unit, docs_generated, merge_report)
         if patched != existing:
             docs_agents.write_text(patched, encoding="utf-8")
-            report["updated"].append(
-                f"{resolved_docs_dir}/AGENTS.md (Docs-Code Lockstep pointer added)"
-            )
+            report["updated"].append(f"{docs_unit} (refreshed)")
 
-    # === REGENERATED FILES (always overwrite) ===
-
-    # --- .agents/agents/ (copy from bundled agents/) ---
-    agent_names, pruned_agents = install_agents(root, project_name)
-    report["updated"].append(
-        f".agents/agents/ ({', '.join(agent_names)})"
+    # --- .agents/agents/ (three-way per agent file) ---
+    outcomes: dict[str, str] = {}
+    agent_names, pruned_agents = install_agents(
+        root,
+        project_name,
+        baseline=_agent_baseline(previous, baseline),
+        outcomes=outcomes,
+        force=force,
     )
+    for name, outcome in outcomes.items():
+        unit = f".agents/agents/{name}.md"
+        if outcome in ("created", "updated"):
+            report["updated"].append(unit)
+        elif outcome == "kept":
+            report["kept"].append(unit)
+        elif outcome == "conflict":
+            report["conflicts"].append(
+                f"{unit} → .agents/{PENDING_DIRNAME}/agents/{name}.md"
+            )
     if pruned_agents:
         report["updated"].append(
             ".agents/agents/ (removed stale agents: "
@@ -1619,27 +2048,62 @@ def bootstrap_workspace(
     symlink_messages = create_agent_symlinks(root)
     if symlink_messages:
         report["updated"].extend(symlink_messages)
-    # --- AGENTS.md ---
+
+    # --- AGENTS.md (three-way by section / bullet / repo row) ---
     agents_md_path = root / "AGENTS.md"
-    new_agents_md = generate_agents_md(project_name, repos_table, resolved_docs_dir)
+    new_agents_md = upgrade_legacy_skill_commands(
+        generate_agents_md(project_name, repos_table, resolved_docs_dir)
+    )
+    baseline["AGENTS.md"] = new_agents_md
     if not force and agents_md_path.exists():
         existing = agents_md_path.read_text(encoding="utf-8")
-        merged = merge_agents_md(existing, new_agents_md)
-        agents_md_path.write_text(
-            upgrade_legacy_skill_commands(merged), encoding="utf-8"
+        merged, merge_report = merge_agents_md_report(
+            existing,
+            new_agents_md,
+            previous.get("AGENTS.md") if previous is not None else None,
         )
-        report["updated"].append("AGENTS.md (merged incrementally)")
+        merged = upgrade_legacy_skill_commands(merged)
+        if merged.strip() != existing.strip():
+            agents_md_path.write_text(merged, encoding="utf-8")
+            report["updated"].append("AGENTS.md (merged three-way)")
+        _record_merge(report, root, "AGENTS.md", new_agents_md, merge_report)
     else:
-        agents_md_path.write_text(
-            upgrade_legacy_skill_commands(new_agents_md), encoding="utf-8"
-        )
+        agents_md_path.write_text(new_agents_md, encoding="utf-8")
         report["updated"].append("AGENTS.md")
 
-    # --- README.md (full refresh) ---
-    (root / "README.md").write_text(
-        generate_readme(project_name, resolved_docs_dir, lang), encoding="utf-8"
+    # --- README.md (three-way as a whole file) ---
+    readme_path = root / "README.md"
+    readme_generated = generate_readme(project_name, resolved_docs_dir, readme_lang)
+    baseline["README.md"] = readme_generated
+    existing_readme = (
+        readme_path.read_text(encoding="utf-8") if readme_path.is_file() else None
     )
-    report["updated"].append("README.md")
+    if force:
+        readme_text, readme_outcome = readme_generated, "updated"
+    else:
+        readme_previous = (
+            previous.get("README.md") if previous is not None else existing_readme
+        )
+        readme_text, readme_outcome = three_way(
+            existing_readme, readme_previous, readme_generated
+        )
+    if readme_text != existing_readme:
+        readme_path.write_text(readme_text, encoding="utf-8")
+        report["updated"].append("README.md")
+    elif readme_outcome == "kept":
+        report["kept"].append("README.md")
+    elif readme_outcome == "conflict":
+        write_pending(root, "README.md", readme_generated)
+        report["conflicts"].append(f"README.md → .agents/{PENDING_DIRNAME}/README.md")
+
+    save_baseline(root, baseline)
+    reported = " ".join(report["conflicts"] + report["review"])
+    for pending in list_pending(root):
+        if pending not in reported:
+            report["conflicts"].append(
+                f"{pending} (still waiting from an earlier run — merge it by "
+                "hand, then delete the file)"
+            )
 
     return report
 
@@ -1650,19 +2114,25 @@ def bootstrap_workspace(
 
 def format_report(report: dict[str, list[str]]) -> str:
     """Format the bootstrap report for display."""
+    sections = [
+        ("created", "Created:", "+"),
+        ("updated", "Refreshed:", "~"),
+        ("kept", "Kept your edits:", "="),
+        ("conflicts", "Needs a by-hand merge (template changed AND you edited):", "!"),
+        (
+            "review",
+            "Differs from the current template — first run with a baseline, "
+            "review once (your edit, or an update this workspace missed?):",
+            "?",
+        ),
+        ("skipped", "Unchanged:", "-"),
+    ]
     lines = []
-    if report["created"]:
-        lines.append("Created:")
-        for item in report["created"]:
-            lines.append(f"  + {item}")
-    if report["updated"]:
-        lines.append("Regenerated:")
-        for item in report["updated"]:
-            lines.append(f"  ~ {item}")
-    if report["skipped"]:
-        lines.append("Unchanged:")
-        for item in report["skipped"]:
-            lines.append(f"  - {item}")
+    for key, title, mark in sections:
+        items = report.get(key) or []
+        if items:
+            lines.append(title)
+            lines.extend(f"  {mark} {item}" for item in items)
     return "\n".join(lines)
 
 
@@ -1694,7 +2164,10 @@ def main() -> None:
         "--lang",
         default=None,
         choices=["en", "zh"],
-        help="Language for generated README.md ('en' or 'zh'). Default: en.",
+        help=(
+            "Language for generated README.md ('en' or 'zh'). Saved to "
+            "fullstack.json; omit it on re-runs to keep the saved language."
+        ),
     )
     parser.add_argument(
         "--github",
@@ -1706,7 +2179,10 @@ def main() -> None:
         "--force",
         action="store_true",
         default=False,
-        help="Full overwrite of AGENTS.md instead of incremental merge",
+        help=(
+            "Overwrite every generated file with the template, discarding "
+            "edits (default: three-way refresh)"
+        ),
     )
     parser.add_argument(
         "--no-github",
@@ -1734,12 +2210,11 @@ def main() -> None:
     elif args.no_github:
         github_repos = False
 
-    lang = args.lang or "en"
     report = bootstrap_workspace(
         root,
         docs_dir=args.docs_dir,
         dry_run=args.dry_run,
-        lang=lang,
+        lang=args.lang,
         github_repos=github_repos,
         force=args.force,
     )
