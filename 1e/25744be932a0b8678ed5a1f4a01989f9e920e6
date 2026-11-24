@@ -1,0 +1,29 @@
+docs/fullstack/concepts.md
+  s_facbb649ee537c::t_3218f206d678aa 115
+mythril_agent_skills/shared/plan/plan_lint.py
+  s_facbb649ee537c::t_c74b7c78a42783 119-124,749,764,777,788,1170,1328,1351
+mythril_agent_skills/skills/fullstack-apply/references/follow-up.md
+  s_facbb649ee537c::t_2c23c58f6377e3 63-65
+mythril_agent_skills/skills/fullstack-apply/scripts/plan_lint.py
+  s_facbb649ee537c::t_0b4298501b404b 119-124,749,764,777,788,1170,1328,1351
+mythril_agent_skills/skills/fullstack-propose/scripts/plan_lint.py
+  s_facbb649ee537c::t_f79ad27b033ec7 119-124,749,764,777,788,1170,1328,1351
+tests/test_plan_lint.py
+  s_facbb649ee537c::t_0be7e73ea24938 337,640,645,652,669,676,681,690,726,729,749,767,1083,1095,1180,1278,1283,1287,1295,1316
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1e25744be932a0b8678ed5a1f4a01989f9e920e6",
+  "prompts": {},
+  "sessions": {
+    "s_facbb649ee537c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "924eefb8-0c42-4b42-88fb-d3e90f2a1678",
+        "model": "unknown"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
