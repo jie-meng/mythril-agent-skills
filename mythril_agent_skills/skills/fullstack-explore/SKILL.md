@@ -446,6 +446,7 @@ Based on the findings, recommend a concrete follow-up action:
 
 | Scenario | Recommendation |
 |----------|---------------|
+| A bug is root-caused with evidence; the fix is one repo, small, no contract / schema change | Suggest a **quick fix** via `fullstack-apply` — no work item; recommend the smallest fix that removes the symptom and list any broader hardening as an optional follow-up |
 | Query revealed a straightforward change | Suggest `fullstack-propose` with specific work scope (planner subagent will analyze, developer will implement, reviewer will validate) |
 | Uncertainty remains, needs prototyping | Suggest `fullstack-propose` (deep mode) to validate assumptions |
 | Work is done, needs closing | Suggest `fullstack-archive` |

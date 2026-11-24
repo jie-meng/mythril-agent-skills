@@ -109,7 +109,13 @@ feature, fix, or refactor.
 - Opens PRs when the workspace has GitHub repos.
 - Iterations (user feedback, bug reports on the same item) are recorded
   in the same work directory's `progress.md` and `review.md` — there is
-  no separate "mode".
+  no separate "mode". A follow-up never re-runs the plan review; a
+  requirement added mid-implementation is appended as the next `REQ` and
+  covered by the code review.
+- **Quick fix**: a bug whose root cause is already established, in one
+  repo, small, with no contract / schema change and no active owner, is
+  fixed directly — branch, regression test, one independent code review,
+  commit. No work directory; the commit message is the record.
 
 ## Archive — close a completed work item
 
@@ -140,6 +146,7 @@ path.
 | "Review this plan" / "re-review the plan" / "审一下方案" | Propose (review-only re-entry) |
 | "This needs validation first" / "I'm not sure X is feasible" | Propose (deep mode) |
 | "Implement it" / "Continue the work" | Apply |
+| A root-caused, small, one-repo bug — "直接修" / "just fix it" | Apply (quick fix — no work item) |
 | "It's done" / "Ship it" / "Merged" | Archive |
 | "Reorganize this old docs repo" | Docs migration |
 | "Set up a new workspace" | Init (see repo README) |

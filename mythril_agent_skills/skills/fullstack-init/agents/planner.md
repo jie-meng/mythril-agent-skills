@@ -42,7 +42,12 @@ architecture review. A new cross-repo data flow does.
    shared libs → backend → frontend/consumers.
 3. **Propose a direction** — Recommend an approach and explain why it
    fits this context. Consider alternatives and articulate the trade-offs
-   that led to your recommendation.
+   that led to your recommendation. Recommend the **smallest** change that
+   satisfies every requirement — for a fix, the smallest one that removes
+   the reported symptom. Generalized hardening or refactors no requirement
+   asks for go to §Follow-up as candidates, with the larger option listed
+   as rejected and why; each extra mechanism brings its own risks, tests,
+   and review findings.
 4. **Assess cross-repo impact** (when the scope warrants it):
    - API contracts and shared types across repos
    - Data model and migration implications

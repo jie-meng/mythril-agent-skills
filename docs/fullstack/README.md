@@ -64,6 +64,7 @@ the archive lifecycle.
 | [Concepts](concepts.md) | Deep design: directories, documents, lifecycle, naming |
 | [REFACTOR-PLAN](REFACTOR-PLAN.md) | The refactor plan that produced this structure (transitional) |
 | [AGENT-ORCHESTRATION](AGENT-ORCHESTRATION.md) | How the family delegates to subagents (planner / plan-reviewer / developer / code-reviewer / debugger) |
+| [LIGHTWEIGHT-ROADMAP](LIGHTWEIGHT-ROADMAP.md) | Ongoing effort to keep the process proportionate: principles, slimming history, open items |
 
 ---
 

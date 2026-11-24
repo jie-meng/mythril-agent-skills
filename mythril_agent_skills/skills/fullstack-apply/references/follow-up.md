@@ -30,8 +30,18 @@ directory:
    - **Several repos, or a frozen contract changes** → re-run
      `compute_waves.py` on the affected repos and run the wave loop
      (Steps 4a–4e), then the cross-repo review.
-4. Update **every** document this round invalidated, in the same pass as
-   the code — not only `progress.md`:
+
+   **A follow-up never re-runs the plan review.** The code review of the
+   fix is the check. When the user adds a requirement mid-implementation
+   (a product rule, a window, a copy change) that stays inside the item's
+   repos and contracts, append it as the next `REQ<n>` verbatim in
+   `analysis.md` §Original Requirements, add its Success Criterion and
+   tasks to `plan.md`, and run the loop above. Only a new goal, a new repo,
+   or a changed frozen contract that the user wants planned first goes
+   back to `fullstack-propose` — as a `-vN` successor or a separate item,
+   never as plan-review round N+1 on this one.
+4. Update the documents this round invalidated, in the same pass as the
+   code — and only those:
 
    | What the round changed | What must change |
    |---|---|
@@ -40,16 +50,22 @@ directory:
    | behavior a Success Criterion covers | `plan.md` criterion + its `review.md` Evidence row |
    | scope genuinely changed | `plan.md` Success Criteria, with user awareness |
    | files touched | `plan.md` Code Map — replace planned paths with the paths actually changed |
-   | every round | `review.md` — new round carrying its `**文档同步**` / `**Document Sync**` line for all four documents |
+   | every round | `review.md` — a compact code-review round: scope, findings, verdict, the Evidence rows it changed, the `**仓库技能**` / `**Repo Skills**` line when the repo ships skills, and the `**文档同步**` / `**Document Sync**` line |
+
+   The Document Sync line is one line, not a report: a document the round
+   did not touch gets a few words ("未变——仅改实现" / "unchanged —
+   implementation only"). Do not rewrite sections that are still true, and
+   do not paste the reviewer's full verified / unverified lists into
+   `review.md` for a follow-up round — the findings and verdict are the
+   record.
 
 5. Re-run the Mermaid gate and four-file consistency check, then
    `plan_lint.py` — it fails the round if the attestation or a Code Map
    row is missing.
 
 A small fix gets a small loop, never a skipped one: every code-touching
-round still gets a progress entry, an independent review round, and an
-answer for each of the four documents — including the one that says why
-`analysis.md` did not need to move.
+round gets a progress entry, an independent code review, and the one-line
+Document Sync attestation — nothing more.
 
 **After the user archives the item** (via `fullstack-archive`), any new
 request on the same scope creates a NEW work item — never reopen an

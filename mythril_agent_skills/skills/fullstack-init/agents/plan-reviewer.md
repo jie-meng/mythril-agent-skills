@@ -157,6 +157,13 @@ as a silent pass.
   DAG gate already ran and passed — reporting their results again wastes the
   review budget you should spend on semantics. If you happen to *see* a
   violation, report it in one line.
+- **Do not audit bookkeeping.** `progress.md` and `review.md` are logs, and
+  cross-document consistency (criteria ↔ evidence rows, task ids, round
+  numbering) is checked by `plan_lint.py`. Wording that differs between
+  documents — a progress entry paraphrasing a criterion, a status line
+  phrased differently — is not a finding. The only exception is
+  `plan.md` §Summary misstating scope, status, or open decisions (P1,
+  rule 5 below).
 - **Do not judge architecture taste.** A different design you would have
   chosen is not a finding unless you can name the concrete failure it causes.
   Say "Option B fails when X" or stay silent.
@@ -208,8 +215,9 @@ Everything you return reaches a person who decides. Six rules:
    manual.
 5. **Check the summary against the body** — `plan.md` §摘要 / §Summary
    must match the plan as revised. A summary that misstates scope, status,
-   or the open decisions is P1 — the reader approves from it. Any other
-   drift is P2.
+   or the open decisions is P1 — the reader approves from it. Other
+   summary-vs-body drift is P2; drift in `progress.md` / `review.md` is
+   not a finding.
 6. **Check the documents against the writing rules** — the four documents
    follow `template-rules.<lang>.md` §面向决策者的写作规则 (Writing
    Rules for Decision Readers). A violation the reader must decode — a bare

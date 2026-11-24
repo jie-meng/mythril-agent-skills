@@ -15,8 +15,8 @@ description: |
   gated by an independent plan review before handoff; ALSO for
   re-reviewing an existing plan without replanning it — "review this
   plan", "re-review the plan", "审一下方案", "方案靠谱吗", "is this
-  plan ready". Planning only — does not edit project code or create
-  branches.
+  plan ready". Planning only — no code edits or branches. A
+  root-caused small one-repo bug goes to fullstack-apply's quick fix.
 license: Apache-2.0
 ---
 
@@ -35,6 +35,15 @@ Turn an idea into a planned work item in a workspace initialized by
 ```
 
 ## How this skill works
+
+**Quick fix first — not every bug is a work item.** A `fix` whose root
+cause is already established (in this session, with evidence), confined to
+one repo, with no cross-repo contract / persisted-data / schema / external
+API change, small enough to review in one sitting, and touching no code an
+active work item owns, does not get a work directory. Recommend
+`fullstack-apply`'s quick-fix path in the Step 3 message (`Tier: quick fix
+— no work item`); if the user accepts, stop here — write nothing, commit
+nothing — and hand off. The user can always insist on a work item.
 
 | | Lean tier | Full tier |
 |---|---|---|
@@ -151,6 +160,7 @@ Based on the requirements, I plan to involve these repositories:
 Work type: feat
 Work name: add-dark-mode
 Tier: full (two repos share a new contract)
+     (a fix that qualifies: "quick fix — no work item, fullstack-apply fixes it directly")
 
 Confirm, or add/remove repos, or change the type, name, or tier.
 ```
@@ -205,8 +215,11 @@ can falsify the plan against the user's words rather than a restatement.
 
 ### 4b. The plan itself
 
-**`fix` type, either tier:** delegate root-cause analysis to the
-**debugger** subagent first; the plan is built on its findings.
+**`fix` type, either tier:** the plan is built on an established root
+cause. When this session already established it with evidence (log lines,
+code path, data), write it into `analysis.md` §Root Cause / §根因分析 and
+do **not** re-run the analysis. Otherwise delegate root-cause analysis to
+the **debugger** subagent first.
 
 **Lean tier — write it yourself.** Read `template-analysis`,
 `template-plan`, and `template-rules` for `<lang>`, then write the rest of
@@ -236,6 +249,13 @@ refresh the workspace agents.)
 
 These bind whoever writes. The templates hold the exact shapes.
 
+- **The smallest change that meets the requirements.** The recommended
+  option is the smallest one that satisfies every `REQ` — for a `fix`, the
+  smallest one that removes the reported symptom. Generalized hardening,
+  framework-level fallbacks, and "while we are here" refactors go to
+  §Follow-up as candidates unless a `REQ` asks for them; list the larger
+  option in the strategy table with why it was not chosen. Every extra
+  mechanism adds risks, tests, and review findings of its own.
 - **Testable Success Criteria.** "Works correctly" is not one; "returns 200
   with JSON matching schema X for inputs A, B, C" is.
 - **Frozen cross-repo contracts (multi-repo).** `fullstack-apply` derives
@@ -381,7 +401,9 @@ On `NEEDS_USER_DECISION`, replace `Next:` with a request for the decisions
 ## Guardrails
 
 - Planning only; no branches, no code-repo commits, no PRs.
-- Four documents, always; `plan.md` always carries §Summary and the Code Map.
+- Four documents for every work item; `plan.md` always carries §Summary
+  and the Code Map. A qualifying quick fix is not a work item — route it to
+  `fullstack-apply`.
 - Every plan passes the Plan Review Gate; never report it ready with an
   open P0/P1, an unanswered `NEEDS_USER_DECISION`, or a failing gate.
 - Never weaken a plan to reach `PASS`.

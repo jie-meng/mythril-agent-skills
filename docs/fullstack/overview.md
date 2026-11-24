@@ -68,10 +68,12 @@ field** — no text field to keep in sync, one `mv` to archive.
 - **Six months later, the archive tells you why the system works the way
   it does** — and the next AI session can read it.
 
-The honest tradeoff: for a truly trivial one-line fix, the four documents
-may feel like ceremony. That's fine — the structure is designed so the
-ceremony scales with the stakes, and `archive` gives you a place to
-sweep small items when they're done.
+The honest tradeoff: for a small bug fix the four documents are ceremony,
+so a bug whose root cause is already known — one repo, small, no contract
+change — skips them: `fullstack-apply` fixes it directly as a **quick fix**
+(regression test, one independent code review, commit; the commit message
+is the record). Work items are for changes where a plan can still be
+wrong.
 
 ---
 

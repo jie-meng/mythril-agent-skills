@@ -333,7 +333,7 @@ Propose a new work item across a multi-repo fullstack workspace. When a plan-sha
 
 **[Fullstack Apply](./mythril_agent_skills/skills/fullstack-apply/)**
 
-Implement a planned work item across a multi-repo fullstack workspace. Implements per repo in dependency order, delegates to workspace agents, reviews against the plan's Success Criteria, creates PRs, and finalizes the work-tracking documents. Every code-touching round — including a follow-up fix asked for after implementation — updates the Code Map and states the outcome for all four documents.
+Implement a planned work item across a multi-repo fullstack workspace. Implements per repo in dependency order, delegates to workspace agents, reviews against the plan's Success Criteria, creates PRs, and finalizes the work-tracking documents. Every code-touching round — including a follow-up fix asked for after implementation — updates the Code Map and states the outcome for all four documents. A small bug whose root cause is already known is fixed directly as a quick fix, with no work item.
 
 - **Try:** Implement this Jira ticket across the workspace
 - **Deps:** Workspace initialized by `fullstack-init`; a plan from `fullstack-propose`
