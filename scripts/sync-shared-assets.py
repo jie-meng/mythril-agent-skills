@@ -186,6 +186,28 @@ def specs() -> list[SyncSpec]:
         )
     )
 
+    # --- shared/secrets/secret_guard.py → <skill>/scripts/secret_guard.py
+    # Every skill whose script reads an API token from the environment
+    # redacts it from all output and refuses misordered request arguments.
+    secret_guard_consumers = (
+        "confluence",
+        "figma",
+        "glm-vision-fallback",
+        "jenkins",
+        "jira",
+        "notion",
+    )
+    out.append(
+        SyncSpec(
+            source=SHARED_ROOT / "secrets" / "secret_guard.py",
+            targets=tuple(
+                SKILLS_ROOT / skill / "scripts" / "secret_guard.py"
+                for skill in secret_guard_consumers
+            ),
+            description="credential redaction guard",
+        )
+    )
+
     # --- shared/waves/compute_waves.py → <skill>/scripts/compute_waves.py
     # Canonical dependency-wave calculator for the fullstack family:
     # apply layers repos into parallel waves; propose validates the

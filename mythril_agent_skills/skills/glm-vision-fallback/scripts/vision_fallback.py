@@ -17,6 +17,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from secret_guard import guard_args, install as install_secret_guard  # noqa: E402
+
 API_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 MODEL = "glm-4.6v-flash"
 ENV_KEYS = ("ZAI_API_KEY", "GLM_API_KEY")
@@ -35,6 +38,7 @@ def get_api_key() -> str:
     for name in ENV_KEYS:
         value = os.environ.get(name)
         if value:
+            install_secret_guard(ENV_KEYS)
             return value
     raise SystemExit(
         "GLM-4V-Flash API key not found. Set ZAI_API_KEY or GLM_API_KEY:\n"
@@ -130,6 +134,7 @@ def call_api(
     model: str, strict: bool,
 ) -> str:
     """Call the GLM vision chat API and return the model's text answer."""
+    guard_args(model=model)
     if strict:
         messages = [
             {"role": "system", "content": STRICT_SYSTEM_PROMPT},

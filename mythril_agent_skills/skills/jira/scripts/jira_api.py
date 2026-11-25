@@ -18,6 +18,9 @@ import urllib.request
 import urllib.error
 from urllib.parse import urlencode
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from secret_guard import guard_args, install as install_secret_guard  # noqa: E402
+
 
 def _create_ssl_context() -> ssl.SSLContext | None:
     """Build an SSL context respecting enterprise network configuration.
@@ -54,6 +57,7 @@ def get_token() -> str:
         print("", file=sys.stderr)
         print("Get token: https://id.atlassian.com/manage-profile/security/api-tokens", file=sys.stderr)
         sys.exit(1)
+    install_secret_guard(("ATLASSIAN_API_TOKEN",), ("ATLASSIAN_USER_EMAIL",))
     return token
 
 
@@ -125,6 +129,7 @@ def jira_request(
     params: dict | None = None,
 ) -> dict | list | None:
     """Make an authenticated request to the Jira REST API."""
+    guard_args(method=method, path=path, base_url=base_url)
     url = f"{base_url}/rest/api/3{path}"
     if params:
         url += "?" + urlencode(params)
@@ -159,6 +164,7 @@ def _agile_request(
     params: dict | None = None,
 ) -> dict:
     """Make an authenticated request to the Jira Agile REST API."""
+    guard_args(base_url=base_url, path=path)
     url = f"{base_url}/rest/agile/1.0{path}"
     if params:
         url += "?" + urlencode(params)

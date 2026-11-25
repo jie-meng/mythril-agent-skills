@@ -21,6 +21,9 @@ import urllib.error
 import urllib.request
 from urllib.parse import urlsplit, urlencode
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from secret_guard import guard_args, install as install_secret_guard  # noqa: E402
+
 BASE_URL = "https://api.notion.com/v1"
 API_VERSION = "2026-03-11"
 MARKDOWN_VERSION = "v2"
@@ -73,6 +76,7 @@ def get_token() -> str:
         print("", file=sys.stderr)
         print(TOKEN_HELP, file=sys.stderr)
         sys.exit(1)
+    install_secret_guard((TOKEN_ENV,))
     return token
 
 
@@ -93,6 +97,7 @@ def notion_request(
     params: dict | None = None,
 ) -> dict | None:
     """Make an authenticated request to the Notion REST API."""
+    guard_args(method=method, path=path)
     url = f"{BASE_URL}{path}"
     if params:
         url += "?" + urlencode(params)

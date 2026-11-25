@@ -59,6 +59,7 @@ optimized for text-heavy content — general OCR, dense table/form parsing, and
 4. **When debugging auth errors**, rely solely on the script's error output (401/403/429 messages). Do NOT attempt to verify keys by reading or printing them.
 5. **NEVER extract credentials from OS credential stores or config files** — macOS Keychain (`security find-*`), `cat ~/.git-credentials`, `cat ~/.netrc`, or any other command that outputs a secret.
 6. **NEVER use extracted credential values in commands** or construct authenticated requests manually. The bundled script handles all authentication internally.
+7. **Use only the documented CLI subcommands.** Do NOT `import` the bundled script or call its internal functions (`get_token()`, `*_request()`, etc.) via `python3 -c` or ad-hoc code — that bypasses the CLI's argument handling, and a misordered argument can put the credential into a URL or error message. If a needed subcommand is missing, tell the user instead of scripting around it. Script output redacts credentials as `[REDACTED]`; if a credential value ever appears in any output anyway, do NOT repeat it — tell the user to rotate it.
 
 # Workflow
 

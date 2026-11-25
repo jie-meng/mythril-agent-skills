@@ -14,6 +14,9 @@ import urllib.request
 import urllib.error
 from urllib.parse import urlencode, quote
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from secret_guard import guard_args, install as install_secret_guard  # noqa: E402
+
 
 TOKEN_URL = "https://www.jenkins.io/doc/book/managing/security/#api-tokens"
 
@@ -108,6 +111,7 @@ def get_env() -> tuple[str, str, str]:
         print("", file=sys.stderr)
         print(TOKEN_HELP, file=sys.stderr)
         sys.exit(1)
+    install_secret_guard(("JENKINS_API_TOKEN",), ("JENKINS_USER",))
     return (
         os.environ["JENKINS_URL"].strip().rstrip("/"),
         os.environ["JENKINS_USER"].strip(),
@@ -155,6 +159,7 @@ def _request(
     Raises ApiError on HTTP >= 400; exits on network-level failures.
     """
     base_url, user, token = get_env()
+    guard_args(method=method, url=url)
     if form:
         data = urlencode(form).encode()
     req = urllib.request.Request(url, data=data, method=method)

@@ -5,6 +5,9 @@ import urllib.request
 import urllib.error
 from urllib.parse import urlencode, unquote
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from secret_guard import guard_args, install as install_secret_guard  # noqa: E402
+
 
 def get_token():
     token = os.environ.get("FIGMA_ACCESS_TOKEN", "").strip()
@@ -16,6 +19,7 @@ def get_token():
             file=sys.stderr,
         )
         sys.exit(1)
+    install_secret_guard(("FIGMA_ACCESS_TOKEN",))
     return token
 
 
@@ -83,6 +87,7 @@ def _handle_rate_limit(e, path):
 
 
 def figma_get(path, token, **params):
+    guard_args(path=path)
     url = f"https://api.figma.com{path}"
     if params:
         url += "?" + urlencode(params)

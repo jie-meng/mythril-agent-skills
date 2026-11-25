@@ -289,8 +289,11 @@ Skills that require API tokens, passwords, or other credentials (e.g. `ATLASSIAN
    - GitHub CLI config: reading or printing contents of `~/.config/gh/hosts.yml` or any `gh` auth config file
    - Any other command or file read that outputs a password, token, or secret value
 6. **NEVER use extracted credential values in commands.** Even if a credential value is somehow visible (e.g. from a previous session's output), do NOT copy and use it in `curl -H "Authorization: token <value>"`, API calls, or any other command. Tools like `gh` and bundled scripts handle authentication internally — the AI agent must never manually construct authenticated requests using raw credential values.
+7. **Use only the documented CLI subcommands.** Do NOT `import` a bundled script and call its internal functions (`get_token()`, `*_request()`, etc.) — a misordered argument can put the credential into a URL or error message. If a needed subcommand is missing, report it instead of scripting around it.
 
 These rules prevent accidental credential exposure in terminal output, chat logs, and conversation transcripts.
+
+**For skill scripts that read a credential from the environment**: the getter (`get_token()` or equivalent) MUST call `install_secret_guard(...)` from the bundled `secret_guard.py` (canonical: `shared/secrets/secret_guard.py`), which redacts the credential — including URL-encoded and Basic-auth base64 forms — from all stdout/stderr output and tracebacks. Every HTTP request function MUST call `guard_args(...)` on its non-credential arguments (method, path, base_url, url) so a misordered call is refused before the credential reaches a URL or error message. A new credential skill must be added to the `secret_guard` consumers in `scripts/sync-shared-assets.py` and to `CONSUMERS` in `tests/test_secret_guard.py`.
 
 **For `skills_check.py`**: Token values MUST be masked (show only last 4 chars). Email addresses MUST be partially masked (e.g. `j***@example.com`). Base URLs may be shown in full.
 
@@ -508,6 +511,7 @@ NEVER hand-edit a bundled copy directly — your changes will be lost on the nex
 | `MERMAID-RULES.md` | `shared/mermaid/MERMAID-RULES.md` | `fullstack-apply`, `fullstack-propose`, `fullstack-brief`, `user-journey` |
 | `graphify_check.py` | `shared/graphify/graphify_check.py` | `fullstack-init`, `fullstack-explore`, `fullstack-propose`, `fullstack-apply`, `fullstack-archive`, `fullstack-brief` |
 | `compute_waves.py` | `shared/waves/compute_waves.py` | `fullstack-propose`, `fullstack-apply` |
+| `secret_guard.py` | `shared/secrets/secret_guard.py` | `confluence`, `figma`, `glm-vision-fallback`, `jenkins`, `jira`, `notion` |
 | `plan_lint.py` | `shared/plan/plan_lint.py` | `fullstack-propose`, `fullstack-apply` |
 | `repo_skills.py` | `shared/workspace/repo_skills.py` | `fullstack-init`, `fullstack-explore`, `fullstack-apply` |
 | `check_workspace.py` | `shared/workspace/check_workspace.py` | `fullstack-apply`, `fullstack-archive`, `fullstack-explore`, `fullstack-issue-archive`, `fullstack-issue-create`, `fullstack-propose` |

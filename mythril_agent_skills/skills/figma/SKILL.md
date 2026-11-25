@@ -32,6 +32,7 @@ Requires `FIGMA_ACCESS_TOKEN` environment variable. See `README.md` in this skil
    - `git credential fill`, `cat ~/.git-credentials`, `cat ~/.netrc`
    - Any command that outputs a password, token, or secret value from any credential store
 6. **NEVER use extracted credential values in commands.** Do NOT manually construct authenticated requests using raw credential values. The bundled script handles all authentication internally.
+7. **Use only the documented CLI subcommands.** Do NOT `import` the bundled script or call its internal functions (`get_token()`, `*_request()`, etc.) via `python3 -c` or ad-hoc code — that bypasses the CLI's argument handling, and a misordered argument can put the credential into a URL or error message. If a needed subcommand is missing, tell the user instead of scripting around it. Script output redacts credentials as `[REDACTED]`; if a credential value ever appears in any output anyway, do NOT repeat it — tell the user to rotate it.
 
 # Workflow
 
