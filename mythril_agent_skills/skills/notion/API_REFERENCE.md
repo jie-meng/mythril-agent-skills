@@ -47,7 +47,7 @@ PAT specifics: shown only once; expiration 7/30/90/180 days or 1 year (default 1
 | Add a comment | `POST /v1/comments` (body `parent.page_id`, `markdown`, `markdown_version`) | `comment` |
 | List data sources of a database | `GET /v1/databases/{database_id}` → `data_sources[]` | `data-sources` |
 | Query a data source | `POST /v1/data_sources/{data_source_id}/query` | `query` |
-| Retrieve a data source schema | `GET /v1/data_sources/{data_source_id}` | — (see below) |
+| Retrieve a data source schema | `GET /v1/data_sources/{data_source_id}` | `schema`, `create-item` (type lookup) |
 | Append block children | `PATCH /v1/blocks/{block_id}/children` | — (not covered; use blocks API for fine-grained control) |
 
 `GET /v1/pages/{page_id}/markdown` returns a `page_markdown` object:

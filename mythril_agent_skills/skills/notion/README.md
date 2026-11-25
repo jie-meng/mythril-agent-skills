@@ -77,9 +77,12 @@ python3 scripts/notion_api.py comment PAGE "Looks good!"
 
 # Ticket workflows: discover data sources, query, create, change status
 python3 scripts/notion_api.py data-sources DATABASE_ID
+python3 scripts/notion_api.py schema DATA_SOURCE_ID
 python3 scripts/notion_api.py query DATA_SOURCE_ID --filter '{"property":"Status","select":{"equals":"Todo"}}'
-python3 scripts/notion_api.py create-item DATA_SOURCE_ID --title "Fix login timeout" --status Todo
+python3 scripts/notion_api.py create-item DATA_SOURCE_ID --title "Fix login timeout" --status Todo \
+  --property "Tags=Bug,Auth" --property "Sprint=SPRINT_PAGE_ID" --property "Assign=USER_ID"
 python3 scripts/notion_api.py set-property PAGE --name Status --value Done
+python3 scripts/notion_api.py set-property PAGE --property "Status=Done" --property "Tags=Bug"
 ```
 
 Run `python3 scripts/notion_api.py --help` (and `<command> --help`) for all commands and flags.

@@ -137,6 +137,147 @@ class TestBuildPropertyValue:
         with pytest.raises(ValueError):
             self.fn("unknown", "x")
 
+    def test_multi_select_splits_commas(self):
+        assert self.fn("multi_select", "Bug, UI,") == {
+            "multi_select": [{"name": "Bug"}, {"name": "UI"}]
+        }
+
+    def test_multi_select_empty_clears(self):
+        assert self.fn("multi_select", "") == {"multi_select": []}
+
+    def test_relation_accepts_ids_and_urls(self):
+        url = "https://app.notion.com/p/Sprint-1-" + "a" * 32
+        out = self.fn("relation", f"{'b' * 32}, {url}")
+        assert out == {"relation": [{"id": "b" * 32}, {"id": "a" * 32}]}
+
+    def test_relation_rejects_non_id(self):
+        with pytest.raises(ValueError):
+            self.fn("relation", "Sprint 1")
+
+    def test_people(self):
+        uid = "12345678-1234-1234-1234-123456789abc"
+        assert self.fn("people", uid) == {
+            "people": [{"object": "user", "id": uid.replace("-", "")}]
+        }
+
+    def test_people_rejects_name(self):
+        with pytest.raises(ValueError):
+            self.fn("people", "Alice")
+
+    def test_title_email_phone(self):
+        assert self.fn("title", "T") == {"title": [{"text": {"content": "T"}}]}
+        assert self.fn("email", "a@b.co") == {"email": "a@b.co"}
+        assert self.fn("phone_number", "+65 1") == {"phone_number": "+65 1"}
+
+
+class TestExtractId:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from notion_api import extract_id
+
+        self.fn = extract_id
+
+    def test_none_when_absent(self):
+        assert self.fn("not an id") is None
+
+    def test_ignores_view_query_param(self):
+        url = f"https://app.notion.com/p/{'a' * 32}?v={'b' * 32}"
+        assert self.fn(url) == "a" * 32
+
+
+class TestParsePropertyArg:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from notion_api import parse_property_arg
+
+        self.fn = parse_property_arg
+
+    def test_with_type(self):
+        assert self.fn("Tags=Bug,UI:multi_select") == ("Tags", "Bug,UI", "multi_select")
+
+    def test_without_type(self):
+        assert self.fn("Status=In Progress") == ("Status", "In Progress", None)
+
+    def test_colon_in_value_is_kept(self):
+        assert self.fn("Link=https://x.com/a") == ("Link", "https://x.com/a", None)
+        assert self.fn("Link=https://x.com:url") == ("Link", "https://x.com", "url")
+
+    def test_value_may_contain_equals(self):
+        assert self.fn("Expr=a=b:rich_text") == ("Expr", "a=b", "rich_text")
+
+    def test_missing_equals(self):
+        with pytest.raises(ValueError):
+            self.fn("Status")
+
+    def test_missing_name(self):
+        with pytest.raises(ValueError):
+            self.fn("=x")
+
+
+class TestBuildProperties:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from notion_api import build_properties, schema_property_types
+
+        self.build = build_properties
+        self.types = schema_property_types
+
+    def test_schema_types_from_data_source_and_page(self):
+        obj = {"properties": {"Status": {"type": "status"}, "Tags": {"type": "multi_select"}}}
+        assert self.types(obj) == {"Status": "status", "Tags": "multi_select"}
+
+    def test_resolves_type_from_schema(self):
+        out = self.build(
+            [("Status", "Todo", None), ("Tags", "Bug", None)],
+            {"Status": "status", "Tags": "multi_select"},
+        )
+        assert out == {
+            "Status": {"status": {"name": "Todo"}},
+            "Tags": {"multi_select": [{"name": "Bug"}]},
+        }
+
+    def test_explicit_type_wins(self):
+        out = self.build([("Epic", "Auth", "select")], {"Epic": "rich_text"})
+        assert out == {"Epic": {"select": {"name": "Auth"}}}
+
+    def test_unknown_property(self):
+        with pytest.raises(ValueError, match="Known: Status"):
+            self.build([("Nope", "x", None)], {"Status": "status"})
+
+    def test_unsupported_schema_type(self):
+        with pytest.raises(ValueError, match="unsupported"):
+            self.build([("F", "x", None)], {"F": "formula"})
+
+
+class TestFormatSchema:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from notion_api import format_schema
+
+        self.fmt = format_schema
+
+    def test_empty(self):
+        assert "No properties" in self.fmt({})
+
+    def test_rows(self):
+        out = self.fmt(
+            {
+                "title": [{"plain_text": "Board"}],
+                "properties": {
+                    "Status": {
+                        "type": "status",
+                        "status": {"options": [{"name": "Todo"}, {"name": "Done"}]},
+                    },
+                    "Sprint": {"type": "relation", "relation": {"data_source_id": "ds9"}},
+                    "Assign": {"type": "people", "people": {}},
+                },
+            }
+        )
+        assert "Board" in out
+        assert "| Status | status | Todo, Done |" in out
+        assert "| Sprint | relation | ds9 |" in out
+        assert "| Assign | people |  |" in out
+
 
 class TestFormatPageMarkdown:
     @pytest.fixture(autouse=True)
@@ -184,6 +325,41 @@ class TestFormatPageMarkdown:
         assert "1 block(s)" in out
         assert "deprecated_tag" in out
         assert "(untitled)" in out
+
+
+class TestFormatPageProperties:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from notion_api import format_page_markdown, format_property_value
+
+        self.fmt = format_page_markdown
+        self.val = format_property_value
+
+    def test_values(self):
+        assert self.val({"type": "status", "status": {"name": "Todo"}}) == "Todo"
+        assert self.val({"type": "multi_select", "multi_select": [{"name": "A"}, {"name": "B"}]}) == "A, B"
+        assert self.val({"type": "relation", "relation": [{"id": "r1"}]}) == "r1"
+        assert self.val({"type": "people", "people": [{"id": "u1", "name": "Ann"}, {"id": "u2"}]}) == "Ann (u1), u2"
+        assert self.val({"type": "date", "date": {"start": "2026-01-01", "end": "2026-01-02"}}) == "2026-01-01 → 2026-01-02"
+        assert self.val({"type": "select", "select": None}) == ""
+        assert self.val({"type": "number", "number": 3}) == "3"
+        assert self.val({"type": "formula", "formula": {"type": "string", "string": "x"}}) == "x"
+
+    def test_page_shows_parent_and_properties(self):
+        page = {
+            "id": "p1",
+            "parent": {"type": "data_source_id", "data_source_id": "ds1"},
+            "properties": {
+                "Name": {"type": "title", "title": [{"plain_text": "Card"}]},
+                "Status": {"type": "status", "status": {"name": "Todo"}},
+                "Notes": {"type": "rich_text", "rich_text": [{"plain_text": "a|b"}]},
+            },
+        }
+        out = self.fmt(page, {"markdown": "body"})
+        assert "- **Parent**: data_source_id: ds1" in out
+        assert "| Status | status | Todo |" in out
+        assert "a\\|b" in out
+        assert "| Name |" not in out
 
 
 class TestFormatSearchResults:

@@ -146,24 +146,44 @@ python3 scripts/notion_api.py comment PAGE "Looks good, ship it."
 # Discover data source IDs for a database (a database can hold several)
 python3 scripts/notion_api.py data-sources DATABASE_ID
 
+# Show a data source's properties, types, select/status options and relation targets
+python3 scripts/notion_api.py schema DATA_SOURCE_ID
+
 # Query items in a data source (NOT a database ID)
 python3 scripts/notion_api.py query DATA_SOURCE_ID
 python3 scripts/notion_api.py query DATA_SOURCE_ID --filter '{"property":"Status","select":{"equals":"In Progress"}}'
 python3 scripts/notion_api.py query DATA_SOURCE_ID --limit 50 --start-cursor "<cursor>"
 
-# Create an item in a data source
+# Create an item with every field in ONE request (all-or-nothing)
 python3 scripts/notion_api.py create-item DATA_SOURCE_ID --title "Fix login timeout" \
-  --markdown "## Description\n\nUsers hit a 30s timeout." --status "Todo"
-python3 scripts/notion_api.py create-item DATA_SOURCE_ID --title "Add export" \
-  --status "In Progress" --status-property "State"
+  --markdown "## Description\n\nUsers hit a 30s timeout." \
+  --status "Todo" \
+  --property "Tags=Bug,Auth" \
+  --property "Sprint=SPRINT_PAGE_ID_OR_URL" \
+  --property "Assign=USER_ID" \
+  --property "Epic=Login" \
+  --property "Description=Timeout after 30s"
 
 # Change a property (maps to a ticket status transition)
 python3 scripts/notion_api.py set-property PAGE --name Status --value Done
-python3 scripts/notion_api.py set-property PAGE --name Priority --value High --type select
-python3 scripts/notion_api.py set-property PAGE --name Notes --value "text" --type rich_text
+# Change several properties in ONE request
+python3 scripts/notion_api.py set-property PAGE --property "Status=Done" --property "Tags=Bug,UI"
 ```
 
-`set-property` supports `--type` values: `select` (default), `status`, `rich_text`, `checkbox`, `number`, `url`, `date`.
+`--property` format is `NAME=VALUE[:TYPE]`, repeatable. The type is optional:
+`create-item` reads it from the data source schema and `set-property` from the
+page, so `status` vs `select` is always sent correctly. Add `:TYPE` only to
+override (or when the schema cannot be read). Supported types: `select`,
+`status`, `multi_select`, `rich_text`, `title`, `checkbox`, `number`, `url`,
+`email`, `phone_number`, `date`, `relation`, `people`.
+
+- `multi_select`, `relation`, `people` take comma-separated values; an empty value clears the property.
+- `relation` takes page IDs or page URLs (find them with `query` on the related data source).
+- `people` takes Notion user IDs (find them in `view`/`query` output of existing items, or `myself`).
+- Computed types (`formula`, `rollup`, `created_time`, …) cannot be written.
+- Add `--dry-run` to `create-item` / `set-property` to print the request body without sending it — use it to check a write on a shared board first.
+
+Prefer one `create-item` with all `--property` flags over "create, then `set-property` field by field": if a later step fails, the latter leaves a half-filled item visible to everyone.
 
 ### Current identity
 

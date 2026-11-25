@@ -46,7 +46,23 @@ _BARE_ID_RE = re.compile(
     r"|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
 )
 
-PROPERTY_TYPES = ("select", "status", "rich_text", "checkbox", "number", "url", "date")
+PROPERTY_TYPES = (
+    "select",
+    "status",
+    "multi_select",
+    "rich_text",
+    "title",
+    "checkbox",
+    "number",
+    "url",
+    "email",
+    "phone_number",
+    "date",
+    "relation",
+    "people",
+)
+# Types whose CLI value is a comma-separated list.
+LIST_PROPERTY_TYPES = ("multi_select", "relation", "people")
 
 
 # ---------------------------------------------------------------------------
@@ -149,8 +165,8 @@ def notion_request(
 # ---------------------------------------------------------------------------
 
 
-def parse_page_input(value: str) -> str:
-    """Extract a Notion ID from a bare ID or a full Notion URL."""
+def extract_id(value: str) -> str | None:
+    """Extract a Notion ID from a bare ID or a full Notion URL, or None."""
     v = value.strip()
     if _BARE_ID_RE.fullmatch(v):
         return v.replace("-", "")
@@ -159,9 +175,17 @@ def parse_page_input(value: str) -> str:
     path = urlsplit(v).path if "://" in v else v
     matches = list(_ID_RE.finditer(path)) or list(_ID_RE.finditer(v))
     if not matches:
+        return None
+    return matches[-1].group(0).replace("-", "")
+
+
+def parse_page_input(value: str) -> str:
+    """Extract a Notion ID from a bare ID or URL; exit with an error if absent."""
+    found = extract_id(value)
+    if found is None:
         print(f"ERROR: cannot find a Notion ID in: {value}", file=sys.stderr)
         sys.exit(1)
-    return matches[-1].group(0).replace("-", "")
+    return found
 
 
 def plain_text(rich_text: list[dict]) -> str:
@@ -195,8 +219,53 @@ def _cursor_note(data: dict) -> str:
     )
 
 
+def format_property_value(prop: dict) -> str:
+    """Render one page property value as short plain text.
+
+    people and relation show IDs so they can be reused in --property.
+    """
+    t = prop.get("type", "")
+    v = prop.get(t)
+    if v is None:
+        return ""
+    if t in ("title", "rich_text"):
+        return plain_text(v)
+    if t in ("select", "status"):
+        return v.get("name", "") if isinstance(v, dict) else ""
+    if t == "multi_select":
+        return ", ".join(o.get("name", "") for o in v if isinstance(o, dict))
+    if t == "people":
+        return ", ".join(
+            f"{u['name']} ({u.get('id', '')})" if u.get("name") else u.get("id", "")
+            for u in v
+            if isinstance(u, dict)
+        )
+    if t == "relation":
+        return ", ".join(r.get("id", "") for r in v if isinstance(r, dict))
+    if t == "date":
+        if not isinstance(v, dict):
+            return ""
+        return v.get("start", "") + (f" → {v['end']}" if v.get("end") else "")
+    if t in ("formula", "rollup") and isinstance(v, dict):
+        inner = v.get(v.get("type", ""))
+        return "" if inner is None or isinstance(inner, (dict, list)) else str(inner)
+    if t in ("created_by", "last_edited_by") and isinstance(v, dict):
+        return v.get("name") or v.get("id", "")
+    if isinstance(v, (dict, list)):
+        return ""
+    return str(v)
+
+
+def format_parent(parent: dict) -> str:
+    """Render a page's parent, e.g. 'data_source_id: <id>'."""
+    t = (parent or {}).get("type", "")
+    if not t or t == "workspace":
+        return t
+    return f"{t}: {parent.get(t, '')}"
+
+
 def format_page_markdown(page: dict, md: dict) -> str:
-    """Render page metadata plus its full markdown content."""
+    """Render page metadata, properties and its full markdown content."""
     lines = [f"## {page_title(page)}", ""]
     for label, key in (
         ("ID", "id"),
@@ -206,6 +275,18 @@ def format_page_markdown(page: dict, md: dict) -> str:
     ):
         if page.get(key):
             lines.append(f"- **{label}**: {page[key]}")
+    if page.get("parent"):
+        lines.append(f"- **Parent**: {format_parent(page['parent'])}")
+    props = [
+        (name, prop)
+        for name, prop in (page.get("properties") or {}).items()
+        if isinstance(prop, dict) and prop.get("type") != "title"
+    ]
+    if props:
+        lines += ["", "### Properties", "", "| Property | Type | Value |", "|---|---|---|"]
+        for name, prop in props:
+            value = format_property_value(prop).replace("|", "\\|").replace("\n", " ")
+            lines.append(f"| {name} | {prop.get('type', '')} | {value} |")
     lines += ["", "### Content", "", (md.get("markdown") or "").rstrip()]
     if md.get("truncated"):
         lines += ["", "> Note: the API truncated this page's content."]
@@ -255,7 +336,11 @@ def format_data_sources(db: dict) -> str:
     """Render the data_sources list from GET /v1/databases/{id}."""
     items = db.get("data_sources") or []
     if not items:
-        return "No data sources found."
+        return (
+            "No data sources found. If this is a linked database (a view of a "
+            "database that lives elsewhere), open the source database and use its "
+            "URL, and make sure the source database is shared with the token creator."
+        )
     lines = ["| Name | ID |", "|---|---|"]
     for ds in items:
         lines.append(f"| {ds.get('name') or '(unnamed)'} | {ds.get('id', '')} |")
@@ -300,14 +385,48 @@ def with_title(title: str, markdown: str) -> str:
     return f"# {title}\n\n{markdown}"
 
 
+def split_list_value(value: str) -> list[str]:
+    """Split a comma-separated CLI value, dropping blanks."""
+    return [part.strip() for part in value.split(",") if part.strip()]
+
+
 def build_property_value(prop_type: str, value: str) -> dict:
-    """Build a Notion page property value for the given type."""
+    """Build a Notion page property value for the given type.
+
+    multi_select, relation and people take comma-separated values; relation
+    accepts page IDs or URLs, people takes Notion user IDs. An empty value
+    clears a list property.
+    """
     if prop_type == "select":
         return {"select": {"name": value}}
     if prop_type == "status":
         return {"status": {"name": value}}
+    if prop_type == "multi_select":
+        return {"multi_select": [{"name": v} for v in split_list_value(value)]}
+    if prop_type == "relation":
+        ids = []
+        for item in split_list_value(value):
+            found = extract_id(item)
+            if found is None:
+                raise ValueError(f"relation value is not a page ID or URL: {item}")
+            ids.append({"id": found})
+        return {"relation": ids}
+    if prop_type == "people":
+        people = []
+        for item in split_list_value(value):
+            found = extract_id(item)
+            if found is None:
+                raise ValueError(f"people value is not a Notion user ID: {item}")
+            people.append({"object": "user", "id": found})
+        return {"people": people}
     if prop_type == "rich_text":
         return {"rich_text": [{"text": {"content": value}}]}
+    if prop_type == "title":
+        return {"title": [{"text": {"content": value}}]}
+    if prop_type == "email":
+        return {"email": value}
+    if prop_type == "phone_number":
+        return {"phone_number": value}
     if prop_type == "checkbox":
         return {"checkbox": value.strip().lower() in ("1", "true", "yes", "on")}
     if prop_type == "number":
@@ -317,6 +436,81 @@ def build_property_value(prop_type: str, value: str) -> dict:
     if prop_type == "date":
         return {"date": {"start": value}}
     raise ValueError(f"unsupported property type: {prop_type}")
+
+
+def parse_property_arg(arg: str) -> tuple[str, str, str | None]:
+    """Parse a --property argument "Name=value[:type]".
+
+    The type suffix is recognised only when it is a known property type, so
+    values containing colons (URLs, times) stay intact. Returns
+    (name, value, type-or-None); a None type is resolved from the schema.
+    """
+    name, sep, rest = arg.partition("=")
+    name = name.strip()
+    if not sep or not name:
+        raise ValueError(f"expected Name=value[:type], got: {arg}")
+    value, colon, suffix = rest.rpartition(":")
+    if colon and suffix.strip() in PROPERTY_TYPES:
+        return name, value, suffix.strip()
+    return name, rest, None
+
+
+def schema_property_types(schema: dict) -> dict[str, str]:
+    """Map property name -> type from GET /v1/data_sources/{id}."""
+    props = schema.get("properties") or {}
+    return {
+        name: prop.get("type", "")
+        for name, prop in props.items()
+        if isinstance(prop, dict)
+    }
+
+
+def build_properties(
+    specs: list[tuple[str, str, str | None]], schema_types: dict[str, str]
+) -> dict:
+    """Build a properties object, resolving missing types from the schema."""
+    properties: dict = {}
+    for name, value, prop_type in specs:
+        resolved = prop_type or schema_types.get(name)
+        if not resolved:
+            known = ", ".join(sorted(schema_types)) or "(schema unavailable)"
+            raise ValueError(
+                f"unknown property '{name}'; add a :type suffix. Known: {known}"
+            )
+        if resolved not in PROPERTY_TYPES:
+            raise ValueError(
+                f"property '{name}' has unsupported type '{resolved}'"
+            )
+        properties[name] = build_property_value(resolved, value)
+    return properties
+
+
+def _option_names(prop: dict) -> list[str]:
+    prop_type = prop.get("type", "")
+    config = prop.get(prop_type) or {}
+    if not isinstance(config, dict):
+        return []
+    return [o.get("name", "") for o in config.get("options") or [] if o.get("name")]
+
+
+def format_schema(schema: dict) -> str:
+    """Render GET /v1/data_sources/{id} properties as a markdown table."""
+    props = schema.get("properties") or {}
+    if not props:
+        return "No properties found."
+    title = plain_text(schema.get("title") or []) or "(untitled)"
+    lines = [f"Data source: {title}", "", "| Property | Type | Options / Target |",
+             "|---|---|---|"]
+    for name, prop in props.items():
+        if not isinstance(prop, dict):
+            continue
+        prop_type = prop.get("type", "")
+        extra = ", ".join(_option_names(prop))
+        if prop_type == "relation":
+            rel = prop.get("relation") or {}
+            extra = rel.get("data_source_id") or rel.get("database_id") or ""
+        lines.append(f"| {name} | {prop_type} | {extra} |")
+    return "\n".join(lines)
 
 
 def _warnings_note(result: dict) -> str:
@@ -497,18 +691,45 @@ def cmd_query(args: argparse.Namespace) -> None:
     print(format_query_results(result))
 
 
+def cmd_schema(args: argparse.Namespace) -> None:
+    token = get_token()
+    ds_id = parse_page_input(args.data_source)
+    result = notion_request("GET", f"/data_sources/{ds_id}", token) or {}
+    print(format_schema(result))
+
+
 def cmd_create_item(args: argparse.Namespace) -> None:
     token = get_token()
     ds_id = parse_page_input(args.data_source)
+    try:
+        specs = [parse_property_arg(a) for a in args.property or []]
+    except ValueError as e:
+        print(f"ERROR: invalid --property: {e}", file=sys.stderr)
+        sys.exit(1)
+    if args.status:
+        specs.insert(0, (args.status_property, args.status, None))
+    # Untyped properties take their type from the data source schema, so
+    # status vs select (and the rest) are sent correctly.
+    schema_types: dict[str, str] = {}
+    if any(t is None for _, _, t in specs):
+        schema = notion_request("GET", f"/data_sources/{ds_id}", token) or {}
+        schema_types = schema_property_types(schema)
+    try:
+        properties = build_properties(specs, schema_types)
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
     body: dict = {
         "parent": {"type": "data_source_id", "data_source_id": ds_id},
         "markdown": with_title(args.title, args.markdown or ""),
         "markdown_version": MARKDOWN_VERSION,
     }
-    if args.status:
-        body["properties"] = {
-            args.status_property: {"select": {"name": args.status}}
-        }
+    if properties:
+        body["properties"] = properties
+    if args.dry_run:
+        print(json.dumps(body, indent=2, ensure_ascii=False))
+        return
+    # One request: the item is created with every property or not at all.
     page = notion_request("POST", "/pages", token, data=body) or {}
     print(f"Created item: {page.get('id', '')}")
     if page.get("url"):
@@ -516,18 +737,35 @@ def cmd_create_item(args: argparse.Namespace) -> None:
 
 
 def cmd_set_property(args: argparse.Namespace) -> None:
+    if bool(args.name) != (args.value is not None):
+        print("ERROR: --name and --value must be used together.", file=sys.stderr)
+        sys.exit(1)
+    try:
+        specs = [parse_property_arg(a) for a in args.property or []]
+    except ValueError as e:
+        print(f"ERROR: invalid --property: {e}", file=sys.stderr)
+        sys.exit(1)
+    if args.name:
+        specs.insert(0, (args.name, args.value, args.type))
+    if not specs:
+        print("ERROR: give --name/--value or at least one --property.", file=sys.stderr)
+        sys.exit(1)
     token = get_token()
     page_id = parse_page_input(args.page)
     page = _load_page(token, page_id)
+    # The page already lists each property's type; no schema request needed.
     try:
-        prop = build_property_value(args.type, args.value)
+        properties = build_properties(specs, schema_property_types(page))
     except ValueError as e:
-        print(f"ERROR: invalid property value: {e}", file=sys.stderr)
+        print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(1)
-    notion_request(
-        "PATCH", f"/pages/{page_id}", token, data={"properties": {args.name: prop}}
-    )
-    _write_result(f"Set {args.name} = {args.value} on", page, page_id)
+    if args.dry_run:
+        print(json.dumps({"properties": properties}, indent=2, ensure_ascii=False))
+        return
+    # One PATCH: every property changes together or none does.
+    notion_request("PATCH", f"/pages/{page_id}", token, data={"properties": properties})
+    summary = ", ".join(f"{name} = {value}" for name, value, _ in specs)
+    _write_result(f"Set {summary} on", page, page_id)
 
 
 # ---------------------------------------------------------------------------
@@ -601,6 +839,10 @@ def main() -> None:
     p.add_argument("database", help="Database ID or URL")
     p.set_defaults(func=cmd_data_sources)
 
+    p = sub.add_parser("schema", help="Show a data source's properties and types")
+    p.add_argument("data_source", help=DS_HELP)
+    p.set_defaults(func=cmd_schema)
+
     p = sub.add_parser("query", help="Query items in a data source")
     p.add_argument("data_source", help=DS_HELP)
     p.add_argument("--filter", help="Filter object as JSON")
@@ -613,17 +855,48 @@ def main() -> None:
     p.add_argument("data_source", help=DS_HELP)
     p.add_argument("--title", required=True, help="Item title")
     p.add_argument("--markdown", default="", help="Item body as markdown")
-    p.add_argument("--status", help="Status value (select property)")
+    p.add_argument(
+        "--status", help="Status value (type taken from the data source schema)"
+    )
     p.add_argument(
         "--status-property", default="Status", help="Status property name (default Status)"
     )
+    p.add_argument(
+        "--property",
+        action="append",
+        metavar="NAME=VALUE[:TYPE]",
+        help=(
+            "Set a property; repeatable. TYPE is optional (read from the schema). "
+            "multi_select/relation/people take comma-separated values."
+        ),
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the request body instead of sending it",
+    )
     p.set_defaults(func=cmd_create_item)
 
-    p = sub.add_parser("set-property", help="Change a page property (ticket status)")
+    p = sub.add_parser("set-property", help="Change one or more page properties")
     p.add_argument("page", help=PAGE_HELP)
-    p.add_argument("--name", required=True, help="Property name")
-    p.add_argument("--value", required=True, help="New value")
-    p.add_argument("--type", choices=PROPERTY_TYPES, default="select")
+    p.add_argument("--name", help="Property name")
+    p.add_argument("--value", help="New value")
+    p.add_argument(
+        "--type",
+        choices=PROPERTY_TYPES,
+        help="Property type for --name (default: read from the page)",
+    )
+    p.add_argument(
+        "--property",
+        action="append",
+        metavar="NAME=VALUE[:TYPE]",
+        help="Set a property; repeatable. Same format as create-item --property.",
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the request body instead of sending it",
+    )
     p.set_defaults(func=cmd_set_property)
 
     args = parser.parse_args()
