@@ -46,7 +46,7 @@ PAT specifics: shown only once; expiration 7/30/90/180 days or 1 year (default 1
 | List comments | `GET /v1/comments?block_id={page_id}` | `comments` |
 | Add a comment | `POST /v1/comments` (body `parent.page_id`, `markdown`, `markdown_version`) | `comment` |
 | List data sources of a database | `GET /v1/databases/{database_id}` → `data_sources[]` | `data-sources` |
-| Query a data source | `PATCH /v1/data_sources/{data_source_id}/query` | `query` |
+| Query a data source | `POST /v1/data_sources/{data_source_id}/query` | `query` |
 | Retrieve a data source schema | `GET /v1/data_sources/{data_source_id}` | — (see below) |
 | Append block children | `PATCH /v1/blocks/{block_id}/children` | — (not covered; use blocks API for fine-grained control) |
 
@@ -92,7 +92,7 @@ A database can contain multiple **data sources**, each with its own schema and I
 
 - `GET /v1/databases/{id}` now returns the list of `data_sources` (each with `id` and `name`).
 - `GET /v1/data_sources/{id}` returns the schema (`properties`) of a single data source.
-- `PATCH /v1/data_sources/{id}/query` replaces the old `POST /v1/databases/{id}/query`.
+- `POST /v1/data_sources/{id}/query` replaces the old `POST /v1/databases/{id}/query`.
 - Creating a page in a data source uses `parent: {"type": "data_source_id", "data_source_id": "..."}`.
 - Search filter values changed from `"database"` to `"data_source"`.
 

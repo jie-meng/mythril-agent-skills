@@ -493,7 +493,7 @@ def cmd_query(args: argparse.Namespace) -> None:
         body["sorts"] = _parse_json_arg(args.sorts, "--sorts")
     if args.start_cursor:
         body["start_cursor"] = args.start_cursor
-    result = notion_request("PATCH", f"/data_sources/{ds_id}/query", token, data=body) or {}
+    result = notion_request("POST", f"/data_sources/{ds_id}/query", token, data=body) or {}
     print(format_query_results(result))
 
 

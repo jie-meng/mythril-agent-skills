@@ -203,7 +203,7 @@ For every task, provide:
 
 - The script uses only the Python standard library — no `pip install` needed.
 - Pinned to `Notion-Version: 2026-03-11`. Breaking changes in that version: `archived` → `in_trash`, block `after` → `position`, `transcription` → `meeting_notes`.
-- Databases are split into **data sources** since `2025-09-03`: query with `PATCH /v1/data_sources/{id}/query`, create pages with `parent: {"type": "data_source_id", ...}`. `GET /v1/databases/{id}` now returns the list of data sources. Database IDs and data source IDs are not interchangeable.
+- Databases are split into **data sources** since `2025-09-03`: query with `POST /v1/data_sources/{id}/query`, create pages with `parent: {"type": "data_source_id", ...}`. `GET /v1/databases/{id}` now returns the list of data sources. Database IDs and data source IDs are not interchangeable.
 - Markdown endpoints default to v1 on current versions but v1 is deprecated; the script always sends `markdown_version: v2`.
 - PATs are user-scoped and expire. For team-owned automation that must not depend on one person, use an internal connection (bot token) instead — but that requires granting page access via **Connections → + Add connection** or the Developer portal's **Content access** tab.
 - For advanced endpoints not covered here, see `API_REFERENCE.md` in this skill directory.
