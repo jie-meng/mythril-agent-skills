@@ -104,6 +104,33 @@ class TestWithTitle:
         assert self.fn("", "Body") == "Body"
 
 
+class TestAddTitleProperty:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from notion_api import add_title_property
+
+        self.fn = add_title_property
+
+    SCHEMA = {"Name": "title", "Status": "status"}
+
+    def test_sets_schema_title_property(self):
+        out = self.fn({"Status": {"status": {"name": "Todo"}}}, self.SCHEMA, "Fix it")
+        assert out["Name"] == {"title": [{"text": {"content": "Fix it"}}]}
+        assert out["Status"] == {"status": {"name": "Todo"}}
+
+    def test_explicit_property_wins(self):
+        given = {"Name": {"title": [{"text": {"content": "Explicit"}}]}}
+        assert self.fn(given, self.SCHEMA, "From flag") == given
+
+    def test_no_title_or_no_title_property(self):
+        assert self.fn({}, self.SCHEMA, "") == {}
+        assert self.fn({}, {"Status": "status"}, "Fix it") == {}
+
+    def test_custom_title_property_name(self):
+        out = self.fn({}, {"Ticket": "title"}, "Fix it")
+        assert list(out) == ["Ticket"]
+
+
 class TestBuildPropertyValue:
     @pytest.fixture(autouse=True)
     def _import(self):

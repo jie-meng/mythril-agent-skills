@@ -178,6 +178,7 @@ override (or when the schema cannot be read). Supported types: `select`,
 - `relation` takes page IDs or page URLs (find them with `query` on the related data source).
 - `people` takes Notion user IDs (find them in `view`/`query` output of existing items, or `myself`).
 - Computed types (`formula`, `rollup`, `created_time`, …) cannot be written.
+- `create-item` writes `--title` into the data source's title property (for example `Name`); a `--property` for that field takes precedence.
 - Add `--dry-run` to `create-item` / `set-property` to print the request body without sending it — use it to check a write on a shared board first.
 
 Prefer one `create-item` with all `--property` flags over "create, then `set-property` field by field": if a later step fails, the latter leaves a half-filled item visible to everyone.

@@ -465,6 +465,23 @@ def schema_property_types(schema: dict) -> dict[str, str]:
     }
 
 
+def add_title_property(
+    properties: dict, schema_types: dict[str, str], title: str
+) -> dict:
+    """Set the data source's title property from ``title``.
+
+    A page created under a data source takes its title from the title
+    property (``Name`` on most boards), not from a body H1, once other
+    properties are sent. An explicit ``--property NAME=...`` wins.
+    """
+    if not title:
+        return properties
+    title_prop = next((n for n, t in schema_types.items() if t == "title"), None)
+    if not title_prop or title_prop in properties:
+        return properties
+    return {**properties, title_prop: build_property_value("title", title)}
+
+
 def build_properties(
     specs: list[tuple[str, str, str | None]], schema_types: dict[str, str]
 ) -> dict:
@@ -710,15 +727,15 @@ def cmd_create_item(args: argparse.Namespace) -> None:
         specs.insert(0, (args.status_property, args.status, None))
     # Untyped properties take their type from the data source schema, so
     # status vs select (and the rest) are sent correctly.
-    schema_types: dict[str, str] = {}
-    if any(t is None for _, _, t in specs):
-        schema = notion_request("GET", f"/data_sources/{ds_id}", token) or {}
-        schema_types = schema_property_types(schema)
+    # The schema also names the title property, so --title fills it.
+    schema = notion_request("GET", f"/data_sources/{ds_id}", token) or {}
+    schema_types = schema_property_types(schema)
     try:
         properties = build_properties(specs, schema_types)
     except ValueError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(1)
+    properties = add_title_property(properties, schema_types, args.title)
     body: dict = {
         "parent": {"type": "data_source_id", "data_source_id": ds_id},
         "markdown": with_title(args.title, args.markdown or ""),
