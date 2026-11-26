@@ -36,35 +36,58 @@ Requires `FIGMA_ACCESS_TOKEN` environment variable. See `README.md` in this skil
 
 # Workflow
 
-1. Extract the Figma URL from the user's message
+1. Extract the Figma URL(s) from the user's message
 2. Run `figma_fetch.py` to get structured design specs
 3. If fetch succeeds → read the markdown output, use the specs to generate accurate code
 4. If fetch fails with 429 → **fall back to image export** (see "Fallback" below)
 
+## Quota rules — read before calling
+
+Node specs (`/files/:key/nodes`) and image export (`/images/:key`) are **Tier 1** endpoints. View/Collab seats get **6 Tier 1 calls per month**; Dev/Full seats get 10–20 per minute. Every call counts, no matter how many nodes it covers. So:
+
+- **Several nodes from the same file → ONE command.** Pass all URLs (or `--ids`) to a single `figma_fetch.py` / `figma_export.py` run. **Never loop over nodes in the shell** — a loop of 6 exports spends 6 calls, a single batched export spends 1.
+- **Nodes from different files → one command per file.** The scripts refuse mixed files.
+- A URL **without** node-id costs nothing from Tier 1: the overview comes from the Tier 3 metadata endpoint. Add `--pages` only when you need the page/component list (one Tier 1 call).
+
+## Passing URLs and node ids
+
+- Quote every URL and pass **nothing but the URL** in that argument. Never glue a label or filename onto it (`"...node-id=1-2 shelf"`) — the scripts reject it with exit code 2. Use `--names` to name output files.
+- Supported links: `figma.com/{design,file,proto,board,slides,make}/<key>/...`. Branch links (`/design/<main>/branch/<branch>/...`) are resolved to the branch key automatically.
+- `--ids` takes comma-separated ids in either form: `1-2,3:4,I5:6;7:8`.
+
 ## Running the Scripts
 
-Two scripts are available in `scripts/` relative to this skill directory. Both require only Python 3.8+ standard library (zero dependencies).
+Both scripts are in `scripts/` relative to this skill directory and use only the Python standard library (3.10+). Exit codes: 0 = success, 1 = API error (or some nodes missing), 2 = bad arguments. On error, surface the printed message to the user.
 
 ### Fetch design specs (figma_fetch.py) — primary
 
 ```bash
-# Inspect a specific node (most common — URL contains node-id)
+# One node (most common — URL contains node-id)
 python3 scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name?node-id=1-2"
 
-# File overview (no node-id in URL)
+# Several nodes from the same file — ONE API call
+python3 scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name?node-id=1-2" \
+  "https://www.figma.com/design/ABC123/Name?node-id=3-4" --ids 5-6
+
+# File overview (no node-id): metadata only, Tier 3
 python3 scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name"
 
-# Limit tree depth (default: 5)
-python3 scripts/figma_fetch.py "https://..." --depth 3
+# File overview with pages and components (one Tier 1 call)
+python3 scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name" --pages
 ```
 
 | Flag | Default | Description |
 |---|---|---|
+| `--ids` | — | Extra comma-separated node ids from the same file |
 | `--depth N` | `5` | Max recursion depth into child nodes. Use `2`–`3` for large frames to avoid truncation. |
+| `--version V` | latest | Read a specific file version id |
+| `--pages` | off | Overview mode: also list pages and components (Tier 1) |
 
-### Export node as image (figma_export.py) — secondary / fallback
+Multiple nodes are printed as separate spec sections divided by `---`.
 
-Downloads a rendered image of a specific node to disk and prints the saved file path. Use as a **fallback** when `figma_fetch.py` hits 429 (see "Fallback" section), or alongside fetch to provide visual reference.
+### Export nodes as images (figma_export.py) — secondary / fallback
+
+Downloads rendered images of one or more nodes (same file, one API call) and prints each saved path, one per line. Use as a **fallback** when `figma_fetch.py` hits 429 (see "Fallback" section), or alongside fetch to provide visual reference.
 
 **Bash (macOS / Linux):**
 ```bash
@@ -75,8 +98,14 @@ else
 fi
 CACHE_DIR="$CACHE_ROOT/figma"
 mkdir -p "$CACHE_DIR"
+
+# One node
 python3 scripts/figma_export.py "https://www.figma.com/design/ABC123/Name?node-id=1-2" \
   --format png --scale 2 --output "$CACHE_DIR/node_1-2.png"
+
+# Several nodes — ONE API call, named files
+python3 scripts/figma_export.py "https://www.figma.com/design/ABC123/Name?node-id=1-2" \
+  --ids 3-4,5-6 --out-dir "$CACHE_DIR" --names shelf,list,detail
 ```
 
 **PowerShell (Windows):**
@@ -85,20 +114,25 @@ $CACHE_ROOT = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "
 $CACHE_DIR = Join-Path $CACHE_ROOT "figma"
 New-Item -ItemType Directory -Force -Path $CACHE_DIR | Out-Null
 python3 scripts/figma_export.py "https://www.figma.com/design/ABC123/Name?node-id=1-2" `
-  --format png --scale 2 --output "$CACHE_DIR/node_1-2.png"
+  --ids 3-4 --out-dir $CACHE_DIR --names shelf,list
 ```
 
 **Automatic access**: All files under the cache directory are skill-managed temporary artifacts created by this skill. Read, write, and delete them **automatically without asking the user for confirmation** — they are ephemeral and trusted.
 
 | Flag | Default | Description |
 |---|---|---|
-| `--format` | `png` | Image format: `png`, `jpg`, `svg`, or `pdf` |
+| `--ids` | — | Extra comma-separated node ids from the same file |
+| `--format` | `png` | `png`, `jpg`, `svg`, or `pdf` |
 | `--scale` | `2.0` | Export scale factor 0.01–4 (e.g. `2` for @2x retina) |
-| `--output PATH` | `./figma_<node-id>.<format>` | Destination file path. **Always use the cache dir above for temp exports.** |
+| `--output PATH` | — | Destination file — **single node only** |
+| `--out-dir DIR` | current dir | Destination directory for one or more nodes. **Always use the cache dir above for temp exports.** |
+| `--names a,b,c` | `figma_<node-id>` | File names (no extension), one per node, in the order the nodes were given (URLs first, then `--ids`) |
+| `--version V` | latest | Render a specific file version id |
+| `--contents-only false` | API default `true` | Also render content overlapping the node |
+| `--absolute-bounds` | off | Use the node's full dimensions even if it is cropped |
+| `--svg-outline-text false` | API default `true` | SVG only: keep text as `<text>` elements |
 
-Prints the **absolute path** of the saved file on success. Use that path to load the image for visual analysis.
-
-Exit codes: 0 = success, 1 = API error, 2 = bad arguments. On error, surface the printed message to the user.
+If a node fails to render, the other images are still saved; the failure is reported on stderr and the exit code is 1.
 
 ## Handling 429 Rate Limit errors
 
@@ -121,15 +155,15 @@ When `figma_fetch.py` returns 429, attempt `figma_export.py` as a visual fallbac
 **This step is MANDATORY — always execute it after you are done analyzing the image, even if errors occurred.**
 
 ```bash
-rm -f "$CACHE_DIR/node_1-2.png"  # delete the specific file you exported
+rm -f "$CACHE_DIR/node_1-2.png"  # delete each specific file you exported
 ```
 
 If leftovers accumulate from interrupted sessions, the user can run `skills-clean-cache`.
 
 ## Using the Output
 
-**figma_fetch.py** outputs structured markdown covering all visual and layout properties present on each node. The exact fields vary by node type — a FRAME with auto-layout produces different output than a TEXT node. Read what's there; don't expect every section to appear on every node.
+**figma_fetch.py** outputs structured markdown (one section per node) covering all visual and layout properties present on each node. The exact fields vary by node type — a FRAME with auto-layout produces different output than a TEXT node. Read what's there; don't expect every section to appear on every node.
 
 Typical sections include layout dimensions, fills/strokes, effects, typography (TEXT nodes), component metadata, and design token bindings. Use these values to generate accurate CSS or UI code matching the design. When a section is absent, the node doesn't have that property set.
 
-**figma_export.py** outputs an image file. You can analyze the image visually, but you will NOT have structured property data (exact dimensions, colors, font specs, padding, etc.). Always caveat to the user that values inferred from the image are approximate.
+**figma_export.py** outputs image files. You can analyze the image visually, but you will NOT have structured property data (exact dimensions, colors, font specs, padding, etc.). Always caveat to the user that values inferred from the image are approximate.

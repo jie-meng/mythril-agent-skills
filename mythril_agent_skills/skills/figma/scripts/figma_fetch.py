@@ -1,120 +1,49 @@
 #!/usr/bin/env python3
+"""Fetch Figma design specs and print structured markdown.
 
-import os, sys, json, re, argparse
-import urllib.request
-import urllib.error
-from urllib.parse import urlencode, unquote
+With node ids (from URLs and/or --ids): one GET /v1/files/:key/nodes call
+(Tier 1) covering every node. Without: a file overview from the Tier 3
+metadata endpoint, plus pages/components with --pages (one Tier 1 call).
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from secret_guard import guard_args, install as install_secret_guard  # noqa: E402
+from figma_common import (  # noqa: E402
+    FigmaAPIError,
+    collect_targets,
+    fail,
+    figma_get,
+    get_token,
+    parse_figma_url,
+)
+
+__all__ = [
+    "get_token",
+    "parse_figma_url",
+    "rgba_to_hex",
+    "format_paint",
+    "simplify_node",
+    "render_node_markdown",
+    "render_file_overview",
+    "render_file_meta",
+]
 
 
-def get_token():
-    token = os.environ.get("FIGMA_ACCESS_TOKEN", "").strip()
-    if not token:
-        print("ERROR: FIGMA_ACCESS_TOKEN not set.", file=sys.stderr)
-        print("Add to ~/.zshrc:  export FIGMA_ACCESS_TOKEN=your_token", file=sys.stderr)
-        print(
-            "Get token: https://www.figma.com/settings → Security → Personal access tokens",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    install_secret_guard(("FIGMA_ACCESS_TOKEN",))
-    return token
-
-
-def parse_figma_url(url):
-    m = re.search(r"figma\.com/(?:design|file|proto)/([A-Za-z0-9_-]+)", url)
-    if not m:
-        print(f"ERROR: Could not parse file key from URL: {url}", file=sys.stderr)
-        sys.exit(2)
-    file_key = m.group(1)
-
-    node_id = None
-    nid_m = re.search(r"node[-_]id=([^&]+)", url)
-    if nid_m:
-        raw = unquote(nid_m.group(1))  # decode %3A → :
-        node_id = raw.replace("-", ":")  # normalize 1-2 → 1:2
-    return file_key, node_id
-
-
-def _handle_rate_limit(e, path):
-    """Parse 429 response headers and print actionable diagnostics."""
-    retry_after = e.headers.get("Retry-After", "")
-    plan_tier = e.headers.get("X-Figma-Plan-Tier", "unknown")
-    limit_type = e.headers.get("X-Figma-Rate-Limit-Type", "unknown")
-    upgrade_link = e.headers.get("X-Figma-Upgrade-Link", "")
-
-    print(f"ERROR: Figma API 429 Rate Limited for {path}", file=sys.stderr)
-    print(f"  Plan tier   : {plan_tier}", file=sys.stderr)
-    print(f"  Limit type  : {limit_type}", file=sys.stderr)
-    if retry_after:
-        print(f"  Retry after : {retry_after}s", file=sys.stderr)
-
-    if limit_type == "low":
-        print("", file=sys.stderr)
-        print(
-            "  Your Figma seat is View or Collab. Tier 1 endpoints (GET /files,",
-            file=sys.stderr,
-        )
-        print(
-            "  /files/nodes, /images) are limited to 6 requests PER MONTH for",
-            file=sys.stderr,
-        )
-        print(
-            "  View/Collab seats (since Nov 2025). This is NOT a per-minute limit.",
-            file=sys.stderr,
-        )
-        print("", file=sys.stderr)
-        print(
-            "  FIX: Upgrade to a Dev or Full seat to get 10–20 requests/minute.",
-            file=sys.stderr,
-        )
-    else:
-        print("", file=sys.stderr)
-        print(
-            "  You have a Dev/Full seat but exceeded per-minute limits.",
-            file=sys.stderr,
-        )
-        if retry_after:
-            print(
-                f"  Wait {retry_after} seconds before retrying.",
-                file=sys.stderr,
-            )
-
-    if upgrade_link:
-        print(f"  Upgrade/settings: {upgrade_link}", file=sys.stderr)
-
-
-def figma_get(path, token, **params):
-    guard_args(path=path)
-    url = f"https://api.figma.com{path}"
-    if params:
-        url += "?" + urlencode(params)
-    req = urllib.request.Request(url, headers={"X-Figma-Token": token})
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        if e.code == 429:
-            _handle_rate_limit(e, path)
-            sys.exit(1)
-        body = e.read().decode(errors="replace")
-        print(f"ERROR: Figma API {e.code} for {path}: {body}", file=sys.stderr)
-        sys.exit(1)
-    except urllib.error.URLError as e:
-        print(f"ERROR: Network error: {e.reason}", file=sys.stderr)
-        sys.exit(1)
-
-
-def rgba_to_hex(color):
+def rgba_to_hex(color: dict) -> str:
+    """Convert a Figma RGBA dict (0–1 floats) to #RRGGBB."""
     r = round(color.get("r", 0) * 255)
     g = round(color.get("g", 0) * 255)
     b = round(color.get("b", 0) * 255)
     return f"#{r:02X}{g:02X}{b:02X}"
 
 
-def format_paint(paint):
+def format_paint(paint: dict) -> str | None:
+    """Describe a Figma paint; None when invisible."""
     if not paint.get("visible", True):
         return None
     t = paint.get("type", "SOLID")
@@ -143,7 +72,8 @@ def format_paint(paint):
     return t.lower().replace("_", " ")
 
 
-def simplify_node(node, depth=0, max_depth=5):
+def simplify_node(node: dict | None, depth: int = 0, max_depth: int = 5) -> dict | None:
+    """Reduce a Figma node to the properties relevant for implementation."""
     if node is None:
         return None
 
@@ -239,6 +169,11 @@ def simplify_node(node, depth=0, max_depth=5):
             result["strokeJoin"] = stroke_join
         if node.get("strokesIncludedInLayout"):
             result["strokesIncludedInLayout"] = True
+        complex_stroke = node.get("complexStrokeProperties")
+        if isinstance(complex_stroke, dict) and complex_stroke:
+            result["complexStroke"] = complex_stroke.get("type") or ", ".join(
+                sorted(complex_stroke)
+            )
 
     cr = node.get("cornerRadius")
     if cr:
@@ -368,7 +303,8 @@ def simplify_node(node, depth=0, max_depth=5):
     return result
 
 
-def render_node_markdown(node_data, file_name):
+def render_node_markdown(node_data: dict, file_name: str) -> str:
+    """Render a simplified node as a markdown spec section."""
     lines = ["## Figma Design Specs"]
     lines.append(f"**File**: {file_name}")
     lines.append(f"**Node**: {node_data.get('name', '(unknown)')}")
@@ -379,7 +315,9 @@ def render_node_markdown(node_data, file_name):
     return "\n".join(lines)
 
 
-def _render_node_section(lines, node, indent=0, top_level=False):
+def _render_node_section(
+    lines: list[str], node: dict, indent: int = 0, top_level: bool = False
+) -> None:
     prefix = "  " * indent
 
     if not top_level:
@@ -493,6 +431,12 @@ def _render_node_section(lines, node, indent=0, top_level=False):
             lines.append(f"{prefix}- Stroke: {', '.join(stroke_parts)}")
         if node.get("strokesIncludedInLayout"):
             lines.append(f"{prefix}- Strokes included in layout (border-box)")
+        complex_stroke = node.get("complexStroke")
+        if complex_stroke:
+            lines.append(
+                f"{prefix}- Complex stroke: {complex_stroke} "
+                "(variable width / brush — approximate in CSS)"
+            )
 
     cr = node.get("cornerRadius")
     if cr:
@@ -602,7 +546,8 @@ def _render_node_section(lines, node, indent=0, top_level=False):
                 _render_node_section(lines, child, indent=indent + 1)
 
 
-def render_file_overview(data):
+def render_file_overview(data: dict) -> str:
+    """Render pages/components from GET /v1/files?depth=1."""
     name = data.get("name", "Unknown")
     doc = data.get("document", {})
     pages = doc.get("children", [])
@@ -628,48 +573,131 @@ def render_file_overview(data):
             lines.append(f"  - {comp.get('name', '(unnamed)')} (id: {nid})")
     lines.append("")
     lines.append(
-        "To inspect a specific element, open the file in Figma, right-click a layer → 'Copy link to selection', then run this skill again with that URL."
+        "To inspect a specific element, open the file in Figma, right-click a "
+        "layer → 'Copy link to selection', then run this skill again with that URL."
     )
     return "\n".join(lines)
 
 
-def main():
+def render_file_meta(meta: dict, file_key: str) -> str:
+    """Render GET /v1/files/:key/meta (the response's `file` object)."""
+    f = meta.get("file", meta)
+    lines = ["## Figma File Overview", f"**File**: {f.get('name', 'Unknown')}"]
+    rows = [
+        ("Key", file_key),
+        ("Editor", f.get("editorType")),
+        ("Project/folder", f.get("folder_name")),
+        ("Last edited", f.get("last_touched_at")),
+        ("Last edited by", (f.get("last_touched_by") or {}).get("handle")),
+        ("Creator", (f.get("creator") or {}).get("handle")),
+        ("Version", f.get("version")),
+        ("Your role", f.get("role")),
+        ("Link access", f.get("link_access")),
+        ("URL", f.get("url")),
+    ]
+    for label, value in rows:
+        if value:
+            lines.append(f"**{label}**: {value}")
+    lines.append("")
+    lines.append(
+        "Pages and components are not included. Re-run with --pages to list "
+        "them (costs one Tier 1 call), or pass a layer link (node-id) to inspect it."
+    )
+    return "\n".join(lines)
+
+
+def render_nodes(data: dict, node_ids: list[str], max_depth: int) -> tuple[str, int]:
+    """Render every requested node from a /nodes response; return (md, missing)."""
+    nodes = data.get("nodes") or {}
+    file_name = data.get("name", "")
+    sections: list[str] = []
+    missing = 0
+    for nid in node_ids:
+        entry = nodes.get(nid)
+        doc = entry.get("document") if entry else None
+        if doc is None:
+            print(
+                f"ERROR: Node '{nid}' not found (wrong id, deleted, or no access).",
+                file=sys.stderr,
+            )
+            missing += 1
+            continue
+        simplified = simplify_node(doc, max_depth=max_depth)
+        if simplified is None:
+            sections.append(f"## Figma Design Specs\n**Node ID**: {nid}\n(hidden)")
+            continue
+        sections.append(render_node_markdown(simplified, file_name))
+    return "\n\n---\n\n".join(sections), missing
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build the CLI parser."""
     parser = argparse.ArgumentParser(
         description="Fetch Figma design specs and output structured markdown."
     )
-    parser.add_argument("url", help="Figma URL (design/file/proto)")
+    parser.add_argument(
+        "urls",
+        nargs="+",
+        metavar="URL",
+        help="Figma URL(s), all from the same file. Quote each one.",
+    )
+    parser.add_argument(
+        "--ids", help="Extra comma-separated node ids from the same file"
+    )
     parser.add_argument(
         "--depth", type=int, default=5, help="Max tree depth (default: 5)"
     )
-    args = parser.parse_args()
+    parser.add_argument("--version", help="Read a specific file version id")
+    parser.add_argument(
+        "--pages",
+        action="store_true",
+        help="File overview: also list pages and components (one Tier 1 call)",
+    )
+    return parser
+
+
+def main() -> None:
+    """CLI entry point."""
+    args = build_parser().parse_args()
+    try:
+        file_key, node_ids = collect_targets(args.urls, args.ids)
+    except ValueError as e:
+        fail(str(e), 2)
 
     token = get_token()
-    file_key, node_id = parse_figma_url(args.url)
-
-    if node_id:
-        data = figma_get(f"/v1/files/{file_key}/nodes", token, ids=node_id)
-        nodes = data.get("nodes", {})
-        node_entry = nodes.get(node_id)
-        if node_entry is None:
-            # Figma sometimes normalizes the node_id key differently; fall back to first entry
-            node_entry = next(iter(nodes.values()), None) if nodes else None
-        if node_entry is None:
-            print(
-                f"ERROR: Node '{node_id}' not found in file '{file_key}'.",
-                file=sys.stderr,
+    try:
+        if node_ids:
+            data = figma_get(
+                f"/v1/files/{file_key}/nodes",
+                token,
+                {"ids": ",".join(node_ids), "version": args.version},
             )
-            print(
-                "The node may be on a different page or the ID may be wrong.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        doc = node_entry.get("document")
-        simplified = simplify_node(doc, max_depth=args.depth)
-        file_name = data.get("name", file_key)
-        print(render_node_markdown(simplified, file_name))
-    else:
-        data = figma_get(f"/v1/files/{file_key}", token, depth=1)
+            markdown, missing = render_nodes(data, node_ids, args.depth)
+            if markdown:
+                print(markdown)
+            if missing:
+                sys.exit(1)
+            return
+        if not args.pages:
+            try:
+                meta = figma_get(f"/v1/files/{file_key}/meta", token)
+                print(render_file_meta(meta, file_key))
+                return
+            except FigmaAPIError as e:
+                if e.status != 403:
+                    raise
+                print(
+                    "NOTE: metadata endpoint returned 403 (token may lack "
+                    "the file_metadata:read scope); falling back to the full "
+                    "file request.",
+                    file=sys.stderr,
+                )
+        data = figma_get(
+            f"/v1/files/{file_key}", token, {"depth": 1, "version": args.version}
+        )
         print(render_file_overview(data))
+    except FigmaAPIError as e:
+        fail(e.message)
 
 
 if __name__ == "__main__":

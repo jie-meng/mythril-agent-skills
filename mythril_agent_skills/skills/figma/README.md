@@ -23,7 +23,9 @@ Reload your shell or run `source ~/.zshrc`.
 
 ## Usage
 
-Two scripts are available. Both require Python 3.8+ (standard library only, zero dependencies).
+Two scripts are available, sharing `scripts/figma_common.py` (auth, URL parsing, HTTP). Both require Python 3.10+ (standard library only, zero dependencies).
+
+> **Quota**: node specs and image export are Figma **Tier 1** endpoints — View/Collab seats get 6 calls per *month*. Each command makes one call no matter how many nodes it covers, so pass every node from a file to a single command instead of looping.
 
 ### figma_fetch.py — Fetch design specs
 
@@ -31,48 +33,65 @@ Two scripts are available. Both require Python 3.8+ (standard library only, zero
 # Inspect a specific node (URL with node-id)
 python3 scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name?node-id=1-2"
 
-# File overview (URL without node-id)
+# Several nodes from the same file, one API call
+python3 scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name?node-id=1-2" --ids 3-4,5-6
+
+# File overview (URL without node-id) — metadata endpoint, Tier 3
 python3 scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name"
 
-# Limit tree depth (default: 5)
-python3 scripts/figma_fetch.py "https://..." --depth 3
+# Overview plus pages and components (one Tier 1 call)
+python3 scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name" --pages
+
+# Limit tree depth (default: 5); read an older version
+python3 scripts/figma_fetch.py "https://..." --depth 3 --version 1234567890
 ```
 
-Outputs structured markdown to stdout with layout, colors, typography, effects, and component data.
+Outputs structured markdown to stdout with layout, colors, typography, effects, and component data — one section per node.
 
-### figma_export.py — Export node as image
+### figma_export.py — Export nodes as images
 
-Downloads a rendered image of a specific Figma node to disk and prints the saved file path.
+Downloads rendered images of one or more nodes from the same file (one API call) and prints each saved path.
 
 ```bash
-# Download as PNG @2x (default)
+# Download one node as PNG @2x (default)
 python3 scripts/figma_export.py "https://www.figma.com/design/ABC123/Name?node-id=1-2"
 
-# SVG export
-python3 scripts/figma_export.py "https://..." --format svg
+# SVG export, keeping text as <text>
+python3 scripts/figma_export.py "https://..." --format svg --svg-outline-text false
 
-# Specify output path (use unified cache dir for temp exports)
+# Several nodes into a directory with chosen names
+# (use the unified cache dir for temp exports)
 # macOS: ~/Library/Caches/mythril-skills-cache/figma/
 # Linux: ${XDG_CACHE_HOME:-~/.cache}/mythril-skills-cache/figma/
-python3 scripts/figma_export.py "https://..." --format png --scale 1 --output "$HOME/Library/Caches/mythril-skills-cache/figma/button.png"
+python3 scripts/figma_export.py "https://www.figma.com/design/ABC123/Name?node-id=1-2" \
+  --ids 3-4 --out-dir "$HOME/Library/Caches/mythril-skills-cache/figma" --names button,card
 ```
 
 **Options**:
 
 | Flag | Default | Description |
 |---|---|---|
+| `--ids` | — | Extra comma-separated node ids from the same file |
 | `--format` | `png` | `png`, `jpg`, `svg`, or `pdf` |
 | `--scale` | `2.0` | Export scale factor 0.01–4 (1.0 = @1x, 2.0 = @2x) |
-| `--output` | `./figma_<node-id>.<format>` | Output file path |
+| `--output` | `./figma_<node-id>.<format>` | Output file path (single node only) |
+| `--out-dir` | current dir | Output directory (one or more nodes) |
+| `--names` | `figma_<node-id>` | One file name per node, in order |
+| `--version` | latest | Render a specific file version |
+| `--contents-only` | `true` | `false` also renders content overlapping the node |
+| `--absolute-bounds` | off | Full node dimensions even if cropped |
+| `--svg-outline-text` | `true` | SVG only: `false` keeps `<text>` elements |
 
-On success, prints the **absolute path** of the saved file. Use this path to open the image or pass it to the AI for visual analysis alongside the spec output from `figma_fetch.py`.
+On success, prints the **absolute path** of each saved file. Use these paths to open the images or pass them to the AI for visual analysis alongside the spec output from `figma_fetch.py`.
 
 **Supported URL formats**:
 - `https://www.figma.com/design/FILE_KEY/Name?node-id=1-2`
 - `https://www.figma.com/file/FILE_KEY/Name?node-id=1%3A2`
 - `https://www.figma.com/proto/FILE_KEY/Name`
+- `https://www.figma.com/board/FILE_KEY/Name` (FigJam), `/slides/...`, `/make/...`
+- `https://www.figma.com/design/MAIN_KEY/branch/BRANCH_KEY/Name?node-id=1-2` — the branch key is used, so you read the branch, not the main file
 
-> `figma_export.py` requires a URL with a `node-id`. Right-click any layer in Figma → "Copy link to selection" to get one.
+> `figma_export.py` requires a node id (in the URL or via `--ids`). Right-click any layer in Figma → "Copy link to selection" to get one. Pass each URL as its own quoted argument with nothing appended — the scripts reject URLs containing whitespace or malformed node ids.
 
 ## Output Format
 
@@ -140,6 +159,7 @@ The script outputs structured markdown. Fields are emitted only when present on 
 | `cornerSmoothing` | 0–1 (0.6 = iOS squircle) |
 | `strokes` | Stroke paint(s) with weight, alignment, cap, join |
 | `strokesIncludedInLayout` | Present when `true` — equivalent to CSS `box-sizing: border-box` |
+| `complexStroke` | Type of a complex stroke (`complexStrokeProperties`, e.g. variable width / brush) — approximate in CSS |
 
 ### Effects
 
@@ -200,11 +220,15 @@ Rendered recursively up to `--depth` levels. Invisible nodes (`visible: false`) 
 |---|---|---|---|
 | 1 | `FIGMA_ACCESS_TOKEN not set` | Token missing from env | Set `export FIGMA_ACCESS_TOKEN=xxx` |
 | 1 | `Figma API 403` | Token invalid or expired | Regenerate at figma.com/settings |
+| — | `NOTE: metadata endpoint returned 403` | Token lacks `file_metadata:read` scope | Overview falls back to `GET /v1/files` automatically; add the scope to save Tier 1 quota |
 | 1 | `Figma API 404` | File not found or no access | Check URL; ensure you have view access |
-| 2 | `Could not parse file key` | Malformed URL | Use a URL copied directly from Figma |
+| 2 | `Could not find a file key` / `Not a figma.com URL` | Malformed URL | Use a URL copied directly from Figma |
+| 2 | `URL contains whitespace` / `Invalid node id` | Extra text glued onto the URL or node id | Pass each URL alone, quoted; use `--names` for file names |
+| 2 | `All URLs must belong to the same Figma file` | Batch spans files | Run once per file |
+| 2 | `--output takes one file` | `--output` with several nodes | Use `--out-dir` (and `--names`) |
 | 1 | `Node not found` | node-id refers to deleted/moved node | Re-copy the link from Figma |
-| 2 | `URL has no node-id` | figma_export.py needs a node URL | Right-click layer → "Copy link to selection" |
-| 1 | `No image returned` | Node is empty or render failed | Try a different node; check it has visible content |
+| 2 | `No node id given` | figma_export.py needs a node URL or `--ids` | Right-click layer → "Copy link to selection" |
+| 1 | `No image rendered for node` | Node is empty or render failed (other nodes are still saved) | Try a different node; check it has visible content |
 | — | Script hangs | Network timeout | Check internet; try again |
 
 If the response is empty or truncated on large files, use `--depth 2` to limit traversal.

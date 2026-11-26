@@ -9,6 +9,13 @@ Base URL: `https://api.figma.com`
 - `X-Figma-Token: <personal_access_token>` — Personal access token from Figma Settings → Security
 - `Authorization: Bearer <oauth_token>` — OAuth2 token
 
+**File keys and branches**: `:file_key` can be a file key or a **branch key**. In a branch link
+(`figma.com/design/<main-key>/branch/<branch-key>/...`) use the branch key; otherwise the API
+reads the main file. `GET /v1/files/:key?branch_data=true` lists a file's branches.
+
+**Node ids**: links use `node-id=1-2`; the API uses `1:2`. Instance sublayers look like
+`I1:2;3:4`. Both `/files/:key/nodes` and `/images/:key` take many comma-separated ids.
+
 ---
 
 ## Endpoints
@@ -118,10 +125,12 @@ URLs expire after **14 days**.
 | `ids` | string | **Required.** Comma-separated node IDs to render |
 | `scale` | number | 0.01–4 (default 1) |
 | `format` | `jpg\|png\|svg\|pdf` | Output format (default `png`) |
-| `svg_include_id` | boolean | Include node IDs as SVG attributes |
-| `svg_simplify_stroke` | boolean | Simplify strokes in SVG |
-| `contents_only` | boolean | Crop to node contents, not bounding box |
-| `use_absolute_bounds` | boolean | Use full bounding box even if empty space |
+| `svg_outline_text` | boolean | Default `true`: text as vector outlines; `false` keeps `<text>` elements |
+| `svg_include_id` | boolean | Default `false`: add the layer name as the `id` attribute |
+| `svg_include_node_id` | boolean | Default `false`: add the node id as `data-node-id` |
+| `svg_simplify_stroke` | boolean | Default `true`: simplify inside/outside strokes |
+| `contents_only` | boolean | Default `true`: exclude overlapping content; `false` renders overlaps too |
+| `use_absolute_bounds` | boolean | Default `false`: use the node's full dimensions even if cropped |
 | `version` | string | Specific version |
 
 **Response**
@@ -136,26 +145,37 @@ URLs expire after **14 days**.
 }
 ```
 
-Rendered images expire after **30 days**. Max **32 megapixels** per image.
+Rendered images expire after **30 days**. Max **32 megapixels** per image (larger renders are scaled down). A `null` value means that node failed to render.
+
+Render many nodes in **one** call (`ids=1:2,3:4,...`) — each call counts against the Tier 1 quota, not each node.
 
 ---
 
 #### `GET /v1/files/:file_key/meta`
 
-Returns file metadata without the full node tree. Lightweight alternative to `/files`.
+Returns file metadata without the node tree. **Tier 3** — a much cheaper alternative to `GET /v1/files` when you only need to identify a file. Requires the `file_metadata:read` scope. `:file_key` may be a file key or a branch key.
 
-**Response**
+**Response** (fields are wrapped in `file`; note the mixed casing)
 
 ```json
 {
-  "name": "My File",
-  "lastModified": "2024-01-15T10:00:00Z",
-  "thumbnailUrl": "https://...",
-  "version": "...",
-  "role": "owner|editor|viewer",
-  "editorType": "figma|figjam"
+  "file": {
+    "name": "My File",
+    "folder_name": "Project",
+    "last_touched_at": "2026-01-15T10:00:00Z",
+    "creator": { "id": "...", "handle": "..." },
+    "last_touched_by": { "id": "...", "handle": "..." },
+    "thumbnail_url": "https://...",
+    "editorType": "figma|figjam|slides|...",
+    "version": "...",
+    "role": "owner|editor|viewer",
+    "link_access": "...",
+    "url": "https://www.figma.com/file/..."
+  }
 }
 ```
+
+No pages, components, or styles — use `GET /v1/files/:key?depth=1` (Tier 1) for those.
 
 ---
 
@@ -639,8 +659,8 @@ Updated November 17, 2025. Limits vary by **API tier**, **Figma plan**, and **se
 | Tier | Endpoints |
 |---|---|
 | **Tier 1** | `GET /v1/files/:key`, `GET /v1/files/:key/nodes`, `GET /v1/images/:key` |
-| **Tier 2** | `GET /v1/files/:key/meta`, components, styles, variables |
-| **Tier 3** | Comments, versions, teams/projects |
+| **Tier 2** | Components, styles, variables |
+| **Tier 3** | `GET /v1/files/:key/meta`, comments, versions, teams/projects |
 
 ### Rate limit table (per minute unless noted)
 

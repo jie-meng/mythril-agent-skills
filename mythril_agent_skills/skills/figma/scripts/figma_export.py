@@ -1,209 +1,241 @@
 #!/usr/bin/env python3
+"""Export one or more Figma nodes as images (PNG/JPG/SVG/PDF) in ONE API call.
 
-import os, sys, re, argparse
-import urllib.request
+Every node must belong to the same file. Pass several URLs and/or --ids to
+render them together: GET /v1/images is a Tier 1 endpoint (View/Collab seats
+get 6 calls per month), so batching saves quota. Prints one saved path per line.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import sys
 import urllib.error
-from urllib.parse import urlencode, unquote
+import urllib.request
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from secret_guard import guard_args, install as install_secret_guard  # noqa: E402
+from figma_common import (  # noqa: E402
+    FigmaAPIError,
+    collect_targets,
+    fail,
+    figma_get,
+    get_token,
+)
 
 VALID_FORMATS = ("png", "jpg", "svg", "pdf")
 
-
-def get_token():
-    token = os.environ.get("FIGMA_ACCESS_TOKEN", "").strip()
-    if not token:
-        print("ERROR: FIGMA_ACCESS_TOKEN not set.", file=sys.stderr)
-        print("Add to ~/.zshrc:  export FIGMA_ACCESS_TOKEN=your_token", file=sys.stderr)
-        print(
-            "Get token: https://www.figma.com/settings → Security → Personal access tokens",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    install_secret_guard(("FIGMA_ACCESS_TOKEN",))
-    return token
+__all__ = ["get_token", "safe_filename", "build_render_params", "plan_outputs"]
 
 
-def parse_figma_url(url):
-    m = re.search(r"figma\.com/(?:design|file|proto)/([A-Za-z0-9_-]+)", url)
-    if not m:
-        print(f"ERROR: Could not parse file key from URL: {url}", file=sys.stderr)
-        sys.exit(2)
-    file_key = m.group(1)
-
-    node_id = None
-    nid_m = re.search(r"node[-_]id=([^&]+)", url)
-    if nid_m:
-        raw = unquote(nid_m.group(1))  # decode %3A → :
-        node_id = raw.replace("-", ":")  # normalize 1-2 → 1:2
-    return file_key, node_id
-
-
-def _handle_rate_limit(e, path):
-    """Parse 429 response headers and print actionable diagnostics."""
-    retry_after = e.headers.get("Retry-After", "")
-    plan_tier = e.headers.get("X-Figma-Plan-Tier", "unknown")
-    limit_type = e.headers.get("X-Figma-Rate-Limit-Type", "unknown")
-    upgrade_link = e.headers.get("X-Figma-Upgrade-Link", "")
-
-    print(f"ERROR: Figma API 429 Rate Limited for {path}", file=sys.stderr)
-    print(f"  Plan tier   : {plan_tier}", file=sys.stderr)
-    print(f"  Limit type  : {limit_type}", file=sys.stderr)
-    if retry_after:
-        print(f"  Retry after : {retry_after}s", file=sys.stderr)
-
-    if limit_type == "low":
-        print("", file=sys.stderr)
-        print(
-            "  Your Figma seat is View or Collab. Tier 1 endpoints (GET /files,",
-            file=sys.stderr,
-        )
-        print(
-            "  /files/nodes, /images) are limited to 6 requests PER MONTH for",
-            file=sys.stderr,
-        )
-        print(
-            "  View/Collab seats (since Nov 2025). This is NOT a per-minute limit.",
-            file=sys.stderr,
-        )
-        print("", file=sys.stderr)
-        print(
-            "  FIX: Upgrade to a Dev or Full seat to get 10–20 requests/minute.",
-            file=sys.stderr,
-        )
-    else:
-        print("", file=sys.stderr)
-        print(
-            "  You have a Dev/Full seat but exceeded per-minute limits.",
-            file=sys.stderr,
-        )
-        if retry_after:
-            print(
-                f"  Wait {retry_after} seconds before retrying.",
-                file=sys.stderr,
-            )
-
-    if upgrade_link:
-        print(f"  Upgrade/settings: {upgrade_link}", file=sys.stderr)
-
-
-def figma_get(path, token, **params):
-    import json
-
-    guard_args(path=path)
-    url = f"https://api.figma.com{path}"
-    if params:
-        url += "?" + urlencode(params)
-    req = urllib.request.Request(url, headers={"X-Figma-Token": token})
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        if e.code == 429:
-            _handle_rate_limit(e, path)
-            sys.exit(1)
-        body = e.read().decode(errors="replace")
-        print(f"ERROR: Figma API {e.code} for {path}: {body}", file=sys.stderr)
-        sys.exit(1)
-    except urllib.error.URLError as e:
-        print(f"ERROR: Network error: {e.reason}", file=sys.stderr)
-        sys.exit(1)
-
-
-def download_file(url, dest_path):
-    try:
-        with urllib.request.urlopen(url, timeout=60) as resp:
-            data = resp.read()
-        with open(dest_path, "wb") as f:
-            f.write(data)
-    except urllib.error.URLError as e:
-        print(f"ERROR: Failed to download image: {e.reason}", file=sys.stderr)
-        sys.exit(1)
-    except OSError as e:
-        print(f"ERROR: Could not write file '{dest_path}': {e}", file=sys.stderr)
-        sys.exit(1)
-
-
-def safe_filename(name):
+def safe_filename(name: str) -> str:
+    """Reduce a string to a filesystem-safe stem (letters, digits, _ and -)."""
     name = re.sub(r"[^\w\s-]", "", name)
     name = re.sub(r"[\s]+", "_", name.strip())
     return name or "figma_export"
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Export a Figma node as an image (PNG/JPG/SVG/PDF) and save to disk."
-    )
-    parser.add_argument("url", help="Figma URL with a node-id (design/file/proto)")
-    parser.add_argument(
-        "--format",
-        choices=VALID_FORMATS,
-        default="png",
-        help="Image format: png, jpg, svg, pdf (default: png)",
-    )
-    parser.add_argument(
-        "--scale",
-        type=float,
-        default=2.0,
-        help="Export scale factor 0.01–4 (default: 2.0)",
-    )
-    parser.add_argument(
-        "--output",
-        metavar="PATH",
-        help="Output file path (default: ./<node-name>.<format>)",
-    )
-    args = parser.parse_args()
-
-    if not 0.01 <= args.scale <= 4:
-        print("ERROR: --scale must be between 0.01 and 4.", file=sys.stderr)
-        sys.exit(2)
-
-    token = get_token()
-    file_key, node_id = parse_figma_url(args.url)
-
-    if not node_id:
-        print(
-            "ERROR: URL has no node-id. Open the file in Figma, right-click a layer → "
-            "'Copy link to selection', then use that URL.",
-            file=sys.stderr,
-        )
-        sys.exit(2)
-
-    render_params = {
-        "ids": node_id,
-        "format": args.format,
-        "scale": args.scale,
+def build_render_params(
+    node_ids: list[str],
+    fmt: str,
+    scale: float,
+    *,
+    version: str | None = None,
+    contents_only: bool | None = None,
+    use_absolute_bounds: bool | None = None,
+    svg_outline_text: bool | None = None,
+) -> dict[str, object]:
+    """Build the GET /v1/images query params (None values are omitted)."""
+    params: dict[str, object] = {
+        "ids": ",".join(node_ids),
+        "format": fmt,
+        "scale": scale,
+        "version": version,
+        "contents_only": contents_only,
+        "use_absolute_bounds": use_absolute_bounds,
     }
-    if args.format == "svg":
-        render_params["svg_include_id"] = "true"
+    if fmt == "svg":
+        params["svg_include_id"] = True
+        params["svg_outline_text"] = svg_outline_text
+    return params
 
-    data = figma_get(f"/v1/images/{file_key}", token, **render_params)
 
-    err = data.get("err")
-    if err:
-        print(f"ERROR: Figma render failed: {err}", file=sys.stderr)
-        sys.exit(1)
+def plan_outputs(
+    node_ids: list[str],
+    fmt: str,
+    *,
+    output: str | None = None,
+    out_dir: str | None = None,
+    names: list[str] | None = None,
+) -> dict[str, Path]:
+    """Map each node id to its destination file. Raises ValueError on misuse.
 
-    images = data.get("images", {})
-    image_url = images.get(node_id) or next(iter(images.values()), None)
-
-    if not image_url:
-        print(
-            f"ERROR: No image returned for node '{node_id}'. "
-            "The node may be empty or the ID may be wrong.",
-            file=sys.stderr,
+    `output` is only valid for a single node. Otherwise files go into `out_dir`
+    (default: current dir) as `<name>.<fmt>`, where name comes from `names`
+    (same order as node ids) or defaults to `figma_<node-id>`.
+    """
+    if output and out_dir:
+        raise ValueError("Use either --output or --out-dir, not both.")
+    if output and len(node_ids) > 1:
+        raise ValueError(
+            f"--output takes one file but {len(node_ids)} nodes were requested; "
+            "use --out-dir (and optionally --names) instead."
         )
+    if names is not None and len(names) != len(node_ids):
+        raise ValueError(
+            f"--names has {len(names)} entries but {len(node_ids)} nodes were "
+            "requested; give one name per node, in the same order."
+        )
+    if output:
+        return {node_ids[0]: Path(output).expanduser().resolve()}
+
+    base = Path(out_dir or ".").expanduser().resolve()
+    plan: dict[str, Path] = {}
+    used: set[str] = set()
+    for i, nid in enumerate(node_ids):
+        default = "figma_" + nid.replace(":", "-").replace(";", "_")
+        stem = safe_filename(names[i]) if names else safe_filename(default)
+        if stem in used:
+            raise ValueError(f"Duplicate output name {stem!r}; names must be unique.")
+        used.add(stem)
+        plan[nid] = base / f"{stem}.{fmt}"
+    return plan
+
+
+def download_file(url: str, dest: Path) -> None:
+    """Download a rendered image URL (pre-signed, no auth) to `dest`."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with urllib.request.urlopen(url, timeout=120) as resp:
+        dest.write_bytes(resp.read())
+
+
+def parse_bool(value: str) -> bool:
+    """argparse type for explicit true/false flags."""
+    lowered = value.strip().lower()
+    if lowered in ("true", "1", "yes"):
+        return True
+    if lowered in ("false", "0", "no"):
+        return False
+    raise argparse.ArgumentTypeError(f"expected true or false, got {value!r}")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build the CLI parser."""
+    parser = argparse.ArgumentParser(
+        description=(
+            "Export Figma node(s) as images in one API call and print the saved "
+            "paths, one per line."
+        )
+    )
+    parser.add_argument(
+        "urls",
+        nargs="+",
+        metavar="URL",
+        help="Figma URL(s) with node-id, all from the same file. Quote each one.",
+    )
+    parser.add_argument(
+        "--ids",
+        help="Extra comma-separated node ids from the same file (e.g. 1-2,3:4)",
+    )
+    parser.add_argument("--format", choices=VALID_FORMATS, default="png")
+    parser.add_argument(
+        "--scale", type=float, default=2.0, help="Scale 0.01–4 (default: 2)"
+    )
+    parser.add_argument(
+        "--output", metavar="PATH", help="Destination file (single node only)"
+    )
+    parser.add_argument(
+        "--out-dir", metavar="DIR", help="Destination directory (multiple nodes)"
+    )
+    parser.add_argument(
+        "--names",
+        help="Comma-separated file names (no extension), one per node, in order",
+    )
+    parser.add_argument("--version", help="Render a specific file version id")
+    parser.add_argument(
+        "--contents-only",
+        type=parse_bool,
+        metavar="true|false",
+        help="false also renders content overlapping the node (API default: true)",
+    )
+    parser.add_argument(
+        "--absolute-bounds",
+        action="store_true",
+        help="Use the node's full dimensions even if cropped (use_absolute_bounds)",
+    )
+    parser.add_argument(
+        "--svg-outline-text",
+        type=parse_bool,
+        metavar="true|false",
+        help="SVG only: false keeps text as <text> elements (API default: true)",
+    )
+    return parser
+
+
+def main() -> None:
+    """CLI entry point."""
+    args = build_parser().parse_args()
+    if not 0.01 <= args.scale <= 4:
+        fail("--scale must be between 0.01 and 4.", 2)
+
+    try:
+        file_key, node_ids = collect_targets(args.urls, args.ids)
+        if not node_ids:
+            raise ValueError(
+                "No node id given. In Figma, right-click a layer → 'Copy link to "
+                "selection' and pass that URL, or add --ids."
+            )
+        names = [n.strip() for n in args.names.split(",")] if args.names else None
+        plan = plan_outputs(
+            node_ids,
+            args.format,
+            output=args.output,
+            out_dir=args.out_dir,
+            names=names,
+        )
+    except ValueError as e:
+        fail(str(e), 2)
+
+    params = build_render_params(
+        node_ids,
+        args.format,
+        args.scale,
+        version=args.version,
+        contents_only=args.contents_only,
+        use_absolute_bounds=True if args.absolute_bounds else None,
+        svg_outline_text=args.svg_outline_text,
+    )
+    token = get_token()
+    try:
+        data = figma_get(f"/v1/images/{file_key}", token, params)
+    except FigmaAPIError as e:
+        fail(e.message)
+    if data.get("err"):
+        fail(f"Figma render failed: {data['err']}")
+
+    images = data.get("images") or {}
+    failed = 0
+    for nid, dest in plan.items():
+        image_url = images.get(nid)
+        if not image_url:
+            print(
+                f"ERROR: No image rendered for node {nid} (empty, invisible, or "
+                "wrong id).",
+                file=sys.stderr,
+            )
+            failed += 1
+            continue
+        try:
+            download_file(image_url, dest)
+        except (urllib.error.URLError, OSError) as e:
+            print(f"ERROR: Could not save node {nid} to {dest}: {e}", file=sys.stderr)
+            failed += 1
+            continue
+        print(dest)
+    if failed:
         sys.exit(1)
-
-    if args.output:
-        dest = args.output
-    else:
-        dest = f"figma_{node_id.replace(':', '-')}.{args.format}"
-
-    dest = os.path.abspath(dest)
-    download_file(image_url, dest)
-    print(dest)
 
 
 if __name__ == "__main__":

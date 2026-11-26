@@ -3,7 +3,9 @@
 Covers pure functions (no API/network calls):
 - figma_fetch: rgba_to_hex, format_paint, simplify_node, render_node_markdown,
                render_file_overview, parse_figma_url
-- figma_export: safe_filename
+- figma_export: safe_filename, build_render_params, plan_outputs
+- figma_common: normalize_node_id, parse_figma_ref, collect_targets,
+                build_query, rate_limit_message
 """
 
 from __future__ import annotations
@@ -223,7 +225,7 @@ class TestRenderFileOverview:
 
 
 class TestParseFigmaUrl:
-    """Test parse_figma_url for valid URLs (invalid URLs call sys.exit)."""
+    """Test parse_figma_url (re-exported by figma_fetch)."""
 
     @pytest.fixture(autouse=True)
     def _import(self):
@@ -246,6 +248,227 @@ class TestParseFigmaUrl:
         url = "https://www.figma.com/design/KEY/T?node-id=10%3A20"
         key, node = self.func(url)
         assert node == "10:20"
+
+    def test_invalid_url_raises(self):
+        with pytest.raises(ValueError):
+            self.func("https://example.com/design/ABC/T")
+
+
+# ── figma_common ───────────────────────────────────────────────────────────────
+
+
+class TestNormalizeNodeId:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from figma_common import normalize_node_id
+        self.func = normalize_node_id
+
+    @pytest.mark.parametrize(
+        "raw,expected",
+        [
+            ("1-2", "1:2"),
+            ("1:2", "1:2"),
+            ("10%3A20", "10:20"),
+            (" 690-7680 ", "690:7680"),
+            ("I1-2;3-4", "I1:2;3:4"),
+            ("I1:2;3:4;5:6", "I1:2;3:4;5:6"),
+        ],
+    )
+    def test_valid(self, raw, expected):
+        assert self.func(raw) == expected
+
+    @pytest.mark.parametrize(
+        "raw",
+        ["690-7680 fig:shelf", "690-7680figshelf", "1", "abc", "1-2#x", ""],
+    )
+    def test_invalid_raises(self, raw):
+        with pytest.raises(ValueError, match="Invalid node id"):
+            self.func(raw)
+
+
+class TestParseFigmaRef:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from figma_common import parse_figma_ref
+        self.func = parse_figma_ref
+
+    def test_branch_url_uses_branch_key(self):
+        ref = self.func(
+            "https://www.figma.com/design/MAIN123/branch/BR456/Title?node-id=1-2"
+        )
+        assert ref.file_key == "BR456"
+        assert ref.branch_of == "MAIN123"
+        assert ref.node_id == "1:2"
+
+    @pytest.mark.parametrize("kind", ["design", "file", "proto", "board", "slides"])
+    def test_supported_kinds(self, kind):
+        ref = self.func(f"https://www.figma.com/{kind}/KEY1/T?node-id=3-4")
+        assert ref.file_key == "KEY1"
+        assert ref.node_id == "3:4"
+
+    def test_fragment_and_extra_params_ignored(self):
+        ref = self.func(
+            "https://www.figma.com/design/KEY/T?t=abc&node-id=690-7680&m=dev#frag"
+        )
+        assert ref.node_id == "690:7680"
+
+    def test_node_id_underscore_param(self):
+        assert self.func("https://figma.com/file/KEY/T?node_id=1%3A2").node_id == "1:2"
+
+    def test_no_scheme(self):
+        assert self.func("figma.com/design/KEY/T").file_key == "KEY"
+
+    def test_label_glued_after_url_rejected(self):
+        """The failure from the field: a loop appended a label to the URL."""
+        with pytest.raises(ValueError, match="whitespace"):
+            self.func("https://www.figma.com/design/KEY/T?node-id=690-7680 fig:shelf")
+
+    def test_label_glued_without_space_rejected(self):
+        with pytest.raises(ValueError, match="Invalid node id"):
+            self.func("https://www.figma.com/design/KEY/T?node-id=690-7680figshelf")
+
+    def test_non_figma_host_rejected(self):
+        with pytest.raises(ValueError, match="figma.com"):
+            self.func("https://evilfigma.com/design/KEY/T")
+
+    def test_unknown_kind_rejected(self):
+        with pytest.raises(ValueError, match="file key"):
+            self.func("https://www.figma.com/community/file/123")
+
+
+class TestCollectTargets:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from figma_common import collect_targets
+        self.func = collect_targets
+
+    def test_multiple_urls_and_ids_deduped(self):
+        key, ids = self.func(
+            [
+                "https://www.figma.com/design/KEY/T?node-id=1-2",
+                "https://www.figma.com/design/KEY/T?node-id=3-4",
+                "https://www.figma.com/design/KEY/T?node-id=1-2",
+            ],
+            "5-6, 3:4,",
+        )
+        assert key == "KEY"
+        assert ids == ["1:2", "3:4", "5:6"]
+
+    def test_no_node(self):
+        assert self.func(["https://www.figma.com/design/KEY/T"], None) == ("KEY", [])
+
+    def test_mixed_files_rejected(self):
+        with pytest.raises(ValueError, match="same Figma file"):
+            self.func(
+                [
+                    "https://www.figma.com/design/A1/T?node-id=1-2",
+                    "https://www.figma.com/design/B2/T?node-id=1-2",
+                ],
+                None,
+            )
+
+    def test_bad_extra_id_rejected(self):
+        with pytest.raises(ValueError):
+            self.func(["https://www.figma.com/design/KEY/T"], "1-2 shelf")
+
+
+class TestBuildQuery:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from figma_common import build_query
+        self.func = build_query
+
+    def test_drops_none_and_formats_bools(self):
+        q = self.func({"ids": "1:2,3:4", "a": None, "b": True, "c": False, "s": 2})
+        assert q == "ids=1:2,3:4&b=true&c=false&s=2"
+
+    def test_instance_ids_keep_separators(self):
+        assert self.func({"ids": "I1:2;3:4"}) == "ids=I1:2;3:4"
+
+
+class TestRateLimitMessage:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from figma_common import rate_limit_message
+        self.func = rate_limit_message
+
+    def test_low_limit_lowercase_headers(self):
+        msg = self.func(
+            {"x-figma-rate-limit-type": "low", "retry-after": "3600"}, "/v1/images/K"
+        )
+        assert "PER MONTH" in msg
+        assert "3600s" in msg
+
+    def test_high_limit(self):
+        msg = self.func(
+            {"X-Figma-Rate-Limit-Type": "high", "Retry-After": "30"}, "/v1/files/K"
+        )
+        assert "per-minute" in msg
+        assert "Wait 30 seconds" in msg
+
+
+# ── figma_fetch (multi-node, metadata) ────────────────────────────────────────
+
+
+class TestRenderNodes:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from figma_fetch import render_nodes
+        self.func = render_nodes
+
+    def test_renders_each_and_counts_missing(self):
+        data = {
+            "name": "File",
+            "nodes": {
+                "1:2": {"document": {"id": "1:2", "name": "A", "type": "FRAME"}},
+                "3:4": None,
+            },
+        }
+        md, missing = self.func(data, ["1:2", "3:4"], 3)
+        assert "**Node**: A" in md
+        assert missing == 1
+
+
+class TestRenderFileMeta:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from figma_fetch import render_file_meta
+        self.func = render_file_meta
+
+    def test_fields(self):
+        md = self.func(
+            {
+                "file": {
+                    "name": "App",
+                    "editorType": "figma",
+                    "last_touched_at": "2026-01-01T00:00:00Z",
+                    "last_touched_by": {"handle": "Ann"},
+                    "role": "viewer",
+                }
+            },
+            "KEY",
+        )
+        assert "**File**: App" in md
+        assert "**Editor**: figma" in md
+        assert "**Last edited by**: Ann" in md
+        assert "--pages" in md
+
+
+class TestComplexStroke:
+    def test_complex_stroke_rendered(self):
+        from figma_fetch import render_node_markdown, simplify_node
+
+        node = {
+            "id": "1:2",
+            "name": "Line",
+            "type": "VECTOR",
+            "strokes": [{"type": "SOLID", "color": {"r": 0, "g": 0, "b": 0}}],
+            "strokeWeight": 2,
+            "complexStrokeProperties": {"type": "BRUSH"},
+        }
+        simplified = simplify_node(node)
+        assert simplified["complexStroke"] == "BRUSH"
+        assert "Complex stroke: BRUSH" in render_node_markdown(simplified, "F")
 
 
 # ── figma_export ───────────────────────────────────────────────────────────────
@@ -274,3 +497,63 @@ class TestSafeFilename:
     def test_whitespace_collapsed(self):
         result = self.func("  Hello   World  ")
         assert "  " not in result
+
+
+class TestBuildRenderParams:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from figma_export import build_render_params
+        self.func = build_render_params
+
+    def test_batch_ids_joined(self):
+        params = self.func(["1:2", "3:4"], "png", 2.0)
+        assert params["ids"] == "1:2,3:4"
+        assert "svg_include_id" not in params
+
+    def test_svg_options(self):
+        params = self.func(["1:2"], "svg", 1.0, svg_outline_text=False)
+        assert params["svg_include_id"] is True
+        assert params["svg_outline_text"] is False
+
+    def test_optional_render_flags(self):
+        params = self.func(
+            ["1:2"], "png", 1, version="9", contents_only=False, use_absolute_bounds=True
+        )
+        assert params["version"] == "9"
+        assert params["contents_only"] is False
+        assert params["use_absolute_bounds"] is True
+
+
+class TestPlanOutputs:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from figma_export import plan_outputs
+        self.func = plan_outputs
+
+    def test_single_output(self, tmp_path):
+        out = tmp_path / "a.png"
+        assert self.func(["1:2"], "png", output=str(out)) == {"1:2": out}
+
+    def test_default_names_in_out_dir(self, tmp_path):
+        plan = self.func(["1:2", "I3:4;5:6"], "png", out_dir=str(tmp_path))
+        assert plan["1:2"] == tmp_path / "figma_1-2.png"
+        assert plan["I3:4;5:6"] == tmp_path / "figma_I3-4_5-6.png"
+
+    def test_custom_names(self, tmp_path):
+        plan = self.func(
+            ["1:2", "3:4"], "svg", out_dir=str(tmp_path), names=["shelf", "d list"]
+        )
+        assert plan["1:2"].name == "shelf.svg"
+        assert plan["3:4"].name == "d_list.svg"
+
+    def test_output_with_many_nodes_rejected(self, tmp_path):
+        with pytest.raises(ValueError, match="--out-dir"):
+            self.func(["1:2", "3:4"], "png", output=str(tmp_path / "x.png"))
+
+    def test_names_count_mismatch_rejected(self, tmp_path):
+        with pytest.raises(ValueError, match="one name per node"):
+            self.func(["1:2", "3:4"], "png", out_dir=str(tmp_path), names=["a"])
+
+    def test_duplicate_names_rejected(self, tmp_path):
+        with pytest.raises(ValueError, match="Duplicate"):
+            self.func(["1:2", "3:4"], "png", out_dir=str(tmp_path), names=["a", "a"])

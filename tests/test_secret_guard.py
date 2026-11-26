@@ -85,6 +85,7 @@ CONSUMERS = [
     ("notion", "notion_api", "get_token()", {"NOTION_API_KEY": FAKE}),
     ("jira", "jira_api", "get_token()", {"ATLASSIAN_API_TOKEN": FAKE}),
     ("confluence", "confluence_api", "get_token()", {"ATLASSIAN_API_TOKEN": FAKE}),
+    ("figma", "figma_common", "get_token()", {"FIGMA_ACCESS_TOKEN": FAKE}),
     ("figma", "figma_fetch", "get_token()", {"FIGMA_ACCESS_TOKEN": FAKE}),
     ("figma", "figma_export", "get_token()", {"FIGMA_ACCESS_TOKEN": FAKE}),
     ("glm-vision-fallback", "vision_fallback", "get_api_key()", {"ZAI_API_KEY": FAKE}),
