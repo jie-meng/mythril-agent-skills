@@ -1,10 +1,11 @@
 ---
 name: fullstack-init
-description: |
-  Initialize or update a multi-repo fullstack workspace — discover repos,
-  generate AGENTS.md, create docs directory and workspace agents.
-  Trigger: "fullstack init", "fullstack initialize", "fullstack setup",
-  "全栈初始化", "初始化全栈工作区", "全栈 init".
+description: >
+  Initializes or updates a multi-repo fullstack workspace: discovers repos,
+  generates AGENTS.md, and creates the docs directory and workspace agents.
+  Run it first in a new workspace, or again after repos are added or removed.
+  Triggers: "fullstack init", "fullstack setup", "全栈初始化", "初始化全栈工作区", "全栈
+  init".
 license: Apache-2.0
 ---
 
@@ -47,7 +48,7 @@ User-only sections and bullets always stay, in your order; new template
 sections are inserted next to their template neighbour. `--force`
 overwrites every generated unit with the template (your edits are lost).
 
-## How the AI Agent MUST Handle Already-Initialized Workspaces
+## Handling Already-Initialized Workspaces
 
 When `fullstack.json` **and** `AGENTS.md` both exist, just run the script
 — no flags needed (do not pass `--force` unless the user asks to discard
@@ -86,16 +87,18 @@ are committed directly to its main branch.
 The name is configurable (defaults to `central-docs`) and stored in
 `fullstack.json`.
 
-### How the AI agent MUST handle the docs dir name
+### Choosing the docs dir name
 
 1. **Check if `fullstack.json` exists** — if YES, docs dir is already
    configured. No need to ask. Run the script.
 2. **Check if user specified a name** in their prompt — if YES, pass
    `--docs-dir <name>`.
-3. **Otherwise, ask the user** (MANDATORY — do NOT silently use the default):
+3. **Otherwise, ask the user** — the name is hard to change later, so do not silently use the default:
    > What should I name the shared docs directory? (default: `central-docs`)
 
 ## Usage
+
+`SKILL_PATH` is this skill's installed directory (the folder holding this SKILL.md); run scripts from the user's working directory, not from inside it.
 
 ```bash
 python3 SKILL_PATH/scripts/workspace_init.py                         # first run
@@ -109,13 +112,13 @@ python3 SKILL_PATH/scripts/workspace_init.py --dry-run               # preview o
 python3 SKILL_PATH/scripts/workspace_init.py --json                  # JSON output
 ```
 
-### How the AI agent MUST handle the GitHub repos setting
+### Choosing the GitHub repos setting
 
 1. **Check if `fullstack.json` exists and has `github_repos` set** — if YES,
    the setting is already configured. No need to ask. Run the script.
 2. **Check if user specified it** in their prompt (e.g., "repos are on GitHub",
    "仓库在GitHub上") — if YES, pass `--github`.
-3. **Otherwise, ask the user** (MANDATORY — do NOT silently use the default):
+3. **Otherwise, ask the user** — it decides whether later skills create PRs, so do not silently use the default:
    > Are these repositories hosted on GitHub or GitHub Enterprise? (yes/no)
    >
    > If yes, `fullstack-apply` will be able to create Pull Requests
@@ -136,7 +139,7 @@ Its language is controlled by the `--lang` flag:
 - `--lang zh` — Chinese
 - `--lang en` — English (default)
 
-**How the AI agent MUST choose the language**: the language is saved to
+**Choosing the language**: the language is saved to
 `fullstack.json` (`readme_lang`), so a re-run in another conversation
 language does not flip the README.
 

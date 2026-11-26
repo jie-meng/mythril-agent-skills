@@ -11,7 +11,7 @@ No third-party CLI tools required — uses only the Jira REST API via a bundled 
 
 **Jira Cloud REST API docs**: https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/
 
-**Full API reference**: See [`API_REFERENCE.md`](./API_REFERENCE.md) in this directory.
+**Full API reference**: See [`references/API_REFERENCE.md`](./references/API_REFERENCE.md).
 
 **Scope**: Jira Cloud only. The script calls the Jira Cloud REST API v3 (`/rest/api/3`), so Jira Server/Data Center — which exposes only the v2 API (`/rest/api/2`) — is not supported.
 

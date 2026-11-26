@@ -1,16 +1,11 @@
 ---
 name: glean
 description: >
-  Use Glean CLI (`glean`) for enterprise knowledge search, AI chat, and API
-  operations from terminal. Trigger when user mentions "glean" combined with
-  an action — e.g. "glean search", "search glean", "ask glean", "glean chat",
-  "用 glean 搜", "glean 搜索", "问一下 glean", "glean 问答", "search company
-  knowledge", "搜公司知识库", "公司文档搜索", "glean api", "glean agents",
-  "glean documents", "glean shortcuts", "glean collections". Also trigger
-  when user asks to search company/internal knowledge, docs, or people and
-  Glean is the implied tool. This skill covers search, chat, AI agents,
-  documents, collections, shortcuts, pins, announcements, entities,
-  verification, insights, messages, activity, and raw API access.
+  Runs the Glean CLI (`glean`) for enterprise knowledge search, AI chat, agents,
+  documents, collections, shortcuts, and raw API calls. Use when the user mentions
+  Glean with an action, or wants to search internal company knowledge, docs, or
+  people where Glean is the implied tool — e.g. "glean search", "ask glean",
+  "用 glean 搜", "问一下 glean", "搜公司知识库".
 license: MIT
 ---
 
@@ -53,7 +48,7 @@ Trigger this skill when the user mentions **"glean"** combined with an action in
 
 ## 1) Pre-flight checks
 
-MANDATORY execution rule:
+Skip pre-flight checks when the request is clear — they cost a round trip and the command's own error is just as informative:
 - **If the user provides a clear glean action** (e.g., "glean search X"), go straight to the relevant operation. Do NOT run `glean --version` or `glean auth status` first — let the command succeed or fail.
 - **If running glean for the first time** or encountering auth errors, check:
 
@@ -205,7 +200,7 @@ All `glean` commands return structured JSON on stdout and errors on stderr. Use 
 
 - **`glean` not installed**: Tell user to install via `brew install gleanwork/tap/glean-cli` or the install script. Run `skills-check glean` to verify.
 - **Not authenticated**: Run `glean auth login` (OAuth via browser). For CI/CD, set `GLEAN_API_TOKEN` and `GLEAN_HOST` environment variables.
-- **Auth failure — ONLY allowed recovery steps**:
+- **Auth failure** — recover only through these steps (never by inspecting tokens; see Security):
   1. Report the `glean` error message to the user
   2. Suggest `glean auth login` or `glean auth status`
   3. For token-based auth, suggest checking `GLEAN_API_TOKEN` and `GLEAN_HOST` are set

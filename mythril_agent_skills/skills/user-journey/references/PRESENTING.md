@@ -13,6 +13,15 @@ Both views share a **left sidebar** showing the full stage→screen tree, a sear
 
 ---
 
+## Contents
+
+- How to open
+- Canvas view
+- Prototype view
+- Tips for presenting to stakeholders
+- Sharing the journey with others
+- Full keyboard reference
+
 ## How to open
 
 **Default — double-click `index.html`** in the workspace. Opens in the default browser. Works offline, no server, no install.

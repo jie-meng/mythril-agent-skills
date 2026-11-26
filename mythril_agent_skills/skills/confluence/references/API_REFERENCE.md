@@ -3,6 +3,19 @@
 > **Official docs (v2)**: https://developer.atlassian.com/cloud/confluence/rest/v2/intro/
 > **OpenAPI spec**: https://dac-static.atlassian.com/cloud/confluence/openapi-v2.v3.json
 
+## Contents
+
+- [Pages](#pages)
+- [Spaces](#spaces)
+- [Comments](#comments)
+- [Labels](#labels)
+- [Children](#children)
+- [Attachments](#attachments)
+- [Search (CQL) — v1 API](#search-cql--v1-api)
+- [Confluence Storage Format](#confluence-storage-format)
+- [Rate Limits](#rate-limits)
+- [Error Response Format](#error-response-format)
+
 Base URL: `https://yoursite.atlassian.net/wiki/api/v2`
 
 **Authentication** (Basic auth for scripts and bots):

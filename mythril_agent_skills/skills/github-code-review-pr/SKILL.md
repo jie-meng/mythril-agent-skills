@@ -1,56 +1,45 @@
 ---
 name: github-code-review-pr
 description: >
-  MANDATORY TRIGGER: Any URL containing `/pull/` + review intent = invoke this
-  skill IMMEDIATELY. Do NOT analyze the hostname — git.x.com, gitlab.y.com,
-  code.z.au are all potentially GitHub Enterprise. NEVER speculate about the
-  platform; just run the skill and let `gh` succeed or fail. Zero pre-analysis,
-  zero hesitation. Comprehensive PR code review via GitHub CLI (`gh`). Trigger
-  on review/审查/评审/CR + PR URL or PR number. For routine PR actions (not
-  full code review), prefer `gh-operations`.
+  Performs a comprehensive code review of a GitHub Pull Request with the `gh`
+  CLI, reading the surrounding repo code, not just the diff. Use when the user asks to review a PR URL (any URL containing `/pull/`)
+  or PR number: "review this PR", "PR code review", "审查这个PR", "帮我看这个PR",
+  "CR". Unknown hosts may be GitHub Enterprise, so run `gh` rather than guessing
+  the platform. For routine PR actions without a full review, use
+  gh-operations; for local staged changes, use code-review-staged.
 license: Apache-2.0
 ---
 
-# When to Use This Skill
+# GitHub PR Code Review
 
-## ZERO-SPECULATION RULE (read this FIRST)
+## When to use
 
-**If the user's message contains a URL with `/pull/` and any review intent, invoke this skill IMMEDIATELY.** Do NOT spend ANY tokens analyzing the hostname, guessing the platform, or debating whether `gh` will work. The correct behavior is:
+Use this skill when the user wants a Pull Request reviewed:
+- "review this PR" / "PR review" / "PR code review" / "help me review this pull request"
+- "审查这个PR" / "帮我看这个PR" / "PR审查"
+- Any URL containing `/pull/`, or a PR number, plus a request for review/feedback
+- The user shared a PR URL earlier, then says "使用技能" / "use this skill"
 
-1. See `/pull/` URL + review intent → trigger skill
-2. Run `review_runner.py prepare <URL>` → let `gh` succeed or fail
-3. If `gh` fails → report the error and suggest `gh auth login --hostname <host>`
+**Don't guess the platform from the hostname.** Domains like `git.company.com`
+or `code.company.com.au` are very often GitHub Enterprise. Speculating ("this
+looks like GitLab") wastes tokens and is often wrong; running `gh` and letting
+it succeed or fail is fast and conclusive. So for any `/pull/` URL with review
+intent:
 
-**WRONG behavior (NEVER do this):**
-- "This appears to be a self-hosted GitLab instance" — WRONG, you don't know that
-- "git.company.com looks like GitLab" — WRONG, it's GitHub Enterprise
-- "gh CLI won't work with this host" — WRONG, you haven't tried yet
-- Any reasoning about whether the host is GitHub, GitLab, Bitbucket, etc. — WRONG
+1. Run `review_runner.py prepare <URL>` immediately — no host analysis and no
+   `gh auth status` pre-check first.
+2. If `gh` fails, report the error and suggest `gh auth login --hostname <host>`.
 
-**WHY:** Users who paste a `/pull/` URL and say "review" are trusting you to act. The domain `git.*.com`, `git.*.com.au`, `code.*.com` — these are overwhelmingly GitHub Enterprise. Even if they aren't, trying `gh` first and failing fast is better than wasting 500 tokens on speculation. Trust the user's input first, fix errors later.
+The output gate also rejects platform-guessing phrases, so speculation makes
+the review fail its own check.
 
-## Trigger conditions
+This skill reviews remote PRs via `gh`. For local staged changes, use
+`code-review-staged`; for comparing two local branches, `branch-diff-review`.
 
-**ALWAYS invoke this skill when user wants to review a Pull Request:**
-- "review this PR" / "review PR" / "PR review" / "PR code review"
-- "审查这个PR" / "帮我看这个PR" / "PR审查" / "review pull request"
-- "review https://github.com/owner/repo/pull/123"
-- "帮我看一下这个 PR https://git.company.com/org/repo/pull/456"
-- User provides ANY URL containing `/pull/` and asks for review/feedback
-- User provides a PR number and asks for review/feedback
-- "help me review this pull request"
-- "use github-code-review-pr skill"
-- User shared a PR URL in previous turn, then says "使用技能" / "use this skill"
+## Requirements
 
-Trigger on any URL containing `/pull/`, regardless of the host domain. Do not make any judgment about the platform from domain text — trigger this skill and let `gh` handle it.
-
-**This skill reviews remote PRs via `gh` CLI (not local staged changes).**
-For local staged changes, use `code-review-staged` instead.
-
-# Requirements
-
-- **GitHub CLI (`gh`)** must be installed and authenticated
-- **`curl`** must be available for downloading PR screenshots/assets
+- **GitHub CLI (`gh`)** installed and authenticated
+- **`curl`** for downloading PR screenshots/assets
 - **Optional for enterprise SSO**: `curl --negotiate -u :` support for SPNEGO/Kerberos-protected asset URLs
 - Run `skills-check github-code-review-pr` to verify dependencies
 
@@ -66,125 +55,97 @@ For local staged changes, use `code-review-staged` instead.
    - Any command that outputs a password, token, or secret value from any credential store
 5. **NEVER use extracted credential values in commands.** Do NOT manually construct authenticated requests (e.g. `curl -H "Authorization: token <value>"`). The `gh` CLI handles all authentication internally — use `gh api` for API calls instead of `curl` with raw tokens.
 
-# Requirements for Outputs
+## Review standards
 
-## Code Review Quality
+- Comprehensive and rigorous: identify all potential issues and flag suspicious code.
+- Actionable: concrete suggestions with file paths and line references.
+- Grounded in the project's existing conventions, patterns, and style.
+- Written in the user's language (see Step 5).
 
-### Review Standards
-- Code review MUST be comprehensive, identifying all potential issues
-- Review MUST be thorough and rigorous, highlighting suspicious code
-- Review MUST provide actionable, concrete suggestions with file paths and line references
-- Review MUST consider the project's existing conventions, patterns, and style
-- Review language MUST match the user's input language (Chinese or English)
+## Workflow
 
-### Language Detection
-- Detect user's input language automatically
-- If user input contains Chinese characters (Unicode U+4E00-U+9FFF), output review in Chinese
-- If user input contains only English, output review in English
+`SKILL_PATH` is this skill's installed directory. All bundled scripts live in
+`SKILL_PATH/scripts/`. If `SKILL_PATH` cannot be resolved or the scripts are
+missing, follow [references/manual-fallback.md](references/manual-fallback.md)
+instead of Steps 2–3 and the cleanup in Step 7a.
 
-# Implementation
+### Step 1: Parse the PR reference
 
-The skill executes these steps:
-
-## Step 1: Parse PR Reference
-
-Accept PR input in any of these formats:
+Accepted forms:
 - Full URL: `https://github.com/owner/repo/pull/123`
 - Full URL with any host: `https://git.mycompany.com/owner/repo/pull/123`
-- PR number (when inside a repo): `123`
+- PR number (inside a repo): `123`
 - PR number with repo: `owner/repo#123`
 
-Extract **owner**, **repo**, **PR number**, and **hostname**, then proceed immediately to Step 2. Do not make any judgment about what platform the host belongs to — `gh` will succeed or fail on its own, and its error output is sufficient to diagnose any issue.
+Extract owner, repo, PR number, and hostname, then go straight to Step 2.
 
-MANDATORY execution rule:
-- For any input containing `/pull/`, the next command must be `review_runner.py prepare <URL_or_NUMBER>`.
-- Do not run host-based branching logic first.
-- Do not run `gh auth status` as a pre-check gate before the first `gh pr view`/`gh pr diff` call.
+### Step 2: Prepare the session with the runner
 
-## Step 2: Fetch PR Metadata and Diff
-
-### MANDATORY: Use the bundled runner script
-
-**Do NOT manually run `gh pr view` or `gh pr diff`.** Always use the bundled runner script — it performs Step 2, Step 3 (path selection + checkout), and cleanup wiring in a single deterministic call:
+Use the runner instead of calling `gh pr view` / `gh pr diff` yourself. It
+fetches once, selects the repo-access path, checks out the PR branch, and wires
+cleanup in one deterministic call — and the gate in Step 7 checks that the
+fetch happened exactly once.
 
 ```bash
-python3 scripts/review_runner.py prepare <URL_or_NUMBER>
+python3 SKILL_PATH/scripts/review_runner.py prepare <URL_or_NUMBER>
 ```
 
-**STOP — How to locate the script (FORBIDDEN: Glob, find, rg, or any recursive search):**
+What it does:
+1. Fetches PR metadata (`gh pr view`) and diff (`gh pr diff`) exactly once.
+2. Runs `path_select.py` (A → B → C → D with `[PATH-CHECK]` / `[PATH-SELECTED]` trace).
+3. When neither A nor B matches, queries repo size via `gh api` to pick C vs D:
+   - ≤ 100 MB → Path C: clone into the shared cache via `repo_manager.py sync` (reusable)
+   - \> 100 MB → pauses with **exit code 10** for a user decision (below)
+   - Size query fails → Path C (falls back to D if the clone fails)
+4. Checks out the PR branch, falling back to `pull/<PR>/head`.
+5. Saves all outputs to a session manifest.
 
-Check these fixed paths in order. Use the first one that exists. This works on macOS, Linux, and Windows:
+Repo-access paths:
 
-```python
-import pathlib, subprocess, sys
+| Path | Condition | Context depth |
+|---|---|---|
+| A | Already inside the target repo | Full repo |
+| B | Repo found in shared cache | Full repo |
+| C | Not cached, ≤ 100 MB — cloned to shared cache (kept for reuse) | Full repo |
+| D | > 100 MB (user chose D), or Path C clone failed — sparse temp clone | Targeted files only |
+| DIFF_ONLY | User chose no clone (large repo) | PR diff + metadata only |
 
-candidates = [
-    pathlib.Path.home() / ".config/opencode/skills/github-code-review-pr/scripts/review_runner.py",
-    pathlib.Path.home() / ".claude/skills/github-code-review-pr/scripts/review_runner.py",
-    pathlib.Path.home() / ".copilot/skills/github-code-review-pr/scripts/review_runner.py",
-    pathlib.Path.home() / ".cursor/skills/github-code-review-pr/scripts/review_runner.py",
-    pathlib.Path.home() / ".gemini/skills/github-code-review-pr/scripts/review_runner.py",
-    pathlib.Path.home() / ".codex/skills/github-code-review-pr/scripts/review_runner.py",
-    pathlib.Path.home() / ".qwen/skills/github-code-review-pr/scripts/review_runner.py",
-    pathlib.Path.home() / ".grok/skills/github-code-review-pr/scripts/review_runner.py",
-]
-script = next((p for p in candidates if p.exists()), None)
-if not script:
-    print("ERROR: review_runner.py not found at any known install path", file=sys.stderr)
-    sys.exit(1)
-subprocess.run([sys.executable, str(script), "prepare", "<URL_or_NUMBER>"])
-```
-
-If you are running shell commands instead of Python, convert the above to the equivalent `ls`/`test -f` checks — but NEVER use recursive search.
-
-This command:
-1. Fetches PR metadata (`gh pr view`) and diff (`gh pr diff`) exactly once
-2. Runs `path_select.py` (A → B → C → D selection with `[PATH-CHECK]`/`[PATH-SELECTED]` trace)
-3. When neither A nor B matches, queries repo size via `gh api` to decide C vs D:
-   - Repo ≤ 100 MB → Path C: clone into shared cache via `repo_manager.py sync` (reusable)
-   - Repo > 100 MB → **pauses with exit code 10** — asks the AI agent to present options to the user (see below)
-   - If size query fails → defaults to Path C (with fallback to D if clone fails)
-4. Handles checkout with fallback (`pull/<PR>/head`)
-5. Saves all outputs to a session manifest
-
-Machine-readable output lines (normal exit code 0):
-- `RUN_MANIFEST=<path>` — session manifest JSON (needed for cleanup and gate scripts)
-- `PR_VIEW_JSON_PATH=<path>` — saved PR metadata JSON file
-- `PR_DIFF_PATH=<path>` — saved PR diff file
+Machine-readable output (exit code 0):
+- `RUN_MANIFEST=<path>` — session manifest JSON (needed for cleanup and gate)
+- `PR_VIEW_JSON_PATH=<path>` — saved PR metadata JSON
+- `PR_DIFF_PATH=<path>` — saved PR diff
 - `CLEANUP_LOG_PATH=<path>` — where to tee cleanup output in Step 7a
 - `REVIEW_TEXT_PATH=<path>` — where to write the review text in Step 7b
-- `SELECTED_PATH=A|B|C|D|DIFF_ONLY` — which path was selected
+- `SELECTED_PATH=A|B|C|D|DIFF_ONLY`
 - `REPO_WORKDIR=<path>` — local repo directory (empty if diff-only)
-- `PR_STATE=OPEN|CLOSED|MERGED` — PR state
-- `CONTEXT_MODE=full_repo|diff_only` — whether full repo context is available
+- `PR_STATE=OPEN|CLOSED|MERGED`
+- `CONTEXT_MODE=full_repo|diff_only`
 - `CONTEXT_LIMITATION=<message>` — explanation when context is limited
 - `CHECKOUT_DONE=true|false` — whether the PR branch is already checked out at `REPO_WORKDIR`
-- `NOTE: PR branch is already checked out...` — human-readable confirmation (when `CHECKOUT_DONE=true`)
+- `NOTE: PR branch is already checked out...` — human-readable confirmation
 
-### Handling exit code 10 (large repo — user decision required)
+#### Handling exit code 10 (large repo — user decision required)
 
-When the repo exceeds the size threshold (default 100 MB) and neither Path A nor B matched, `review_runner.py prepare` exits with code **10** instead of auto-deciding. It emits these lines:
+When the repo exceeds the threshold and neither A nor B matched, `prepare`
+exits with code **10** and emits:
 
 - `NEEDS_USER_DECISION=true`
-- `REPO_SIZE_MB=<float>` — actual repo size in MB
-- `THRESHOLD_MB=<int>` — the threshold that was exceeded
-- `RECOMMENDED_DEFAULT=D|diff-only` — which option to pre-select (D for ≤ 1 GB, diff-only for > 1 GB)
+- `REPO_SIZE_MB=<float>`, `THRESHOLD_MB=<int>`
+- `RECOMMENDED_DEFAULT=D|diff-only`
 - `PENDING_RUN_DIR=<path>` — session directory with saved metadata/diff
-- `PR_VIEW_JSON_PATH=<path>` — already fetched, reusable
-- `PR_DIFF_PATH=<path>` — already fetched, reusable
+- `PR_VIEW_JSON_PATH=<path>`, `PR_DIFF_PATH=<path>` — already fetched, reusable
 
-**When you receive exit code 10, you MUST present the user with three options.**
-
-Use the repo size to determine the recommended default, then display the options. **Do NOT invent your own recommendation — follow the table below exactly.**
-
-**Default selection rule:**
+Present three options to the user, with the default pre-selected by this table
+(follow it rather than inventing your own recommendation — it encodes the
+download-cost trade-off):
 
 | Repo size | Default option | Rationale |
 |---|---|---|
-| ≤ 1 GB | **2. Sparse clone (Path D)** | Blobless sparse clone only downloads tree metadata (usually <50 MB even for large repos) and fetches file content on demand. Good trade-off between download cost and review context quality. |
-| > 1 GB | **3. Diff-only** | Monorepo-scale repos have deep commit history and massive tree objects. Tree metadata alone can take minutes to transfer. Diff-only is the pragmatic choice. |
+| ≤ 1 GB | **2. Sparse clone (Path D)** | Blobless sparse clone downloads only tree metadata (usually <50 MB even for large repos) and fetches file content on demand. |
+| > 1 GB | **3. Diff-only** | Monorepo-scale repos have huge tree objects; tree metadata alone can take minutes. |
 
-Display the repo size and present the options. The **default option** (from the table above) MUST be pre-selected (cursor/arrow points to it). Do NOT add "(Recommended)" text to any option — the pre-selection is the recommendation.
+Pre-select the default (cursor on it) and don't add "(Recommended)" text — the
+pre-selection is the recommendation.
 
 > This repository is **{REPO_SIZE_MB} MB** (exceeds the {THRESHOLD_MB} MB threshold).
 >
@@ -193,894 +154,218 @@ Display the repo size and present the options. The **default option** (from the 
 > 2. Sparse clone to temp dir (Path D) — smaller download, only PR-related files, deleted after review
 > 3. Diff-only — no clone, review based on PR diff and metadata only (limited context)
 
-After the user chooses, resume the session:
+Then resume the pending session (reuses the fetched metadata and diff, no new
+`gh pr view` / `gh pr diff`):
 
 ```bash
-python3 scripts/review_runner.py prepare <URL_or_NUMBER> \
+python3 SKILL_PATH/scripts/review_runner.py prepare <URL_or_NUMBER> \
     --force-path C|D|diff-only --run-dir <PENDING_RUN_DIR>
 ```
 
-This resumes the pending session: it reuses the previously fetched metadata and diff (no repeated `gh pr view`/`gh pr diff`), executes the user's chosen path, and emits the standard machine-readable output lines with exit code 0.
-
-**After `review_runner.py prepare` succeeds (exit code 0) — MANDATORY next actions:**
-
-When you see `CHECKOUT_DONE=true` in the output, the runner has ALREADY fetched and checked out the PR branch. You MUST NOT run any git commands to prepare the repo.
-
-1. Read PR metadata from `PR_VIEW_JSON_PATH` (do NOT re-run `gh pr view`)
-2. Read PR diff from `PR_DIFF_PATH` (do NOT re-run `gh pr diff`)
-3. **SKIP Step 3 entirely — go directly to Step 4 (read files).** The runner output says `CHECKOUT_DONE=true` — the PR branch is ALREADY checked out at `REPO_WORKDIR`. To gather context, just read files there:
-   ```bash
-   cd <REPO_WORKDIR>
-   # read files directly — CHECKOUT_DONE=true means the PR branch is already here
-   ```
-4. Save all emitted paths (`RUN_MANIFEST`, `CLEANUP_LOG_PATH`, `REVIEW_TEXT_PATH`) — you will need them in Step 7
-
-**WRONG (do NOT do this when CHECKOUT_DONE=true):**
-- `git fetch origin <branch>` — WRONG, runner already fetched
-- `git checkout <branch>` — WRONG, runner already checked out
-- `gh pr checkout` — WRONG, runner already handled this
-- Running ANY git command to "prepare" the repo — WRONG, it's already prepared
-
-### Fallback: Manual commands (ONLY if review_runner.py is not found)
-
-If and only if `review_runner.py` cannot be located at any install path, fall back to manual commands. **You MUST still run `path_select.py` before any clone/fetch** (see Step 3).
-
-#### 2a. PR metadata
-```bash
-GH_PAGER=cat gh pr view <URL_or_NUMBER> --json number,title,body,state,author,baseRefName,headRefName,labels,reviewDecision,additions,deletions,changedFiles,commits,files,comments,reviews,url
-```
-
-Key fields:
-- `title`, `body` — PR description and intent
-- `baseRefName`, `headRefName` — branches involved
-- `files` — list of changed files with `path`, `additions`, `deletions`
-- `commits` — commit history in the PR
-- `comments`, `reviews` — existing discussion context
-- `url` — used to extract `owner/repo`
-
-#### 2b. PR diff
-```bash
-GH_PAGER=cat gh pr diff <URL_or_NUMBER>
-```
-
-#### 2b.1 Single-fetch rule (avoid repeated network calls)
-
-- Fetch metadata and diff once, then reuse the captured output throughout the review.
-- Do NOT re-run `gh pr diff`/`gh pr view` unless output is missing/corrupted or PR head changed during review.
-- If a re-fetch is required, state the reason explicitly.
-
-Enforcement rule:
-- Persist first successful outputs to variables/files (for example `PR_VIEW_JSON_PATH`, `PR_DIFF_PATH`) and reuse them for all later analysis.
-- Any second `gh pr view`/`gh pr diff` call MUST include a log line in advance: `[REFETCH-REASON] <specific reason>`.
-- "Need to read another section" is NOT a valid reason; read from the previously captured output instead.
-
-### 2c. Collect and analyze PR images (default when relevant)
-
-After metadata is fetched, inspect `body`, `comments`, and `reviews` for image links:
-- Markdown image syntax: `![alt](https://...)`
-- Plain asset URLs (especially `/assets/` links)
-
-Automatically do this (without extra user back-and-forth) when:
-- user asks to read screenshot/image content, or
-- screenshots are part of PR verification evidence (offline check steps, UI proof, tracking proof), or
-- image information is required to validate correctness/risk.
-
-Download relevant images under a random run directory in the unified cache.
-
-**Bash (macOS / Linux):**
-```bash
-if [[ "$(uname -s)" == "Darwin" ]]; then
-  CACHE_ROOT="$HOME/Library/Caches/mythril-skills-cache"
-else
-  CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/mythril-skills-cache"
-fi
-CACHE_DIR="$CACHE_ROOT/github-code-review-pr"
-mkdir -p "$CACHE_DIR"
-RUN_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
-IMAGE_CACHE="$RUN_DIR/images"
-mkdir -p "$IMAGE_CACHE"
-```
-
-**PowerShell (Windows):**
-```powershell
-$CACHE_ROOT = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "mythril-skills-cache"
-$CACHE_DIR = Join-Path $CACHE_ROOT "github-code-review-pr"
-New-Item -ItemType Directory -Force -Path $CACHE_DIR | Out-Null
-$RUN_DIR = Join-Path $CACHE_DIR ([System.IO.Path]::GetRandomFileName())
-New-Item -ItemType Directory -Force -Path $RUN_DIR | Out-Null
-$IMAGE_CACHE = Join-Path $RUN_DIR "images"
-New-Item -ItemType Directory -Force -Path $IMAGE_CACHE | Out-Null
-```
-
-Never use ad-hoc temp locations like `/tmp/<custom-folder>/...` for image artifacts.
-
-**Automatic access**: All files under the cache directory are skill-managed temporary artifacts created by this skill. Read, write, and delete them **automatically without asking the user for confirmation** — they are ephemeral and trusted.
-
-Use authenticated retrieval in this order:
-1. `curl -fsSL "<image_url>" -o "<local_path>"`
-2. If enterprise auth fails, retry:
-   `curl -fsSL --negotiate -u : "<image_url>" -o "<local_path>"`
-
-**Post-download validation (MANDATORY):** After each download, verify the file is actually an image — enterprise auth redirects often return HTTP 200 with an HTML login page instead of the real image. Run:
-
-```bash
-file --mime-type -b "<local_path>"
-```
-
-- If output starts with `image/` → valid image, proceed to read it.
-- If output is `text/html`, `text/plain`, or anything other than `image/*` → the download captured an auth redirect page, not the real image. **Treat this as a retrieval failure**: delete the file (`rm -f "<local_path>"`), do NOT attempt to read it, and do NOT retry reading it. Log a one-line note (e.g., "Image download returned HTML instead of image data — likely auth redirect, skipping") and move on.
-
-Only read **validated** images with image-capable tools and summarize:
-- what the screenshot shows (UI/debug panel/logs),
-- key values/events/URLs visible in the image,
-- whether screenshot evidence supports the PR claim.
-
-If image retrieval fails (curl error, non-image content, or auth redirect), log the URL and reason, skip the image, and continue the review. Do NOT repeatedly attempt to read invalid files. If ALL images fail, note in the review that image evidence could not be verified due to access restrictions, and suggest the user check screenshots manually.
-
-## Step 3: Get Local Access to the Repository
-
-The goal is to have repo context available locally so context gathering is just file reads — no per-file API requests. Try these paths **in order** — pick the first one that applies.
-
-### Skip condition: If `review_runner.py prepare` was used in Step 2
-
-**STOP — Skip this entire Step 3.** Do NOT run `git fetch`, `git checkout`, `gh pr checkout`, or any clone/branch command. The runner already did all of this. The PR branch is already checked out at `REPO_WORKDIR`. Just `cd` there and start reading files (Step 4).
-
-The rest of Step 3 below is the **manual fallback path** — only execute it when `review_runner.py` was NOT available and you used manual Step 2 commands.
-
-### Path Selection Script (MANDATORY when not using review_runner.py — run first, before any clone or fetch)
-
-**Do NOT write inline path-check logic.** Instead, run the bundled `path_select.py` script. It checks A → B → C → D in order and prints `[PATH-CHECK]` / `[PATH-SELECTED]` lines as it runs — guaranteeing the trace appears in the execution log at decision time, not as prose in the final review output.
-
-The script lives alongside this SKILL.md at `scripts/path_select.py`. Locate and run it using Python directly — do NOT use shell `eval` or complex shell expansions, as these may be blocked by shell safety filters in some AI tools:
-
-**MANDATORY (permission-safe):** do not use recursive glob/find in `~` to locate this script. Use fixed candidate paths only.
-
-```python
-import subprocess, os, pathlib
-
-# Step 1: locate path_select.py from known install locations
-search_dirs = [
-    pathlib.Path.home() / ".config/opencode/skills/github-code-review-pr/scripts",
-    pathlib.Path.home() / ".claude/skills/github-code-review-pr/scripts",
-    pathlib.Path.home() / ".copilot/skills/github-code-review-pr/scripts",
-    pathlib.Path.home() / ".cursor/skills/github-code-review-pr/scripts",
-    pathlib.Path.home() / ".gemini/skills/github-code-review-pr/scripts",
-    pathlib.Path.home() / ".codex/skills/github-code-review-pr/scripts",
-    pathlib.Path.home() / ".qwen/skills/github-code-review-pr/scripts",
-    pathlib.Path.home() / ".grok/skills/github-code-review-pr/scripts",
-]
-script = next((d / "path_select.py" for d in search_dirs if (d / "path_select.py").exists()), None)
-
-# Step 2: get current repo (empty string if not inside any repo or gh unavailable)
-result = subprocess.run(
-    ["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
-    capture_output=True, text=True, env={**os.environ, "GH_PAGER": "cat"}
-)
-current_repo = result.stdout.strip() if result.returncode == 0 else ""
-
-# Step 3: run path selection — prints [PATH-CHECK] / [PATH-SELECTED] trace lines
-# and prints machine-readable lines: SELECTED_PATH=..., REPO_PATH=...
-output = subprocess.run(
-    ["python3", str(script), "https://<host>/<owner>/<repo>", current_repo],
-    capture_output=False  # prints trace directly to stdout
-)
-```
-
-After the script runs, read `SELECTED_PATH` and `REPO_PATH` from the `KEY=VALUE` lines in the output (parse from stdout if needed), or re-run with `capture_output=True` to parse programmatically.
-
-**Rules:**
-- Run this block before any `git fetch`, `git checkout`, or clone command.
-- Do not proceed to Step 4 until `[PATH-SELECTED]` is visible in the log.
-- Do NOT re-implement path-check logic inline — always use the script.
-
-### Execution guardrail (MANDATORY)
-
-Immediately after parsing `SELECTED_PATH` / `REPO_PATH`, register cleanup handling for Step 7.
-Do this **before** any fetch/checkout/clone command so cleanup still runs on mid-review failures.
-
-- Keep `SELECTED_PATH` in a shell variable for cleanup branching.
-- For Path A, capture `ORIGINAL_BRANCH` immediately.
-- For Path B, capture `REPO_PATH` and resolve `DEFAULT_BRANCH` once.
-- For Path C, capture `REPO_PATH` (same as Path B — it's a shared cache repo).
-- For Path D, capture created temp dirs (`REVIEW_DIR`, `RUN_DIR`) as soon as they are created.
-- Use an `EXIT` trap (or equivalent) so cleanup executes whether review succeeds, partially fails, or exits early.
-
-### Path A: Already inside the target repo
-
-When `SELECTED_PATH=A`, proceed immediately:
-
-```bash
-git fetch origin <baseRefName> <headRefName>
-ORIGINAL_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-git checkout <headRefName>
-```
-
-Same reasoning as Path B: use `git checkout <headRefName>` directly (branch name known from Step 2a) rather than `gh pr checkout`, which can fail on Enterprise hosts that require separate `gh auth login --hostname` even when `gh pr view/diff` works.
-
-After review, restore the original branch (see Step 7).
-
-### Path B: Shared repo cache hit — full repo already cached
-
-When `SELECTED_PATH=B`, `$REPO_PATH` is already set by the path-selection script above.
-
-Update the cached repo and checkout the PR branch. `headRefName` is already known from Step 2a metadata — use it directly:
-
-```bash
-cd "$REPO_PATH"
-
-# Fetch both branches: base for diff comparison, head for the PR code
-git fetch origin <baseRefName> <headRefName>
-
-# Checkout the PR branch using the branch name from metadata
-git checkout <headRefName>
-```
-
-If the command above fails (missing remote branch, force-pushed branch, stale refs, or host-specific behavior), do **not** silently continue as if full repo context were available.
-
-Run this mandatory fallback sequence:
-
-```bash
-# Keep error output for the final review limitation note
-FETCH_ERR="$(git fetch origin <baseRefName> <headRefName> 2>&1)" || true
-
-if ! git rev-parse --verify --quiet "origin/<headRefName>" >/dev/null; then
-  # Fallback: fetch PR head ref directly by PR number
-  git fetch origin "pull/<PR_NUMBER>/head:pr-<PR_NUMBER>-head" 2>&1 || true
-fi
-
-if git rev-parse --verify --quiet "origin/<headRefName>" >/dev/null; then
-  git checkout <headRefName>
-elif git rev-parse --verify --quiet "pr-<PR_NUMBER>-head" >/dev/null; then
-  git checkout "pr-<PR_NUMBER>-head"
-else
-  CONTEXT_MODE="diff_only"
-  CONTEXT_LIMITATION="Path B branch checkout failed: ${FETCH_ERR:-unknown fetch error}"
-fi
-```
-
-When `CONTEXT_MODE=diff_only`:
-- Continue review using Step 2 metadata + diff only (no fake local-context claims)
-- Explicitly state this limitation in the review output
-- **Still run Step 7 cleanup** and print `[PATH-CLEANUP] ...` status lines
-
-**Why `git checkout <headRefName>` instead of `gh pr checkout`**: `gh pr checkout` can fail if the host hasn't been authenticated with `gh auth login --hostname <host>`, even when `gh pr view/diff` succeeds (those commands may use a different auth path). Since `headRefName` is already known from Step 2a metadata and the branch is available after `git fetch origin <headRefName>`, using `git checkout` directly is more reliable and avoids this failure mode.
-
-For base branch comparison, use `origin/<baseRefName>` (the remote-tracking ref, guaranteed fresh after the fetch).
-
-### Path C: Clone into shared cache (default for small/medium repos)
-
-When `SELECTED_PATH=C`, the repo is not yet available locally. Before cloning, the runner queries the repo's disk size via `gh api repos/<owner>/<repo> --jq '.size'`:
-
-- **Repo ≤ 100 MB** → proceed with Path C automatically (clone into shared cache)
-- **Repo > 100 MB** → **pause and ask the user** — the runner exits with code 10 and the AI agent presents three options: Path C (clone to shared cache anyway), Path D (sparse clone to temp dir), or diff-only (no clone). See "Handling exit code 10" in Step 2 for details.
-- **Size query fails** → proceed with Path C as default (safe fallback to D if clone fails)
-
-When proceeding with Path C, the repo is cloned into the **shared `git-repo-cache`** via the bundled `repo_manager.py sync` command. This creates a blobless clone that is **reusable across sessions and skills** — the next PR review on the same repo will hit Path B instantly.
-
-```bash
-python3 scripts/repo_manager.py sync "<repo-url>"
-```
-
-This command:
-1. Checks `repo_map.json` for an existing entry (handles stale entries automatically)
-2. Clones with `--filter=blob:none` into `git-repo-cache/repos/<host>/<owner>/<repo>/`
-3. Resets the working tree to a clean state on the default branch
-4. Registers the repo in `repo_map.json` for future lookups
-5. Prints the local path to stdout
-
-After the clone, fetch and checkout the PR branches — same as Path B:
-
-```bash
-cd "$REPO_PATH"
-git fetch origin <baseRefName> <headRefName>
-git checkout <headRefName>
-```
-
-The same fallback sequence as Path B applies if checkout fails (`pull/<PR_NUMBER>/head` ref).
-
-**Why Path C over direct sparse clone**: For most repos (up to tens of thousands of files), the blobless clone is only a few MB of tree/commit metadata. The benefit is substantial — the repo persists in the shared cache, so future reviews, `git-repo-reader` queries, and other skills can reuse it without any clone at all. File blobs are fetched on demand when files are read, keeping the initial cost low.
-
-**Fallback to Path D**: Path C degrades to Path D when `repo_manager.py sync` fails at runtime (e.g., auth issues, network errors). The `[PATH-FALLBACK]` trace line is emitted. For repos exceeding the size threshold, the user is asked to choose (see "Handling exit code 10" in Step 2).
-
-After review, the repo is reset to the default branch (same cleanup as Path B — see Step 7). The cached repo is **NOT deleted** — it is shared and reusable.
-
-### Path D: Blobless sparse clone to temp directory (large repos or fallback)
-
-Path D is used for **large repos** (> 100 MB per GitHub API) or as a **fallback** when Path C fails. It uses **blobless clone + sparse checkout** into a disposable temp directory under the skill's own cache, downloading only the directories needed for review.
-
-**Why NOT `--depth=1` or `--single-branch`**: With `--single-branch` the refspec is restricted to one branch, making it impossible to later `git fetch origin <headRefName>` for a different branch. `--depth=1` implies `--single-branch`. Using `--filter=blob:none --sparse` (without depth/single-branch) gives us all refs and history metadata at minimal cost — blobs are only fetched when files are actually checked out.
-
-**Path D location rule (MANDATORY):** Clone directly into the unified skill cache — never use `/tmp`, `$TMPDIR`, or any ad-hoc directory.
-
-Create a temp directory under the **unified skill cache**:
-
-**Bash (macOS / Linux):**
-```bash
-if [[ "$(uname -s)" == "Darwin" ]]; then
-  CACHE_ROOT="$HOME/Library/Caches/mythril-skills-cache"
-else
-  CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/mythril-skills-cache"
-fi
-CACHE_DIR="$CACHE_ROOT/github-code-review-pr"
-mkdir -p "$CACHE_DIR"
-REVIEW_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
-gh repo clone <owner/repo> "$REVIEW_DIR" -- --filter=blob:none --sparse
-cd "$REVIEW_DIR"
-```
-
-**PowerShell (Windows):**
-```powershell
-$CACHE_ROOT = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "mythril-skills-cache"
-$CACHE_DIR = Join-Path $CACHE_ROOT "github-code-review-pr"
-New-Item -ItemType Directory -Force -Path $CACHE_DIR | Out-Null
-$REVIEW_DIR = Join-Path $CACHE_DIR ([System.IO.Path]::GetRandomFileName())
-New-Item -ItemType Directory -Force -Path $REVIEW_DIR | Out-Null
-gh repo clone <owner/repo> "$REVIEW_DIR" -- --filter=blob:none --sparse
-Set-Location $REVIEW_DIR
-```
-
-Now the repo is cloned with sparse checkout already enabled (cone mode). The working directory contains only root-level files (README.md, AGENTS.md, pyproject.toml, etc.) — no subdirectories are checked out yet.
-
-Add directories needed for review based on the PR metadata from Step 2:
-
-**1. Directories containing PR-modified files** — extract from the `files` list in Step 2a:
-```bash
-git sparse-checkout add src/components src/utils tests/unit
-```
-Only add the directories that contain files changed in the PR. This pulls just those directory trees.
-
-**2. Directories for related files** — if the diff references imports or base classes from other paths, add those too:
-```bash
-git sparse-checkout add src/types src/shared
-```
-
-Now checkout the PR branch to get the PR's version of those files:
-```bash
-git fetch origin <headRefName>
-git checkout <headRefName>
-```
-
-(Use `git checkout <headRefName>` directly — same reasoning as Path A/B/C: more reliable than `gh pr checkout` on Enterprise hosts.)
-
-After review, delete the temp directory (see Step 7).
-
-### Path selection summary
-
-| Path | Condition | Speed | Context depth |
-|---|---|---|---|
-| A | Already inside target repo | Instant | Full repo |
-| B | Repo found in shared cache | Fast (just `fetch` two branches) | Full repo |
-| C | Repo not cached, ≤ 100 MB — clone to shared cache | Moderate (blobless clone, reusable) | Full repo |
-| D | Repo > 100 MB (user chose D), or Path C clone failed | Moderate (blobless sparse clone, disposable) | Targeted files only |
-| DIFF_ONLY | User explicitly chose no clone (large repo) | Instant | PR diff + metadata only |
-
-Note: Path B and C can temporarily degrade to diff-only mode if branch fetch/checkout fails. This is allowed only when the fallback sequence above is attempted and logged. When the repo exceeds the size threshold, the user is asked to choose between C, D, and diff-only (see "Handling exit code 10" in Step 2). Path C falls back to Path D if `repo_manager.py sync` fails at runtime.
-
-## Step 4: Gather Repository Context
-
-### For Path A, Path B, and Path C (full repo available)
-
-The full repo is available locally. Read files directly — git auto-fetches blob content on demand (blobless clone).
-
-#### 4a. Project structure overview
-
-```bash
-git ls-tree -r --name-only HEAD | head -200
-```
-
-This reveals the project's module organization, naming conventions, and architecture.
-
-#### 4b. Coding conventions and config files
-
-Read key project files to understand coding standards. Prioritize by relevance to the changed files' languages.
-
-**AI agent instruction files** (highest priority — these define project conventions explicitly):
-
-| File | Tool |
-|---|---|
-| `AGENTS.md` | Cross-tool standard (Codex, Cursor, Copilot, Amp, Windsurf, Devin) |
-| `CLAUDE.md` | Claude Code |
-| `GEMINI.md` | Gemini CLI |
-| `.github/copilot-instructions.md` | GitHub Copilot |
-| `.cursorrules` / `.cursor/rules/` | Cursor |
-| `.windsurfrules` / `.windsurf/rules/` | Windsurf |
-
-**Project and build config files**:
-
-| File | Purpose |
-|---|---|
-| `README.md` | Project overview, setup instructions |
-| `CONTRIBUTING.md` | Development guidelines, contribution rules |
-| `pyproject.toml` / `setup.cfg` | Python project config, linting rules |
-| `package.json` | Node.js project config, scripts, lint config |
-| `.editorconfig` | Editor formatting rules |
-| `.eslintrc.*` / `biome.json` | JS/TS linting rules |
-| `Makefile` / `Justfile` | Build conventions |
-| `Cargo.toml` | Rust project config |
-| `go.mod` | Go module config |
-| `.clang-format` / `.clang-tidy` | C/C++ formatting rules |
-
-**Constraints:**
-- Read at most 3-5 config files — prioritize the ones most relevant to the changed files' languages
-- Skim only; skip files larger than ~50KB
-
-#### 4c. Full content of modified files
-
-Read the **full current content** of PR-modified files to understand complete context around changes. Use a **change-volume driven** strategy instead of a fixed file count:
-
-- **> 50 lines changed** (additions + deletions): Must read full file — major changes require complete context
-- **5-50 lines changed**: Read full file — surrounding code is important for correctness judgment
-- **< 5 lines changed**: The diff alone may suffice; skip full read unless the change is in a critical path (e.g., security, auth, financial logic)
-- **New files**: Always read in full (subject to the size limit below)
-- **Skip binary files** and **very large files** (>100KB) — only use the diff for those. This size limit applies to ALL files, including new files
-
-#### 4d. Related files not in the diff (targeted)
-
-If the diff references imports, base classes, interfaces, or function calls from files NOT in the PR:
-- Just read the file directly — git auto-fetches the blob on demand
-- Read **3-5** related files that are strictly necessary to validate the correctness of the changes
-- Only read files where understanding their content directly affects review quality (e.g., interface definitions, base classes, callers of changed functions, related tests)
-
-### For Path D (blobless clone with sparse checkout)
-
-#### 4a. Project structure overview
-
-Even with sparse checkout, the **tree objects are fully available**:
-
-```bash
-git ls-tree -r --name-only HEAD | head -200
-```
-
-This reveals the full project structure without downloading any file content.
-
-#### 4b. Coding conventions and config files
-
-Same as above — root-level files are already checked out via `--sparse` on clone.
-
-#### 4c. Full content of modified files
-
-Same change-volume driven strategy as above. All modified files are already checked out via sparse checkout of their directories.
-
-#### 4d. Related files not in the diff (targeted)
-
-If the diff references files from directories NOT already in sparse checkout, add them:
-```bash
-git sparse-checkout add <directory>
-```
-Git will auto-fetch the needed blobs. Read 3-5 related files that are strictly necessary to validate correctness.
-
-### Accessing other repositories during review
-
-If the user provides a URL to another repository during the review (e.g., a backend API repo to verify schema compatibility), **do NOT clone it yourself** into the review cache. Instead, delegate to the `git-repo-reader` skill — it will clone the repo into the shared cache and let you read it. This is better because:
-- The clone is cached and reusable across sessions
-- It avoids duplicating clone logic inside this skill
-- Future reviews or questions about that repo will hit the cache instantly
-
-If the `git-repo-reader` skill is not available, fall back to a blobless clone in the review cache (same as Path D).
-
-### For DIFF_ONLY (user chose no clone)
-
-When the user explicitly chose diff-only mode for a large repo, no local repo is available. The review relies entirely on the PR metadata and diff fetched in Step 2.
-
-- **4a. Project structure**: Not available. Note this limitation in the review.
-- **4b. Coding conventions**: Not available from local files. Infer conventions from the diff content itself (naming patterns, formatting style, language idioms visible in the changed code).
-- **4c. Modified file content**: Use only the diff hunks from `PR_DIFF_PATH`. Full file content is not available.
-- **4d. Related files**: Not available. Flag in the review that cross-file validation was not possible due to diff-only mode.
-
-**MANDATORY**: Explicitly state in the review output (Section 2 — Repository Context Analysis) that the review was performed in diff-only mode and that full repo context was not available. This is a known limitation the user accepted.
-
-## Step 5: Detect Language
-
-Analyze user's input to determine review output language:
-- Contains **any** Chinese characters → Chinese review (even if mixed with English, e.g., "review 一下这个PR" → Chinese)
-- Only English (zero Chinese characters) → English review
-
-## Step 6: Perform Code Review
-
-### Evidence certainty rules (MANDATORY)
-
-- Separate **confirmed findings** from **potential risks**.
-- A confirmed finding must be directly supported by evidence from the diff, file content, or PR metadata.
-- A potential risk must be labeled as such (e.g., "Potential risk") and include one concrete validation step.
-- Do NOT present speculative runtime/CI behavior as established fact without direct evidence.
-
-### Finding classification format (MANDATORY)
-
-The final review must separate findings into two explicit groups:
-
-- `Confirmed Findings` / `已确认问题`: only evidence-backed issues
-- `Potential Risks` / `潜在风险`: hypotheses that still need validation
-
-Classification constraints:
-- Every item must be in exactly one group (never both)
-- Every `Potential risk` item must include one concrete validation step
-- If no confirmed issues exist, explicitly write `Confirmed Findings: none`
-- If no potential risks exist, explicitly write `Potential Risks: none`
-
-### Internal consistency check (MANDATORY before final output)
-
-Run this final check before sending the review:
-
-1. Remove any item that was later disproven during the same review run.
-2. Do not keep self-contradicting pairs like "Issue: X" and later "No issue for X".
-3. If investigation shows "not an issue", keep only the final conclusion and delete the earlier suspicion from issue lists.
-4. Ensure the verdict (`Approve` / `Request Changes` / `Comment`) matches the final issue severity.
-
-### Review output structure (MANDATORY — use exactly these 6 sections)
-
-**Do NOT create ad-hoc section structures** like "Strengths / Issues / What's Working Well". The review MUST use exactly the 6 sections defined below, in order. Every review must include all 6 sections.
-
-**RECOMMENDED: Generate review skeleton first.** Before filling in review content, generate a deterministic skeleton to reduce structural drift:
+#### After prepare succeeds
+
+1. Read metadata from `PR_VIEW_JSON_PATH` and the diff from `PR_DIFF_PATH` —
+   don't re-run `gh pr view` / `gh pr diff` (a second fetch fails the gate).
+2. If `CHECKOUT_DONE=true`, the PR branch is already checked out at
+   `REPO_WORKDIR`. Run no git commands to prepare the repo (`git fetch`,
+   `git checkout`, `gh pr checkout`) — just `cd <REPO_WORKDIR>` and read files.
+   Extra checkouts can leave the shared cache on the wrong branch.
+3. Keep `RUN_MANIFEST`, `CLEANUP_LOG_PATH`, and `REVIEW_TEXT_PATH` for Step 7.
+4. If the PR body, comments, or reviews contain image links, read
+   [references/pr-images.md](references/pr-images.md) and analyze the relevant
+   screenshots (when the user asks about them, or they are verification
+   evidence for the PR).
+
+### Step 3: Repo access
+
+Already done by the runner — go to Step 4. Only without the runner do you
+select and prepare a path yourself, per
+[references/manual-fallback.md](references/manual-fallback.md).
+
+### Step 4: Gather repository context
+
+**Full repo (Paths A, B, C).** Read files directly; the blobless clone fetches
+blob content on demand.
+
+- **4a. Structure:** `git ls-tree -r --name-only HEAD | head -200` — module
+  organization, naming conventions, architecture.
+- **4b. Conventions:** read 3–5 of the most relevant config files for the
+  changed files' languages; skim, and skip files larger than ~50 KB.
+
+  | AI instruction file (highest priority) | Tool |
+  |---|---|
+  | `AGENTS.md` | Cross-tool standard (Codex, Cursor, Copilot, Amp, Windsurf, Devin) |
+  | `CLAUDE.md` | Claude Code |
+  | `GEMINI.md` | Gemini CLI |
+  | `.github/copilot-instructions.md` | GitHub Copilot |
+  | `.cursorrules` / `.cursor/rules/` | Cursor |
+  | `.windsurfrules` / `.windsurf/rules/` | Windsurf |
+
+  Project/build config: `README.md`, `CONTRIBUTING.md`, `pyproject.toml` /
+  `setup.cfg`, `package.json`, `.editorconfig`, `.eslintrc.*` / `biome.json`,
+  `Makefile` / `Justfile`, `Cargo.toml`, `go.mod`, `.clang-format` /
+  `.clang-tidy`.
+- **4c. Modified files**, driven by change volume:
+  - \> 50 lines changed (additions + deletions): read the full file
+  - 5–50 lines: read the full file — surrounding code matters for correctness
+  - < 5 lines: the diff may suffice, unless it's a critical path (security, auth, financial logic)
+  - New files: always read in full
+  - Skip binary files and files > 100 KB (all files, including new ones) — use the diff
+- **4d. Related files not in the diff:** read 3–5 that are strictly needed to
+  validate correctness (interfaces, base classes, callers of changed
+  functions, related tests).
+
+**Path D (sparse checkout).** Tree objects are complete, so 4a works the same;
+root-level config files are already checked out; modified files' directories
+are checked out. For related files in other directories, run
+`git sparse-checkout add <directory>` first, then read them.
+
+**DIFF_ONLY.** No local repo. Infer conventions from the diff itself, use only
+the hunks in `PR_DIFF_PATH`, and flag that project structure and cross-file
+validation were unavailable. State in section 2 of the review that it was done
+in diff-only mode — the user accepted that limitation and should see it.
+
+**Other repositories.** If the user points to another repo during the review
+(e.g. a backend API to check schema compatibility), use the `git-repo-reader`
+skill rather than cloning it yourself — its clone lands in the shared cache and
+is reused later. If that skill isn't available, do a blobless clone in this
+skill's cache (as in Path D).
+
+### Step 5: Detect the review language
+
+- Any Chinese characters (U+4E00–U+9FFF) in the user's input → Chinese review,
+  even when mixed with English (e.g. "review 一下这个PR").
+- Only English → English review.
+
+### Step 6: Write the review
+
+**Evidence certainty.** Keep confirmed findings separate from potential risks:
+- A confirmed finding is directly supported by the diff, file content, or PR
+  metadata.
+- A potential risk is labeled as such and includes one concrete validation
+  step.
+- Don't present speculative runtime/CI behavior as fact.
+
+**Finding groups.** Split findings into `Confirmed Findings` / `已确认问题` and
+`Potential Risks` / `潜在风险`. Each item belongs to exactly one group; write
+`Confirmed Findings: none` / `Potential Risks: none` when a group is empty.
+
+**Consistency check before output.**
+1. Remove items disproven later in the same run.
+2. No self-contradicting pairs ("Issue: X" and later "No issue for X") — keep
+   only the final conclusion.
+3. The verdict (`Approve` / `Request Changes` / `Comment`) matches the final
+   severity of the issues.
+
+**Structure: exactly 6 sections, in order.** 1 PR Overview · 2 Repository
+Context Analysis · 3 Code Quality & Clean Code Evaluation · 4 Major Issues and
+Risks · 5 Incremental Suggestions · 6 Summary Verdict (Chinese: PR 概览 ·
+仓库上下文分析 · 代码质量 & Clean Code 评价 · 潜在的重大问题和风险 · 增量建议 ·
+总结评价). What each section contains, in both languages, is in
+[references/review-template.md](references/review-template.md). Generate the
+skeleton first to avoid structural drift, then fill each `[fill]` placeholder
+with evidence:
 
 ```bash
 RUN_DIR="$(dirname "<RUN_MANIFEST>")"
 REVIEW_DRAFT_PATH="$RUN_DIR/review_draft.md"
-python3 scripts/review_template_builder.py \
+python3 SKILL_PATH/scripts/review_template_builder.py \
   --manifest <RUN_MANIFEST> \
   --output "$REVIEW_DRAFT_PATH" \
-  --language en
+  --language en   # or zh
 ```
 
-Use the generated skeleton as the structural foundation for your review. Fill in each `[fill]` placeholder with evidence from the PR metadata, diff, and repo context. Do NOT invent a different section structure.
+Don't show the review to the user yet — it goes through Step 7 first.
 
-**CRITICAL: Do NOT send the review to the user yet.** After completing all 6 sections, you MUST proceed to Step 7 (cleanup + gate) before presenting any review output. Write the review content to a temp file and continue to Step 7.
+### Step 7: Clean up, gate, and send
 
-Structure the review into these sections:
+Always run this step, even if the review hit errors, and in this order: the
+review is shown only after the gate passes.
 
-### If Chinese review requested:
-
-#### 1. PR 概览
-- PR 的目的和动机（基于标题、描述、分支名）
-- 变更规模：X 个文件，+Y / -Z 行
-- 涉及的主要模块和功能领域
-- 若 PR 含截图/图片证据，补充 **图片证据摘要**：逐张说明图片内容、关键信息、与代码变更的对应关系
-
-#### 2. 仓库上下文分析
-- 项目技术栈（语言、框架、工具链）
-- 项目的编码规范和风格（基于 config 文件和已有代码推断）
-- 此 PR 是否符合项目整体风格和架构模式
-
-#### 3. 代码质量 & Clean Code 评价
-- 全面评估变更的代码风格、命名、注释、可读性、可维护性、设计架构、模块解耦、重复代码等
-- 特别关注：变更是否与项目现有代码风格一致
-- 发现任何易错写法、不安全代码、低效实现、反模式或不符合最佳实践的地方要具体列出
-- 指出被修改的具体位置与问题描述（文件名、代码片段，或足够明确的定位描述）
-- 提出详细的修复/重构/优化建议，并解释理由
-
-#### 4. 潜在的重大问题和风险
-- 检查代码逻辑是否存在难以发现的 bug、异常未处理、未校验边界条件、性能瓶颈、安全隐患等
-- 检查是否有遗漏的修改（如：改了接口但没改调用方，改了 schema 但没改迁移）
-- 指出这些疑点，并简单说明为何值得关注
-
-#### 5. 增量建议
-- 给出进一步增强代码质量、工程可维护性、测试覆盖的建议
-- 建议是否需要补充测试、文档、类型声明等
-- 如果 PR 描述缺失或不清晰，建议改进 PR 描述
-
-#### 6. 总结评价
-- 给出整体评价：**Approve** / **Request Changes** / **Comment**
-- 简要总结关键发现和建议优先级
-
-### If English review requested:
-
-#### 1. PR Overview
-- Purpose and motivation of the PR (based on title, description, branch names)
-- Change scope: X files changed, +Y / -Z lines
-- Primary modules and functional areas affected
-- If screenshots/images are present, include a **Visual Evidence Summary**: what each image shows, key observed values/events, and how it maps to PR claims
-
-#### 2. Repository Context Analysis
-- Project tech stack (languages, frameworks, toolchain)
-- Project coding conventions and style (inferred from config files and existing code)
-- Whether this PR aligns with the project's overall style and architectural patterns
-
-#### 3. Code Quality & Clean Code Evaluation
-- Thoroughly assess code style, naming conventions, comments, readability, maintainability, architecture, modularity, code duplication, etc.
-- Pay special attention to: whether changes are consistent with existing project code style
-- Identify error-prone code, unsafe patterns, inefficient implementations, anti-patterns, or violations of best practices
-- Clearly specify the exact location and nature of each problem (filename, code snippet, or sufficiently precise description)
-- Provide actionable suggestions for fixes/refactoring/optimization with explanatory reasoning
-
-#### 4. Major Issues and Risks
-- Evaluate hard-to-detect logic bugs, unhandled exceptions, missing boundary checks, performance bottlenecks, security vulnerabilities
-- Check for missed changes (e.g., changed an interface but not its callers, changed a schema but not its migration)
-- Point out suspicious areas and explain their potential impact
-
-#### 5. Incremental Suggestions
-- Suggestions for improving code quality, maintainability, and test coverage
-- Whether additional tests, documentation, or type annotations are needed
-- If PR description is missing or unclear, suggest improvements
-
-#### 6. Summary Verdict
-- Overall assessment: **Approve** / **Request Changes** / **Comment**
-- Brief summary of key findings and suggestion priorities
-
-## Step 7: Clean Up, Gate, and Send
-
-**This step is MANDATORY — always execute it, even if the review encountered errors.**
-
-This step has three sub-steps that MUST be executed in order. **Do NOT send the review to the user until sub-step 7c passes.**
-
-### 7a. Run cleanup (restore repo, keep session files)
-
-Execute cleanup to restore the repo state (branch checkout / reset). This does **NOT** delete the session `run_dir` — the manifest and command log must remain readable for the gate script in 7b.
-
-**CRITICAL: You MUST `tee` the output to `CLEANUP_LOG_PATH`.** The gate script in 7b checks this file — if it doesn't exist, the gate will FAIL. `CLEANUP_LOG_PATH` was emitted by `review_runner.py prepare` — use it directly:
+**7a. Cleanup (restores the repo, keeps session files).** Tee the output to
+`CLEANUP_LOG_PATH` — the gate reads that file and fails with
+`CLEANUP_EVIDENCE_PASS: FAIL` if it is missing:
 
 ```bash
-python3 scripts/review_runner.py cleanup <RUN_MANIFEST> 2>&1 | tee <CLEANUP_LOG_PATH>
+python3 SKILL_PATH/scripts/review_runner.py cleanup <RUN_MANIFEST> 2>&1 | tee <CLEANUP_LOG_PATH>
 ```
 
-If you forget `| tee <CLEANUP_LOG_PATH>`, the gate in 7b WILL fail with `CLEANUP_EVIDENCE_PASS: FAIL`.
+Without the runner, use the cleanup function in
+[references/manual-fallback.md](references/manual-fallback.md#manual-cleanup).
 
-If `review_runner.py` was NOT available (manual Step 2/3 path), use the manual cleanup shell function defined in "Fallback: Manual cleanup" below instead.
+**7b. Quality gate.** Run the script rather than checking mentally:
 
-### 7b. Run the quality gate (MANDATORY)
+1. Write the complete 6-section review to `REVIEW_TEXT_PATH`:
+   ```bash
+   cat > <REVIEW_TEXT_PATH> << 'REVIEW_EOF'
+   <paste your complete review content here>
+   REVIEW_EOF
+   ```
+2. Run the gate:
+   ```bash
+   python3 SKILL_PATH/scripts/review_output_gate.py \
+     --manifest <RUN_MANIFEST> \
+     --review-text <REVIEW_TEXT_PATH> \
+     --cleanup-log <CLEANUP_LOG_PATH>
+   ```
+3. Exit `0` → go to 7c. Non-zero → read the FAIL details, fix the review text,
+   and re-run.
 
-**You MUST run the gate script before presenting review output to the user.** Do NOT skip this step. Do NOT perform the checklist mentally — the script enforces it programmatically.
+If `review_output_gate.py` is missing, check and report each item manually:
+1. `NO_SPECULATION_PASS` — no platform-guessing text before the first `gh` command.
+2. `SINGLE_FETCH_PASS` — `gh pr view` and `gh pr diff` each ran exactly once.
+3. `CLEANUP_EVIDENCE_PASS` — `[PATH-CLEANUP]` marker present in cleanup output.
+4. `VERDICT_STATE_PASS` — verdict consistent with PR state (no `Request Changes` on merged/closed PRs unless the user asked).
 
-1. **Save the review text to a file** (the complete 6-section review you prepared in Step 6).
-
-`REVIEW_TEXT_PATH` was emitted by `review_runner.py prepare` — use it directly:
+**7c. Send and purge.** Present the review once, after the gate passes — no
+draft before it. Show the full 6-section review as-is; don't condense it into a
+shorter summary (e.g. "关键问题 / 优点 / 建议"), because the 6 sections are the
+deliverable. Then delete the session artifacts:
 
 ```bash
-cat > <REVIEW_TEXT_PATH> << 'REVIEW_EOF'
-<paste your complete review content here>
-REVIEW_EOF
+python3 SKILL_PATH/scripts/review_runner.py purge <RUN_MANIFEST>
 ```
 
-2. **Run the gate script** (the manifest and command log still exist because cleanup preserved them):
+If purge fails or is skipped, `skills-clean-cache` removes the leftovers later.
 
-```bash
-python3 scripts/review_output_gate.py \
-  --manifest <RUN_MANIFEST> \
-  --review-text <REVIEW_TEXT_PATH> \
-  --cleanup-log <CLEANUP_LOG_PATH>
-```
+## Error handling
 
-3. **Interpret the result:**
-   - Exit code `0` → all gates pass → proceed to 7c (send the review)
-   - Exit code non-zero → read the FAIL details, fix the violations in your review text, and re-run the gate
-
-**If `review_output_gate.py` is not found**, perform this checklist manually and document each PASS/FAIL:
-
-1. `NO_SPECULATION_PASS` — No platform-guessing text appears before the first `gh` command.
-2. `SINGLE_FETCH_PASS` — `gh pr view` and `gh pr diff` were each executed exactly once.
-3. `CLEANUP_EVIDENCE_PASS` — `[PATH-CLEANUP]` marker is present in cleanup output.
-4. `VERDICT_STATE_PASS` — Verdict is consistent with PR state (no `Request Changes` on merged/closed PRs unless user explicitly asked).
-
-### 7c. Send the review and purge session
-
-**Only after the gate passes (7b exit code 0), present the review to the user.** Output the review content exactly once — do NOT output a draft version before the gate and then output again after.
-
-**CRITICAL: Present the full 6-section review as-is.** Do NOT summarize, condense, or restructure the review into a shorter format (e.g., "关键问题 / 优点 / 建议" bullet list). The user must see all 6 sections with their original content. The 6-section structure IS the deliverable — not raw material for a summary.
-
-After sending the review, delete the session artifacts:
-
-```bash
-python3 scripts/review_runner.py purge <RUN_MANIFEST>
-```
-
-This removes the `run_dir` (manifest, diff, metadata, command log). The purge is a housekeeping step — if it fails or is skipped, `skills-clean-cache` will clean up later.
-
-### Fallback: Manual cleanup (ONLY if review_runner.py was not used)
-
-#### Failure-safe cleanup wiring (MANDATORY for manual path)
-
-Register cleanup right after Step 3 path selection, not at the end of the review flow.
-Use an `EXIT` trap (or equivalent in non-shell tools) so cleanup runs on success, command failure, or early return.
-
-```bash
-cleanup_review_env() {
-  case "${SELECTED_PATH:-}" in
-    A)
-      if [[ -n "${ORIGINAL_BRANCH:-}" ]]; then
-        git checkout "$ORIGINAL_BRANCH" >/dev/null 2>&1 || true
-        echo "[PATH-CLEANUP] Path A - restored branch to $ORIGINAL_BRANCH"
-      else
-        echo "[PATH-CLEANUP] Path A - skipped (ORIGINAL_BRANCH unavailable)"
-      fi
-      ;;
-    B|C)
-      if [[ -n "${REPO_PATH:-}" ]] && [[ -d "$REPO_PATH/.git" ]]; then
-        cd "$REPO_PATH" || true
-        DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD --short 2>/dev/null | sed 's|origin/||')
-        git checkout "${DEFAULT_BRANCH:-main}" >/dev/null 2>&1 || true
-        git reset --hard "origin/${DEFAULT_BRANCH:-main}" >/dev/null 2>&1 || true
-        git clean -fd >/dev/null 2>&1 || true
-        echo "[PATH-CLEANUP] Path ${SELECTED_PATH} - reset cached repo to ${DEFAULT_BRANCH:-main}, ready for next use"
-      else
-        echo "[PATH-CLEANUP] Path ${SELECTED_PATH} - skipped (REPO_PATH unavailable)"
-      fi
-      ;;
-    D)
-      REMOVED=()
-      for d in "${REVIEW_DIR:-}" "${RUN_DIR:-}"; do
-        if [[ -n "$d" ]] && [[ -e "$d" ]]; then
-          rm -rf "$d" && REMOVED+=("$d") || echo "[PATH-CLEANUP] Path D - failed to delete: $d"
-        fi
-      done
-      if [[ ${#REMOVED[@]} -gt 0 ]]; then
-        echo "[PATH-CLEANUP] Path D - deleted temp dirs: ${REMOVED[*]}"
-      else
-        echo "[PATH-CLEANUP] Path D - no temp dirs to delete"
-      fi
-      ;;
-    DIFF_ONLY)
-      echo "[PATH-CLEANUP] DIFF_ONLY - no repo to clean up"
-      ;;
-    *)
-      echo "[PATH-CLEANUP] skipped - SELECTED_PATH not set"
-      ;;
-  esac
-}
-
-trap cleanup_review_env EXIT
-```
-
-After the review is complete:
-- **Path A** (existing repo): Restore the original branch: `git checkout "$ORIGINAL_BRANCH"`
-- **Path B** (shared repo cache) / **Path C** (newly cloned to shared cache): Reset to a clean state on the default branch so the cached repo is ready for the next use:
-  ```bash
-  cd "$REPO_PATH"
-  DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD --short 2>/dev/null | sed 's|origin/||')
-  git checkout "${DEFAULT_BRANCH:-main}"
-  git reset --hard "origin/${DEFAULT_BRANCH:-main}"
-  git clean -fd
-  ```
-  **Do NOT delete the cached repo** — it is shared and will be reused.
-- **Path D** (blobless sparse clone): Delete all temp directories created for this review under `mythril-skills-cache/github-code-review-pr/` (including repo/image run dirs such as `"$REVIEW_DIR"` and `"$RUN_DIR"` when present): `rm -rf "<dir>"`
-- **DIFF_ONLY** (no clone): No repo cleanup needed — just purge the session artifacts via `review_runner.py purge`.
-
-**Path-specific cleanup rule (MANDATORY):**
-- If selected path is **D**, cleanup must delete the created temp directories.
-- Do NOT replace Path D cleanup with branch reset/clean commands; those are for Path B/C cached repos.
-- If selected path is **DIFF_ONLY**, no repo cleanup is needed.
-
-**User-facing cleanup confirmation is REQUIRED:**
-- After deletion, output a short status line that cleanup succeeded and which temp paths were removed (or how many were removed).
-- If any temp directory cannot be deleted, explicitly report the remaining path and error, then suggest `skills-clean-cache`.
-
-The cleanup confirmation MUST be produced by an `echo` command inside the shell cleanup script, not written later as prose:
-
-```bash
-# Example for Path B or Path C:
-echo "[PATH-CLEANUP] Path B - reset cached repo to main, ready for next use"
-
-# Example for Path D:
-rm -rf "$REVIEW_DIR" "$RUN_DIR"
-echo "[PATH-CLEANUP] Path D - deleted temp dirs: $REVIEW_DIR $RUN_DIR"
-
-# Example for Path A:
-git checkout "$ORIGINAL_BRANCH"
-echo "[PATH-CLEANUP] Path A - restored branch to $ORIGINAL_BRANCH"
-
-# Example for DIFF_ONLY:
-echo "[PATH-CLEANUP] DIFF_ONLY - no repo to clean up"
-```
-
-Image artifacts and Path D temp directories live under `mythril-skills-cache/github-code-review-pr/`. If leftovers accumulate (e.g., from interrupted sessions), the user can run:
-```bash
-skills-clean-cache
-```
-
-## Error Handling
-
-- **Host handling rule (MANDATORY)**: Never pre-stop or branch based on host/domain text. Always run Step 2 (`review_runner.py prepare`, which runs `gh`) first.
-- **`gh` host/auth error on unknown domain**: This is the expected outcome when a non-github.com host hasn't been configured. Tell the user:
-  1. This host might be GitHub Enterprise — run `gh auth login --hostname <host>` to authenticate
-  2. If it's not GitHub at all, this skill only supports GitHub (including GHE)
-  - **Do NOT assume the host is "GitLab" or any other platform** — just report the `gh` error and let the user decide. Domains like `git.xxx.com` or `git.xxx.com.au` are commonly GHE, not GitLab.
-  - **Do NOT include speculative prefaces** such as "this looks like GitLab" or "not a GitHub URL".
-- **Auth failure — ONLY allowed recovery steps**: When `gh` commands fail with auth/host errors, the ONLY actions you may take are:
-  1. Report the `gh` error message to the user
-  2. Suggest `gh auth login --hostname <host>`
-  3. Suggest `gh auth status --hostname <host>` to check current auth state
-  4. Stop and wait for the user to fix auth
-
-  **FORBIDDEN recovery attempts** (violate Security rules 4-5):
-  - Do NOT search for credentials in the macOS Keychain, git credential store, `.netrc`, or any other credential storage
-  - Do NOT run `security`, `git credential fill`, or read `~/.config/gh/hosts.yml`
-  - Do NOT construct manual `curl` calls with tokens extracted from any source
-  - Do NOT attempt to "work around" `gh` auth failures by finding credentials yourself
-- **`gh` not installed**: Report error and suggest running `skills-check github-code-review-pr`
-- **`gh` not authenticated for github.com**: Report error and suggest `gh auth login`
-- **PR not found**: Verify URL/number and repo access
-- **PR image download failed**: report URL + HTTP/auth error; retry with enterprise SSO (`curl --negotiate -u :`) when applicable; if still blocked, clearly state image analysis is incomplete
-- **Clone failure**: If blobless clone fails (e.g., private repo without access), fall back to reviewing with diff-only context and report the limitation
-- **Large PR (>50 files)**: Warn the user that review may be less thorough; focus on the most critical files
-- **Binary files**: Skip binary files in review, note them as present
-- **Private repo access**: If unauthorized, report clearly
+- **Unknown host / `gh` host or auth error.** Expected when a non-github.com
+  host isn't configured. Report the `gh` error and say: the host may be GitHub
+  Enterprise — run `gh auth login --hostname <host>`; if it isn't GitHub at
+  all, this skill only supports GitHub (including GHE). Don't label the host
+  "GitLab" or similar.
+- **Auth failure — allowed recovery only:** report the `gh` error; suggest
+  `gh auth login --hostname <host>` and `gh auth status --hostname <host>`;
+  then stop and wait for the user. Searching the Keychain, git credential
+  store, `.netrc`, or `~/.config/gh/hosts.yml`, or building `curl` calls with
+  extracted tokens, violates Security rules 4–5.
+- **`gh` not installed:** suggest `skills-check github-code-review-pr`.
+- **`gh` not authenticated for github.com:** suggest `gh auth login`.
+- **PR not found:** verify the URL/number and repo access.
+- **PR image download failed:** see [references/pr-images.md](references/pr-images.md#failures).
+- **Clone failure:** review with diff-only context and state the limitation.
+- **Large PR (> 50 files):** warn the review may be less thorough; focus on the most critical files.
+- **Binary files:** skip them in the review and note that they are present.
+- **Private repo access denied:** report it clearly.
 
 ## Examples
 
-### Example 1: Review by URL — repo already in cache (Chinese)
-**User input**: "帮我审查一下这个 PR https://github.com/owner/repo/pull/42"
-**Action**: Fetch PR metadata + diff → cache lookup finds repo (Path B) → fetch PR branches → checkout → read context locally → review in Chinese
-**Output**: 6-section Chinese review with full repo context
+1. "帮我审查一下这个 PR https://github.com/owner/repo/pull/42" → runner finds
+   the repo in cache (Path B), checks out the PR branch → 6-section Chinese
+   review with full repo context.
+2. "Review this PR: https://github.com/owner/repo/pull/99" → cache miss, clone
+   to shared cache (Path C) → 6-section English review; repo now cached.
+3. "Review PR #15" inside the repo → Path A → review, original branch restored
+   at cleanup.
+4. "帮我看一下这个 PR https://git.example.com/owner/repo/pull/123" → run the
+   runner immediately → full review if GHE is configured, otherwise the `gh`
+   error plus `gh auth login --hostname git.example.com`. Not: "this looks like
+   GitLab", or asking the user which platform it is.
 
-### Example 2: Review by URL — repo not cached (English)
-**User input**: "Review this PR: https://github.com/owner/repo/pull/99"
-**Action**: Fetch PR metadata + diff → cache miss → clone to shared cache (Path C) → checkout PR branch → review in English
-**Output**: 6-section English review with full repo context (repo now cached for future reviews)
+## After the review: posting comments
 
-### Example 3: Review in current repo context
-**User input**: "Review PR #15"
-**Action**: Already in repo (Path A) → `git fetch origin <base> <head>` → `git checkout <headRefName>`, read context locally, review
-**Output**: Context-aware review, restore original branch when done
-
-### Example 4: GitHub Enterprise URL (unknown domain)
-**User input**: "帮我看一下这个 PR https://git.example.com/owner/repo/pull/123"
-**Action**: Proceed immediately → run `gh pr view https://git.example.com/...` (via `review_runner.py prepare`) → if auth error, tell user to run `gh auth login --hostname git.example.com`
-**Output**: Either full review (if GHE is configured) or clear auth setup instructions
-**WRONG behavior**: Saying "this looks like GitLab" or asking the user what platform it is — NEVER do this
-
-## Post-Review: Adding Comments to the PR
-
-After the review is delivered, the user may ask to send comments about specific issues back to the PR. Follow these rules to determine the correct comment type.
-
-### Default: Inline line-level comments (like "Files changed" tab)
-
-When the user asks to add a comment and ANY of these conditions apply, use an **inline line-level review comment** (equivalent to clicking `+` on a specific line in the "Files changed" tab on GitHub):
-
-- The user refers to a specific line, code block, or code snippet from the review
-- The user copies/pastes part of the review analysis that identifies a specific code issue
-- The user says things like "comment on that line", "add comment there", "给那行加个评论", "在那里加 comment"
-- The review analysis already identified a specific file and line for the issue — the user is just asking to post it
-
-This is the **default** behavior. If there is any ambiguity about whether the user wants inline vs. general, **choose inline**.
-
-**How to post an inline comment:**
-
-```bash
-# Get the PR head commit SHA
-HEAD_SHA=$(gh pr view <URL_or_NUMBER> --json headRefOid -q .headRefOid)
-
-# For github.com repos:
-gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments \
-  -X POST \
-  -f body='Your review comment here' \
-  -f commit_id="$HEAD_SHA" \
-  -f path='path/to/file.kt' \
-  -F line=42 \
-  -f side='RIGHT'
-
-# For GitHub Enterprise (custom host):
-gh api --hostname <host> repos/OWNER/REPO/pulls/PR_NUMBER/comments \
-  -X POST \
-  -f body='Your review comment here' \
-  -f commit_id="$HEAD_SHA" \
-  -f path='path/to/file.kt' \
-  -F line=42 \
-  -f side='RIGHT'
-```
-
-- `path`: The file path relative to the repo root (from the PR diff)
-- `line`: The line number in the diff's new version of the file (RIGHT side)
-- `side`: Use `RIGHT` for commenting on the new code (most common), `LEFT` for the old/deleted code
-- `commit_id`: Must be the HEAD SHA of the PR branch
-
-**Determining the correct line number**: Use the PR diff from Step 2b to find the exact line number. The `line` parameter refers to the line number shown on the RIGHT side of the diff (the new version). Match the code snippet from the review to the diff to find the correct line.
-
-### Exception: General PR-level comment
-
-Use a **general PR comment** (appears at the bottom of the PR's "Conversation" tab) ONLY when:
-
-- The user explicitly says "给 PR 写一个 comment", "add a comment to the PR", "leave a general comment"
-- The comment is about the PR as a whole (e.g., overall architecture feedback, summary of review findings) and does not reference any specific code line
-- The user asks to post the full review summary as a comment
-
-```bash
-gh pr comment <URL_or_NUMBER> --body "Your general comment here"
-```
-
-### Examples
-
-**Inline comment (default):**
-- User: "把第3点关于空指针的问题发个 comment" → Find the file and line from review point #3, post inline comment
-- User: "send a comment about the missing null check" → Find the relevant line from the diff, post inline comment
-- User: "给这段代码加个评论: `val result = api.fetch()` 没有错误处理" → Find where this code appears in the diff, post inline comment
-
-**General comment:**
-- User: "给这个 PR 写一个总结 comment" → Post general PR comment
-- User: "leave a comment summarizing the review" → Post general PR comment
+If the user asks to post comments about specific issues back to the PR, read
+[references/pr-comments.md](references/pr-comments.md). Default to inline
+line-level comments; use a general PR comment only for whole-PR feedback or
+when explicitly asked.

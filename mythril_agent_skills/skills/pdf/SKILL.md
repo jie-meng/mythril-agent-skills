@@ -1,17 +1,12 @@
 ---
 name: pdf
 description: >
-  Read, extract, and manipulate PDF files via a bundled Python script.
-  Supports text extraction, table extraction (to markdown/JSON/CSV),
-  metadata/info, PDF-to-image conversion, merge, split, rotate, extract
-  embedded images, and password decrypt. Trigger whenever the user asks
-  to read, inspect, extract, convert, merge, split, or manipulate a PDF
-  file, or says phrases like "read pdf", "extract text from pdf",
-  "pdf to text", "pdf tables", "pdf to image", "merge pdfs", "split pdf",
-  "pdf info", "读 pdf", "看 pdf", "看看这个 pdf", "pdf 说了什么",
-  "打开 pdf", "读一下 pdf", "提取 pdf 文字", "pdf 转图片", "合并 pdf",
-  "拆分 pdf", "pdf 表格", "pdf 内容". Also trigger when the user
-  mentions a .pdf file path and wants to inspect, read, or process it.
+  Reads and manipulates PDF files via a bundled Python script: text and table
+  extraction (markdown/JSON/CSV), metadata, page-to-image rendering, merge,
+  split, rotate, embedded-image extraction, and password decryption. Use when
+  the user wants to read, inspect, convert, or edit a PDF, or mentions a .pdf
+  path, e.g. "read pdf", "pdf tables", "merge pdfs", "split pdf", "读 pdf", "pdf
+  转图片", "合并 pdf".
 license: Apache-2.0
 ---
 
@@ -62,17 +57,17 @@ pip install pypdfium2  # optional, for to-images
 All commands use:
 
 ```bash
-python3 scripts/pdf_ops.py <subcommand> [options] <file>
+python3 SKILL_PATH/scripts/pdf_ops.py <subcommand> [options] <file>
 ```
 
-The script path is relative to this skill directory.
+`SKILL_PATH` is this skill's installed directory (the folder containing this SKILL.md).
 
 # Command Reference
 
 ## Inspect PDF metadata
 
 ```bash
-python3 scripts/pdf_ops.py info document.pdf
+python3 SKILL_PATH/scripts/pdf_ops.py info document.pdf
 ```
 
 Shows page count, title, author, subject, creator, producer, creation date, file size, and encryption status.
@@ -81,35 +76,35 @@ Shows page count, title, author, subject, creator, producer, creation date, file
 
 ```bash
 # Extract text from all pages
-python3 scripts/pdf_ops.py text document.pdf
+python3 SKILL_PATH/scripts/pdf_ops.py text document.pdf
 
 # Extract text from specific pages (1-based)
-python3 scripts/pdf_ops.py text document.pdf --pages 1-5
+python3 SKILL_PATH/scripts/pdf_ops.py text document.pdf --pages 1-5
 
 # Extract text from a single page
-python3 scripts/pdf_ops.py text document.pdf --pages 3
+python3 SKILL_PATH/scripts/pdf_ops.py text document.pdf --pages 3
 
 # Combine specific pages and ranges
-python3 scripts/pdf_ops.py text document.pdf --pages 1,3,5-8
+python3 SKILL_PATH/scripts/pdf_ops.py text document.pdf --pages 1,3,5-8
 
 # Extract with layout preservation (keeps spatial arrangement)
-python3 scripts/pdf_ops.py text document.pdf --layout
+python3 SKILL_PATH/scripts/pdf_ops.py text document.pdf --layout
 ```
 
 ## Extract tables
 
 ```bash
 # Extract all tables as markdown (default)
-python3 scripts/pdf_ops.py tables document.pdf
+python3 SKILL_PATH/scripts/pdf_ops.py tables document.pdf
 
 # Extract tables from specific pages
-python3 scripts/pdf_ops.py tables document.pdf --pages 2-4
+python3 SKILL_PATH/scripts/pdf_ops.py tables document.pdf --pages 2-4
 
 # Extract as JSON
-python3 scripts/pdf_ops.py tables document.pdf --format json
+python3 SKILL_PATH/scripts/pdf_ops.py tables document.pdf --format json
 
 # Extract as CSV (one file per table)
-python3 scripts/pdf_ops.py tables document.pdf --format csv --output-dir ./tables/
+python3 SKILL_PATH/scripts/pdf_ops.py tables document.pdf --format csv --output-dir ./tables/
 ```
 
 ## Convert PDF to images
@@ -118,16 +113,16 @@ Renders each page as a PNG image. Useful for scanned PDFs, charts, diagrams, or 
 
 ```bash
 # Convert all pages (output to same directory as PDF)
-python3 scripts/pdf_ops.py to-images document.pdf
+python3 SKILL_PATH/scripts/pdf_ops.py to-images document.pdf
 
 # Convert specific pages
-python3 scripts/pdf_ops.py to-images document.pdf --pages 1-3
+python3 SKILL_PATH/scripts/pdf_ops.py to-images document.pdf --pages 1-3
 
 # Output to a specific directory
-python3 scripts/pdf_ops.py to-images document.pdf --output-dir ./pages/
+python3 SKILL_PATH/scripts/pdf_ops.py to-images document.pdf --output-dir ./pages/
 
 # Control resolution (default: 2.0x scale)
-python3 scripts/pdf_ops.py to-images document.pdf --scale 3.0
+python3 SKILL_PATH/scripts/pdf_ops.py to-images document.pdf --scale 3.0
 ```
 
 Output files are named `<stem>_page_1.png`, `<stem>_page_2.png`, etc.
@@ -136,36 +131,36 @@ Output files are named `<stem>_page_1.png`, `<stem>_page_2.png`, etc.
 
 ```bash
 # Merge multiple PDFs into one
-python3 scripts/pdf_ops.py merge file1.pdf file2.pdf file3.pdf -o merged.pdf
+python3 SKILL_PATH/scripts/pdf_ops.py merge file1.pdf file2.pdf file3.pdf -o merged.pdf
 
 # Merge all PDFs in a directory (alphabetical order)
-python3 scripts/pdf_ops.py merge *.pdf -o combined.pdf
+python3 SKILL_PATH/scripts/pdf_ops.py merge *.pdf -o combined.pdf
 ```
 
 ## Split PDF
 
 ```bash
 # Extract specific pages into a new PDF
-python3 scripts/pdf_ops.py split document.pdf --pages 1-5 -o first_five.pdf
+python3 SKILL_PATH/scripts/pdf_ops.py split document.pdf --pages 1-5 -o first_five.pdf
 
 # Extract a single page
-python3 scripts/pdf_ops.py split document.pdf --pages 3 -o page3.pdf
+python3 SKILL_PATH/scripts/pdf_ops.py split document.pdf --pages 3 -o page3.pdf
 
 # Split into individual pages (one file per page)
-python3 scripts/pdf_ops.py split document.pdf --each --output-dir ./pages/
+python3 SKILL_PATH/scripts/pdf_ops.py split document.pdf --each --output-dir ./pages/
 ```
 
 ## Rotate pages
 
 ```bash
 # Rotate all pages 90° clockwise
-python3 scripts/pdf_ops.py rotate document.pdf 90 -o rotated.pdf
+python3 SKILL_PATH/scripts/pdf_ops.py rotate document.pdf 90 -o rotated.pdf
 
 # Rotate specific pages
-python3 scripts/pdf_ops.py rotate document.pdf 90 --pages 1,3 -o rotated.pdf
+python3 SKILL_PATH/scripts/pdf_ops.py rotate document.pdf 90 --pages 1,3 -o rotated.pdf
 
 # Rotate counter-clockwise
-python3 scripts/pdf_ops.py rotate document.pdf 270 -o rotated.pdf
+python3 SKILL_PATH/scripts/pdf_ops.py rotate document.pdf 270 -o rotated.pdf
 ```
 
 Valid angles: 90, 180, 270.
@@ -174,16 +169,16 @@ Valid angles: 90, 180, 270.
 
 ```bash
 # Extract all images to a directory
-python3 scripts/pdf_ops.py extract-images document.pdf --output-dir ./images/
+python3 SKILL_PATH/scripts/pdf_ops.py extract-images document.pdf --output-dir ./images/
 
 # Extract from specific pages
-python3 scripts/pdf_ops.py extract-images document.pdf --pages 1-3 --output-dir ./images/
+python3 SKILL_PATH/scripts/pdf_ops.py extract-images document.pdf --pages 1-3 --output-dir ./images/
 ```
 
 ## Decrypt a password-protected PDF
 
 ```bash
-python3 scripts/pdf_ops.py decrypt encrypted.pdf --password secret -o decrypted.pdf
+python3 SKILL_PATH/scripts/pdf_ops.py decrypt encrypted.pdf --password secret -o decrypted.pdf
 ```
 
 # Composing Multi-Step Workflows

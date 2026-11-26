@@ -1,17 +1,13 @@
 ---
 name: fullstack-docs-migration
-description: |
-  Migrate a fullstack docs repo from the legacy structure (top-level
-  feat/fix/refactor/spike directories, Status fields, no archive) to the
-  new explore/propose/apply/archive structure (changes/ container with
-  feat/fix/refactor subdirectories and changes/archive/). Reorganizes
-  work directories, merges legacy spikes into their implementation
-  counterparts, moves completed work into the archive, and writes a
-  migration report. Trigger: "fullstack docs migration", "迁移文档",
-  "migrate the docs repo", "reorganize docs", "迁移工作目录". Use when
-  the user points at an existing docs repository initialized by an older
-  version of the fullstack skills and wants it reorganized. The user
-  only needs to provide the docs repo path.
+description: >
+  Migrates a fullstack docs repo from the legacy layout (top-level
+  feat/fix/refactor/spike dirs, Status fields, no archive) to the
+  changes/{feat,refactor,fix,archive}/ layout: reorganizes work dirs, merges
+  spikes into their implementation, archives completed work, and writes a
+  migration report. Use when the user points at a docs repo created by an
+  older version of the fullstack skills. Triggers: "fullstack docs migration",
+  "migrate the docs repo", "迁移文档", "迁移工作目录".
 license: Apache-2.0
 ---
 
@@ -53,7 +49,7 @@ migration runs inside that directory. No code repos are touched.
 
 ## Language Selection
 
-The migration report and user-facing messages MUST match the language of
+The migration report and user-facing messages match the language of
 the user's prompt.
 
 1. If the user **explicitly requests a language** → use that language.
@@ -66,7 +62,7 @@ documents — their existing language stays as it is.
 
 ## Step 1 — Scan the Repo
 
-Run the bundled scanner to inventory the legacy structure:
+Run the bundled scanner to inventory the legacy structure. `SKILL_PATH` is this skill's installed directory (the folder holding this SKILL.md); run scripts from the user's working directory, not from inside it.
 
 ```bash
 python3 SKILL_PATH/scripts/migrate_scan.py <docs-dir>

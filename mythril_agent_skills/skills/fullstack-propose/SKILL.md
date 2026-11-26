@@ -1,22 +1,13 @@
 ---
 name: fullstack-propose
-description: |
-  Propose a new work item across a multi-repo fullstack workspace —
-  gather context, design the approach, validate unknowns (spike) if
-  needed, and write the work-tracking documents in one step. Standard
-  mode for clear requirements; deep mode (spike) for uncertain ones.
-  An explicit "grill me", "拷问我", "盘问我", or "别急着给方案" turns on
-  round-by-round requirements interrogation before any plan is written.
-  Trigger: "fullstack propose", "fullstack plan", "fullstack spike",
-  "全栈提案", "全栈规划", "全栈计划", "全栈 spike", "全栈探针",
-  "全栈验证", "全栈 poc"; ALSO when the user asks to plan, design, or
-  prototype a feature/fix/refactor before implementing — "plan this",
-  "设计一下", "怎么做X", "先验证X", "we should add X". Every plan is
-  gated by an independent plan review before handoff; ALSO for
-  re-reviewing an existing plan without replanning it — "review this
-  plan", "re-review the plan", "审一下方案", "方案靠谱吗", "is this
-  plan ready". Planning only — no code edits or branches. A
-  root-caused small one-repo bug goes to fullstack-apply's quick fix.
+description: >
+  Plans a feature, fix, or refactor across a multi-repo fullstack workspace:
+  gathers context, designs the approach, runs a spike for unknowns, and writes
+  the work-tracking documents, gated by an independent plan review. Planning
+  only — no code edits. Also re-reviews an existing plan; "grill me" / "拷问我"
+  asks requirement questions first. Triggers: "fullstack propose", "fullstack
+  plan", "全栈提案", "全栈规划", "全栈 spike", "plan this", "设计一下", "review this plan",
+  "审一下方案". A small root-caused one-repo bug goes to fullstack-apply.
 license: Apache-2.0
 ---
 
@@ -83,7 +74,7 @@ reference below is read at the step that names it, never up front.
 `SKILL_PATH` is this skill's installed directory (the folder holding this
 `SKILL.md`). `<lang>` is `en` or `zh` (see Language).
 
-## Planning Boundary (MANDATORY)
+## Planning Boundary
 
 The request authorizes planning only — **even if it asks to build or fix
 something**. No project code edits (except temporary, uncommitted spike
@@ -92,7 +83,7 @@ docs repo, no PRs, no implementation in the same response. After the
 documents are complete, **stop**; `fullstack-apply` implements on a new
 request.
 
-## Workspace Validation Gate (MANDATORY SCRIPT CALL)
+## Workspace Validation Gate
 
 ```bash
 python3 SKILL_PATH/scripts/check_workspace.py
@@ -148,7 +139,7 @@ debt) → `changes/refactor/`; `fix` (bug) → `changes/fix/`. Ask if
 ambiguous. A successor is `<work-name>-vN/` in the same type directory,
 with a predecessor reference under `**Source**`.
 
-## Step 3 — Confirm Repos, Work Name, and Tier (MANDATORY)
+## Step 3 — Confirm Repos, Work Name, and Tier
 
 Always present your analysis and wait for confirmation, even when
 confident:
@@ -296,7 +287,7 @@ to need full (a second repo, a contract, a schema change), upgrade it,
 tell the user in one line, and continue at full. Record the tier in the
 §Summary status line (`…—— lean 档` / `…—— lean tier`).
 
-## Step 4.5 — Plan Review Gate (MANDATORY)
+## Step 4.5 — Plan Review Gate
 
 The gates above check shape; this checks meaning. Delegate to the
 **plan-reviewer** subagent to falsify the plan against the original

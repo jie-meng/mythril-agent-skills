@@ -1,18 +1,12 @@
 ---
 name: image-reference
 description: >
-  Reference a specific image in a document, copying the source into an assets
-  directory next to the document (named after the doc, e.g. `guide.assets/`)
-  and inserting the correct Markdown image link — mirroring the nvim markdown
-  paste-image workflow. Trigger whenever the user asks to insert, embed, paste,
-  add, or reference an image/file in a document — e.g. one dropped into the
-  chat, pasted, or given as a path. Example phrases: "把这个图加进文档", "把截图
-  放进 README", "put this image in the doc", "insert screenshot.png", "embed the
-  diagram in implementation.md", "引用这张图", "在这篇文章里加一张架构图". Use it
-  whenever a user wants an image to live alongside a specific document and be
-  cited with a local relative link. When the source has no name or a messy
-  auto-generated name, derive a clean content-based slug filename (lowercase
-  ASCII letters/digits + hyphens, e.g. `mobile-arch.png`).
+  Inserts an image into a document: copies the source into an assets folder
+  named after the doc (e.g. `guide.assets/`), gives it a clean slug filename
+  when the original name is missing or messy, and adds a relative Markdown image
+  link. Use when the user wants an image (pasted, dropped into chat, or given as
+  a path) placed in a specific document, e.g. "put this image in the doc",
+  "insert screenshot.png", "把这个图加进文档", "把截图放进 README", "引用这张图".
 license: Apache-2.0
 ---
 
@@ -123,14 +117,14 @@ The source is one of:
 ### 3. Copy into the assets directory
 
 Compute everything deterministically — you can and should use the bundled helper
-script so the rules are exact:
+script so the rules are exact (`SKILL_PATH` is this skill's installed directory):
 
 ```bash
-python3 scripts/image_assets.py assets-dir docs/implementation.md
-python3 scripts/image_assets.py slug-filter "My Mobile Arch!!.PNG"
-python3 scripts/image_assets.py unique   docs/implementation.assets "my-mobile-arch.png" /path/to/source.png
-python3 scripts/image_assets.py rel-link docs/implementation.md my-mobile-arch.png
-python3 scripts/image_assets.py md-link  implementation.assets/my-mobile-arch.png "Mobile app architecture"
+python3 SKILL_PATH/scripts/image_assets.py assets-dir docs/implementation.md
+python3 SKILL_PATH/scripts/image_assets.py slug-filter "My Mobile Arch!!.PNG"
+python3 SKILL_PATH/scripts/image_assets.py unique   docs/implementation.assets "my-mobile-arch.png" /path/to/source.png
+python3 SKILL_PATH/scripts/image_assets.py rel-link docs/implementation.md my-mobile-arch.png
+python3 SKILL_PATH/scripts/image_assets.py md-link  implementation.assets/my-mobile-arch.png "Mobile app architecture"
 ```
 
 Steps (mirror the nvim logic exactly):

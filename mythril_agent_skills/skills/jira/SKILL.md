@@ -1,14 +1,11 @@
 ---
 name: jira
 description: >
-  Use the Jira REST API (via a bundled Python script) for common Jira workflows
-  from terminal. Trigger whenever the user asks to view, create, edit, assign,
-  move, or comment on Jira issues/epics/sprints, or says phrases like "jira issue",
-  "jira card", "看卡", "看 jira", "jira ticket", "move ticket", "assign ticket",
-  "sprint issues", "create jira issue", "transition issue", "search jira". Also
-  trigger when the user mentions a Jira issue key (e.g. PROJ-123) or pastes a
-  Jira URL and wants to interact with it. No third-party CLI tools required —
-  only Python 3.10+ standard library.
+  Reads and manages Jira Cloud issues through a bundled REST API script: view,
+  search (JQL), create, edit, assign, transition, comment, link, and list
+  boards/sprints. Use when the user mentions a Jira issue key (e.g. PROJ-123),
+  pastes a Jira URL, or asks to work with Jira issues, epics, or sprints — e.g.
+  "jira ticket", "move ticket", "search jira", "看卡", "看 jira", "建个 jira".
 license: Apache-2.0
 ---
 
@@ -98,7 +95,7 @@ Analyze images with available image-capable tools and summarize only evidence re
 
 ## Running the Script
 
-One script is available in `scripts/` relative to this skill directory. It requires only Python 3.10+ standard library (zero dependencies).
+All commands use `scripts/jira_api.py` (Python 3.10+ standard library only). `SKILL_PATH` below is this skill's installed directory.
 
 ### View an issue
 
@@ -106,10 +103,10 @@ Accepts either an issue key or a full Jira URL:
 
 ```bash
 # With ATLASSIAN_BASE_URL set
-python3 scripts/jira_api.py view PROJ-123
+python3 SKILL_PATH/scripts/jira_api.py view PROJ-123
 
 # Without ATLASSIAN_BASE_URL — pass the full URL directly
-python3 scripts/jira_api.py view "https://yoursite.atlassian.net/browse/PROJ-123"
+python3 SKILL_PATH/scripts/jira_api.py view "https://yoursite.atlassian.net/browse/PROJ-123"
 ```
 
 When the user pastes a Jira URL, pass it directly — the script parses out the base URL and issue key automatically.
@@ -119,11 +116,11 @@ When the user pastes a Jira URL, pass it directly — the script parses out the 
 Requires `ATLASSIAN_BASE_URL`. Uses the current `/rest/api/3/search/jql` endpoint.
 
 ```bash
-python3 scripts/jira_api.py search "project=PROJ AND status='In Progress'"
-python3 scripts/jira_api.py search "assignee=currentUser() AND status!=Done" --max-results 30
-python3 scripts/jira_api.py search "project=PROJ AND created >= -7d ORDER BY created DESC"
-python3 scripts/jira_api.py search "summary ~ 'login bug' AND priority=High"
-python3 scripts/jira_api.py search "project=PROJ" --next-page-token "<token>"  # from previous page output
+python3 SKILL_PATH/scripts/jira_api.py search "project=PROJ AND status='In Progress'"
+python3 SKILL_PATH/scripts/jira_api.py search "assignee=currentUser() AND status!=Done" --max-results 30
+python3 SKILL_PATH/scripts/jira_api.py search "project=PROJ AND created >= -7d ORDER BY created DESC"
+python3 SKILL_PATH/scripts/jira_api.py search "summary ~ 'login bug' AND priority=High"
+python3 SKILL_PATH/scripts/jira_api.py search "project=PROJ" --next-page-token "<token>"  # from previous page output
 ```
 
 Common JQL patterns for developers:
@@ -145,7 +142,7 @@ Common JQL patterns for developers:
 Requires `ATLASSIAN_BASE_URL`.
 
 ```bash
-python3 scripts/jira_api.py components PROJ
+python3 SKILL_PATH/scripts/jira_api.py components PROJ
 ```
 
 ### Create an issue
@@ -153,8 +150,8 @@ python3 scripts/jira_api.py components PROJ
 Requires `ATLASSIAN_BASE_URL`.
 
 ```bash
-python3 scripts/jira_api.py create --project PROJ --summary "Fix login timeout" --type Bug
-python3 scripts/jira_api.py create --project PROJ --summary "Add export feature" --type Story \
+python3 SKILL_PATH/scripts/jira_api.py create --project PROJ --summary "Fix login timeout" --type Bug
+python3 SKILL_PATH/scripts/jira_api.py create --project PROJ --summary "Add export feature" --type Story \
   --description "Users should be able to export data as CSV" \
   --priority High --labels feature backend --parent PROJ-100
 ```
@@ -174,16 +171,16 @@ python3 scripts/jira_api.py create --project PROJ --summary "Add export feature"
 ### Edit an issue
 
 ```bash
-python3 scripts/jira_api.py edit PROJ-123 --summary "Updated summary" --priority High
-python3 scripts/jira_api.py edit "https://yoursite.atlassian.net/browse/PROJ-123" --labels urgent backend
-python3 scripts/jira_api.py edit PROJ-123 --description "Rewritten description"
+python3 SKILL_PATH/scripts/jira_api.py edit PROJ-123 --summary "Updated summary" --priority High
+python3 SKILL_PATH/scripts/jira_api.py edit "https://yoursite.atlassian.net/browse/PROJ-123" --labels urgent backend
+python3 SKILL_PATH/scripts/jira_api.py edit PROJ-123 --description "Rewritten description"
 ```
 
 ### Assign an issue
 
 ```bash
-python3 scripts/jira_api.py assign PROJ-123 5b10ac8d82e05b22cc7d4ef5
-python3 scripts/jira_api.py assign PROJ-123 none    # unassign
+python3 SKILL_PATH/scripts/jira_api.py assign PROJ-123 5b10ac8d82e05b22cc7d4ef5
+python3 SKILL_PATH/scripts/jira_api.py assign PROJ-123 none    # unassign
 ```
 
 ### Transition (move) an issue
@@ -191,23 +188,23 @@ python3 scripts/jira_api.py assign PROJ-123 none    # unassign
 Two-step process: list available transitions, then apply one.
 
 ```bash
-python3 scripts/jira_api.py transitions PROJ-123
-python3 scripts/jira_api.py transition PROJ-123 31
-python3 scripts/jira_api.py transition PROJ-123 31 --comment "Starting work on this"
-python3 scripts/jira_api.py transition PROJ-123 41 --resolution Fixed
+python3 SKILL_PATH/scripts/jira_api.py transitions PROJ-123
+python3 SKILL_PATH/scripts/jira_api.py transition PROJ-123 31
+python3 SKILL_PATH/scripts/jira_api.py transition PROJ-123 31 --comment "Starting work on this"
+python3 SKILL_PATH/scripts/jira_api.py transition PROJ-123 41 --resolution Fixed
 ```
 
 ### Comment on an issue
 
 ```bash
-python3 scripts/jira_api.py comment PROJ-123 "Investigating the root cause now."
+python3 SKILL_PATH/scripts/jira_api.py comment PROJ-123 "Investigating the root cause now."
 ```
 
 ### List comments
 
 ```bash
-python3 scripts/jira_api.py comments PROJ-123
-python3 scripts/jira_api.py comments PROJ-123 --max-results 5
+python3 SKILL_PATH/scripts/jira_api.py comments PROJ-123
+python3 SKILL_PATH/scripts/jira_api.py comments PROJ-123 --max-results 5
 ```
 
 ### Link two issues
@@ -216,7 +213,7 @@ Requires `ATLASSIAN_BASE_URL`. Arguments are `<outward> <inward> <link type>` �
 
 ```bash
 # PROJ-123 blocks PROJ-456
-python3 scripts/jira_api.py link PROJ-123 PROJ-456 Blocks
+python3 SKILL_PATH/scripts/jira_api.py link PROJ-123 PROJ-456 Blocks
 ```
 
 ### Current user info
@@ -224,7 +221,7 @@ python3 scripts/jira_api.py link PROJ-123 PROJ-456 Blocks
 Requires `ATLASSIAN_BASE_URL`.
 
 ```bash
-python3 scripts/jira_api.py myself
+python3 SKILL_PATH/scripts/jira_api.py myself
 ```
 
 ### List boards / sprints / sprint issues
@@ -232,9 +229,9 @@ python3 scripts/jira_api.py myself
 Requires `ATLASSIAN_BASE_URL`.
 
 ```bash
-python3 scripts/jira_api.py boards --project PROJ
-python3 scripts/jira_api.py sprints 42 --state active
-python3 scripts/jira_api.py sprint-issues 123
+python3 SKILL_PATH/scripts/jira_api.py boards --project PROJ
+python3 SKILL_PATH/scripts/jira_api.py sprints 42 --state active
+python3 SKILL_PATH/scripts/jira_api.py sprint-issues 123
 ```
 
 ## Using the Output
@@ -245,7 +242,7 @@ For write operations (create, edit, transition, comment), the script prints a co
 
 ## API Reference
 
-For advanced use cases or when the bundled script doesn't cover an operation, see `API_REFERENCE.md` in this skill directory for the full Jira REST API endpoint reference.
+For advanced use cases or when the bundled script doesn't cover an operation, see `SKILL_PATH/references/API_REFERENCE.md` for the full Jira REST API endpoint reference.
 
 # Output Expectations
 

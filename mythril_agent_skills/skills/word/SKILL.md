@@ -1,15 +1,11 @@
 ---
 name: word
 description: >
-  Read, extract, and inspect Word documents (.docx/.docm) via a bundled
-  Python script. Supports text extraction, table extraction (to markdown/JSON/CSV),
-  metadata inspection, image extraction, and Markdown conversion. Trigger
-  whenever the user asks to read, inspect, extract, or convert a Word document,
-  or says phrases like "read docx", "extract text from word", "word to text",
-  "word tables", "word to markdown", "read word doc", "打开 word", "读 docx",
-  "看看这个 docx", "word 说了什么", "提取 word 文字", "word 转 markdown",
-  "docx 表格", "word 内容". Also trigger when the user mentions a .docx or
-  .docm file path and wants to inspect, read, or process it.
+  Reads Word documents (.docx/.docm) via a bundled Python script: text, tables
+  (markdown/JSON/CSV), metadata, embedded images, and Markdown conversion. Use
+  when the user wants to read, inspect, or convert a Word file, or mentions a
+  .docx/.docm path, e.g. "read docx", "word to markdown", "word tables", "打开
+  word", "读 docx", "word 转 markdown".
 license: Apache-2.0
 ---
 
@@ -50,17 +46,17 @@ pip install python-docx
 All commands use:
 
 ```bash
-python3 scripts/word_ops.py <subcommand> [options] <file>
+python3 SKILL_PATH/scripts/word_ops.py <subcommand> [options] <file>
 ```
 
-The script path is relative to this skill directory.
+`SKILL_PATH` is this skill's installed directory (the folder containing this SKILL.md).
 
 # Command Reference
 
 ## Inspect document metadata
 
 ```bash
-python3 scripts/word_ops.py info document.docx
+python3 SKILL_PATH/scripts/word_ops.py info document.docx
 ```
 
 Shows file size, title, author, subject, creation/modification dates, paragraph count, table count, word count, section count, and heading outline.
@@ -69,13 +65,13 @@ Shows file size, title, author, subject, creation/modification dates, paragraph 
 
 ```bash
 # Extract all text
-python3 scripts/word_ops.py text document.docx
+python3 SKILL_PATH/scripts/word_ops.py text document.docx
 
 # Extract first 50 paragraphs
-python3 scripts/word_ops.py text document.docx --limit 50
+python3 SKILL_PATH/scripts/word_ops.py text document.docx --limit 50
 
 # Skip empty paragraphs
-python3 scripts/word_ops.py text document.docx --skip-empty
+python3 SKILL_PATH/scripts/word_ops.py text document.docx --skip-empty
 ```
 
 Headings are shown with `#` markers for visual hierarchy.
@@ -84,20 +80,20 @@ Headings are shown with `#` markers for visual hierarchy.
 
 ```bash
 # Extract all tables as markdown (default)
-python3 scripts/word_ops.py tables document.docx
+python3 SKILL_PATH/scripts/word_ops.py tables document.docx
 
 # Extract as JSON
-python3 scripts/word_ops.py tables document.docx --format json
+python3 SKILL_PATH/scripts/word_ops.py tables document.docx --format json
 
 # Extract as CSV (one file per table)
-python3 scripts/word_ops.py tables document.docx --format csv --output-dir ./tables/
+python3 SKILL_PATH/scripts/word_ops.py tables document.docx --format csv --output-dir ./tables/
 ```
 
 ## Extract embedded images
 
 ```bash
 # Extract all images to a directory
-python3 scripts/word_ops.py extract-images document.docx --output-dir ./images/
+python3 SKILL_PATH/scripts/word_ops.py extract-images document.docx --output-dir ./images/
 ```
 
 Output files are named `<stem>_image_1.png`, `<stem>_image_2.png`, etc.
@@ -106,10 +102,10 @@ Output files are named `<stem>_image_1.png`, `<stem>_image_2.png`, etc.
 
 ```bash
 # Print to stdout
-python3 scripts/word_ops.py to-markdown document.docx
+python3 SKILL_PATH/scripts/word_ops.py to-markdown document.docx
 
 # Save to file
-python3 scripts/word_ops.py to-markdown document.docx -o document.md
+python3 SKILL_PATH/scripts/word_ops.py to-markdown document.docx -o document.md
 ```
 
 Preserves heading hierarchy, bold/italic formatting, and tables.

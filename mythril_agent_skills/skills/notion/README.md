@@ -11,7 +11,7 @@ No third-party CLI tools required — uses only the Notion REST API via a bundle
 
 **Official API docs**: https://developers.notion.com/reference/intro
 **API version**: `Notion-Version: 2026-03-11`
-**Full API reference**: See [`API_REFERENCE.md`](./API_REFERENCE.md) in this directory.
+**Full API reference**: See [`references/API_REFERENCE.md`](./references/API_REFERENCE.md).
 
 ## Prerequisites
 
@@ -95,4 +95,4 @@ This skill is pinned to `2026-03-11` and always sends `markdown_version: v2`:
 - Databases are split into **data sources**: query with `POST /v1/data_sources/{id}/query`, create pages with `parent: {"type": "data_source_id", ...}`. A database ID is not a data source ID.
 - v1 enhanced markdown is deprecated; the next API version will reject it.
 
-See [`API_REFERENCE.md`](./API_REFERENCE.md) for the endpoint list and upgrade-guide links.
+See [`references/API_REFERENCE.md`](./references/API_REFERENCE.md) for the endpoint list and upgrade-guide links.

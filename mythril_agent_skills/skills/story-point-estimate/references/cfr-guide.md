@@ -6,6 +6,20 @@ development effort — especially for systems with high reliability, security, o
 
 ---
 
+## Contents
+
+- CFR Assessment Framework
+- 1. Infrastructure & DevOps
+- 2. Security
+- 3. Performance & Scalability
+- 4. Monitoring & Observability
+- 5. SLA / Reliability / Availability
+- 6. Usability & UX
+- 7. Data Management
+- 8. Integration & API
+- CFR Total: How Much to Add
+- CFR Anti-Patterns
+
 ## CFR Assessment Framework
 
 For each CFR area, answer three questions:

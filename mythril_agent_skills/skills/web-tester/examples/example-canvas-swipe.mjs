@@ -2,7 +2,7 @@
 // before/after screenshots, optional read-only debug-hook state, video.
 //
 // Usage (run from the project under test's root, after setup.sh):
-//   node "$SKILL_DIR/examples/example-canvas-swipe.mjs" <url> [device]
+//   node "SKILL_PATH/examples/example-canvas-swipe.mjs" <url> [device]
 //
 // Adapt me: per SKILL.md, write your own one-shot script per test point —
 // this file shows the shape, not a universal test.

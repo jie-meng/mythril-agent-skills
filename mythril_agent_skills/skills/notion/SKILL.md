@@ -1,14 +1,11 @@
 ---
 name: notion
 description: >
-  Use the Notion REST API (via a bundled Python script) for common Notion workflows
-  from terminal. Trigger whenever the user asks to view, search, create, edit, or
-  comment on Notion pages, query or create items in a Notion database or data source,
-  or says phrases like "notion page", "notion 页面", "看 notion", "搜 notion",
-  "notion 文档", "notion ticket", "create notion page", "update notion",
-  "query notion database", "notion wiki". Also trigger when the user pastes a
-  Notion page URL and wants to interact with it. No third-party CLI tools required —
-  only Python 3.10+ standard library.
+  Reads and manages Notion pages and data sources through a bundled REST API
+  script: view, search, create, append, edit, trash, comment, query data sources,
+  and create items or set properties. Use when the user wants to read or change
+  Notion content or pastes a Notion URL — e.g. "notion page", "query notion
+  database", "update notion", "看 notion", "搜 notion", "notion 页面".
 license: Apache-2.0
 ---
 
@@ -70,10 +67,10 @@ A PAT acts as the user who created it, so it can read/write everything that user
 
 # Running the Script
 
-One script is available in `scripts/` relative to this skill directory. Run it from this directory:
+All commands use `scripts/notion_api.py`. `SKILL_PATH` below is this skill's installed directory.
 
 ```bash
-python3 scripts/notion_api.py --help
+python3 SKILL_PATH/scripts/notion_api.py --help
 ```
 
 All commands accept a bare page ID (32 hex chars, with or without dashes) or a full Notion URL — the script parses the ID out automatically. When the user pastes a URL, pass it directly.
@@ -81,7 +78,7 @@ All commands accept a bare page ID (32 hex chars, with or without dashes) or a f
 ### Check setup and connectivity
 
 ```bash
-python3 scripts/notion_api.py check
+python3 SKILL_PATH/scripts/notion_api.py check
 ```
 
 Verifies `NOTION_API_KEY` is set and the API accepts it (`GET /v1/users/me`). On missing/invalid token it prints the token-creation link and the 4 steps above.
@@ -89,8 +86,8 @@ Verifies `NOTION_API_KEY` is set and the API accepts it (`GET /v1/users/me`). On
 ### View a page (full markdown)
 
 ```bash
-python3 scripts/notion_api.py view "https://www.notion.so/My-Page-1234567890abcdef1234567890abcdef"
-python3 scripts/notion_api.py view 1234567890abcdef1234567890abcdef
+python3 SKILL_PATH/scripts/notion_api.py view "https://www.notion.so/My-Page-1234567890abcdef1234567890abcdef"
+python3 SKILL_PATH/scripts/notion_api.py view 1234567890abcdef1234567890abcdef
 ```
 
 Uses `GET /v1/pages/{id}/markdown?markdown_version=v2` — one request returns the whole page, no recursive block traversal.
@@ -98,15 +95,15 @@ Uses `GET /v1/pages/{id}/markdown?markdown_version=v2` — one request returns t
 ### Search the workspace
 
 ```bash
-python3 scripts/notion_api.py search "deployment guide"
-python3 scripts/notion_api.py search "release" --limit 10 --start-cursor "<cursor>"
+python3 SKILL_PATH/scripts/notion_api.py search "deployment guide"
+python3 SKILL_PATH/scripts/notion_api.py search "release" --limit 10 --start-cursor "<cursor>"
 ```
 
 ### Create a page
 
 ```bash
-python3 scripts/notion_api.py create --title "Design Doc" --markdown "## Overview\n\nDetails here."
-python3 scripts/notion_api.py create --title "Meeting Notes" --markdown "- [ ] Follow up" \
+python3 SKILL_PATH/scripts/notion_api.py create --title "Design Doc" --markdown "## Overview\n\nDetails here."
+python3 SKILL_PATH/scripts/notion_api.py create --title "Meeting Notes" --markdown "- [ ] Follow up" \
   --parent "https://www.notion.so/Team-1234567890abcdef1234567890abcdef" --parent-type page_id
 ```
 
@@ -116,11 +113,11 @@ The first `#` heading becomes the page title automatically. Without `--parent` t
 
 ```bash
 # Append markdown to the end of a page
-python3 scripts/notion_api.py append PAGE --markdown "## Next steps\n\n- [ ] Review"
-python3 scripts/notion_api.py append PAGE --markdown "# Top note" --position start
+python3 SKILL_PATH/scripts/notion_api.py append PAGE --markdown "## Next steps\n\n- [ ] Review"
+python3 SKILL_PATH/scripts/notion_api.py append PAGE --markdown "# Top note" --position start
 
 # Replace an exact string inside a page
-python3 scripts/notion_api.py update PAGE --old "old text" --new "new text"
+python3 SKILL_PATH/scripts/notion_api.py update PAGE --old "old text" --new "new text"
 ```
 
 Both use `PATCH /v1/pages/{id}/markdown` with `markdown_version: v2`. `append` uses `insert_content`; `update` uses `update_content` with `content_updates`.
@@ -128,7 +125,7 @@ Both use `PATCH /v1/pages/{id}/markdown` with `markdown_version: v2`. `append` u
 ### Move a page to trash
 
 ```bash
-python3 scripts/notion_api.py delete PAGE
+python3 SKILL_PATH/scripts/notion_api.py delete PAGE
 ```
 
 Uses `PATCH /v1/pages/{id}` with `in_trash: true` (the `archived` field was removed in 2026-03-11). Confirm intent before running.
@@ -136,26 +133,26 @@ Uses `PATCH /v1/pages/{id}` with `in_trash: true` (the `archived` field was remo
 ### Comments
 
 ```bash
-python3 scripts/notion_api.py comments PAGE
-python3 scripts/notion_api.py comment PAGE "Looks good, ship it."
+python3 SKILL_PATH/scripts/notion_api.py comments PAGE
+python3 SKILL_PATH/scripts/notion_api.py comment PAGE "Looks good, ship it."
 ```
 
 ### Data sources and ticket items
 
 ```bash
 # Discover data source IDs for a database (a database can hold several)
-python3 scripts/notion_api.py data-sources DATABASE_ID
+python3 SKILL_PATH/scripts/notion_api.py data-sources DATABASE_ID
 
 # Show a data source's properties, types, select/status options and relation targets
-python3 scripts/notion_api.py schema DATA_SOURCE_ID
+python3 SKILL_PATH/scripts/notion_api.py schema DATA_SOURCE_ID
 
 # Query items in a data source (NOT a database ID)
-python3 scripts/notion_api.py query DATA_SOURCE_ID
-python3 scripts/notion_api.py query DATA_SOURCE_ID --filter '{"property":"Status","select":{"equals":"In Progress"}}'
-python3 scripts/notion_api.py query DATA_SOURCE_ID --limit 50 --start-cursor "<cursor>"
+python3 SKILL_PATH/scripts/notion_api.py query DATA_SOURCE_ID
+python3 SKILL_PATH/scripts/notion_api.py query DATA_SOURCE_ID --filter '{"property":"Status","select":{"equals":"In Progress"}}'
+python3 SKILL_PATH/scripts/notion_api.py query DATA_SOURCE_ID --limit 50 --start-cursor "<cursor>"
 
 # Create an item with every field in ONE request (all-or-nothing)
-python3 scripts/notion_api.py create-item DATA_SOURCE_ID --title "Fix login timeout" \
+python3 SKILL_PATH/scripts/notion_api.py create-item DATA_SOURCE_ID --title "Fix login timeout" \
   --markdown "## Description\n\nUsers hit a 30s timeout." \
   --status "Todo" \
   --property "Tags=Bug,Auth" \
@@ -165,9 +162,9 @@ python3 scripts/notion_api.py create-item DATA_SOURCE_ID --title "Fix login time
   --property "Description=Timeout after 30s"
 
 # Change a property (maps to a ticket status transition)
-python3 scripts/notion_api.py set-property PAGE --name Status --value Done
+python3 SKILL_PATH/scripts/notion_api.py set-property PAGE --name Status --value Done
 # Change several properties in ONE request
-python3 scripts/notion_api.py set-property PAGE --property "Status=Done" --property "Tags=Bug,UI"
+python3 SKILL_PATH/scripts/notion_api.py set-property PAGE --property "Status=Done" --property "Tags=Bug,UI"
 ```
 
 `--property` format is `NAME=VALUE[:TYPE]`, repeatable. The type is optional:
@@ -188,7 +185,7 @@ Prefer one `create-item` with all `--property` flags over "create, then `set-pro
 ### Current identity
 
 ```bash
-python3 scripts/notion_api.py myself
+python3 SKILL_PATH/scripts/notion_api.py myself
 ```
 
 Uses `GET /v1/users/me`; `GET /v1/users` is not available to PATs.
@@ -226,5 +223,5 @@ For every task, provide:
 - Databases are split into **data sources** since `2025-09-03`: query with `POST /v1/data_sources/{id}/query`, create pages with `parent: {"type": "data_source_id", ...}`. `GET /v1/databases/{id}` now returns the list of data sources. Database IDs and data source IDs are not interchangeable.
 - Markdown endpoints default to v1 on current versions but v1 is deprecated; the script always sends `markdown_version: v2`.
 - PATs are user-scoped and expire. For team-owned automation that must not depend on one person, use an internal connection (bot token) instead — but that requires granting page access via **Connections → + Add connection** or the Developer portal's **Content access** tab.
-- For advanced endpoints not covered here, see `API_REFERENCE.md` in this skill directory.
+- For advanced endpoints not covered here, see `SKILL_PATH/references/API_REFERENCE.md`.
 - For destructive actions (delete, overwriting content), confirm intent before executing.

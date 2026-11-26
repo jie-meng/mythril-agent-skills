@@ -1,18 +1,11 @@
 ---
 name: qrcode
 description: >
-  Encode text/URLs into QR code images (PNG/SVG) and decode QR codes from
-  images back to text, via one bundled Python script (segno + zxing-cpp).
-  Trigger whenever the user wants to generate, make, or create a QR code, or
-  read, scan, decode, or extract the content of a QR code in an image or
-  screenshot, or says phrases like "generate qr code", "make a qr code for
-  this url", "text to qr", "string to qr", "qr encode", "decode qr", "scan
-  this qr code", "read qr code", "what does this qr code say", "qr to text",
-  "生成二维码", "做个二维码", "转成二维码", "字符串转二维码", "链接转二维码",
-  "解析二维码", "识别二维码", "扫一下这个二维码", "二维码里是什么", "二维码转文字".
-  Also trigger when the user gives an image path that contains a QR code and
-  asks what it is. Supports multiple QR codes per image, batch decoding, and
-  other barcode formats with --all-formats.
+  Encodes text or URLs into QR code images (PNG/SVG) and decodes QR codes (and
+  other barcodes) from images, via a bundled Python script. Use when the user
+  wants to generate a QR code or read one from an image or screenshot, e.g.
+  "generate qr code", "decode qr", "what does this qr code say", "生成二维码",
+  "链接转二维码", "识别二维码", "二维码里是什么".
 license: Apache-2.0
 ---
 
@@ -49,33 +42,33 @@ needs only `zxing-cpp` and `pillow`.
 
 # Workflow
 
-All commands use (path relative to this skill directory):
+All commands use (`SKILL_PATH` is this skill's installed directory):
 
 ```bash
-python3 scripts/qr_ops.py <encode|decode> [options]
+python3 SKILL_PATH/scripts/qr_ops.py <encode|decode> [options]
 ```
 
 ## Encode: text → QR
 
 ```bash
 # Basic — no -o: writes to the skill cache dir and prints the path
-python3 scripts/qr_ops.py encode "https://example.com"
+python3 SKILL_PATH/scripts/qr_ops.py encode "https://example.com"
 
 # Explicit output (suffix optional; .png appended if missing)
-python3 scripts/qr_ops.py encode "hello" -o ~/Desktop/hello.png
+python3 SKILL_PATH/scripts/qr_ops.py encode "hello" -o ~/Desktop/hello.png
 
 # SVG output (format inferred from suffix, or pass -f svg)
-python3 scripts/qr_ops.py encode "hello" -o logo-qr.svg
+python3 SKILL_PATH/scripts/qr_ops.py encode "hello" -o logo-qr.svg
 
 # Content with quotes/newlines/shell-special chars → use --stdin or --file
-printf '%s' 'WIFI:T:WPA;S:MyNet;P:p@ss;;' | python3 scripts/qr_ops.py encode --stdin
-python3 scripts/qr_ops.py encode --file payload.txt -o payload.png
+printf '%s' 'WIFI:T:WPA;S:MyNet;P:p@ss;;' | python3 SKILL_PATH/scripts/qr_ops.py encode --stdin
+python3 SKILL_PATH/scripts/qr_ops.py encode --file payload.txt -o payload.png
 
 # Styling and robustness
-python3 scripts/qr_ops.py encode "hi" -s 20 -b 2 -e H --dark '#1a237e' --light transparent
+python3 SKILL_PATH/scripts/qr_ops.py encode "hi" -s 20 -b 2 -e H --dark '#1a237e' --light transparent
 
 # Also print the QR in the terminal so the user can scan it immediately
-python3 scripts/qr_ops.py encode "https://example.com" --terminal
+python3 SKILL_PATH/scripts/qr_ops.py encode "https://example.com" --terminal
 ```
 
 | Option | Default | Meaning |
@@ -99,16 +92,16 @@ path to the user.
 
 ```bash
 # One image — prints each payload on its own line
-python3 scripts/qr_ops.py decode screenshot.png
+python3 SKILL_PATH/scripts/qr_ops.py decode screenshot.png
 
 # Multiple images — lines are prefixed with the file name
-python3 scripts/qr_ops.py decode a.png b.jpg
+python3 SKILL_PATH/scripts/qr_ops.py decode a.png b.jpg
 
 # Structured output (file, format, text) — use when a payload may contain newlines
-python3 scripts/qr_ops.py decode screenshot.png --json
+python3 SKILL_PATH/scripts/qr_ops.py decode screenshot.png --json
 
 # Also detect other barcodes (EAN-13, Code128, DataMatrix, PDF417, ...)
-python3 scripts/qr_ops.py decode label.jpg --all-formats
+python3 SKILL_PATH/scripts/qr_ops.py decode label.jpg --all-formats
 ```
 
 - Reads any raster format Pillow supports (PNG, JPEG, WebP, BMP, GIF, TIFF...).

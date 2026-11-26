@@ -1,22 +1,14 @@
 ---
 name: fullstack-apply
-description: |
-  Implement a planned work item across a multi-repo fullstack workspace —
-  implement repos in dependency-order waves (independent repos are
-  developed, reviewed, and committed in parallel; dependents wait), run
-  staged and cross-repo reviews against the plan's Success Criteria,
-  create PRs, and finalize the four work-tracking documents. Input is
-  a work directory from fullstack-propose; no planning here. Sticky on
-  an active work item: follow-up edits from feedback, logs, manual
-  testing, or bug reports run the same review loop.
-  Trigger: "fullstack implement", "fullstack develop", "fullstack impl",
-  "全栈实现", "全栈开发", "全栈 impl", "implement this plan",
-  "实现这个方案"; ALSO on follow-up edit/fix in an active work dir —
-  "this is wrong", "fix this", "调一下", "再改一下", "这里不对",
-  "log 报错", pasted error/log; or when continuing an existing work
-  item under changes/{feat,refactor,fix}/. ALSO a quick fix with no
-  work item (root-caused bug or small tweak, one repo) — "直接修",
-  "直接改", "quick fix", "just fix it".
+description: >
+  Implements a planned work item across a multi-repo fullstack workspace:
+  repos in dependency-order waves, staged and cross-repo reviews against the
+  plan's Success Criteria, PRs, and the four tracking documents. Input is a
+  work dir from fullstack-propose. Sticky on an active work item — follow-up
+  fixes from feedback or pasted logs run the same review loop. Also does a
+  one-repo quick fix with no work item. Triggers: "fullstack implement",
+  "全栈实现", "implement this plan", "实现这个方案", "fix this", "这里不对", "直接修", "quick
+  fix".
 license: Apache-2.0
 ---
 
@@ -72,9 +64,9 @@ it costs a full context rebuild and buys no parallelism.
 
 `SKILL_PATH` is this skill's installed directory. `<lang>` is `en` or `zh`.
 
-## Workspace Validation Gate (MANDATORY SCRIPT CALL)
+## Workspace Validation Gate
 
-Before reading any work directory:
+Before reading any work directory (later steps need the values it prints):
 
 ```bash
 python3 SKILL_PATH/scripts/check_workspace.py
@@ -141,7 +133,7 @@ consumed outside the repo). Record an upgrade in `progress.md`.
 
 Partially complete → see "Resuming" in `references/follow-up.md`.
 
-## Step 2 — Confirm Repos, Branches, and Waves (MANDATORY)
+## Step 2 — Confirm Repos, Branches, and Waves
 
 For multi-repo items, first compute the waves (do not layer repos by eye —
 transitive dependencies and cycles hide there):

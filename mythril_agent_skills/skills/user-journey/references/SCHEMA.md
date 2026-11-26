@@ -11,6 +11,19 @@ python3 SKILL_PATH/scripts/validate_sync.py    <workspace>
 python3 SKILL_PATH/scripts/validate_screens.py <workspace>
 ```
 
+## Contents
+
+- What v3 is
+- Top-level object
+- Persona — unchanged
+- Stage
+- Step — unchanged
+- Screen — v3 shape
+- Arrow — top-level connection between screens
+- Sticky — free-floating canvas note
+- Annotation — numbered marker on a screen card
+- Validation rules
+
 ## What v3 is
 
 v3 reshapes the renderer into a **single Miro-style canvas** — all screens are

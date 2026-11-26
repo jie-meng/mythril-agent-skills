@@ -6,6 +6,18 @@ splitting, cross-checking, and buffer allocation.
 
 ---
 
+## Contents
+
+- 1. Buffer Strategy
+- 2. Phased Delivery Strategy
+- 3. Uncertainty & Risk Management
+- 4. Story Splitting Strategies
+- 5. Team Calibration
+- 6. Multi-Estimator Approach
+- 7. Estimate Evolution & Traceability
+- 8. Estimating from Ambiguous Inputs
+- 9. Communication Anti-Patterns
+
 ## 1. Buffer Strategy
 
 ### Why Buffer?

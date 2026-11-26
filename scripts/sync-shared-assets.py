@@ -186,6 +186,21 @@ def specs() -> list[SyncSpec]:
         )
     )
 
+    # --- shared/commit/commit-format.md → <skill>/references/commit-format.md
+    # Commit messages (code-review-staged) and PR titles (github-pr-create)
+    # follow the same format.
+    commit_format_consumers = ("code-review-staged", "github-pr-create")
+    out.append(
+        SyncSpec(
+            source=SHARED_ROOT / "commit" / "commit-format.md",
+            targets=tuple(
+                SKILLS_ROOT / skill / "references" / "commit-format.md"
+                for skill in commit_format_consumers
+            ),
+            description="commit message format",
+        )
+    )
+
     # --- shared/secrets/secret_guard.py → <skill>/scripts/secret_guard.py
     # Every skill whose script reads an API token from the environment
     # redacts it from all output and refuses misordered request arguments.

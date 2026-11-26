@@ -1,14 +1,11 @@
 ---
 name: android-screen-reader
-description: |
-  Read the current screen of a connected Android device via adb. Use when the
-  user asks to inspect or summarize what is visible on a phone/tablet screen,
-  extract UI text or controls, debug Android app state, or mentions adb,
-  screencap, uiautomator, current screen, or connected Android devices. When
-  multiple devices are connected, list them with model info and let the user
-  choose. Prefer the UI hierarchy for exact text and element metadata; fall
-  back to a screenshot when the hierarchy is empty or the screen is visual-only.
-  Delete all temporary screenshots and XML dumps immediately after analysis.
+description: >
+  Reads the current screen of a connected Android device via adb, preferring the
+  uiautomator UI hierarchy for exact text and controls and falling back to a
+  screenshot for visual-only screens. Use when the user wants to know what is on
+  a phone or tablet screen, extract UI text, or debug Android app state, or
+  mentions adb, screencap, uiautomator, or connected Android devices.
 license: Apache-2.0
 ---
 

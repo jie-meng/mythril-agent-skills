@@ -1,20 +1,13 @@
 ---
 name: fullstack-issue-create
-description: |
-  Record or update a workspace issue in the docs repo's issues/ directory —
-  capture a problem, bug, or phenomenon now so it can be triaged into a work
-  item later. One skill, two operations (create / update); closing is a
-  separate lifecycle operation owned by fullstack-issue-archive. Trigger:
-  "fullstack issue", "全栈 issue", "记录一个工作区 issue"; ALSO when the
-  user asks to record a problem/bug/phenomenon for later triage in this
-  workspace — "记录这个问题", "把这个 bug 先记下来", "先记个 issue 以后再处理",
-  "沉淀一个问题", "track this problem", "log this problem", "note this issue
-  for later". For closing an issue ("close issue", "archive issue",
-  "归档 issue"), use fullstack-issue-archive instead. NOT for GitHub/GitLab/Jira
-  issues — requests mentioning gh/github/a remote repo/an issue URL route to
-  gh-operations or jira instead. Bare English "create an issue" defaults to
-  GitHub unless workspace context is present. Ambiguous bare "issue" with no
-  platform context → this skill, announced, GitHub offered.
+description: >
+  Records or updates a workspace issue in the docs repo's issues/ directory —
+  capture a problem or bug now, triage it into a work item later. Closing
+  belongs to fullstack-issue-archive. Triggers: "fullstack issue", "全栈 issue",
+  "记录这个问题", "把这个 bug 先记下来", "track this problem", "log this problem". NOT for
+  GitHub/GitLab/Jira issues (gh, github, or an issue URL → gh-operations or
+  jira); a bare "create an issue" means GitHub unless workspace context is
+  present.
 license: Apache-2.0
 ---
 
@@ -51,10 +44,10 @@ Closing is a directory **move**, never a delete: the directories are
 project history. The close itself is performed by
 `fullstack-issue-archive`.
 
-## Prerequisites — Workspace Validation Gate (MANDATORY SCRIPT CALL)
+## Prerequisites — Workspace Validation Gate
 
-This skill MUST NOT proceed past this gate. Run `check_workspace.py`
-and inspect its output.
+Do not proceed until this gate passes: run `check_workspace.py` and
+inspect its output. Later steps need the docs dir it reports.
 
 ```bash
 python3 SKILL_PATH/scripts/check_workspace.py
@@ -80,7 +73,7 @@ rule as the work-tracking documents:
 2. If the user's prompt contains **any Chinese characters** → use Chinese.
 3. Otherwise → use English (default).
 
-Directory names are ALWAYS lowercase-hyphenated English regardless of
+Directory names are always lowercase-hyphenated English regardless of
 the README language.
 
 The skeleton in Step 1 shows Chinese labels (spec keywords, kept in
@@ -129,7 +122,7 @@ this table — the section set and their order never change:
    git commit -m "docs: record issue <name>"
    ```
 
-### log/ Rules (MANDATORY)
+### log/ Rules
 
 - The issue directory contains a `log/` subdirectory holding the raw
   captured files (device dumps, tool outputs, scenario recordings).

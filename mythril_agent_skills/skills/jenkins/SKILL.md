@@ -1,17 +1,12 @@
 ---
 name: jenkins
 description: >
-  Operate any Jenkins instance from the terminal via the Jenkins REST API using
-  a bundled Python script (zero dependencies). Trigger when the user asks to
-  run, check, or cancel a Jenkins build or job — e.g. "trigger
-  robo-server-build", "重新编译 server", "跑一下构建", "部署 dev/prod",
-  "看构建日志", "jenkins console", "build #123 卡住了", "流水线跑到哪个 stage
-  了", "重跑 CI", or pastes a Jenkins URL / job link and wants it operated.
-  Commands: whoami, jobs, job, build (queue-aware wait), status, stages
-  (pipeline stage progress), console (tail/follow), stop. Handles
-  parameterized builds, queue position, CSRF crumb fallback, and self-signed
-  TLS. NOT for Git/PR operations (use gh-operations) or web app testing (use
-  web-tester). Requires JENKINS_URL, JENKINS_USER, JENKINS_API_TOKEN.
+  Operates a Jenkins instance through a bundled REST API script: list and
+  inspect jobs, trigger (parameterized) builds and wait on them, check status and
+  pipeline stages, read or follow console logs, and stop builds. Use when the
+  user wants to run, check, or cancel a Jenkins build or pastes a Jenkins URL —
+  e.g. "trigger the build", "jenkins console", "跑一下构建", "部署 dev",
+  "看构建日志", "重跑 CI". Not for Git/PR work (gh-operations).
 license: Apache-2.0
 ---
 
@@ -68,26 +63,26 @@ The script outputs structured markdown. Build results use Jenkins result codes: 
 
 # Running the Script
 
-One script is available in `scripts/` relative to this skill directory.
+All commands use `scripts/jenkins_api.py`. `SKILL_PATH` below is this skill's installed directory.
 
 ### Verify setup and connectivity
 
 ```bash
-python3 scripts/jenkins_api.py whoami
+python3 SKILL_PATH/scripts/jenkins_api.py whoami
 ```
 
 ### List jobs
 
 ```bash
-python3 scripts/jenkins_api.py jobs
-python3 scripts/jenkins_api.py jobs "team/services"        # jobs inside a folder
+python3 SKILL_PATH/scripts/jenkins_api.py jobs
+python3 SKILL_PATH/scripts/jenkins_api.py jobs "team/services"        # jobs inside a folder
 ```
 
 ### Inspect a job (status, health, parameters)
 
 ```bash
-python3 scripts/jenkins_api.py job robo-server-build
-python3 scripts/jenkins_api.py job "team/services/deploy"   # slash-separated for folders
+python3 SKILL_PATH/scripts/jenkins_api.py job robo-server-build
+python3 SKILL_PATH/scripts/jenkins_api.py job "team/services/deploy"   # slash-separated for folders
 ```
 
 The output lists the job's parameter definitions — use them to decide `--param` values for `build`.
@@ -95,9 +90,9 @@ The output lists the job's parameter definitions — use them to decide `--param
 ### Trigger a build
 
 ```bash
-python3 scripts/jenkins_api.py build robo-server-build --wait
-python3 scripts/jenkins_api.py build deploy-dev --wait 1200
-python3 scripts/jenkins_api.py build deploy-dev \
+python3 SKILL_PATH/scripts/jenkins_api.py build robo-server-build --wait
+python3 SKILL_PATH/scripts/jenkins_api.py build deploy-dev --wait 1200
+python3 SKILL_PATH/scripts/jenkins_api.py build deploy-dev \
   --param TARGET_SERVERS=172.22.193.101 --param SERVER_VERSION=latest
 ```
 
@@ -107,14 +102,14 @@ python3 scripts/jenkins_api.py build deploy-dev \
 ### Check a build's status
 
 ```bash
-python3 scripts/jenkins_api.py status deploy-dev                 # latest build
-python3 scripts/jenkins_api.py status deploy-dev --build 42
+python3 SKILL_PATH/scripts/jenkins_api.py status deploy-dev                 # latest build
+python3 SKILL_PATH/scripts/jenkins_api.py status deploy-dev --build 42
 ```
 
 ### Show pipeline stage progress
 
 ```bash
-python3 scripts/jenkins_api.py stages deploy-dev --build 42
+python3 SKILL_PATH/scripts/jenkins_api.py stages deploy-dev --build 42
 ```
 
 Use this first when a build seems stuck — it shows which stage is `IN PROGRESS` and how long each stage took. Only works for Pipeline (workflow) jobs; freestyle jobs print a note instead.
@@ -122,10 +117,10 @@ Use this first when a build seems stuck — it shows which stage is `IN PROGRESS
 ### Read console logs
 
 ```bash
-python3 scripts/jenkins_api.py console deploy-dev --build 42 --tail 100
-python3 scripts/jenkins_api.py console deploy-dev --tail 0        # full log
-python3 scripts/jenkins_api.py console deploy-dev --follow        # stream until finished
-python3 scripts/jenkins_api.py console deploy-dev --follow --timeout 600
+python3 SKILL_PATH/scripts/jenkins_api.py console deploy-dev --build 42 --tail 100
+python3 SKILL_PATH/scripts/jenkins_api.py console deploy-dev --tail 0        # full log
+python3 SKILL_PATH/scripts/jenkins_api.py console deploy-dev --follow        # stream until finished
+python3 SKILL_PATH/scripts/jenkins_api.py console deploy-dev --follow --timeout 600
 ```
 
 Exit code follows the final build result (0 = SUCCESS, 1 = FAILURE, …).
@@ -133,7 +128,7 @@ Exit code follows the final build result (0 = SUCCESS, 1 = FAILURE, …).
 ### Abort a build
 
 ```bash
-python3 scripts/jenkins_api.py stop deploy-dev --build 42
+python3 SKILL_PATH/scripts/jenkins_api.py stop deploy-dev --build 42
 ```
 
 Confirm with the user before aborting.
@@ -153,4 +148,4 @@ Confirm with the user before aborting.
 - Auth is HTTP Basic with `JENKINS_USER:JENKINS_API_TOKEN`. API-token auth bypasses the CSRF crumb on Jenkins 2.96+; a crumb retry is kept for older or stricter instances.
 - Folders are slash-separated job names (`team/services/deploy` → `/job/team/job/services/job/deploy`).
 - Console reading uses the `progressiveText` endpoint's `X-Text-Size` / `X-More-Data` headers, so `--follow` is incremental, not full-log refetching.
-- For advanced use cases not covered by the script (creating jobs, editing config, remote-trigger tokens), see `API_REFERENCE.md`.
+- For advanced use cases not covered by the script (creating jobs, editing config, remote-trigger tokens), see `SKILL_PATH/references/API_REFERENCE.md`.

@@ -1,14 +1,12 @@
 ---
 name: confluence
 description: >
-  Use the Confluence REST API (via a bundled Python script) for common Confluence
-  workflows from terminal. Trigger whenever the user asks to view, search, create,
-  edit, or delete Confluence pages, list spaces, add comments or labels, or says
-  phrases like "confluence page", "wiki page", "看 wiki", "看 confluence",
-  "confluence 页面", "search confluence", "create wiki page", "update confluence",
-  "confluence space", "wiki 空间". Also trigger when the user pastes a Confluence
-  URL and wants to interact with it. No third-party CLI tools required — only
-  Python 3.10+ standard library.
+  Reads and manages Confluence Cloud pages through a bundled REST API script:
+  view, search (CQL), create, update, delete pages, list spaces, child pages and
+  attachments, and add comments or labels. Use when the user wants to read or
+  change Confluence/wiki content or pastes a Confluence URL — e.g. "confluence
+  page", "wiki page", "search confluence", "update confluence", "看 wiki",
+  "看 confluence", "confluence 页面", "wiki 空间".
 license: Apache-2.0
 ---
 
@@ -101,7 +99,7 @@ Analyze images with available image-capable tools and summarize only evidence re
 
 ## Running the Script
 
-One script is available in `scripts/` relative to this skill directory. It requires only Python 3.10+ standard library (zero dependencies).
+All commands use `scripts/confluence_api.py` (Python 3.10+ standard library only). `SKILL_PATH` below is this skill's installed directory.
 
 ### View a page
 
@@ -109,13 +107,13 @@ Accepts either a page ID or a full Confluence URL:
 
 ```bash
 # With ATLASSIAN_BASE_URL set
-python3 scripts/confluence_api.py view 12345
+python3 SKILL_PATH/scripts/confluence_api.py view 12345
 
 # Without ATLASSIAN_BASE_URL — pass the full URL directly
-python3 scripts/confluence_api.py view "https://yoursite.atlassian.net/wiki/spaces/TEAM/pages/12345/Page+Title"
+python3 SKILL_PATH/scripts/confluence_api.py view "https://yoursite.atlassian.net/wiki/spaces/TEAM/pages/12345/Page+Title"
 
 # Include labels
-python3 scripts/confluence_api.py view 12345 --include-labels
+python3 SKILL_PATH/scripts/confluence_api.py view 12345 --include-labels
 ```
 
 When the user pastes a Confluence URL, pass it directly — the script parses out the base URL and page ID automatically.
@@ -125,10 +123,10 @@ When the user pastes a Confluence URL, pass it directly — the script parses ou
 Requires `ATLASSIAN_BASE_URL`.
 
 ```bash
-python3 scripts/confluence_api.py search "space=TEAM AND type=page"
-python3 scripts/confluence_api.py search "text ~ 'deployment guide'" --limit 10
-python3 scripts/confluence_api.py search "type=page AND lastModified >= now('-7d')"
-python3 scripts/confluence_api.py search "label = 'architecture' AND type=page"
+python3 SKILL_PATH/scripts/confluence_api.py search "space=TEAM AND type=page"
+python3 SKILL_PATH/scripts/confluence_api.py search "text ~ 'deployment guide'" --limit 10
+python3 SKILL_PATH/scripts/confluence_api.py search "type=page AND lastModified >= now('-7d')"
+python3 SKILL_PATH/scripts/confluence_api.py search "label = 'architecture' AND type=page"
 ```
 
 Common CQL patterns:
@@ -149,9 +147,9 @@ Common CQL patterns:
 Requires `ATLASSIAN_BASE_URL`.
 
 ```bash
-python3 scripts/confluence_api.py spaces
-python3 scripts/confluence_api.py spaces --type global
-python3 scripts/confluence_api.py spaces --limit 50
+python3 SKILL_PATH/scripts/confluence_api.py spaces
+python3 SKILL_PATH/scripts/confluence_api.py spaces --type global
+python3 SKILL_PATH/scripts/confluence_api.py spaces --limit 50
 ```
 
 ### List pages
@@ -159,9 +157,9 @@ python3 scripts/confluence_api.py spaces --limit 50
 Requires `ATLASSIAN_BASE_URL`.
 
 ```bash
-python3 scripts/confluence_api.py pages --space-id 12345
-python3 scripts/confluence_api.py pages --title "Meeting Notes"
-python3 scripts/confluence_api.py pages --limit 50
+python3 SKILL_PATH/scripts/confluence_api.py pages --space-id 12345
+python3 SKILL_PATH/scripts/confluence_api.py pages --title "Meeting Notes"
+python3 SKILL_PATH/scripts/confluence_api.py pages --limit 50
 ```
 
 ### Create a page
@@ -169,8 +167,8 @@ python3 scripts/confluence_api.py pages --limit 50
 Requires `ATLASSIAN_BASE_URL`.
 
 ```bash
-python3 scripts/confluence_api.py create --space-id 12345 --title "New Page"
-python3 scripts/confluence_api.py create --space-id 12345 --title "Design Doc" \
+python3 SKILL_PATH/scripts/confluence_api.py create --space-id 12345 --title "New Page"
+python3 SKILL_PATH/scripts/confluence_api.py create --space-id 12345 --title "Design Doc" \
   --body "<h2>Overview</h2><p>This document describes...</p>" \
   --parent-id 67890
 ```
@@ -185,9 +183,9 @@ python3 scripts/confluence_api.py create --space-id 12345 --title "Design Doc" \
 ### Update a page
 
 ```bash
-python3 scripts/confluence_api.py update 12345 --title "Updated Title"
-python3 scripts/confluence_api.py update 12345 --body "<p>New content here</p>" --version-message "Fixed typo"
-python3 scripts/confluence_api.py update "https://yoursite.atlassian.net/wiki/spaces/TEAM/pages/12345" --title "New Title"
+python3 SKILL_PATH/scripts/confluence_api.py update 12345 --title "Updated Title"
+python3 SKILL_PATH/scripts/confluence_api.py update 12345 --body "<p>New content here</p>" --version-message "Fixed typo"
+python3 SKILL_PATH/scripts/confluence_api.py update "https://yoursite.atlassian.net/wiki/spaces/TEAM/pages/12345" --title "New Title"
 ```
 
 The script automatically handles version numbering — it fetches the current version and increments it.
@@ -195,39 +193,39 @@ The script automatically handles version numbering — it fetches the current ve
 ### Delete a page
 
 ```bash
-python3 scripts/confluence_api.py delete 12345
-python3 scripts/confluence_api.py delete 12345 --purge  # permanently delete
+python3 SKILL_PATH/scripts/confluence_api.py delete 12345
+python3 SKILL_PATH/scripts/confluence_api.py delete 12345 --purge  # permanently delete
 ```
 
 ### List comments on a page
 
 ```bash
-python3 scripts/confluence_api.py comments 12345
-python3 scripts/confluence_api.py comments 12345 --limit 10
+python3 SKILL_PATH/scripts/confluence_api.py comments 12345
+python3 SKILL_PATH/scripts/confluence_api.py comments 12345 --limit 10
 ```
 
 ### Add a comment to a page
 
 ```bash
-python3 scripts/confluence_api.py comment 12345 "This looks good, ship it!"
+python3 SKILL_PATH/scripts/confluence_api.py comment 12345 "This looks good, ship it!"
 ```
 
 ### List labels on a page
 
 ```bash
-python3 scripts/confluence_api.py labels 12345
+python3 SKILL_PATH/scripts/confluence_api.py labels 12345
 ```
 
 ### Add labels to a page
 
 ```bash
-python3 scripts/confluence_api.py add-label 12345 architecture backend
+python3 SKILL_PATH/scripts/confluence_api.py add-label 12345 architecture backend
 ```
 
 ### List child pages
 
 ```bash
-python3 scripts/confluence_api.py children 12345
+python3 SKILL_PATH/scripts/confluence_api.py children 12345
 ```
 
 Uses the non-deprecated `/pages/{id}/direct-children` endpoint under Confluence v2 API.
@@ -235,7 +233,7 @@ Uses the non-deprecated `/pages/{id}/direct-children` endpoint under Confluence 
 ### List page attachments
 
 ```bash
-python3 scripts/confluence_api.py attachments 12345
+python3 SKILL_PATH/scripts/confluence_api.py attachments 12345
 ```
 
 ## Using the Output
@@ -246,7 +244,7 @@ For write operations (create, update, delete, comment), the script prints a conf
 
 ## API Reference
 
-For advanced use cases or when the bundled script doesn't cover an operation, see `API_REFERENCE.md` in this skill directory for the full Confluence REST API endpoint reference.
+For advanced use cases or when the bundled script doesn't cover an operation, see `SKILL_PATH/references/API_REFERENCE.md` for the full Confluence REST API endpoint reference.
 
 # Output Expectations
 

@@ -1,22 +1,19 @@
 ---
 name: branch-diff-review
-description: |
-  Context-aware code review for branch differences — compare any two local git branches
-  without relying on GitHub, GitLab, Bitbucket, or any platform API. Pure local git operations.
-  Ideal for non-GitHub repos (Gitee, Bitbucket, self-hosted GitLab, etc.) or offline review.
-  Triggers when user mentions branch comparison with any review verb.
-  Examples: 'review feat/123 合到 main', 'branch diff review', 'branch review',
-  '分支合并审查', '看一下 dev 和 main 的差异', 'review branch merge',
-  'compare branches for review', 'review branch changes',
-  '帮我 review 一下这两个分支', 'review feat/xxx to master',
-  'branch code review', '分支审查', '分支 review', '分支CR'.
-  Does NOT require any platform CLI or API — works with any git repository.
+description: >
+  Reviews the difference between two local git branches with plain git (no
+  platform API or CLI), reading the surrounding code for context — works for
+  any host, including Gitee, Bitbucket, self-hosted GitLab, or offline. Use
+  when the user asks to review one branch against another: "review feat/123
+  合到 main", "branch diff review", "分支审查", "看一下 dev 和 main 的差异",
+  "分支CR". For GitHub PR URLs use github-code-review-pr; for staged changes,
+  code-review-staged.
 license: Apache-2.0
 ---
 
 # When to Use This Skill
 
-**ALWAYS invoke this skill when user wants to review differences between two git branches:**
+Use this skill when the user wants the differences between two git branches reviewed:
 
 Chinese:
 - "review feat/123 合到 main" / "看一下 dev 和 main 的差异"
@@ -81,7 +78,7 @@ Save the current branch name so we can verify we haven't moved at the end:
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 ```
 
-**CRITICAL**: The user's current branch MUST remain unchanged throughout the entire review process. Do NOT checkout any branch. All operations use `git diff`, `git log`, and `git show` with explicit branch references — no checkout needed.
+Leave the user's current branch untouched for the whole review — they may have uncommitted work, and nothing here needs a checkout: every step uses `git diff`, `git log`, and `git show` with explicit branch references.
 
 ## Step 2: Validate Branches Exist Locally
 
@@ -98,7 +95,7 @@ git branch --track <branch> origin/<branch>
 
 If a branch doesn't exist locally AND has no remote tracking branch → report error and stop.
 
-**IMPORTANT**: Do NOT run `git fetch`, `git pull`, or `git checkout`. Work with whatever is already local. The user is responsible for ensuring branches are current.
+Don't run `git fetch`, `git pull`, or `git checkout` — work with what is already local. The user decides how current the branches should be, and fetching could change what they meant to review.
 
 ## Step 3: Get Branch Diff and Commit History
 
@@ -273,9 +270,7 @@ Structure the review into these sections:
 
 ## Step 7: Verify Current Branch Unchanged
 
-**This step is MANDATORY — always execute it after review.**
-
-Verify the user is still on the same branch they started on:
+Always run this check after the review. Verify the user is still on the same branch they started on:
 ```bash
 [ "$(git rev-parse --abbrev-ref HEAD)" = "$CURRENT_BRANCH" ] && echo "OK: still on $CURRENT_BRANCH" || echo "ERROR: branch changed!"
 ```

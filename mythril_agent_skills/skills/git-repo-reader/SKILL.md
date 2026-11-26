@@ -1,18 +1,12 @@
 ---
 name: git-repo-reader
-description: |
-  Clone and read any git repository given a URL (HTTPS or SSH), from any hosting platform
-  (GitHub, GitLab, Gitee, Bitbucket, self-hosted, etc.). Caches cloned repos locally so
-  follow-up questions in the same or later sessions can reuse them without re-downloading.
-  TRIGGER THIS SKILL whenever the user provides a git repository URL and asks to read,
-  explore, understand, or analyze the codebase. Trigger phrases include: 'look at this repo',
-  'read this repo', 'check this codebase', 'how does this repo implement X', 'what does
-  this project do', 'analyze this repository', 'explore this codebase', 'clone and read',
-  '看看这个仓库', '读一下这个代码库', '分析一下这个项目', '这个仓库怎么实现的',
-  '帮我看看这个 repo'. Also trigger when a message contains a git clone URL
-  (https://..., git@...) combined with a question about the code, architecture, or
-  implementation. This skill works with ANY git-cloneable URL — not limited to GitHub.
-  Use it even when the user just pastes a repo URL and asks a question about it.
+description: >
+  Clones any git repository by URL (HTTPS or SSH, any host — GitHub, GitLab,
+  Gitee, Bitbucket, self-hosted) into a shared local cache and reads its code,
+  so later questions in this or future sessions reuse the clone. Use when the
+  user shares a repo URL and asks about the code: "look at this repo", "how
+  does this repo implement X", "analyze this repository", "看看这个仓库",
+  "这个仓库怎么实现的". For reviewing a GitHub PR, use github-code-review-pr.
 license: Apache-2.0
 ---
 
@@ -34,7 +28,7 @@ Clone, cache, and read any git repository for code exploration and analysis.
 
 ## How It Works
 
-This skill uses a helper script (`repo_manager.py`) bundled in `scripts/` to handle all repo operations deterministically. The script manages a cache of cloned repos and a mapping file (`repo_map.json`) so repos persist across conversation sessions. The repo cache is shared with other skills (e.g., `github-code-review-pr`) — they use an identical copy of the same script, reading/writing the same cache directory.
+`SKILL_PATH` is this skill's installed directory. This skill uses a helper script (`SKILL_PATH/scripts/repo_manager.py`) to handle all repo operations deterministically. The script manages a cache of cloned repos and a mapping file (`repo_map.json`) so repos persist across conversation sessions. The repo cache is shared with other skills (e.g., `github-code-review-pr`) — they use an identical copy of the same script, reading/writing the same cache directory.
 
 All cached repos live under the unified cache directory:
 - **macOS**: `~/Library/Caches/mythril-skills-cache/git-repo-cache/`
@@ -59,7 +53,7 @@ Accept URLs in any of these formats:
 Run the helper script to get the repo. The script handles everything: checking the mapping file, reusing existing clones, pulling latest code, or cloning fresh.
 
 ```bash
-python3 scripts/repo_manager.py clone "<repo-url>"
+python3 SKILL_PATH/scripts/repo_manager.py clone "<repo-url>"
 ```
 
 The script will:
@@ -72,7 +66,7 @@ The script will:
 
 If the user asks for a specific branch:
 ```bash
-python3 scripts/repo_manager.py clone "<repo-url>" --branch dev
+python3 SKILL_PATH/scripts/repo_manager.py clone "<repo-url>" --branch dev
 ```
 
 ### Step 3: Read and analyze the code
@@ -99,14 +93,14 @@ When the user asks to clean up (e.g., "帮我清理", "clean up the repo", "删�
 - Use the `remove` command with the repo URL:
 
 ```bash
-python3 scripts/repo_manager.py remove "<repo-url>"
+python3 SKILL_PATH/scripts/repo_manager.py remove "<repo-url>"
 ```
 
 This deletes the cloned repo directory and removes its entry from `repo_map.json`, leaving other cached repos untouched.
 
 ## Script Reference
 
-The `repo_manager.py` script in `scripts/` supports these subcommands:
+`SKILL_PATH/scripts/repo_manager.py` supports these subcommands:
 
 | Command | Description |
 |---|---|

@@ -1,17 +1,14 @@
 ---
 name: gh-operations
 description: >
-  Use GitHub CLI (`gh`) for operational GitHub workflows from terminal: issue
-  read/write, PR list/view/create, PR status/checks, and posting general or
-  inline PR comments. Trigger when user mentions "gh", "github", or "GitHub"
-  combined with an action — e.g. "use gh", "gh issue", "gh pr", "用 gh 看",
-  "github issue", "创建PR", "查PR状态", "给PR加comment". Also trigger when user
-  provides an issue/PR URL and explicitly says to use gh or GitHub to access it.
-  ZERO-SPECULATION RULE: When triggered, do NOT analyze the hostname —
-  git.x.com, code.z.au are all potentially GitHub Enterprise. Just run `gh`
-  and let it succeed or fail. This skill is NOT for comprehensive PR code
-  review — prefer `github-code-review-pr` for that. For local git
-  history/commit reads without GitHub API context, prefer plain `git`.
+  Runs everyday GitHub operations with the `gh` CLI: view, create, edit, and
+  comment on issues; list and view PRs, diffs, and checks; post general or
+  inline PR comments; read commit metadata. Use when the user pairs "gh" or
+  "GitHub" with an action — "gh issue view", "用 gh 看一下", "查PR状态",
+  "给PR加comment" — or gives an issue/PR URL and says to use gh. Unknown hosts
+  may be GitHub Enterprise, so run `gh` rather than guessing. For a full PR
+  review use github-code-review-pr; for creating a PR from a template,
+  github-pr-create.
 license: Apache-2.0
 ---
 
@@ -27,9 +24,10 @@ Trigger this skill when the user mentions **"gh"**, **"github"**, or **"GitHub"*
 - "使用 gh" / "用 gh 访问" / "gh 看看"
 - User provides an issue/PR URL **and** explicitly says to use gh or GitHub
 
-**NOT a trigger** (do NOT invoke this skill):
+**Not this skill:**
 - User pastes a URL without mentioning gh/github — they may want a different tool
 - User asks to "review a PR" with code quality intent — use `github-code-review-pr`
+- User asks to create a PR that should follow the repo's PR template and branch-derived title — use `github-pr-create`
 - User asks for local git operations (`git log`, `git show`) — use plain `git`
 
 Scope boundary:
@@ -39,22 +37,15 @@ Scope boundary:
 - Use `gh api` for commit metadata only when the user explicitly requests `gh` or
   needs GitHub-hosted metadata tied to a remote repository context.
 
-## ZERO-SPECULATION RULE (MANDATORY once triggered)
+## Don't guess the platform from the hostname
 
-**Once this skill is triggered, do NOT spend ANY tokens analyzing the hostname, guessing the platform, or debating whether `gh` will work.** The correct behavior is:
+The user asked for gh/GitHub, and domains like `git.*.com`, `git.*.com.au`, or
+`code.*.com` are very often GitHub Enterprise. Guessing ("this looks like
+GitLab"), or switching to WebFetch / curl / glab, is usually wrong and wastes
+tokens; running `gh` settles it in one call. So once triggered:
 
-1. User said "gh" or "github" → skill is triggered
-2. Run `gh issue view "<URL>"` or `gh pr view "<URL>"` → let `gh` succeed or fail
-3. If `gh` fails → report the error and suggest `gh auth login --hostname <host>`
-
-**WRONG behavior (NEVER do this):**
-- "This appears to be a self-hosted GitLab instance" — WRONG, you don't know that
-- "git.company.com looks like GitLab" — WRONG, it could be GitHub Enterprise
-- "Let me try WebFetch / curl / glab instead" — WRONG, user asked for `gh`
-- "gh CLI won't work with this host" — WRONG, you haven't tried yet
-- Any reasoning about whether the host is GitHub, GitLab, Bitbucket, etc. — WRONG
-
-**WHY:** The user explicitly asked you to use gh/GitHub. Domains like `git.*.com`, `git.*.com.au`, `code.*.com` are overwhelmingly GitHub Enterprise. Even if they aren't, trying `gh` first and failing fast is better than wasting 500 tokens on speculation. Trust the user's request, fix errors later.
+1. Run `gh issue view "<URL>"` or `gh pr view "<URL>"` and let `gh` succeed or fail.
+2. If `gh` fails, report the error and suggest `gh auth login --hostname <host>`.
 
 ## Security — MANDATORY rules for AI agents
 
@@ -79,8 +70,7 @@ Scope boundary:
 
 ## 1) Pre-flight checks
 
-MANDATORY execution rule:
-- **If the user provides a full URL** (containing `/issues/` or `/pull/`), skip pre-flight checks entirely. Go straight to the relevant operation section and run `gh issue view "<URL>"` or `gh pr view "<URL>"` directly. Do NOT run `gh --version`, `gh auth status`, or any host analysis first — let `gh` succeed or fail on the actual command.
+- **If the user provides a full URL** (containing `/issues/` or `/pull/`), skip pre-flight checks: run `gh issue view "<URL>"` or `gh pr view "<URL>"` directly. The real command reports install, auth, and host problems just as well, so `gh --version` / `gh auth status` first only adds a round trip.
 - **If the user does NOT provide a URL** (e.g., just says "list issues" or "create PR"), run pre-flight checks:
 
 1. Verify `gh` exists:
@@ -117,10 +107,9 @@ gh issue view "https://github.com/OWNER/REPO/issues/123" --json number,title,sta
 gh issue view "https://<github-host>/OWNER/REPO/issues/123" --json number,title,state,author,assignees,labels,body,url,comments
 ```
 
-Critical rule:
-
-- If user supplies a full issue URL, prefer passing that URL directly to `gh issue view`.
-- Do not rewrite URL input to `<number> --repo ...` for read operations.
+If the user supplies a full issue URL, pass that URL directly to `gh issue view`
+rather than rewriting it to `<number> --repo ...` — the URL carries the host,
+which the rewrite loses on Enterprise instances.
 
 ### Create/update/comment issues
 
@@ -258,7 +247,7 @@ New-Item -ItemType Directory -Force -Path $IMAGE_CACHE | Out-Null
 
 Never write downloaded artifacts to ad-hoc paths like `/tmp/<custom-name>/...`.
 
-**Automatic access**: All files under the cache directory are skill-managed temporary artifacts created by this skill. Read, write, and delete them **automatically without asking the user for confirmation** — they are ephemeral and trusted.
+Files under this cache directory are temporary artifacts created by this skill; read, write, and delete them without asking the user for confirmation.
 
 Download order:
 1. `curl -fsSL "<image_url>" -o "<local_path>"`
@@ -282,22 +271,21 @@ For every task, provide:
 
 # Error Handling
 
-- **Host handling rule (MANDATORY)**: Never pre-stop or branch based on host/domain text. Always run `gh` commands with the URL first.
+- **Host handling**: don't stop or branch on host/domain text — run `gh` with the URL first and act on its result.
 - **`gh` host/auth error on unknown domain**: This is the expected outcome when a non-github.com host hasn't been configured. Tell the user:
   1. This host might be GitHub Enterprise — run `gh auth login --hostname <host>` to authenticate
   2. If it's not GitHub at all, this skill only supports GitHub (including GHE)
-  - **Do NOT assume the host is "GitLab" or any other platform** — just report the `gh` error and let the user decide. Domains like `git.xxx.com` or `git.xxx.com.au` are commonly GHE, not GitLab.
-  - **Do NOT include speculative prefaces** such as "this looks like GitLab" or "not a GitHub URL".
-  - **Do NOT try alternative tools** (`WebFetch`, `curl`, `glab`, browser) before running `gh`. Always try `gh` first.
+  - Report the `gh` error and let the user decide; don't label the host "GitLab" or add prefaces like "not a GitHub URL" — `git.xxx.com`-style domains are commonly GHE.
+  - Don't switch to `WebFetch`, `curl`, `glab`, or a browser before `gh` has been tried.
 - **Not logged in**: run `gh auth login`, then retry.
 - **Wrong host / enterprise**: use `gh auth login --hostname <host-from-url>`, then rerun the same URL command unchanged.
-- **Auth failure — ONLY allowed recovery steps**: When `gh` commands fail with auth/host errors, the ONLY actions you may take are:
+- **Auth failure — allowed recovery steps only**: when `gh` fails with auth/host errors:
   1. Report the `gh` error message to the user
   2. Suggest `gh auth login --hostname <host>`
   3. Suggest `gh auth status --hostname <host>` to check current auth state
   4. Stop and wait for the user to fix auth
 
-  **FORBIDDEN recovery attempts** (violate Security rules 4-5): Do NOT search for credentials in macOS Keychain, git credential stores, `.netrc`, or any other credential storage. Do NOT run `security`, `git credential fill`, or read `gh` config files. Do NOT construct manual `curl` calls with tokens extracted from any source.
+  Searching the macOS Keychain, git credential stores, `.netrc`, or `gh` config files, or building `curl` calls with extracted tokens, violates Security rules 4–5.
 - **Repo not found from URL request**: this usually means URL was rewritten incorrectly; retry using the original URL directly.
 - **Permission/scope issues**: show failing command and required scope, e.g. `gh auth refresh -s project`.
 - **No repo context**: require `--repo OWNER/REPO` or switch to repository directory.

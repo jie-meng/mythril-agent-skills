@@ -11,7 +11,7 @@ No third-party CLI tools required — uses only the Confluence REST API via a bu
 
 **Confluence REST API docs**: https://developer.atlassian.com/cloud/confluence/rest/v2/intro/
 
-**Full API reference**: See [`API_REFERENCE.md`](./API_REFERENCE.md) in this directory.
+**Full API reference**: See [`references/API_REFERENCE.md`](./references/API_REFERENCE.md).
 
 ## Prerequisites
 

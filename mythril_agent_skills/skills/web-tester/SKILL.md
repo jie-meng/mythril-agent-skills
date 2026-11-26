@@ -1,19 +1,13 @@
 ---
 name: web-tester
 description: >
-  Black-box GUI testing of web apps in a real browser: click/tap/type/scroll/
-  swipe through the page under test, capture screenshots, collect console and
-  page errors, and produce an evidence-backed test report. Cross-agent (works
-  in ZCode, Claude Code, opencode, Cursor, any shell-capable agent) via a
-  capability ladder: session-native browser tooling, then @playwright/mcp,
-  then the bundled Playwright toolbox. Profiles: desktop, mobile web (device
-  emulation, tap/swipe/long-press, portrait/landscape), canvas games
-  (coordinate interaction, screenshot verification, read-only debug hook).
-  Trigger on: testing a webpage/web app/frontend after a code change,
-  reproducing a frontend bug, checking interaction feedback or layout,
-  mobile/touch/canvas game testing, "test this page", "mobile web test",
-  "帮我测试这个页面", "点一下看看效果", "测试一下交互", "移动端页面测试",
-  "游戏交互测试", "canvas 游戏测试", "UI 黑盒测试".
+  Black-box GUI testing of web apps in a real browser: clicks, taps, types,
+  scrolls, and swipes through the page, captures screenshots and console/page
+  errors, and writes an evidence-backed test report. Covers desktop, mobile web
+  (device emulation, touch gestures, orientation), and canvas games. Use when
+  testing a page after a code change, reproducing a frontend bug, or checking
+  interaction or layout, e.g. "test this page", "mobile web test", "帮我测试这个页面",
+  "点一下看看效果", "canvas 游戏测试".
 license: Apache-2.0
 ---
 
@@ -138,15 +132,15 @@ and Chromium (installed by `setup.sh`).
 **Setup — run once, from the project under test's root:**
 
 ```bash
-bash "$SKILL_DIR/scripts/setup.sh" .
+bash "SKILL_PATH/scripts/setup.sh" .
 ```
 
-`$SKILL_DIR` is the directory containing this SKILL.md. `setup.sh` installs
+`SKILL_PATH` is the directory containing this SKILL.md. `setup.sh` installs
 `playwright` as a devDependency of the project under test and downloads
 Chromium. It is idempotent. (Windows agents: run the two commands it contains
 instead — `npm i -D playwright` and `npx playwright install chromium`.)
 
-**API (`$SKILL_DIR/scripts/lib.mjs`):**
+**API (`SKILL_PATH/scripts/lib.mjs`):**
 
 | Export | Purpose |
 |--------|---------|
@@ -161,11 +155,11 @@ instead — `npm i -D playwright` and `npx playwright install chromium`.)
 
 **One-shot script pattern** — write a small script per test point into the
 project under test (e.g. `web-tester-scratch/`, gitignored), run it with node,
-then read the screenshots it produced. See `$SKILL_DIR/examples/`:
+then read the screenshots it produced. See `SKILL_PATH/examples/`:
 `example-mobile-tap.mjs`, `example-canvas-swipe.mjs`.
 
 ```js
-import { createSession, tap, saveShot, closeSession } from "$SKILL_DIR/scripts/lib.mjs";
+import { createSession, tap, saveShot, closeSession } from "SKILL_PATH/scripts/lib.mjs";
 
 const session = await createSession("http://localhost:5173", { device: "iphone-14" });
 await saveShot(session, "01-initial");

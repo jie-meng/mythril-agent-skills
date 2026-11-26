@@ -18,6 +18,25 @@ The renderer draws:
 
 The screen is wrapped in an **outer colored card** whose color comes from `screen.state` (`default` / `loading` / `success` / `error` / `warning`). The card sits on the canvas and is the unit the user pans / zooms / drags arrows to.
 
+## Contents
+
+- The zone model — every screen has 3 zones
+- Layout containers
+- Composition primitives
+- Common element fields
+- Element catalog
+- Device chrome (machine bezel)
+- Icon glyphs
+- Anchor model for arrows
+- Authoring tips
+- Device-aware modeling
+- End-to-end example A: an ATM PIN screen (numeric keypad)
+- End-to-end example B: an ATM main menu (chrome + side-key-rail + hardware)
+- End-to-end example C: a mobile dashboard (zone model + sections + stat tiles)
+- End-to-end example D: an order confirmation (zone + key-value + footer-bar)
+- Composition recipes (use these before falling back to raw stacks)
+- Density and rhythm guidelines
+
 ## The zone model — every screen has 3 zones
 
 Real screens almost always decompose into:

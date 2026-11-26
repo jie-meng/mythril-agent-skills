@@ -1,21 +1,12 @@
 ---
 name: fullstack-brief
-description: |
-  Export the complete context of a multi-repo fullstack workspace, a single
-  repo, or any user-specified directory into ONE self-contained, AI-optimized
-  Markdown brief. Purpose: paste it into a web AI (ChatGPT, Claude.ai, Gemini)
-  and continue architecture/design discussions without the local CLI agent,
-  saving local tokens. Pure text: no local file or image references (paths
-  appear as inline code text), mermaid diagrams and internet links allowed.
-  Modes: workspace (writes into the docs repo docs directory), single-repo
-  (writes into the repo docs directory), or explicit — when the user names
-  a directory or subject, the user's instruction wins over auto-detection.
-  Destination path and filename MUST be confirmed with the user before
-  writing. Includes mandatory secret-redaction rules.
-  Trigger: "fullstack brief", "context brief", "context handoff",
-  "export context", "generate context doc", "brief me on this codebase",
-  "导出上下文", "上下文简报", "生成简报", "上下文交接", "项目简报",
-  "喂给网页AI", "网页AI上下文".
+description: >
+  Exports a multi-repo fullstack workspace, a single repo, or a user-named
+  directory into ONE self-contained Markdown brief to paste into a web AI
+  (ChatGPT, Claude.ai, Gemini) and continue design discussions there. Pure
+  text with mermaid and web links, secrets redacted; the destination path is
+  confirmed with the user before writing. Triggers: "fullstack brief",
+  "context brief", "export context", "导出上下文", "上下文简报", "生成简报", "喂给网页AI".
 license: Apache-2.0
 ---
 
@@ -93,7 +84,7 @@ auto-detection override the user's instruction:
   default workspace.
 - **Default — no explicit scope** → run the auto-detection below.
 
-### Auto-detection (MANDATORY SCRIPT CALL)
+### Auto-detection (script call)
 
 Run `detect_scope.py` from this skill's bundled `scripts/` directory:
 
@@ -124,7 +115,7 @@ Decision logic:
   the user: run this skill on a git repo, or at a workspace root initialized
   by `fullstack-init`.
 
-### Announce the Scope contract (MANDATORY OUTPUT)
+### Announce the Scope contract
 
 After detection, output EXACTLY this line before continuing:
 
@@ -136,7 +127,7 @@ Use English regardless of conversation language — machine-readable marker.
 
 ## Language Selection
 
-The brief's language MUST match the language of the user's prompt:
+The brief's language matches the language of the user's prompt:
 
 1. If the user **explicitly requests a language** → use that language.
 2. If the user's prompt contains **any Chinese characters** → Chinese.
@@ -276,7 +267,7 @@ What the user plans to discuss (if stated). Empty if none.
   `python3 SKILL_PATH/scripts/mermaid_lint.py <draft.md>` — fix all errors.
 - Keep diagrams under ~30 nodes; prefer several small diagrams over one giant.
 
-## Step 3 — Confirm Destination & Write (MANDATORY USER CONFIRMATION)
+## Step 3 — Confirm Destination & Write (user confirms first)
 
 Propose the destination BEFORE writing anything:
 

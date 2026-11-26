@@ -1,20 +1,13 @@
 ---
 name: fullstack-issue-archive
-description: |
-  Close a workspace issue by moving its directory into `issues/archive/` —
-  the directory location is the issue's state, exactly like work items.
-  Four close modes: `proposed` (became a work item), `resolved` (fixed
-  directly, no work item needed), `wontfix`, `merged`. Trigger:
-  "archive issue", "close issue", "归档 issue", "关闭 issue",
-  "issue 归档", "把 issue 关掉", "问题修好了，归档 issue",
-  "close the issue", "issue 处理完了", or any path under the docs
-  repo's `issues/` directory. NOT for work items — a directory under
-  `changes/{feat,refactor,fix}/` belongs to `fullstack-archive`;
-  GitHub / GitLab / Jira issues belong to `gh-operations` or `jira`.
-  When the user says only "archive it", list active work items and
-  active issues, then ask which one before acting. Closing must be
-  evidence-backed: an unresolved issue stays active or is closed as
-  `wontfix`, never relabelled `resolved`.
+description: >
+  Closes a workspace issue by moving it into issues/archive/ with a close
+  mode: proposed (became a work item), resolved (fixed directly), wontfix, or
+  merged. Closing needs evidence — an unfixed issue is never labelled
+  resolved. Triggers: "archive issue", "close issue", "归档 issue", "关闭 issue",
+  or a path under issues/. NOT for work items under changes/
+  (fullstack-archive) or GitHub/Jira issues (gh-operations, jira); on a bare
+  "archive it", list both kinds and ask.
 license: Apache-2.0
 ---
 
@@ -36,10 +29,10 @@ close, and nothing under `issues/` is ever deleted.
 This is the closing half of the issue lifecycle. Recording and updating
 an active issue belongs to `fullstack-issue-create`.
 
-## Prerequisites — Workspace Validation Gate (MANDATORY SCRIPT CALL)
+## Prerequisites — Workspace Validation Gate
 
-This skill MUST NOT proceed past this gate. Run `check_workspace.py`
-and inspect its output.
+Do not proceed until this gate passes: run `check_workspace.py` and
+inspect its output. Later steps need the docs dir it reports.
 
 ```bash
 python3 SKILL_PATH/scripts/check_workspace.py
@@ -58,7 +51,7 @@ to it.
 
 ## Language Selection
 
-Closing messages, the final report, and other user-facing messages MUST
+Closing messages, the final report, and other user-facing messages should
 match the language of the user's prompt.
 
 1. If the user **explicitly requests a language** → use that language.
@@ -143,7 +136,7 @@ the issue record:
   after the commit lands. A commit alone is not proof the symptom is
   gone — Step 4a still requires verification.
 
-## Step 4 — Verify Closure and Integrity (MANDATORY, BLOCKING)
+## Step 4 — Verify Closure and Integrity (blocking)
 
 ### 4a — Closure verification gate
 
@@ -206,7 +199,7 @@ Report deficiencies in the final summary. Once 4a passes, the close
 proceeds regardless of 4b deficiencies — except for a missing README or
 an existing 闭环, which are hard stops.
 
-## Step 5 — Close (order of operations is MANDATORY — move first, then write)
+## Step 5 — Close (move first, then write)
 
 1. **Move the issue directory into the archive** — the directory name
    does not change. First verify `<docs-dir>/issues/archive/<name>/`

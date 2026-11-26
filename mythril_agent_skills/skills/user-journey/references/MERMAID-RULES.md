@@ -11,6 +11,12 @@ bundled copy diverges from the canonical source.
 
 # Mermaid 10.2.3 Compatibility Rules
 
+**Contents:** [Why "10.2.3"?](#why-1023) · [The rules](#the-rules) ·
+[Quick reference — when to quote](#quick-reference--when-to-quote) ·
+[Programmatic label escape](#programmatic-label-escape) ·
+[Mermaid Compatibility Gate](#mermaid-compatibility-gate) ·
+[Locating the linter across AI tools](#locating-the-linter-across-ai-tools)
+
 This is the **single source of truth** for mermaid diagram rules across
 all skills in `mythril-agent-skills`. The companion linter is
 `mermaid_lint.py` in the same directory. Every rule below maps to a

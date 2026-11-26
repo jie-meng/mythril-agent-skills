@@ -3,6 +3,15 @@
 > **Official docs**: https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/
 > **OpenAPI spec**: https://dac-static.atlassian.com/cloud/jira/platform/swagger-v3.v3.json
 
+## Contents
+
+- [Core Endpoints](#core-endpoints)
+- [Agile REST API (Sprints & Boards)](#agile-rest-api-sprints--boards)
+- [Atlassian Document Format (ADF)](#atlassian-document-format-adf)
+- [Rate Limits](#rate-limits)
+- [Error Response Format](#error-response-format)
+
+
 Base URL: `https://yoursite.atlassian.net/rest/api/3`
 
 **Authentication** (Basic auth for scripts and bots):

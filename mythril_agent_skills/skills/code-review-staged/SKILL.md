@@ -1,20 +1,18 @@
 ---
 name: code-review-staged
-description: |
-  Context-aware code review for git STAGED changes (git diff --cached).
-  Triggers when user mentions "暂存" (staged) with any review verb: 审查/评审/看/检查.
-  Examples: '审查暂存', '评审暂存', '看看暂存', '看一下暂存', '检查暂存', '暂存区审查',
-  '看一下暂存代码', '看看暂存的代码', '审查暂存代码', '检查暂存代码'.
-  English triggers: 'review staged', 'staged code review', 'check staged', 'look at staged',
-  'look at staged code', 'review staged code'.
-  Reads related files to validate changes in context. Auto-generates commit message.
-  ONLY reviews staged changes, NOT unstaged or all changes.
+description: >
+  Reviews git staged changes (git diff --cached) in the context of the
+  surrounding repo code and suggests a commit message derived from the branch
+  name. Use when the user pairs "暂存" with a review verb — "审查暂存",
+  "看看暂存", "检查暂存区" — or says "review staged", "check staged changes".
+  Covers only staged changes, not unstaged work; for GitHub PRs use
+  github-code-review-pr, for two branches use branch-diff-review.
 license: Apache-2.0
 ---
 
 # When to Use This Skill
 
-**ALWAYS invoke this skill when user wants to review STAGED git changes:**
+Use this skill when the user wants their **staged** git changes reviewed:
 
 Chinese (关键词"暂存" + 动词: 审查/评审/看/检查):
 - "审查暂存" / "审查暂存区" / "审查暂存的代码" / "暂存区审查" / "暂存区代码审查"
@@ -26,8 +24,8 @@ English:
 - "review staged" / "review staged changes" / "staged code review" / "staged CR"
 - "check staged" / "look at staged" / "review cached changes"
 
-**This skill is specifically for STAGED changes (git diff --cached).**
-For remote GitHub PRs, use `github-code-review-pr` instead.
+It reviews only staged changes (`git diff --cached`). For remote GitHub PRs,
+use `github-code-review-pr`; for comparing two branches, `branch-diff-review`.
 
 # Requirements
 
@@ -195,7 +193,7 @@ Structure the review into these sections:
 #### 5. Recommended Commit Message
 - **Strictly follow [`references/commit-format.md`](references/commit-format.md)** — it is the single source of truth
 - English, single line, max 72 characters, subject in imperative mood
-- Scope MUST be auto-derived from the branch name; **NEVER use the repo name as scope**
+- Derive the scope from the branch name, never from the repo name (the repo name carries no information inside its own history)
 - Quick rules (full rules in commit-format.md):
   - Branch `<type>/<JIRA>/<Title>` → scope = JIRA key (e.g. `feat[XYZ-190]: add export endpoint`)
   - Branch `<type>/<Title>` with title ≤ 30 chars → scope = lowercase-hyphenated title

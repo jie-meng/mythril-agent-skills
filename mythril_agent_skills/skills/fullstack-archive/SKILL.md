@@ -1,20 +1,13 @@
 ---
 name: fullstack-archive
-description: |
-  Archive a completed work item by moving its directory into the archive
-  with a date and type prefix. Marks the work item as done: the lifecycle
-  state of a work item is its directory location — under changes/type/
-  it is active, under changes/archive/YYYY-MM-DD-type-name/ it is
-  archived. Trigger: "fullstack archive", "archive it", "归档",
-  "做完了", "ship it", "结了", "merged", "已完成", "收尾". Use when the
-  user says a feature, fix, or refactor is done, shipped, merged, or
-  finished and should be moved out of the active listing. NOT for
-  workspace issues — a directory under issues/ is closed by
-  fullstack-issue-archive; when the user says only "archive it", list
-  active work items and active issues, then ask which one. Refuses to
-  archive unfinished work: failing Success Criteria or a NEEDS_FIXES
-  review verdict must be resolved, or explicitly overridden and recorded
-  in progress.md.
+description: >
+  Archives a finished work item by moving its directory from changes/TYPE/ to
+  changes/archive/YYYY-MM-DD-TYPE-NAME/ — the directory location is its
+  lifecycle state. Refuses unfinished work (failing Success Criteria or a
+  NEEDS_FIXES verdict) unless an override is recorded in progress.md.
+  Triggers: "fullstack archive", "archive it", "归档", "做完了", "ship it",
+  "merged", "收尾". NOT for workspace issues: issues/ belongs to
+  fullstack-issue-archive; on a bare "archive it", list both and ask.
 license: Apache-2.0
 ---
 
@@ -36,10 +29,10 @@ A work item's lifecycle state is its directory location:
 There is no `Status` field to update. Archiving IS the status change.
 After archiving, the work item is closed for good — no further edits.
 
-## Prerequisites — Workspace Validation Gate (MANDATORY SCRIPT CALL)
+## Prerequisites — Workspace Validation Gate
 
-This skill MUST NOT proceed past this gate. Run `check_workspace.py`
-and inspect its output.
+Do not proceed until this gate passes: run `check_workspace.py` and
+inspect its output. Later steps need the docs dir it reports.
 
 ```bash
 python3 SKILL_PATH/scripts/check_workspace.py
@@ -57,7 +50,7 @@ Record `DOCS_DIR` for the archive path.
 
 ## Language Selection
 
-The archive report, changelog entry text, and user-facing messages MUST
+The archive report, changelog entry text, and user-facing messages should
 match the language of the user's prompt.
 
 1. If the user **explicitly requests a language** → use that language.
@@ -111,7 +104,7 @@ Then identify the work item:
 Confirm the type (feat / refactor / fix) — it comes from the parent
 directory name.
 
-## Step 2 — Verify Done State and Check Integrity (MANDATORY)
+## Step 2 — Verify Done State and Check Integrity
 
 ### 2a — Done gate (BLOCKING)
 

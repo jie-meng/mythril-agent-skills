@@ -28,6 +28,29 @@ WARNING: <message>
 INFO:    <message>
 ```
 
+## Contents
+
+- The rules
+  - Rule 1 — Screen `id` must be unique
+  - Rule 2 — Every `arrow.to` must resolve
+  - Rule 3 — Every `arrow.from` must resolve
+  - Rule 4 — `step.screen_refs[]` must resolve
+  - Rule 5 — Orphan screen (warning)
+  - Rule 6 — Dead-end non-terminal screen (info)
+  - Rule 7 — At most one `is_default: true` arrow per source screen (error)
+  - Rule 8 — Interactive elements should have `id` (warning)
+  - Rule 9 — Device-aware modeling (warning)
+  - Rule 10 — Screen-count floor (warning / strict error)
+  - Rule 11 — Design-pattern sense (warnings)
+  - Rule 12 — Arrow bundle-spam (warning)
+- Common workflows
+  - Wiring up a new screen
+  - Renaming a screen
+  - Reusing a screen across stages
+  - Modeling error paths
+  - Modeling timeouts
+- What this validator does NOT check
+
 ## The rules
 
 ### Rule 1 — Screen `id` must be unique

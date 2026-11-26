@@ -1,15 +1,11 @@
 ---
 name: glm-vision-fallback
-description: |
-  Vision fallback for AI models that CANNOT process images. Use ONLY after the
-  current model fails to see a user-provided image — e.g. it says "当前模型不支持
-  图片输入", "无法识别图片", "无法查看这张截图", "模型不支持图片", "不支持图片",
-  "I cannot view images", "model does not support image input", "cannot see
-  image", or otherwise admits it cannot read the image. In that case, use this
-  skill to analyze the image via the free GLM-4.6V-Flash API (strong OCR /
-  text extraction) and relay the result to the user. NEVER use this skill when
-  the current model CAN see the image — it is strictly a last-resort fallback
-  for image recognition failures.
+description: >
+  Analyzes images via the free GLM-4.6V-Flash API (strong OCR) as a last-resort
+  fallback for models that cannot read images. Use only after the current model
+  has failed to see a user-provided image — e.g. it said "I cannot view images",
+  "model does not support image input", "当前模型不支持图片输入", or
+  "无法识别图片". Never use it when the current model can see the image.
 license: Apache-2.0
 ---
 
@@ -20,7 +16,7 @@ main model cannot process image input at all (e.g. text-only models like some
 DeepSeek variants). The normal path is always the main model looking at the
 image itself.
 
-**Use this skill ONLY when the current model has already failed to see the image**, for example when it states:
+**Use this skill only when the current model has already failed to see the image** (a model that can see it gives a better answer directly), for example when it states:
 
 - 当前模型不支持图片输入 / 模型不支持图片 / 无法识别图片
 - 无法查看这张截图 / 我看不到图片 / 无法查看图片
@@ -78,25 +74,25 @@ Requires only Python 3.10+ standard library (no pip dependencies, no third-party
 
 ```bash
 # Basic: describe the image
-python3 scripts/vision_fallback.py ~/Downloads/screenshot.png
+python3 SKILL_PATH/scripts/vision_fallback.py ~/Downloads/screenshot.png
 
 # With a specific question (answer follows the question's language)
-python3 scripts/vision_fallback.py ~/Downloads/screenshot.png -q "截图里显示什么错误信息？请用中文回答"
+python3 SKILL_PATH/scripts/vision_fallback.py ~/Downloads/screenshot.png -q "截图里显示什么错误信息？请用中文回答"
 
 # Verbatim text extraction (dense content, OCR-heavy): deterministic, no summarization
-python3 scripts/vision_fallback.py ~/Downloads/ppt.png -q "逐字提取所有模块的文字" --strict
+python3 SKILL_PATH/scripts/vision_fallback.py ~/Downloads/ppt.png -q "逐字提取所有模块的文字" --strict
 
 # Multiple images at once
-python3 scripts/vision_fallback.py shot1.png shot2.png -q "这两张图有什么区别？"
+python3 SKILL_PATH/scripts/vision_fallback.py shot1.png shot2.png -q "这两张图有什么区别？"
 
 # Remote image URL (http/https)
-python3 scripts/vision_fallback.py "https://example.com/chart.png" -q "这个图表在讲什么？"
+python3 SKILL_PATH/scripts/vision_fallback.py "https://example.com/chart.png" -q "这个图表在讲什么？"
 
 # Switch to another GLM vision model
-python3 scripts/vision_fallback.py screenshot.png --model glm-4.1v-thinking-flash
+python3 SKILL_PATH/scripts/vision_fallback.py screenshot.png --model glm-4.1v-thinking-flash
 
 # Save the answer to a file instead of stdout
-python3 scripts/vision_fallback.py screenshot.png -o answer.md
+python3 SKILL_PATH/scripts/vision_fallback.py screenshot.png -o answer.md
 ```
 
 | Flag | Default | Description |

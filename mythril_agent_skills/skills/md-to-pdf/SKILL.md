@@ -1,15 +1,11 @@
 ---
 name: md-to-pdf
 description: >
-  Convert Markdown files to PDF via a bundled Python script. Supports custom
-  CSS styling, table of contents generation, paper size selection, and
-  landscape orientation. Trigger whenever the user asks to convert, export,
-  or render a Markdown file as PDF, or says phrases like "markdown to pdf",
-  "md to pdf", "convert md to pdf", "export markdown as pdf", "render
-  markdown to pdf", "generate pdf from markdown", "markdown 转 pdf",
-  "md 转 pdf", "把 markdown 转成 pdf", "导出 pdf", "markdown 导出 pdf",
-  "md 导出", "生成 pdf". Also trigger when the user mentions a .md file
-  and wants a PDF version of it.
+  Converts Markdown files to PDF via a bundled Python script, with optional
+  custom CSS, table of contents, paper size, and landscape orientation. Use when
+  the user wants a PDF version of a .md file, e.g. "markdown to pdf", "md to
+  pdf", "export markdown as pdf", "markdown 转 pdf", "md 转 pdf", "markdown 导出
+  pdf".
 license: Apache-2.0
 ---
 
@@ -50,10 +46,10 @@ pip install markdown-pdf
 All commands use:
 
 ```bash
-python3 scripts/md_to_pdf.py [options] <input.md>
+python3 SKILL_PATH/scripts/md_to_pdf.py [options] <input.md>
 ```
 
-The script path is relative to this skill directory.
+`SKILL_PATH` is this skill's installed directory (the folder containing this SKILL.md).
 
 # Command Reference
 
@@ -61,30 +57,30 @@ The script path is relative to this skill directory.
 
 ```bash
 # Convert to PDF (output next to input: README.md -> README.pdf)
-python3 scripts/md_to_pdf.py document.md
+python3 SKILL_PATH/scripts/md_to_pdf.py document.md
 
 # Specify output path
-python3 scripts/md_to_pdf.py document.md -o /path/to/output.pdf
+python3 SKILL_PATH/scripts/md_to_pdf.py document.md -o /path/to/output.pdf
 ```
 
 ## Table of contents
 
 ```bash
 # Generate TOC from h1-h2 headings (default: no TOC)
-python3 scripts/md_to_pdf.py document.md --toc 2
+python3 SKILL_PATH/scripts/md_to_pdf.py document.md --toc 2
 
 # TOC from h1-h3
-python3 scripts/md_to_pdf.py document.md --toc 3
+python3 SKILL_PATH/scripts/md_to_pdf.py document.md --toc 3
 ```
 
 ## Paper size and orientation
 
 ```bash
 # Use Letter paper
-python3 scripts/md_to_pdf.py document.md --paper-size Letter
+python3 SKILL_PATH/scripts/md_to_pdf.py document.md --paper-size Letter
 
 # A4 landscape
-python3 scripts/md_to_pdf.py document.md --paper-size A4-L
+python3 SKILL_PATH/scripts/md_to_pdf.py document.md --paper-size A4-L
 ```
 
 Supported sizes: A3, A4, A5, A6, B4, B5, Letter, Legal (append `-L` for landscape).
@@ -93,26 +89,26 @@ Supported sizes: A3, A4, A5, A6, B4, B5, Letter, Legal (append `-L` for landscap
 
 ```bash
 # Apply custom CSS file
-python3 scripts/md_to_pdf.py document.md --css style.css
+python3 SKILL_PATH/scripts/md_to_pdf.py document.md --css style.css
 ```
 
 ## PDF metadata
 
 ```bash
 # Set title and author
-python3 scripts/md_to_pdf.py document.md --title "User Guide" --author "Jane Doe"
+python3 SKILL_PATH/scripts/md_to_pdf.py document.md --title "User Guide" --author "Jane Doe"
 ```
 
 ## Optimize file size
 
 ```bash
-python3 scripts/md_to_pdf.py document.md --optimize
+python3 SKILL_PATH/scripts/md_to_pdf.py document.md --optimize
 ```
 
 ## Combining options
 
 ```bash
-python3 scripts/md_to_pdf.py README.md \
+python3 SKILL_PATH/scripts/md_to_pdf.py README.md \
   -o guide.pdf \
   --toc 2 \
   --paper-size A4 \

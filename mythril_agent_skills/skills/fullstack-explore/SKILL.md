@@ -1,20 +1,13 @@
 ---
 name: fullstack-explore
-description: |
-  Read-only knowledge exploration across a multi-repo fullstack workspace
-  — answer architecture questions, locate implementations, explain
-  cross-repo relationships, and recommend next steps. No branches, no
-  commits, no file modifications. Information is gathered in order of
-  token efficiency: workspace documents (human summaries) → graphify
-  knowledge graphs (structured queries) → direct file reading (raw code).
-  Trigger: "fullstack explore", "fullstack query", "全栈探索",
-  "全栈查询", "工作区查询", "workspace query"; ALSO when the user asks
-  discovery questions inside a fullstack workspace — "what does this
-  workspace do", "这个工作区是做什么的", "which repo handles X",
-  "哪个仓库负责X", "explain the architecture", "讲解架构",
-  "where is the code for Y", "Y的代码在哪里", "how does X work
-  across repos", "which repos are involved in Z", "Z涉及哪些仓库",
-  "告诉我这个项目的结构", "这个项目的技术栈是什么".
+description: >
+  Answers questions about a multi-repo fullstack workspace read-only:
+  architecture, where code lives, cross-repo relationships, suggested next
+  steps. No branches, commits, or edits. Reads workspace docs first, then
+  graphify graphs, then source. Triggers: "fullstack explore", "全栈探索",
+  "workspace query"; also discovery questions inside a fullstack workspace —
+  "which repo handles X", "哪个仓库负责X", "explain the architecture", "讲解架构",
+  "Y的代码在哪里", "这个项目的技术栈是什么".
 license: Apache-2.0
 ---
 
@@ -47,7 +40,9 @@ it; when they disagree, the source wins and the answer says so.
 
 `SKILL_PATH` is this skill's installed directory.
 
-## Workspace Validation Gate (MANDATORY SCRIPT CALL)
+## Workspace Validation Gate
+
+Run this before anything else — every later step reads `DOCS_DIR` and `GITHUB_REPOS` from its output, and a manual file check cannot supply them.
 
 ```bash
 python3 SKILL_PATH/scripts/check_workspace.py
@@ -77,7 +72,7 @@ Read the workspace `AGENTS.md`: the repos table (names, roles, stacks —
 the authoritative repo list), Workspace Conventions, and the
 *Docs-Code Lockstep* section's reverse-lookup command.
 
-## Step 3 — Documents First (MANDATORY)
+## Step 3 — Documents First
 
 Before touching a repo, look for prior work on the topic. Documents are
 navigation, not the answer.
@@ -126,7 +121,7 @@ Finish the protocol for one repo before the next:
    and follow it. Skip the rest.
 2. **Graph check** — `python3 SKILL_PATH/scripts/graphify_check.py <repo>`
    (a direct filesystem check — never Glob, which honours `.gitignore`).
-   - `EXISTS` → the graph path is MANDATORY before any grep or source read:
+   - `EXISTS` → use the graph before any grep or source read (it is cheaper and covers cross-file links):
      follow `references/graphify-queries.md`.
    - `NOT_FOUND` → read the repo's `AGENTS.md` and `README.md`, then grep
      and read from config files, entry points, and topic keywords —

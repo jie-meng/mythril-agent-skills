@@ -116,7 +116,7 @@ function loadPlaywright() {
   } catch (err) {
     throw new Error(
       "playwright is not resolvable from the current directory. Run `bash " +
-        "$SKILL_DIR/scripts/setup.sh .` from the project under test's root " +
+        "SKILL_PATH/scripts/setup.sh .` from the project under test's root " +
         "(see SKILL.md — Bundled Toolbox), then re-run node from that root.",
       { cause: err },
     );

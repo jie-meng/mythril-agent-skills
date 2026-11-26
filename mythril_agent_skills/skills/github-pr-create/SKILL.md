@@ -1,32 +1,25 @@
 ---
 name: github-pr-create
 description: >
-  Create GitHub Pull Requests via `gh` CLI. Trigger when user asks to create,
-  submit, or open a PR/pull request, or says phrases like "create PR",
-  "提PR", "创建PR", "开PR", "提交PR", "submit PR", "open PR", "gh pr create",
-  "发PR", "create pull request", "帮我提个PR", "PR提一下", "push and create PR".
-  ZERO-SPECULATION RULE: Do NOT analyze the hostname — git.x.com, code.z.au
-  are all potentially GitHub Enterprise. Just run `gh` and let it succeed or
-  fail. Supports PR templates, auto-detecting the main branch, and filling
-  template content from code changes.
+  Creates GitHub Pull Requests with the `gh` CLI: pushes the branch if needed,
+  fills the repo's PR template from the actual changes, and derives a
+  conventional title from the branch name. Use when the user says "create PR",
+  "open PR", "提PR", "创建PR", "帮我提个PR", or "push and create PR". Unknown hosts
+  may be GitHub Enterprise, so run `gh` rather than guessing the platform. For
+  reviewing PRs use github-code-review-pr; for viewing/listing, gh-operations.
 license: Apache-2.0
 ---
 
 # When to Use This Skill
 
-## ZERO-SPECULATION RULE (read this FIRST)
+## Don't guess the platform from the hostname
 
-**Once this skill is triggered, do NOT spend ANY tokens analyzing the hostname, guessing the platform, or debating whether `gh` will work.** The correct behavior is:
+Hosts like `git.company.com` are very often GitHub Enterprise. Guessing ("this
+looks like GitLab", "gh won't work with this host") is usually wrong and wastes
+tokens, while running `gh` settles it in one call. So once triggered:
 
-1. User wants to create a PR → skill is triggered
-2. Run `gh` commands → let `gh` succeed or fail
-3. If `gh` fails → report the error and suggest `gh auth login --hostname <host>`
-
-**WRONG behavior (NEVER do this):**
-- "This appears to be a self-hosted GitLab instance" — WRONG, you don't know that
-- "git.company.com looks like GitLab" — WRONG, it could be GitHub Enterprise
-- "gh CLI won't work with this host" — WRONG, you haven't tried yet
-- Any reasoning about whether the host is GitHub, GitLab, Bitbucket, etc. — WRONG
+1. Run the `gh` commands below and let `gh` succeed or fail.
+2. If `gh` fails, report the error and suggest `gh auth login --hostname <host>`.
 
 ## Trigger conditions
 
@@ -39,7 +32,7 @@ Trigger this skill when the user wants to **create a Pull Request**:
 - "push and create PR" / "push + PR"
 - "create PR to main" / "create PR from this branch"
 
-**NOT a trigger** (do NOT invoke this skill):
+**Not this skill:**
 - User asks to "review a PR" — use `github-code-review-pr`
 - User asks to "view PR" or "list PRs" — use `gh-operations`
 - User asks for local git operations — use plain `git`
@@ -69,7 +62,7 @@ Trigger this skill when the user wants to **create a Pull Request**:
 
 ### 1a. Verify current branch is NOT the main/default branch
 
-**This is a hard blocker — do NOT proceed if the user is on the default branch.**
+A PR from the default branch into itself is meaningless and pushing there could publish unreviewed commits, so this check blocks the rest of the flow.
 
 ```bash
 # Detect default branch
@@ -138,15 +131,18 @@ Use this to understand the actual code changes for filling in the PR template.
 
 ## Step 3: Detect and Load PR Template
 
-### MANDATORY: Use the bundled template detection script
+### Detect with the bundled script
+
+`SKILL_PATH` is this skill's installed directory. The script handles the
+multi-template directory case and encodes content safely, so prefer it over
+checking paths by hand:
 
 ```bash
-python3 scripts/detect_pr_template.py
+python3 SKILL_PATH/scripts/detect_pr_template.py
 ```
 
-**How to locate the script:**
-
-Check these fixed paths in order. Use the first one that exists:
+If `SKILL_PATH` cannot be resolved, check these fixed install paths in order and
+use the first that exists (no recursive search of `~`):
 
 ```python
 import pathlib, subprocess, sys
@@ -197,23 +193,21 @@ done
 
 ### 4a. Generate PR title
 
-The PR title MUST follow the same format as commit messages — see
-[`code-review-staged/references/commit-format.md`](../code-review-staged/references/commit-format.md)
-for the canonical rules. This keeps PR titles and commit messages
-consistent across the codebase.
-
-Quick summary (full rules in `commit-format.md`):
+The PR title follows the same format as commit messages, so PR titles and
+commit messages stay consistent. The full rules are in
+[`references/commit-format.md`](references/commit-format.md) (shared with
+`code-review-staged`); read it for long-title compression details. Summary:
 
 - Format: `<type>[scope]: <subject>` — single line, max 72 characters
 - `<type>` from branch prefix: `feat/` → `feat`, `fix/` → `fix`, etc.
 - `[scope]` auto-derived from branch name:
   - `<type>/<JIRA>/<Title>` → scope = JIRA key (e.g. `feat[XYZ-123]: add export endpoint`)
   - `<type>/<Title>` with title ≤ 30 chars → scope = lowercase-hyphenated title
-  - `<type>/<Title>` with title > 30 chars → apply long-title compression (see commit-format.md)
+  - `<type>/<Title>` with title > 30 chars → compress: drop filler verbs/connectives (add, update, the, for, with…), keep the first 2–3 meaningful words, aim for ≤ 30 chars, keep any `-vN`
   - `-iter-N` is stripped from scope; `-vN` is kept
   - Bare branches (master/main/dev) → no scope, use `type: subject`
 - `<subject>`: imperative mood, lowercase first letter, no period, English
-- **NEVER use the repo name as scope** — repo identity is already in the PR metadata
+- Never use the repo name as scope — repo identity is already in the PR metadata
 
 When the PR has multiple commits, use the same scope (derived from
 the branch name) and write a subject that summarizes the whole PR's
@@ -230,7 +224,7 @@ Examples:
 
 **If a PR template was found (Step 3):**
 
-Fill the template with information from the code changes. Follow these rules strictly:
+Fill the template with information from the code changes:
 
 1. **Sections you CAN fill automatically** — fill them based on the diff and commit messages:
    - Summary / Description / What — describe what the PR does based on actual code changes
@@ -238,7 +232,7 @@ Fill the template with information from the code changes. Follow these rules str
    - Type of change — check the appropriate checkbox based on the nature of changes (bug fix, feature, refactor, etc.)
    - Testing / How to test — describe what was tested if evident from the diff (e.g., new test files added)
 
-2. **Sections you MUST NOT modify unless you have the information:**
+2. **Sections to leave alone unless you actually have the information** (a wrong link or invented test claim is worse than a placeholder):
    - Screenshots / Screen recordings — leave as-is (AI cannot capture screenshots)
    - Jira ticket / Issue link — only fill if the user provided it, or if the branch name contains a ticket ID (e.g., `feat/XYZ-123/...`)
    - Tech doc / Design doc links — only fill if the user provided them
@@ -309,21 +303,21 @@ On failure, report the error and suggest fixes:
 
 # Error Handling
 
-- **Host handling rule (MANDATORY)**: Never pre-stop or branch based on host/domain text. Always run `gh` commands directly.
+- **Host handling**: don't stop or branch on host/domain text — run `gh` directly and act on its result.
 - **`gh` host/auth error on unknown domain**: Tell the user:
   1. This host might be GitHub Enterprise — run `gh auth login --hostname <host>` to authenticate
   2. If it's not GitHub at all, this skill only supports GitHub (including GHE)
-  - **Do NOT assume the host is "GitLab" or any other platform.**
+  - Don't label the host "GitLab" or any other platform.
 - **On default branch**: Report clearly that PRs cannot be created from the default branch.
 - **No remote**: Suggest `git remote add origin <url>` or verify the remote is set up.
 - **Merge conflicts with base**: Warn the user about potential conflicts but still create the PR. GitHub will show conflict status.
-- **Auth failure — ONLY allowed recovery steps**:
+- **Auth failure — allowed recovery steps only**:
   1. Report the `gh` error message to the user
   2. Suggest `gh auth login --hostname <host>`
   3. Suggest `gh auth status --hostname <host>` to check current auth state
   4. Stop and wait for the user to fix auth
 
-  **FORBIDDEN recovery attempts** (violate Security rules): Do NOT search for credentials in macOS Keychain, git credential stores, `.netrc`, or any other credential storage.
+  Searching the macOS Keychain, git credential stores, `.netrc`, or any other credential storage violates the Security rules above.
 
 # Examples
 
@@ -350,4 +344,4 @@ On failure, report the error and suggest fixes:
 ### Example 5: GitHub Enterprise
 **User input**: "帮我在 git.mycompany.com 提个PR"
 **Action**: Run `gh pr create` directly → if auth error, suggest `gh auth login --hostname git.mycompany.com`
-**WRONG behavior**: Saying "this might not be GitHub" — NEVER do this
+**Not**: saying "this might not be GitHub" before trying `gh`.

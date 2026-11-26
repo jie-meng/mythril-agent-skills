@@ -1,21 +1,13 @@
 ---
 name: user-journey
-description: |
-  Draft and iterate user journey maps and lo-fi wireframes for product managers
-  and business analysts via natural language. Outputs a self-contained
-  workspace with synchronized JOURNEY.md (business + mermaid), journey.json
-  (structured data + screens + arrows), DESIGN.md (visual style), and a
-  dual-view HTML: Canvas (Miro-style overview, all screens on one zoom/pan
-  surface with arrows + minimap) AND Prototype (single-screen click-through
-  with hotspots, breadcrumb, sidebar nav). No build step, double-click index.html.
-  Trigger: "user journey", "journey map", "用户旅程", "用户旅程地图",
-  "wireframe", "线框图", "low-fidelity", "低保真", "product flow",
-  "客户旅程", "user flow map", "draft a journey", "画用户旅程",
-  "出一份用户旅程", "before UX hi-fi", "在 UX 出高保真之前",
-  "PM wireframe", "BA flow", "demo flow", or providing an existing
-  user-journey workspace path to continue work.
-  Also trigger when the user pastes a path to a directory containing
-  JOURNEY.md or journey.json and asks to extend, refine, or present it.
+description: >
+  Drafts and iterates user journey maps and lo-fi wireframes from natural
+  language, for product managers and business analysts. Produces a workspace
+  with JOURNEY.md (mermaid), journey.json, DESIGN.md, and a no-build HTML with
+  a zoomable Canvas of all screens plus a click-through Prototype. Triggers:
+  "user journey", "journey map", "用户旅程", "wireframe", "线框图", "低保真", "user flow
+  map", "画用户旅程", or a path to a directory with JOURNEY.md / journey.json to
+  extend or present.
 license: Apache-2.0
 ---
 
@@ -106,7 +98,7 @@ Present a single confirmation message with all inferred values + gaps marked `_(
 >
 > 回复确认，或调整任意一项。
 
-After confirmation, run the bootstrap script:
+After confirmation, run the bootstrap script. `SKILL_PATH` is this skill's installed directory (the folder holding this SKILL.md); run scripts from the user's working directory, not from inside it.
 
 ```bash
 python3 SKILL_PATH/scripts/init_workspace.py \
@@ -183,7 +175,7 @@ For each stage with digital touchpoints, design the screens **before** declaring
    - `is_default: true` on the happy-path arrow out of each screen (at most one per source)
 5. **Wire steps to screens** — set each step's `screen_refs: ["screen-id"]` in document order. This is the textual index that lives in `JOURNEY.md`.
 
-#### Arrow modeling (MANDATORY before declaring Pass C done)
+#### Arrow modeling (before declaring Pass C done)
 
 Most "messy canvas" complaints come from one of two arrow anti-patterns. Both have explicit fixes — apply them while authoring, don't wait for the validator.
 
@@ -230,7 +222,7 @@ If a hub already exists, drop any direct `terminal → main-menu` arrows that by
 - Whole-screen `from: "<screen-id>"` is fine for timeouts, auto-transitions, and loading screens. Don't invent a fake element id for them.
 - Self-loops (`pin-error → pin-entry`) are legitimate when modeling a retry — use them, don't force an extra screen.
 
-#### Composition checklist (MANDATORY before declaring Pass C done)
+#### Composition checklist (before declaring Pass C done)
 
 Every screen with non-trivial content (>4 atomic elements) must satisfy ALL of these. The validator catches the smells but the AI should self-check first.
 
@@ -253,7 +245,7 @@ Run `python3 SKILL_PATH/scripts/validate_screens.py "<workspace-path>"` after Pa
 
 The canvas auto-lays out screens in columns (one column per stage), so you usually don't need to set explicit `position`. Use `position: {x, y}` only when you want to override the default placement (e.g. "this error screen sits below the happy path screen").
 
-#### Device-aware modeling (MANDATORY when the journey has UI)
+#### Device-aware modeling (when the journey has UI)
 
 The same `button` and `stack` primitives can model a phone or a 1980s ATM — but the result only looks right if you reach for the device-specific vocabulary when the device demands it.
 
@@ -277,7 +269,7 @@ See `references/WIREFRAMES.md` "Device-aware modeling" + "End-to-end example B" 
 - Walk every screen on the canvas; check that every interactive element either has an outgoing arrow or is intentionally inert.
 - Add stickies for non-UI annotations: blockers, decisions, callouts.
 
-## Phase 3 — Sync Discipline (MANDATORY)
+## Phase 3 — Sync Discipline
 
 Four gates run after every change. All four must pass before declaring an edit done.
 

@@ -1,3 +1,11 @@
+<!--
+CANONICAL SOURCE: mythril_agent_skills/shared/commit/commit-format.md
+Bundled identical copies live under each consuming skill's references/
+directory. To update, edit the canonical source and run:
+
+    python3 scripts/sync-shared-assets.py
+-->
+
 # Commit Message & PR Title Format — Single Source of Truth
 
 This file defines the canonical commit message format used by the
@@ -10,6 +18,16 @@ The format follows [Conventional Commits](https://www.conventionalcommits.org/)
 with strict rules for how `scope` is derived from the branch name, so
 the same branch always produces the same scope across repos and
 across sessions.
+
+## Contents
+
+- [Format](#format)
+- [Type](#type)
+- [Scope derivation rules](#scope-derivation-rules) — Rules 1–5 (Jira key, title, long-title compression, bare branches, length budget)
+- [Subject rules](#subject-rules)
+- [PR title format](#pr-title-format)
+- [Cross-repo consistency (multi-repo work items)](#cross-repo-consistency-multi-repo-work-items)
+- [Anti-patterns to refuse](#anti-patterns-to-refuse)
 
 ## Format
 

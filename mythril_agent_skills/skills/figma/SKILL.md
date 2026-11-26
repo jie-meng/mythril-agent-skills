@@ -1,12 +1,11 @@
 ---
 name: figma
 description: >
-  Fetch Figma design data from a URL and inject specs (layout, colors, typography,
-  components) into context. Use when user shares a Figma link and asks to implement,
-  inspect, or code a design. Trigger on ANY message containing a figma.com URL,
-  or when the user asks about colors/spacing/fonts from a design, or says
-  "implement this design", "what does the design look like", "according to Figma",
-  "from the design file".
+  Fetches Figma design specs (layout, colors, typography, components) and
+  exports nodes as images through the Figma REST API. Use when a message contains
+  a figma.com link, or the user asks to implement, inspect, or code a design, or
+  asks about colors, spacing, or fonts in a design — e.g. "implement this
+  design", "according to Figma", "照着设计稿实现", "看下 figma".
 license: Apache-2.0
 ---
 
@@ -57,23 +56,23 @@ Node specs (`/files/:key/nodes`) and image export (`/images/:key`) are **Tier 1*
 
 ## Running the Scripts
 
-Both scripts are in `scripts/` relative to this skill directory and use only the Python standard library (3.10+). Exit codes: 0 = success, 1 = API error (or some nodes missing), 2 = bad arguments. On error, surface the printed message to the user.
+Both scripts live in this skill's `scripts/` directory and use only the Python standard library (3.10+); `SKILL_PATH` below is this skill's installed directory. Exit codes: 0 = success, 1 = API error (or some nodes missing), 2 = bad arguments. On error, surface the printed message to the user.
 
 ### Fetch design specs (figma_fetch.py) — primary
 
 ```bash
 # One node (most common — URL contains node-id)
-python3 scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name?node-id=1-2"
+python3 SKILL_PATH/scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name?node-id=1-2"
 
 # Several nodes from the same file — ONE API call
-python3 scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name?node-id=1-2" \
+python3 SKILL_PATH/scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name?node-id=1-2" \
   "https://www.figma.com/design/ABC123/Name?node-id=3-4" --ids 5-6
 
 # File overview (no node-id): metadata only, Tier 3
-python3 scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name"
+python3 SKILL_PATH/scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name"
 
 # File overview with pages and components (one Tier 1 call)
-python3 scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name" --pages
+python3 SKILL_PATH/scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name" --pages
 ```
 
 | Flag | Default | Description |
@@ -100,11 +99,11 @@ CACHE_DIR="$CACHE_ROOT/figma"
 mkdir -p "$CACHE_DIR"
 
 # One node
-python3 scripts/figma_export.py "https://www.figma.com/design/ABC123/Name?node-id=1-2" \
+python3 SKILL_PATH/scripts/figma_export.py "https://www.figma.com/design/ABC123/Name?node-id=1-2" \
   --format png --scale 2 --output "$CACHE_DIR/node_1-2.png"
 
 # Several nodes — ONE API call, named files
-python3 scripts/figma_export.py "https://www.figma.com/design/ABC123/Name?node-id=1-2" \
+python3 SKILL_PATH/scripts/figma_export.py "https://www.figma.com/design/ABC123/Name?node-id=1-2" \
   --ids 3-4,5-6 --out-dir "$CACHE_DIR" --names shelf,list,detail
 ```
 
@@ -113,7 +112,7 @@ python3 scripts/figma_export.py "https://www.figma.com/design/ABC123/Name?node-i
 $CACHE_ROOT = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "mythril-skills-cache"
 $CACHE_DIR = Join-Path $CACHE_ROOT "figma"
 New-Item -ItemType Directory -Force -Path $CACHE_DIR | Out-Null
-python3 scripts/figma_export.py "https://www.figma.com/design/ABC123/Name?node-id=1-2" `
+python3 SKILL_PATH/scripts/figma_export.py "https://www.figma.com/design/ABC123/Name?node-id=1-2" `
   --ids 3-4 --out-dir $CACHE_DIR --names shelf,list
 ```
 
@@ -152,7 +151,7 @@ When `figma_fetch.py` returns 429, attempt `figma_export.py` as a visual fallbac
 
 ### Clean up exported images
 
-**This step is MANDATORY — always execute it after you are done analyzing the image, even if errors occurred.**
+Delete each exported file once you have finished analyzing it, even if errors occurred — exports are large and the cache otherwise grows across sessions.
 
 ```bash
 rm -f "$CACHE_DIR/node_1-2.png"  # delete each specific file you exported

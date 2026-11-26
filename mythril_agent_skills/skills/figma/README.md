@@ -3,7 +3,7 @@
 Fetch design specs (layout, colors, typography, components) from a Figma URL and output structured markdown for AI-assisted code generation.
 
 **Official Figma REST API spec**: [github.com/figma/rest-api-spec](https://github.com/figma/rest-api-spec) — OpenAPI YAML + TypeScript types  
-**Full API reference**: See [`API_REFERENCE.md`](./API_REFERENCE.md) in this directory.
+**Full API reference**: See [`references/API_REFERENCE.md`](./references/API_REFERENCE.md).
 
 ## Prerequisites
 

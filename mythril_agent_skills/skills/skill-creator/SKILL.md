@@ -2,12 +2,13 @@
 name: skill-creator
 description: Create new skills and prompts for any AI platform (Claude Code, Claude.ai, OpenAI, Cursor, Windsurf, etc.), modify and improve existing ones, and measure performance. Use when users want to create a skill or system prompt from scratch for any AI tool, update or optimize an existing skill, run evals to test a skill, benchmark skill performance with variance analysis, or optimize a Claude Code skill's description for better triggering accuracy.
 license: Apache-2.0
-original-source: https://github.com/anthropics/skills/tree/main/skills/skill-creator
-original-copyright: Copyright Anthropic, PBC
-modifications: |
-  - Extended description to cover multi-platform support (Claude.ai, OpenAI, Cursor, Windsurf, etc.)
-  - Added "Temporary Files and Downloads" section for unified cache directory convention
-  - Added license field to frontmatter
+metadata:
+  original-source: https://github.com/anthropics/skills/tree/main/skills/skill-creator
+  original-copyright: Copyright Anthropic, PBC
+  modifications: |
+    - Extended description to cover multi-platform support (Claude.ai, OpenAI, Cursor, Windsurf, etc.)
+    - Added "Temporary Files and Downloads" section for unified cache directory convention
+    - Added license field to frontmatter
 ---
 
 # Skill Creator
@@ -276,9 +277,9 @@ Once all runs are done:
 
 1. **Grade each run** — spawn a grader subagent (or grade inline) that reads `agents/grader.md` and evaluates each assertion against the outputs. Save results to `grading.json` in each run directory. The grading.json expectations array must use the fields `text`, `passed`, and `evidence` (not `name`/`met`/`details` or other variants) — the viewer depends on these exact field names. For assertions that can be checked programmatically, write and run a script rather than eyeballing it — scripts are faster, more reliable, and can be reused across iterations.
 
-2. **Aggregate into benchmark** — run the aggregation script from the skill-creator directory:
+2. **Aggregate into benchmark** — run the aggregation script (`SKILL_PATH` is this skill's installed directory; `PYTHONPATH` lets `python -m scripts.*` run from any working directory):
    ```bash
-   python -m scripts.aggregate_benchmark <workspace>/iteration-N --skill-name <name>
+   PYTHONPATH=SKILL_PATH python -m scripts.aggregate_benchmark <workspace>/iteration-N --skill-name <name>
    ```
    This produces `benchmark.json` and `benchmark.md` with pass_rate, time, and tokens for each configuration, with mean ± stddev and the delta. If generating benchmark.json manually, see `references/schemas.md` for the exact schema the viewer expects.
 Put each with_skill version before its baseline counterpart.
@@ -287,7 +288,7 @@ Put each with_skill version before its baseline counterpart.
 
 4. **Launch the viewer** with both qualitative outputs and quantitative data:
    ```bash
-   nohup python <skill-creator-path>/eval-viewer/generate_review.py \
+   nohup python SKILL_PATH/eval-viewer/generate_review.py \
      <workspace>/iteration-N \
      --skill-name "my-skill" \
      --benchmark <workspace>/iteration-N/benchmark.json \
@@ -433,7 +434,7 @@ Tell the user: "This will take some time — I'll run the optimization loop in t
 Save the eval set to the workspace, then run in the background:
 
 ```bash
-python -m scripts.run_loop \
+PYTHONPATH=SKILL_PATH python -m scripts.run_loop \
   --eval-set <path-to-trigger-eval.json> \
   --skill-path <path-to-skill> \
   --model <model-id-powering-this-session> \
@@ -464,7 +465,7 @@ Take `best_description` from the JSON output and update the skill's SKILL.md fro
 Check whether you have access to the `present_files` tool. If you don't, skip this step. If you do, package the skill and present the .skill file to the user:
 
 ```bash
-python -m scripts.package_skill <path/to/skill-folder>
+PYTHONPATH=SKILL_PATH python -m scripts.package_skill <path/to/skill-folder>
 ```
 
 After packaging, direct the user to the resulting `.skill` file path so they can install it.

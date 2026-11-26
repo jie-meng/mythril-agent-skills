@@ -1,17 +1,13 @@
 ---
 name: story-point-estimate
-description: |
-  Estimate software development effort using Fibonacci story points. Triggers when user
-  asks to "estimate", "估点", "估算", "story point", "Fibonacci point", "sprint sizing",
-  "effort estimation", "需求估算", "规模估算", "t-shirt sizing", or shares/writes requirements
-  (PRD, user stories, functional specs, images, PPT, PDF, Word, Excel, screenshots) and wants
-  effort estimates. Works with any input format — text, documents, images, presentations, or
-  voice transcripts. Decomposes requirements from a Tech Lead perspective, identifying both
-  functional and non-functional needs (security, performance, monitoring, infra, SLA, compliance).
-  Assigns Fibonacci points with clear rationale — points reflect effort, complexity, and
-  uncertainty combined, NOT person-days or hours. ALWAYS asks clarifying questions when
-  requirements are ambiguous — never assumes. Outputs a structured XLSX estimation
-  workbook with auto-sum formulas, optional Markdown export on request.
+description: >
+  Estimates development effort in Fibonacci story points from any requirement
+  input — text, PRD, user stories, PDF/Word/Excel/PPT, screenshots. Decomposes
+  from a Tech Lead view covering functional and non-functional work (security,
+  performance, infra, compliance), asks clarifying questions instead of
+  assuming, and outputs an XLSX workbook with auto-sum formulas (Markdown on
+  request). Triggers: "estimate", "估点", "估算", "story point", "sprint sizing",
+  "需求估算", "t-shirt sizing".
 license: Apache-2.0
 ---
 
@@ -312,8 +308,8 @@ Key rules for buffer:
 **Always generate an XLSX workbook as the primary deliverable.** A spreadsheet enables
 the user to sort, filter, and sum estimates — far more practical than static text.
 
-Use the bundled `scripts/generate_report.py` script to produce the workbook. It accepts
-JSON data and writes all sheets with proper formatting:
+Use the bundled `generate_report.py` script to produce the workbook. It accepts JSON
+data and writes all sheets with proper formatting. `SKILL_PATH` is this skill's installed directory (the folder holding this SKILL.md); run scripts from the user's working directory, not from inside it.
 
 ```bash
 python3 SKILL_PATH/scripts/generate_report.py \
@@ -321,85 +317,14 @@ python3 SKILL_PATH/scripts/generate_report.py \
   --data estimate_data.json
 ```
 
-The script creates a workbook with 3–4 sheets depending on whether platforms were specified:
+Sheets: **Estimates** (one row per functional or CFR item, with a points column per
+platform), **Platform Summary** (only when platforms are given, includes buffer lines),
+**RAID**, and **Summary**.
 
-**Sheet 1: "Estimates"** — all estimated items (functional + CFR) in one table.
-**Platform columns** (one per confirmed platform) are inserted between "So that..." and "Points":
-
-| Column | Content |
-|---|---|
-| # | Sequential number |
-| Category | "Functional" or "CFR" |
-| Epic | Epic name (for functional items) |
-| Area | CFR area — Security, Performance, Monitoring, etc. (for CFR items) |
-| Story | Story title |
-| Role | User role |
-| I want... | User story intent |
-| So that... | Business value |
-| *[Platform 1]* | Points for this platform (0 if N/A) — e.g., 设备端 |
-| *[Platform 2]* | e.g., 后端 |
-| *[Platform N]* | e.g., Android, iOS, WEB |
-| Points | Combined Fibonacci point value (**numeric, bold**) |
-| Rationale | Why this point value — effort, complexity, and uncertainty drivers |
-| Uncertainty | "Low" / "Medium" / "High" |
-
-Each story row includes per-platform point values. Platform columns are center-aligned
-for easy scanning. A story that doesn't touch a platform gets 0.
-
-**Sheet 2: "Platform Summary"** (only when platforms are specified) — breakdown by module and platform:
-
-A structured layout with modules (Functional Stories / CFR Items / Total) as rows and
-platforms as columns. Bottom section shows each buffer line item with type, percentage,
-points, and rationale. Final row shows the recommended planning estimate. Uses bold
-formatting for totals.
-
-**Sheet 3: "RAID"** — risk/assumption/issue/dependency log:
-
-| Column | Content |
-|---|---|
-| Type | Risk / Assumption / Issue / Dependency |
-| Item | Description |
-| Impact | What happens if this materializes |
-| Mitigation | How to reduce or eliminate |
-
-**Sheet 4: "Summary"** — categorical breakdown, confidence analysis, key assumptions,
-and recommendations (same as before).
-
-The script auto-formats all sheets: bold header rows, frozen top rows, auto-filters,
-column widths, number formatting, and conditional coloring for Uncertainty.
-
-**JSON data format for the script:**
-
-```json
-{
-  "platforms": ["设备端", "后端", "Android", "iOS", "WEB"],
-  "scope_summary": "2-3 sentences...",
-  "key_assumptions": ["..."],
-  "confidence": "Medium",
-  "estimates": [
-    {
-      "category": "Functional",
-      "epic": "GPS定位",
-      "area": "",
-      "story": "GNSS 定位引擎",
-      "role": "设备",
-      "want": "GPS 定位并上报",
-      "so_that": "让家长知道设备位置",
-      "points": 5,
-      "platform_points": {"设备端": 5, "后端": 0, "Android": 0, "iOS": 0, "WEB": 0},
-      "rationale": "多模 GNSS + NMEA 解析",
-      "uncertainty": "Medium"
-    }
-  ],
-  "raid": [...],
-  "buffers": [
-    {"type": "集成联调", "pct": "10%", "points": 8, "rationale": "跨端集成测试"}
-  ]
-}
-```
-
-If `platforms` is empty or missing, platform columns and the Platform Summary sheet
-are omitted (backward compatible).
+> **Reference**: read `references/workbook-format.md` before writing the JSON — it
+> has the column layout, the full JSON schema, and generation rules (every estimate
+> needs `platform_points` for all platforms; `points` is the combined value, not the
+> sum; never overwrite an existing file).
 
 **After generating the XLSX**, present a quick summary to the user and offer Markdown:
 
@@ -408,15 +333,6 @@ are omitted (backward compatible).
 
 If the user says yes, generate a Markdown file with the same content. The Markdown is
 a secondary artifact — the XLSX is the authoritative deliverable.
-
-**Workbook generation tips:**
-- Always include `platforms` in the JSON data — it is populated from Phase 1.5
-- Each estimate MUST have `platform_points` matching all keys in `platforms`; use 0 for
-  platforms the story doesn't touch
-- The `points` field is the combined Fibonacci estimate for the whole story (not the sum of platform points)
-- Include `buffers` in the JSON data for the Platform Summary sheet
-- Save to the current working directory unless the user specifies a different path
-- Never overwrite an existing file without asking; use a unique timestamp suffix
 
 ## Key Rules
 
@@ -443,68 +359,8 @@ a secondary artifact — the XLSX is the authoritative deliverable.
 
 ## Examples
 
-### Example 1: Simple feature request
-
-**User input**: "We need a password reset flow. User clicks 'Forgot Password' on the
-login page, enters email, gets a reset link, sets a new password."
-
-**Skill response** (after reading the input):
-
-> I can break this down but first a few questions:
->
-> **Email delivery**: Are you using an existing email service (SendGrid, SES) or do
-> we need to set that up? What email template format?
->
-> **Token security**: How long should the reset link be valid? Single-use or reusable?
-> Rate limiting on reset requests?
->
-> **Error handling**: What happens if the email doesn't exist in the system — show a
-> generic message or specific error?
->
-> **Non-functional**: Do we need audit logging for password changes? Notification
-> to the user when password is changed? Any password complexity rules?
-
-Then after answers — generate the workbook and summarize:
-
-> Generated `estimate_password_reset_20260728_143022.xlsx` with the following:
->
-> **Estimates sheet:** 5 items, 9 total points
-> - 3 functional stories (Auth), 6 points
-> - 2 CFR items (Security + Monitoring), 3 points
-> - All points linked to Summary sheet formula
->
-> **RAID sheet:** rate-limit abuse risk, email deliverability dependency
->
-> **Summary sheet:** Medium confidence overall — email service setup is the main unknown
->
-> Would you also like a Markdown version?
-
-### Example 2: Ambiguous requirements
-
-**User input**: "Build a dashboard for our IoT devices."
-
-**Skill response**:
-
-> A dashboard can mean many things. Let me ask a few questions to narrow it down:
->
-> **Data & Scope:**
-> - What data should the dashboard show? (device status, metrics, alerts, trends?)
-> - How many devices? What's the expected data volume?
-> - Real-time or batch-refresh?
->
-> **Users & Access:**
-> - Who is the primary user? (operations, executives, customers?)
-> - Multi-tenant? Does each customer see only their own devices?
-> - Any role-based access (viewer vs. editor vs. admin)?
->
-> **Technical:**
-> - What's the data source? (time-series DB, relational DB, API aggregation?)
-> - Any specific chart library or design system to use?
-> - Web-only or also mobile?
->
-> **Non-functional:**
-> - Target page load time? Data freshness (real-time / 5min / hourly)?
-> - Do we need export (CSV, PDF)? Scheduled reports?
+See `references/examples.md` for two worked examples (a clear feature request and
+an ambiguous one) showing the clarifying questions and the final summary.
 
 ## Error Handling
 

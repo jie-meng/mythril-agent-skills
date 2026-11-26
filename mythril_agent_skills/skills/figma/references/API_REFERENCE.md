@@ -3,6 +3,14 @@
 > **Official spec**: [github.com/figma/rest-api-spec](https://github.com/figma/rest-api-spec)  
 > OpenAPI YAML: `openapi/openapi.yaml` · TypeScript types: `dist/api_types.ts`
 
+## Contents
+
+- [Endpoints](#endpoints)
+- [Node Types](#node-types)
+- [Object Schemas](#object-schemas)
+- [Rate Limits](#rate-limits)
+- [`geometry=paths` parameter](#geometrypaths-parameter)
+
 Base URL: `https://api.figma.com`
 
 **Authentication** (one of):

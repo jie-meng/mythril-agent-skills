@@ -1,15 +1,12 @@
 ---
 name: blog-writer
 description: >
-  Write, refine, and adapt blog posts. Tech-first but supports any topic.
-  Trigger when user asks to "write a blog", "draft an article", "refine this post",
-  "写博客", "写一篇文章", "帮我写篇博客", "润色这篇文章", "写一篇内部邮件博客",
-  "帮我改改这篇博客", "write a technical post", "blog post about",
-  "newsletter article", or mentions writing for a personal blog, internal email,
-  WeChat official account (公众号), or content channel.
-  Auto-infers language, audience, and style from context. Asks only what it
-  cannot infer. Outputs Markdown by default. Respects AGENTS.md conventions
-  when present in the target directory.
+  Writes, refines, and adapts blog posts (tech-first, any topic), inferring
+  language, audience, and style from context and asking only what it cannot
+  infer; outputs Markdown. Use when the user wants to draft or polish an article
+  for a personal blog, internal email, WeChat official account (公众号), or
+  newsletter, e.g. "write a blog", "refine this post", "write a technical post",
+  "写博客", "润色这篇文章", "写一篇内部邮件博客".
 license: Apache-2.0
 ---
 
@@ -19,7 +16,7 @@ Write, refine, and adapt blog posts with a tech-first focus (not tech-only). Sup
 
 ## Core Workflow
 
-### Phase 1: Context Resolution (MANDATORY before writing)
+### Phase 1: Context Resolution (before writing)
 
 Resolve all parameters before writing. The goal is **minimum friction, maximum signal** — infer everything possible from the user's message and environment, then ask only what is genuinely ambiguous.
 
@@ -108,7 +105,7 @@ Example (English):
 #### 1c. Handling "Just Write It"
 
 If the user says "just write" / "直接写" without providing a topic or enough context:
-- If topic is missing: you MUST ask — a blog without a topic cannot be written.
+- If topic is missing: ask — a blog without a topic cannot be written.
 - If topic is known but no source materials: proceed with a warning that output will be generic. Do NOT block.
 
 ### Phase 2: Research & Preparation
@@ -123,7 +120,7 @@ If the user says "just write" / "直接写" without providing a topic or enough 
 
 #### Structure
 
-- **Open with a hook**: A specific problem, a relatable frustration, a counterintuitive claim, or a concrete scenario. NEVER open with "随着 XX 技术的发展……" or "在当今数字化时代……"
+- **Open with a hook**: A specific problem, a relatable frustration, a counterintuitive claim, or a concrete scenario. Do not open with "随着 XX 技术的发展……" or "在当今数字化时代……" — generic scene-setting reads as filler and loses readers in the first line.
 - **Use informative headings**: H2/H3 headings should tell the reader what they'll learn. Avoid generic headings like "背景介绍" or "总结".
 - **End with substance**: Summarize the core conclusion (don't just repeat the body). Include actionable next steps, links, or an honest assessment of limitations.
 
