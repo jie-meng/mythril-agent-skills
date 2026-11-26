@@ -137,6 +137,8 @@ python3 SKILL_PATH/scripts/notion_api.py comments PAGE
 python3 SKILL_PATH/scripts/notion_api.py comment PAGE "Looks good, ship it."
 ```
 
+Comments show the integration's name as the author. Add `--display-name "Alex"` to show a custom name instead (Notion's `display_name` with type `custom`).
+
 ### Data sources and ticket items
 
 ```bash

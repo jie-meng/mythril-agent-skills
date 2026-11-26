@@ -131,6 +131,26 @@ class TestAddTitleProperty:
         assert list(out) == ["Ticket"]
 
 
+class TestBuildCommentBody:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from notion_api import MARKDOWN_VERSION, build_comment_body
+
+        self.fn = build_comment_body
+        self.version = MARKDOWN_VERSION
+
+    def test_plain_comment(self):
+        assert self.fn(HEX_ID, "Hi") == {
+            "parent": {"page_id": HEX_ID},
+            "markdown": "Hi",
+            "markdown_version": self.version,
+        }
+
+    def test_custom_display_name(self):
+        body = self.fn(HEX_ID, "Hi", "Alex")
+        assert body["display_name"] == {"type": "custom", "custom": {"name": "Alex"}}
+
+
 class TestBuildPropertyValue:
     @pytest.fixture(autouse=True)
     def _import(self):

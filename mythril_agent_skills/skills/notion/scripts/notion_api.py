@@ -672,15 +672,23 @@ def cmd_comments(args: argparse.Namespace) -> None:
     print(format_comments(result.get("results", [])))
 
 
+def build_comment_body(page_id: str, markdown: str, display_name: str = "") -> dict:
+    """Build a POST /comments body; ``display_name`` replaces the bot's name."""
+    body: dict = {
+        "parent": {"page_id": page_id},
+        "markdown": markdown,
+        "markdown_version": MARKDOWN_VERSION,
+    }
+    if display_name:
+        body["display_name"] = {"type": "custom", "custom": {"name": display_name}}
+    return body
+
+
 def cmd_comment(args: argparse.Namespace) -> None:
     token = get_token()
     page_id = parse_page_input(args.page)
     page = _load_page(token, page_id)
-    body = {
-        "parent": {"page_id": page_id},
-        "markdown": args.body,
-        "markdown_version": MARKDOWN_VERSION,
-    }
+    body = build_comment_body(page_id, args.body, args.display_name)
     result = notion_request("POST", "/comments", token, data=body) or {}
     _write_result(
         "Added comment to", page, page_id, f"Comment ID: {result.get('id', '')}"
@@ -850,6 +858,11 @@ def main() -> None:
     p = sub.add_parser("comment", help="Add a comment to a page")
     p.add_argument("page", help=PAGE_HELP)
     p.add_argument("body", help="Comment text (markdown)")
+    p.add_argument(
+        "--display-name",
+        default="",
+        help="Author name shown on the comment instead of the integration's name",
+    )
     p.set_defaults(func=cmd_comment)
 
     p = sub.add_parser("data-sources", help="List data sources in a database")
