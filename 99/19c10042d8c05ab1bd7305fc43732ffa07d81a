@@ -1,0 +1,35 @@
+.claude-plugin/marketplace.json
+  s_59bc697e1b4ca6::t_0051e4c5999bb3 461-478
+.workbuddy-plugin/marketplace.json
+  s_59bc697e1b4ca6::t_b3590ec4b3a820 460-477
+README.md
+  s_59bc697e1b4ca6::t_ac873a0a7a8d54 240-246,490,792
+README.zh-CN.md
+  s_59bc697e1b4ca6::t_44631f66e3b176 240-246,490,759
+mythril_agent_skills/skills/ios-screen-reader/SKILL.md
+  s_59bc697e1b4ca6::t_15a98f46944a3a 1-148
+mythril_agent_skills/skills/ios-screen-reader/scripts/ios_devices.py
+  s_59bc697e1b4ca6::t_73353bda35f437 1-246
+plugins/ios-screen-reader/skills/ios-screen-reader
+  s_59bc697e1b4ca6::t_59f3add3db5695 1
+pyproject.toml
+  s_59bc697e1b4ca6::t_b711e137278b82 91
+tests/skills/test_ios_screen_reader.py
+  s_59bc697e1b4ca6::t_43dc95e855128d 1-209
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9919c10042d8c05ab1bd7305fc43732ffa07d81a",
+  "prompts": {},
+  "sessions": {
+    "s_59bc697e1b4ca6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "79636c7b-faf8-4486-aa2f-b23dce0bb6c5",
+        "model": "unknown"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
