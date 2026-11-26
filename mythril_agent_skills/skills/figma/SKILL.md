@@ -31,7 +31,7 @@ Requires `FIGMA_ACCESS_TOKEN` environment variable. See `README.md` in this skil
    - `git credential fill`, `cat ~/.git-credentials`, `cat ~/.netrc`
    - Any command that outputs a password, token, or secret value from any credential store
 6. **NEVER use extracted credential values in commands.** Do NOT manually construct authenticated requests using raw credential values. The bundled script handles all authentication internally.
-7. **Use only the documented CLI subcommands.** Do NOT `import` the bundled script or call its internal functions (`get_token()`, `*_request()`, etc.) via `python3 -c` or ad-hoc code — that bypasses the CLI's argument handling, and a misordered argument can put the credential into a URL or error message. If a needed subcommand is missing, tell the user instead of scripting around it. Script output redacts credentials as `[REDACTED]`; if a credential value ever appears in any output anyway, do NOT repeat it — tell the user to rotate it.
+7. **Use only the documented CLI subcommands.** Do NOT `import` the bundled script or call its internal functions (`get_token()`, `*_request()`, etc.) via `python3 -c` or ad-hoc code — that bypasses the CLI's argument handling, and a misordered argument can put the credential into a URL or error message. If a needed subcommand or output field is missing, tell the user instead of scripting around it — and **never edit the installed skill files** (`SKILL_PATH/scripts/*`) to add it; a local patch silently diverges from the published skill and is overwritten on the next install. Script output redacts credentials as `[REDACTED]`; if a credential value ever appears in any output anyway, do NOT repeat it — tell the user to rotate it.
 
 # Workflow
 
@@ -73,6 +73,12 @@ python3 SKILL_PATH/scripts/figma_fetch.py "https://www.figma.com/design/ABC123/N
 
 # File overview with pages and components (one Tier 1 call)
 python3 SKILL_PATH/scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name" --pages
+
+# Big page/section: just the layer tree (type, name, id, size) — one Tier 1 call
+python3 SKILL_PATH/scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name?node-id=1-2" --outline --depth 2
+
+# Also resolve design-token names (+1 Tier 2 call; Enterprise plan only)
+python3 SKILL_PATH/scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name?node-id=1-2" --variables
 ```
 
 | Flag | Default | Description |
@@ -80,6 +86,8 @@ python3 SKILL_PATH/scripts/figma_fetch.py "https://www.figma.com/design/ABC123/N
 | `--ids` | — | Extra comma-separated node ids from the same file |
 | `--depth N` | `5` | Max recursion depth into child nodes. Use `2`–`3` for large frames to avoid truncation. |
 | `--version V` | latest | Read a specific file version id |
+| `--outline` | off | Print only the layer tree (type, name, id, size). Use it first on pages, sections, or frames too big for a full spec, then fetch the children you need by id |
+| `--variables` | off | Resolve bound design tokens to names via `/variables/local` (one extra **Tier 2** call). Needs an Enterprise plan + `file_variables:read` scope; otherwise prints a NOTE and falls back to listing the bound fields |
 | `--pages` | off | Overview mode: also list pages and components (Tier 1) |
 
 Multiple nodes are printed as separate spec sections divided by `---`.
@@ -133,6 +141,17 @@ python3 SKILL_PATH/scripts/figma_export.py "https://www.figma.com/design/ABC123/
 
 If a node fails to render, the other images are still saved; the failure is reported on stderr and the exit code is 1.
 
+#### Original images behind image fills (`--image-fills`)
+
+A photo, avatar, or illustration placed as an image fill shows up in the fetch output as `Fill: image fill (ref: <hex>, scale: FILL)`. Rendering the node gives you a cropped screenshot; to get the **original uploaded file** for the real asset, pass those refs:
+
+```bash
+python3 SKILL_PATH/scripts/figma_export.py "https://www.figma.com/design/ABC123/Name" \
+  --image-fills 3f2a...c1,9b7e...04 --out-dir "$CACHE_DIR" --names hero,avatar
+```
+
+This uses `GET /v1/files/:key/images` (**Tier 2**, so it does not spend Tier 1 quota). The URL only needs to identify the file. The extension (`png`/`jpg`/`gif`/`webp`/`svg`) comes from the downloaded bytes. Cannot be combined with `--ids` or `--output`.
+
 ## Handling 429 Rate Limit errors
 
 Both scripts fail immediately on 429 — **no automatic retry**. Do NOT attempt alternative approaches (no browser/playwright, no screenshots, no web-fetching the Figma URL).
@@ -163,6 +182,23 @@ If leftovers accumulate from interrupted sessions, the user can run `skills-clea
 
 **figma_fetch.py** outputs structured markdown (one section per node) covering all visual and layout properties present on each node. The exact fields vary by node type — a FRAME with auto-layout produces different output than a TEXT node. Read what's there; don't expect every section to appear on every node.
 
+Every child heading carries its node id — `### [FRAME] Login (id: 3:4)` — and `--pages` lists page ids the same way. To drill into or export children of a page/section/frame (e.g. all screens in a section), collect those ids and pass them in **one** `--ids` call; never guess ids or build URLs by hand.
+
 Typical sections include layout dimensions, fills/strokes, effects, typography (TEXT nodes), component metadata, and design token bindings. Use these values to generate accurate CSS or UI code matching the design. When a section is absent, the node doesn't have that property set.
 
+Names that map the design onto the codebase's design system — **use them instead of hard-coding raw values** when the project has matching tokens or components:
+
+- `- Styles: fill=Brand/Primary, text=Heading/H1` — shared Figma styles (always resolved; no extra call). Look for a same-named color, text style, or CSS variable in the project.
+- `- Component: Button/Primary (id: …)` — the main component an instance comes from. Look for the matching component in the codebase before writing a new one.
+- `- Variables: fills=Colors/primary/500, itemSpacing=Spacing/4` — design tokens, only with `--variables` on an Enterprise plan. Without it you get `Bound variables (token fields): fills, itemSpacing`: the value is a token, but its name is unknown, so search the project for a token with that value instead of hard-coding it. A `?` means the variable comes from a library file and cannot be resolved from this file.
+
 **figma_export.py** outputs image files. You can analyze the image visually, but you will NOT have structured property data (exact dimensions, colors, font specs, padding, etc.). Always caveat to the user that values inferred from the image are approximate.
+
+## Limits compared with the Figma MCP server
+
+The REST API has no equivalent for these Figma MCP features. If the user needs one of them, say so and suggest the official Figma MCP server; do not try to work around it:
+
+- **Code Connect** mappings (design component → the real component file in the repo)
+- Generated reference code (React + Tailwind) for a selection
+- Reading the **current selection** in the Figma desktop app without a link
+- Variable names on non-Enterprise plans

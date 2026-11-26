@@ -10,7 +10,7 @@ Fetch design specs (layout, colors, typography, components) from a Figma URL and
 ### 1. Get a Figma Personal Access Token
 
 1. Go to [Figma Settings → Security](https://www.figma.com/settings) → **Personal access tokens**
-2. Create a new token with read access
+2. Create a new token with read access (scopes: `file_content:read`, `file_metadata:read`; add `file_variables:read` on an Enterprise plan to use `--variables`)
 
 ### 2. Set the Environment Variable
 
@@ -44,9 +44,15 @@ python3 scripts/figma_fetch.py "https://www.figma.com/design/ABC123/Name" --page
 
 # Limit tree depth (default: 5); read an older version
 python3 scripts/figma_fetch.py "https://..." --depth 3 --version 1234567890
+
+# Layer tree only (type, name, id, size) — for big pages/sections
+python3 scripts/figma_fetch.py "https://...?node-id=1-2" --outline --depth 2
+
+# Resolve design-token names (+1 Tier 2 call, Enterprise plan only)
+python3 scripts/figma_fetch.py "https://...?node-id=1-2" --variables
 ```
 
-Outputs structured markdown to stdout with layout, colors, typography, effects, and component data — one section per node.
+Outputs structured markdown to stdout with layout, colors, typography, effects, and component data — one section per node. Every layer shows its node id; shared styles and main components are shown by name (`Styles: fill=Brand/Primary`, `Component: Button/Primary`), resolved from the same API response at no extra cost.
 
 ### figma_export.py — Export nodes as images
 
@@ -78,6 +84,7 @@ python3 scripts/figma_export.py "https://www.figma.com/design/ABC123/Name?node-i
 | `--out-dir` | current dir | Output directory (one or more nodes) |
 | `--names` | `figma_<node-id>` | One file name per node, in order |
 | `--version` | latest | Render a specific file version |
+| `--image-fills` | — | Download the original images behind image fills (the `ref:` values from `figma_fetch.py`) instead of rendering nodes. Tier 2 — no Tier 1 quota |
 | `--contents-only` | `true` | `false` also renders content overlapping the node |
 | `--absolute-bounds` | off | Full node dimensions even if cropped |
 | `--svg-outline-text` | `true` | SVG only: `false` keeps `<text>` elements |
@@ -222,6 +229,8 @@ Rendered recursively up to `--depth` levels. Invisible nodes (`visible: false`) 
 | 1 | `Figma API 403` | Token invalid or expired | Regenerate at figma.com/settings |
 | — | `NOTE: metadata endpoint returned 403` | Token lacks `file_metadata:read` scope | Overview falls back to `GET /v1/files` automatically; add the scope to save Tier 1 quota |
 | 1 | `Figma API 404` | File not found or no access | Check URL; ensure you have view access |
+| — | `NOTE: could not resolve variable names` | `--variables` without an Enterprise plan or `file_variables:read` scope | Output still lists which fields are bound to tokens; use the Figma MCP server for token names |
+| 2 | `Not an imageRef` | `--image-fills` given something other than the hex `ref:` value | Copy the `ref:` from `figma_fetch.py` output |
 | 2 | `Could not find a file key` / `Not a figma.com URL` | Malformed URL | Use a URL copied directly from Figma |
 | 2 | `URL contains whitespace` / `Invalid node id` | Extra text glued onto the URL or node id | Pass each URL alone, quoted; use `--names` for file names |
 | 2 | `All URLs must belong to the same Figma file` | Batch spans files | Run once per file |

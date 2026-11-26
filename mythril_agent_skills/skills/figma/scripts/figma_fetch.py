@@ -2,8 +2,12 @@
 """Fetch Figma design specs and print structured markdown.
 
 With node ids (from URLs and/or --ids): one GET /v1/files/:key/nodes call
-(Tier 1) covering every node. Without: a file overview from the Tier 3
-metadata endpoint, plus pages/components with --pages (one Tier 1 call).
+(Tier 1) covering every node, with style and component names resolved from
+the same response. --outline prints only the layer tree (name, type, id,
+size). --variables adds one Tier 2 call to resolve design-token names
+(Figma's Variables REST API needs an Enterprise plan). Without node ids: a
+file overview from the Tier 3 metadata endpoint, plus pages/components with
+--pages (one Tier 1 call).
 """
 
 from __future__ import annotations
@@ -28,10 +32,23 @@ __all__ = [
     "rgba_to_hex",
     "format_paint",
     "simplify_node",
+    "collect_variable_ids",
+    "build_name_refs",
+    "variable_names",
+    "format_styles",
+    "format_bound_variables",
     "render_node_markdown",
+    "render_outline",
     "render_file_overview",
     "render_file_meta",
 ]
+
+# Name lookups from the /nodes response (styles, components) and, optionally,
+# the variables endpoint: {"styles": {id: name}, "components": {...}, ...}
+NameRefs = dict[str, dict[str, str]]
+
+# Text layers are named after their content; keep outline lines scannable.
+OUTLINE_NAME_MAX = 80
 
 
 def rgba_to_hex(color: dict) -> str:
@@ -70,6 +87,93 @@ def format_paint(paint: dict) -> str | None:
         source = paint.get("sourceNodeId", "")
         return f"pattern fill (source: {source})" if source else "pattern fill"
     return t.lower().replace("_", " ")
+
+
+def collect_variable_ids(value: object) -> list[str]:
+    """Return the variable ids of every VARIABLE_ALIAS inside a boundVariables value.
+
+    Values may be a single alias, a list of aliases (fills, strokes), or a
+    dict of aliases (component properties); duplicates are dropped in order.
+    """
+    found: list[str] = []
+    if isinstance(value, dict):
+        if value.get("type") == "VARIABLE_ALIAS" and value.get("id"):
+            found.append(value["id"])
+        else:
+            for v in value.values():
+                found.extend(collect_variable_ids(v))
+    elif isinstance(value, list):
+        for v in value:
+            found.extend(collect_variable_ids(v))
+    return list(dict.fromkeys(found))
+
+
+def build_name_refs(entry: dict) -> NameRefs:
+    """Build style/component name lookups from one /nodes response entry."""
+    refs: NameRefs = {"styles": {}, "components": {}}
+    for sid, meta in (entry.get("styles") or {}).items():
+        if meta.get("name"):
+            refs["styles"][sid] = meta["name"]
+    sets = entry.get("componentSets") or {}
+    for cid, meta in sets.items():
+        if meta.get("name"):
+            refs["components"][cid] = meta["name"]
+    for cid, meta in (entry.get("components") or {}).items():
+        name = meta.get("name")
+        if not name:
+            continue
+        # A variant's own name is only its properties ("Dark Mode=Off");
+        # prefix the component set's name so it is identifiable.
+        set_name = sets.get(meta.get("componentSetId", ""), {}).get("name")
+        refs["components"][cid] = f"{set_name} ({name})" if set_name else name
+    return refs
+
+
+def variable_names(data: dict) -> dict[str, str]:
+    """Map variable id → 'Collection/name' from a /variables/local response."""
+    meta = data.get("meta", data)
+    collections = meta.get("variableCollections") or {}
+    names: dict[str, str] = {}
+    for vid, var in (meta.get("variables") or {}).items():
+        name = var.get("name")
+        if not name:
+            continue
+        coll = collections.get(var.get("variableCollectionId", ""), {}).get("name")
+        names[vid] = f"{coll}/{name}" if coll else name
+    return names
+
+
+def format_styles(node_styles: dict[str, str], style_names: dict[str, str]) -> str:
+    """Render a node's style refs as 'fill=Brand/Primary, text=Heading/H1'.
+
+    Figma may list one style under two keys ('fill' and 'fills'); each style
+    id is shown once, under its shortest key.
+    """
+    by_id: dict[str, str] = {}
+    for kind, sid in node_styles.items():
+        if sid not in by_id or len(kind) < len(by_id[sid]):
+            by_id[sid] = kind
+    return ", ".join(
+        f"{kind}={style_names.get(sid, sid)}" for sid, kind in by_id.items()
+    )
+
+
+def format_bound_variables(
+    bound: dict[str, list[str]] | list[str], var_names: dict[str, str]
+) -> str:
+    """Render bound variables, naming each token when its id is resolvable.
+
+    Without names this is just the bound field list ('fills, itemSpacing');
+    with names, 'fills=Colors/primary/500, itemSpacing=Spacing/4'. Ids the
+    lookup lacks (e.g. variables from a library file) are shown as '?'.
+    """
+    if isinstance(bound, list) or not var_names:
+        return ", ".join(bound)
+    parts = []
+    for field, ids in bound.items():
+        resolved = " + ".join(var_names.get(i, "?") for i in ids) or "?"
+        parts.append(f"{field}={resolved}")
+    return ", ".join(parts)
 
 
 def simplify_node(node: dict | None, depth: int = 0, max_depth: int = 5) -> dict | None:
@@ -269,6 +373,12 @@ def simplify_node(node: dict | None, depth: int = 0, max_depth: int = 5) -> dict
     if comp_props:
         result["componentProperties"] = comp_props
 
+    # styles: {"fill": "<styleId>", "text": "<styleId>", ...} — names are
+    # resolved at render time from the /nodes response's per-entry styles map
+    node_styles = node.get("styles")
+    if node_styles:
+        result["styles"] = dict(node_styles)
+
     export_settings = node.get("exportSettings", [])
     if export_settings:
         result["exportSettings"] = [
@@ -280,11 +390,13 @@ def simplify_node(node: dict | None, depth: int = 0, max_depth: int = 5) -> dict
             for s in export_settings
         ]
 
-    # boundVariables: which property names are driven by design tokens/Variables
-    # Variable IDs are not shown — too noisy; use /variables/local to resolve them
+    # boundVariables: property name → variable ids driving it (design tokens).
+    # Ids are resolved to names at render time when --variables succeeded.
     bound_vars = node.get("boundVariables")
     if bound_vars:
-        result["boundVariables"] = list(bound_vars.keys())
+        result["boundVariables"] = {
+            field: collect_variable_ids(value) for field, value in bound_vars.items()
+        }
 
     children = node.get("children", [])
     if children:
@@ -303,27 +415,39 @@ def simplify_node(node: dict | None, depth: int = 0, max_depth: int = 5) -> dict
     return result
 
 
-def render_node_markdown(node_data: dict, file_name: str) -> str:
-    """Render a simplified node as a markdown spec section."""
+def render_node_markdown(
+    node_data: dict, file_name: str, refs: NameRefs | None = None
+) -> str:
+    """Render a simplified node as a markdown spec section.
+
+    `refs` resolves style, component, and variable ids to names (see
+    build_name_refs / variable_names); ids are shown when it is absent.
+    """
     lines = ["## Figma Design Specs"]
     lines.append(f"**File**: {file_name}")
     lines.append(f"**Node**: {node_data.get('name', '(unknown)')}")
     lines.append(f"**Node ID**: {node_data.get('id', '')}")
     lines.append(f"**Type**: {node_data.get('type', '')}")
     lines.append("")
-    _render_node_section(lines, node_data, indent=0, top_level=True)
+    _render_node_section(lines, node_data, refs or {}, indent=0, top_level=True)
     return "\n".join(lines)
 
 
 def _render_node_section(
-    lines: list[str], node: dict, indent: int = 0, top_level: bool = False
+    lines: list[str],
+    node: dict,
+    refs: NameRefs,
+    indent: int = 0,
+    top_level: bool = False,
 ) -> None:
     prefix = "  " * indent
 
     if not top_level:
         ntype = node.get("type", "")
         name = node.get("name", "")
-        lines.append(f"{prefix}### [{ntype}] {name}")
+        nid = node.get("id")
+        id_str = f" (id: {nid})" if nid else ""
+        lines.append(f"{prefix}### [{ntype}] {name}{id_str}")
 
     dev_status = node.get("devStatus")
     if dev_status:
@@ -513,7 +637,16 @@ def _render_node_section(
 
     comp_id = node.get("componentId")
     if comp_id:
-        lines.append(f"{prefix}- Component ID: {comp_id}")
+        comp_name = refs.get("components", {}).get(comp_id)
+        if comp_name:
+            lines.append(f"{prefix}- Component: {comp_name} (id: {comp_id})")
+        else:
+            lines.append(f"{prefix}- Component ID: {comp_id}")
+
+    node_styles = node.get("styles")
+    if node_styles:
+        styles_str = format_styles(node_styles, refs.get("styles", {}))
+        lines.append(f"{prefix}- Styles: {styles_str}")
 
     export_settings = node.get("exportSettings")
     if export_settings:
@@ -525,8 +658,10 @@ def _render_node_section(
 
     bound_vars = node.get("boundVariables")
     if bound_vars:
+        var_names = refs.get("variables", {})
+        label = "Variables" if var_names else "Bound variables (token fields)"
         lines.append(
-            f"{prefix}- Bound variables (token fields): {', '.join(bound_vars)}"
+            f"{prefix}- {label}: {format_bound_variables(bound_vars, var_names)}"
         )
 
     trunc = node.get("_children_truncated")
@@ -543,7 +678,27 @@ def _render_node_section(
         for child in children:
             if child:
                 lines.append("")
-                _render_node_section(lines, child, indent=indent + 1)
+                _render_node_section(lines, child, refs, indent=indent + 1)
+
+
+def render_outline(node: dict, indent: int = 0) -> list[str]:
+    """Render a simplified node tree as one line per layer: type, name, id, size."""
+    size = node.get("size")
+    size_str = f" {size['width']:g}×{size['height']:g}" if size else ""
+    name = " ".join(str(node.get("name", "")).split())
+    if len(name) > OUTLINE_NAME_MAX:
+        name = name[: OUTLINE_NAME_MAX - 1] + "…"
+    lines = [
+        f"{'  ' * indent}- [{node.get('type', '')}] {name} "
+        f"(id: {node.get('id')}){size_str}"
+    ]
+    trunc = node.get("_children_truncated")
+    if trunc:
+        lines.append(f"{'  ' * (indent + 1)}- … {trunc} children (raise --depth)")
+    for child in node.get("children", []):
+        if child:
+            lines.extend(render_outline(child, indent + 1))
+    return lines
 
 
 def render_file_overview(data: dict) -> str:
@@ -560,7 +715,9 @@ def render_file_overview(data: dict) -> str:
         f"**Pages** ({len(pages)}):",
     ]
     for page in pages:
-        lines.append(f"  - {page.get('name', '(unnamed)')}")
+        pid = page.get("id")
+        id_str = f" (id: {pid})" if pid else ""
+        lines.append(f"  - {page.get('name', '(unnamed)')}{id_str}")
     lines.append(f"**Components**: {len(components)}")
     lines.append(f"**Styles**: {len(styles)}")
     if components:
@@ -606,8 +763,19 @@ def render_file_meta(meta: dict, file_key: str) -> str:
     return "\n".join(lines)
 
 
-def render_nodes(data: dict, node_ids: list[str], max_depth: int) -> tuple[str, int]:
-    """Render every requested node from a /nodes response; return (md, missing)."""
+def render_nodes(
+    data: dict,
+    node_ids: list[str],
+    max_depth: int,
+    *,
+    outline: bool = False,
+    var_names: dict[str, str] | None = None,
+) -> tuple[str, int]:
+    """Render every requested node from a /nodes response; return (md, missing).
+
+    `outline` prints only the layer tree; `var_names` (from variable_names)
+    resolves bound design tokens.
+    """
     nodes = data.get("nodes") or {}
     file_name = data.get("name", "")
     sections: list[str] = []
@@ -626,8 +794,37 @@ def render_nodes(data: dict, node_ids: list[str], max_depth: int) -> tuple[str, 
         if simplified is None:
             sections.append(f"## Figma Design Specs\n**Node ID**: {nid}\n(hidden)")
             continue
-        sections.append(render_node_markdown(simplified, file_name))
+        if outline:
+            sections.append(
+                f"## Figma Layer Outline\n**File**: {file_name}\n\n"
+                + "\n".join(render_outline(simplified))
+            )
+            continue
+        refs = build_name_refs(entry)
+        refs["variables"] = var_names or {}
+        sections.append(render_node_markdown(simplified, file_name, refs))
     return "\n\n---\n\n".join(sections), missing
+
+
+def fetch_variable_names(file_key: str, token: str) -> dict[str, str]:
+    """Fetch local variables (Tier 2); on failure, note it and return {}."""
+    try:
+        data = figma_get(f"/v1/files/{file_key}/variables/local", token)
+    except FigmaAPIError as e:
+        if e.status in (403, 404):
+            reason = (
+                "Figma's Variables API needs an Enterprise plan and a token "
+                "with the file_variables:read scope"
+            )
+        else:
+            reason = e.message
+        print(
+            f"NOTE: could not resolve variable names ({reason}); showing only "
+            "which fields are bound to variables.",
+            file=sys.stderr,
+        )
+        return {}
+    return variable_names(data)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -648,6 +845,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--depth", type=int, default=5, help="Max tree depth (default: 5)"
     )
     parser.add_argument("--version", help="Read a specific file version id")
+    parser.add_argument(
+        "--outline",
+        action="store_true",
+        help="Print only the layer tree (type, name, id, size) — for large frames",
+    )
+    parser.add_argument(
+        "--variables",
+        action="store_true",
+        help="Resolve design-token (Variable) names: one extra Tier 2 call; "
+        "needs an Enterprise plan and the file_variables:read scope",
+    )
     parser.add_argument(
         "--pages",
         action="store_true",
@@ -672,7 +880,18 @@ def main() -> None:
                 token,
                 {"ids": ",".join(node_ids), "version": args.version},
             )
-            markdown, missing = render_nodes(data, node_ids, args.depth)
+            var_names = (
+                fetch_variable_names(file_key, token)
+                if args.variables and not args.outline
+                else None
+            )
+            markdown, missing = render_nodes(
+                data,
+                node_ids,
+                args.depth,
+                outline=args.outline,
+                var_names=var_names,
+            )
             if markdown:
                 print(markdown)
             if missing:

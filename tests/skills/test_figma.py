@@ -2,8 +2,11 @@
 
 Covers pure functions (no API/network calls):
 - figma_fetch: rgba_to_hex, format_paint, simplify_node, render_node_markdown,
-               render_file_overview, parse_figma_url
-- figma_export: safe_filename, build_render_params, plan_outputs
+               render_file_overview, parse_figma_url, collect_variable_ids,
+               build_name_refs, variable_names, format_styles,
+               format_bound_variables, render_outline, render_nodes
+- figma_export: safe_filename, build_render_params, plan_outputs,
+                parse_image_refs, sniff_image_ext
 - figma_common: normalize_node_id, parse_figma_ref, collect_targets,
                 build_query, rate_limit_message
 """
@@ -196,6 +199,21 @@ class TestRenderNodeMarkdown:
         assert "Button" in md
         assert "120" in md
 
+    def test_child_headings_include_ids(self):
+        node_data = {
+            "id": "1:2",
+            "name": "Section",
+            "type": "SECTION",
+            "children": [
+                {"id": "3:4", "name": "Login", "type": "FRAME"},
+                {"name": "No id", "type": "FRAME"},
+            ],
+        }
+        md = self.func(node_data, "F")
+        assert "### [FRAME] Login (id: 3:4)" in md
+        assert "### [FRAME] No id\n" in md + "\n"
+        assert "(id: None)" not in md
+
 
 class TestRenderFileOverview:
     @pytest.fixture(autouse=True)
@@ -216,6 +234,15 @@ class TestRenderFileOverview:
         assert "Page 2" in md
         assert "Button" in md
         assert "**Components**: 1" in md
+
+    def test_pages_include_ids(self):
+        data = {
+            "name": "F",
+            "document": {"children": [{"id": "0:1", "name": "Screens"}]},
+            "components": {},
+            "styles": {},
+        }
+        assert "  - Screens (id: 0:1)" in self.func(data)
 
     def test_empty_file(self):
         data = {"name": "Empty", "document": {"children": []}, "components": {}, "styles": {}}
@@ -557,3 +584,283 @@ class TestPlanOutputs:
     def test_duplicate_names_rejected(self, tmp_path):
         with pytest.raises(ValueError, match="Duplicate"):
             self.func(["1:2", "3:4"], "png", out_dir=str(tmp_path), names=["a", "a"])
+
+
+# ── figma_fetch (names: styles, components, variables; outline) ───────────────
+
+
+class TestCollectVariableIds:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from figma_fetch import collect_variable_ids
+        self.func = collect_variable_ids
+
+    def test_single_alias(self):
+        assert self.func({"type": "VARIABLE_ALIAS", "id": "V:1"}) == ["V:1"]
+
+    def test_list_and_nested_dict_deduped(self):
+        value = {
+            "a": [{"type": "VARIABLE_ALIAS", "id": "V:1"}],
+            "b": {"type": "VARIABLE_ALIAS", "id": "V:1"},
+            "c": {"type": "VARIABLE_ALIAS", "id": "V:2"},
+        }
+        assert self.func(value) == ["V:1", "V:2"]
+
+    def test_non_alias(self):
+        assert self.func({"type": "OTHER"}) == []
+        assert self.func("x") == []
+
+
+class TestSimplifyNodeRefs:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from figma_fetch import simplify_node
+        self.func = simplify_node
+
+    def test_keeps_styles_and_variable_ids(self):
+        node = {
+            "id": "1:2",
+            "name": "Btn",
+            "type": "FRAME",
+            "styles": {"fill": "S:1"},
+            "boundVariables": {
+                "fills": [{"type": "VARIABLE_ALIAS", "id": "V:1"}],
+                "itemSpacing": {"type": "VARIABLE_ALIAS", "id": "V:2"},
+            },
+        }
+        out = self.func(node)
+        assert out["styles"] == {"fill": "S:1"}
+        assert out["boundVariables"] == {"fills": ["V:1"], "itemSpacing": ["V:2"]}
+
+
+class TestBuildNameRefs:
+    def test_styles_components_and_sets(self):
+        from figma_fetch import build_name_refs
+
+        entry = {
+            "styles": {"S:1": {"name": "Brand/Primary", "styleType": "FILL"}},
+            "components": {"C:1": {"name": "Button/Primary"}},
+            "componentSets": {"CS:1": {"name": "Button"}},
+        }
+        refs = build_name_refs(entry)
+        assert refs["styles"] == {"S:1": "Brand/Primary"}
+        assert refs["components"] == {"C:1": "Button/Primary", "CS:1": "Button"}
+
+    def test_empty_entry(self):
+        from figma_fetch import build_name_refs
+
+        assert build_name_refs({}) == {"styles": {}, "components": {}}
+
+    def test_variant_prefixed_with_set_name(self):
+        from figma_fetch import build_name_refs
+
+        entry = {
+            "components": {
+                "C:1": {"name": "Dark Mode=Off", "componentSetId": "CS:1"},
+                "C:2": {"name": "Dark Mode=On", "componentSetId": "CS:gone"},
+            },
+            "componentSets": {"CS:1": {"name": "Search Bar/Pro"}},
+        }
+        comps = build_name_refs(entry)["components"]
+        assert comps["C:1"] == "Search Bar/Pro (Dark Mode=Off)"
+        assert comps["C:2"] == "Dark Mode=On"
+
+
+class TestVariableNames:
+    def test_prefixes_collection(self):
+        from figma_fetch import variable_names
+
+        data = {
+            "meta": {
+                "variables": {
+                    "V:1": {"name": "primary/500", "variableCollectionId": "VC:1"},
+                    "V:2": {"name": "gap", "variableCollectionId": "VC:missing"},
+                },
+                "variableCollections": {"VC:1": {"name": "Colors"}},
+            }
+        }
+        assert variable_names(data) == {"V:1": "Colors/primary/500", "V:2": "gap"}
+
+
+class TestFormatStylesAndVariables:
+    def test_format_styles_resolves_and_falls_back(self):
+        from figma_fetch import format_styles
+
+        out = format_styles({"fill": "S:1", "text": "S:9"}, {"S:1": "Brand"})
+        assert out == "fill=Brand, text=S:9"
+
+    def test_format_styles_dedupes_same_style(self):
+        from figma_fetch import format_styles
+
+        out = format_styles({"fills": "S:1", "fill": "S:1"}, {"S:1": "Brand"})
+        assert out == "fill=Brand"
+
+    def test_bound_variables_without_names(self):
+        from figma_fetch import format_bound_variables
+
+        out = format_bound_variables({"fills": ["V:1"], "gap": ["V:2"]}, {})
+        assert out == "fills, gap"
+
+    def test_bound_variables_with_names(self):
+        from figma_fetch import format_bound_variables
+
+        out = format_bound_variables(
+            {"fills": ["V:1"], "gap": ["V:2", "V:3"]}, {"V:1": "C/p", "V:2": "S/4"}
+        )
+        assert out == "fills=C/p, gap=S/4 + ?"
+
+    def test_legacy_list_input(self):
+        from figma_fetch import format_bound_variables
+
+        assert format_bound_variables(["fills"], {"V:1": "x"}) == "fills"
+
+
+class TestRenderWithRefs:
+    def test_component_style_variable_names_rendered(self):
+        from figma_fetch import render_node_markdown
+
+        node = {
+            "id": "1:2",
+            "name": "Root",
+            "type": "FRAME",
+            "children": [
+                {
+                    "id": "3:4",
+                    "name": "Btn",
+                    "type": "INSTANCE",
+                    "componentId": "C:1",
+                    "styles": {"fill": "S:1"},
+                    "boundVariables": {"fills": ["V:1"]},
+                }
+            ],
+        }
+        refs = {
+            "styles": {"S:1": "Brand/Primary"},
+            "components": {"C:1": "Button/Primary"},
+            "variables": {"V:1": "Colors/primary"},
+        }
+        md = render_node_markdown(node, "F", refs)
+        assert "- Component: Button/Primary (id: C:1)" in md
+        assert "- Styles: fill=Brand/Primary" in md
+        assert "- Variables: fills=Colors/primary" in md
+
+    def test_without_refs_keeps_ids(self):
+        from figma_fetch import render_node_markdown
+
+        node = {"id": "1:2", "name": "X", "type": "INSTANCE", "componentId": "C:1"}
+        md = render_node_markdown(node, "F")
+        assert "- Component ID: C:1" in md
+
+
+class TestRenderOutline:
+    def test_tree_with_ids_sizes_and_truncation(self):
+        from figma_fetch import render_outline
+
+        node = {
+            "id": "1:2",
+            "name": "Section",
+            "type": "SECTION",
+            "size": {"width": 1000.0, "height": 800.5},
+            "children": [
+                {"id": "3:4", "name": "Login", "type": "FRAME",
+                 "_children_truncated": 7},
+            ],
+        }
+        lines = render_outline(node)
+        assert lines[0] == "- [SECTION] Section (id: 1:2) 1000×800.5"
+        assert lines[1] == "  - [FRAME] Login (id: 3:4)"
+        assert "7 children" in lines[2]
+
+    def test_long_text_names_truncated(self):
+        from figma_fetch import OUTLINE_NAME_MAX, render_outline
+
+        node = {"id": "1:2", "name": "Note:\n" + "x" * 300, "type": "TEXT"}
+        line = render_outline(node)[0]
+        name = line.split("] ", 1)[1].rsplit(" (id:", 1)[0]
+        assert len(name) == OUTLINE_NAME_MAX
+        assert name.endswith("…")
+        assert "\n" not in line
+
+    def test_render_nodes_outline_mode(self):
+        from figma_fetch import render_nodes
+
+        data = {
+            "name": "File",
+            "nodes": {
+                "1:2": {
+                    "document": {
+                        "id": "1:2",
+                        "name": "A",
+                        "type": "FRAME",
+                        "children": [{"id": "5:6", "name": "B", "type": "TEXT"}],
+                    }
+                }
+            },
+        }
+        md, missing = render_nodes(data, ["1:2"], 3, outline=True)
+        assert "## Figma Layer Outline" in md
+        assert "  - [TEXT] B (id: 5:6)" in md
+        assert "### Layout" not in md
+        assert missing == 0
+
+    def test_render_nodes_resolves_styles_from_entry(self):
+        from figma_fetch import render_nodes
+
+        data = {
+            "name": "File",
+            "nodes": {
+                "1:2": {
+                    "document": {
+                        "id": "1:2",
+                        "name": "A",
+                        "type": "TEXT",
+                        "styles": {"text": "S:1"},
+                    },
+                    "styles": {"S:1": {"name": "Heading/H1"}},
+                }
+            },
+        }
+        md, _ = render_nodes(data, ["1:2"], 3)
+        assert "- Styles: text=Heading/H1" in md
+
+
+# ── figma_export (image fills) ────────────────────────────────────────────────
+
+
+class TestParseImageRefs:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from figma_export import parse_image_refs
+        self.func = parse_image_refs
+
+    def test_splits_and_dedupes(self):
+        assert self.func("abcdef0123, ABCDEF0123,abcdef0123") == [
+            "abcdef0123",
+            "ABCDEF0123",
+        ]
+
+    def test_rejects_non_hex(self):
+        with pytest.raises(ValueError, match="Not an imageRef"):
+            self.func("abcdef0123,../etc")
+
+    def test_rejects_empty(self):
+        with pytest.raises(ValueError):
+            self.func(" , ")
+
+
+class TestSniffImageExt:
+    @pytest.mark.parametrize(
+        "head,ext",
+        [
+            (b"\xff\xd8\xff\xe0rest", "jpg"),
+            (b"GIF89a....", "gif"),
+            (b"RIFF\x00\x00\x00\x00WEBPVP8", "webp"),
+            (b"  <svg xmlns", "svg"),
+            (b"\x89PNG\r\n\x1a\n", "png"),
+            (b"", "png"),
+        ],
+    )
+    def test_detects(self, head, ext):
+        from figma_export import sniff_image_ext
+
+        assert sniff_image_ext(head) == ext

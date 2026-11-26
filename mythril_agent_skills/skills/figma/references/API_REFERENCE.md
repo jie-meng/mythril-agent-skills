@@ -286,6 +286,8 @@ Paginated list of all published styles across a team.
 
 Returns all local variables (design tokens) and variable collections in a file.
 
+**Enterprise plan only**, scope `file_variables:read`, **Tier 2**. Used by `figma_fetch.py --variables`; other plans get 403.
+
 **Response**
 
 ```json

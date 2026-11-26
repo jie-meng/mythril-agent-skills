@@ -4,6 +4,10 @@
 Every node must belong to the same file. Pass several URLs and/or --ids to
 render them together: GET /v1/images is a Tier 1 endpoint (View/Collab seats
 get 6 calls per month), so batching saves quota. Prints one saved path per line.
+
+--image-fills downloads the ORIGINAL uploaded images behind image fills (the
+`ref:` values figma_fetch.py prints) via GET /v1/files/:key/images — a Tier 2
+endpoint, so it does not spend Tier 1 quota.
 """
 
 from __future__ import annotations
@@ -27,7 +31,43 @@ from figma_common import (  # noqa: E402
 
 VALID_FORMATS = ("png", "jpg", "svg", "pdf")
 
-__all__ = ["get_token", "safe_filename", "build_render_params", "plan_outputs"]
+__all__ = [
+    "get_token",
+    "safe_filename",
+    "build_render_params",
+    "plan_outputs",
+    "parse_image_refs",
+    "sniff_image_ext",
+]
+
+IMAGE_REF_RE = re.compile(r"^[0-9a-fA-F]{8,64}$")
+
+
+def parse_image_refs(raw: str) -> list[str]:
+    """Split a comma-separated imageRef list, validating and de-duplicating."""
+    refs = [r.strip() for r in raw.split(",") if r.strip()]
+    if not refs:
+        raise ValueError("--image-fills needs at least one imageRef.")
+    bad = [r for r in refs if not IMAGE_REF_RE.match(r)]
+    if bad:
+        raise ValueError(
+            f"Not an imageRef: {', '.join(bad)}. Use the hex 'ref:' value that "
+            "figma_fetch.py prints for an image fill."
+        )
+    return list(dict.fromkeys(refs))
+
+
+def sniff_image_ext(head: bytes) -> str:
+    """Guess a file extension from an image's first bytes (default 'png')."""
+    if head.startswith(b"\xff\xd8\xff"):
+        return "jpg"
+    if head.startswith((b"GIF87a", b"GIF89a")):
+        return "gif"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "webp"
+    if head.lstrip().startswith((b"<svg", b"<?xml")):
+        return "svg"
+    return "png"
 
 
 def safe_filename(name: str) -> str:
@@ -111,6 +151,40 @@ def download_file(url: str, dest: Path) -> None:
         dest.write_bytes(resp.read())
 
 
+def download_image_fills(
+    file_key: str, token: str, refs: list[str], out_dir: Path, names: list[str] | None
+) -> int:
+    """Download original image-fill files; print each path; return failures."""
+    try:
+        data = figma_get(f"/v1/files/{file_key}/images", token)
+    except FigmaAPIError as e:
+        fail(e.message)
+    urls = (data.get("meta") or {}).get("images") or {}
+    out_dir.mkdir(parents=True, exist_ok=True)
+    failed = 0
+    for i, ref in enumerate(refs):
+        url = urls.get(ref)
+        if not url:
+            print(
+                f"ERROR: imageRef {ref} not found in this file (wrong ref or file).",
+                file=sys.stderr,
+            )
+            failed += 1
+            continue
+        stem = safe_filename(names[i]) if names else f"figma_fill_{ref[:12]}"
+        try:
+            with urllib.request.urlopen(url, timeout=120) as resp:
+                body = resp.read()
+        except (urllib.error.URLError, OSError) as e:
+            print(f"ERROR: Could not download imageRef {ref}: {e}", file=sys.stderr)
+            failed += 1
+            continue
+        dest = out_dir / f"{stem}.{sniff_image_ext(body[:16])}"
+        dest.write_bytes(body)
+        print(dest)
+    return failed
+
+
 def parse_bool(value: str) -> bool:
     """argparse type for explicit true/false flags."""
     lowered = value.strip().lower()
@@ -133,11 +207,18 @@ def build_parser() -> argparse.ArgumentParser:
         "urls",
         nargs="+",
         metavar="URL",
-        help="Figma URL(s) with node-id, all from the same file. Quote each one.",
+        help="Figma URL(s) with node-id, all from the same file (with "
+        "--image-fills, any link to the file). Quote each one.",
     )
     parser.add_argument(
         "--ids",
         help="Extra comma-separated node ids from the same file (e.g. 1-2,3:4)",
+    )
+    parser.add_argument(
+        "--image-fills",
+        metavar="REF,REF",
+        help="Download the original images behind these image fills (the 'ref:' "
+        "values from figma_fetch.py) instead of rendering nodes. Tier 2.",
     )
     parser.add_argument("--format", choices=VALID_FORMATS, default="png")
     parser.add_argument(
@@ -179,6 +260,31 @@ def main() -> None:
     args = build_parser().parse_args()
     if not 0.01 <= args.scale <= 4:
         fail("--scale must be between 0.01 and 4.", 2)
+
+    if args.image_fills:
+        try:
+            file_key, node_ids = collect_targets(args.urls, args.ids)
+            if args.ids or args.output:
+                raise ValueError(
+                    "--image-fills cannot be combined with --ids or --output; "
+                    "use --out-dir (and optionally --names)."
+                )
+            refs = parse_image_refs(args.image_fills)
+            names = (
+                [n.strip() for n in args.names.split(",")] if args.names else None
+            )
+            if names is not None and len(names) != len(refs):
+                raise ValueError(
+                    f"--names has {len(names)} entries but {len(refs)} image "
+                    "refs were given; give one name per ref, in order."
+                )
+        except ValueError as e:
+            fail(str(e), 2)
+        out_dir = Path(args.out_dir or ".").expanduser().resolve()
+        token = get_token()
+        if download_image_fills(file_key, token, refs, out_dir, names):
+            sys.exit(1)
+        return
 
     try:
         file_key, node_ids = collect_targets(args.urls, args.ids)
