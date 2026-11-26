@@ -237,6 +237,13 @@ Read the current screen of a connected Android device via adb. Prefer the UI hie
 - **Try:** Read what's on my Android phone right now
 - **Deps:** `adb` CLI
 
+**[iOS Screen Reader](./mythril_agent_skills/skills/ios-screen-reader/)**
+
+Read the current screen of a connected iPhone/iPad (USB or Wi-Fi paired) or a booted iOS Simulator on macOS. Screenshots via Xcode's `devicectl` / `simctl`; on simulators, the optional AXe accessibility tree gives exact text. Temp files go to the unified cache and are deleted after analysis.
+
+- **Try:** What's on my iPhone screen right now?
+- **Deps:** Xcode 15+ (`xcrun`), macOS only; optional `axe` for simulators
+
 </details>
 
 <details>
@@ -480,6 +487,7 @@ You can use `/plugin discover` to interactively find and install plugins:
 | `imagemagick` | Image processing via ImageMagick CLI |
 | `ffmpeg` | Video and audio processing via FFmpeg CLI |
 | `android-screen-reader` | Read the current screen of a connected Android device via adb |
+| `ios-screen-reader` | Read the current screen of a connected iOS device or booted simulator via Xcode tools |
 | `blog-writer` | Write, refine, and adapt tech-first multilingual blog posts |
 | `image-reference` | Reference a specific image in a Markdown document — `<doc-stem>.assets/` + content-based slug names |
 | `user-journey` | Draft user journey maps and lo-fi wireframes via natural language — HTML/CSS workspace with map/stage/presenter views |
@@ -781,6 +789,7 @@ mythril-agent-skills/
 │       ├── imagemagick/         # Image processing via ImageMagick CLI
 │       ├── ffmpeg/              # Video & audio processing via FFmpeg CLI
 │       ├── android-screen-reader/ # Read Android device screen via adb
+│       ├── ios-screen-reader/   # Read iOS device / simulator screen via Xcode tools
 │       ├── blog-writer/         # Tech-first multilingual blog writing
 │       ├── image-reference/     # Reference images in docs via <stem>.assets/
 │       ├── story-point-estimate/ # Fibonacci story point estimation

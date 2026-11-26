@@ -458,6 +458,24 @@
       "strict": false
     },
     {
+      "name": "ios-screen-reader",
+      "source": "./plugins/ios-screen-reader",
+      "description": "Read the current screen of a connected iPhone/iPad or booted iOS Simulator via Xcode tools",
+      "version": "0.3.3",
+      "author": {
+        "name": "Jie Meng"
+      },
+      "license": "Apache-2.0",
+      "category": "development",
+      "tags": [
+        "ios",
+        "xcode",
+        "screen",
+        "mobile"
+      ],
+      "strict": false
+    },
+    {
       "name": "blog-writer",
       "source": "./plugins/blog-writer",
       "description": "Write, refine, and adapt blog posts with a tech-first focus — asks language first, supports technical and non-technical topics",

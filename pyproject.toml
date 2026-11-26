@@ -88,6 +88,7 @@ extraPaths = [
     "mythril_agent_skills/skills/user-journey/scripts",
     "mythril_agent_skills/skills/story-point-estimate/scripts",
     "mythril_agent_skills/skills/image-reference/scripts",
+    "mythril_agent_skills/skills/ios-screen-reader/scripts",
 ]
 
 [tool.setuptools.packages.find]

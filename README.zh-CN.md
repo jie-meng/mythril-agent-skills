@@ -237,6 +237,13 @@ Skill（技能）是一个提示词/指令包，用于教 AI 助手如何处理�
 - **示例：** 读一下我手机当前屏幕上有什么
 - **依赖：** `adb` CLI
 
+**[iOS Screen Reader](./mythril_agent_skills/skills/ios-screen-reader/)**
+
+在 macOS 上读取已连接 iPhone/iPad（USB 或 Wi-Fi 配对）或已启动 iOS 模拟器的当前屏幕。通过 Xcode 的 `devicectl` / `simctl` 截图；模拟器上可选用 AXe 读取无障碍树获取精确文本。临时文件放在统一缓存目录，分析完成后立即删除。
+
+- **示例：** 看一下我 iPhone 现在屏幕上是什么
+- **依赖：** Xcode 15+（`xcrun`），仅 macOS；模拟器可选 `axe`
+
 </details>
 
 <details>
@@ -480,6 +487,7 @@ skills-clean-cache --repos  # 交互式：选择要删除的仓库
 | `imagemagick` | 通过 ImageMagick CLI 处理图片 |
 | `ffmpeg` | 通过 FFmpeg CLI 处理视频和音频 |
 | `android-screen-reader` | 通过 adb 读取已连接 Android 设备的当前屏幕 |
+| `ios-screen-reader` | 通过 Xcode 工具读取已连接 iOS 设备或已启动模拟器的当前屏幕 |
 | `blog-writer` | 撰写、润色和适配以技术为主的多语言博客 |
 | `image-reference` | 在 Markdown 文档中引用指定图片——`<文档名>.assets/` + 基于内容的 slug 命名 |
 | `user-journey` | 通过自然语言起草用户旅程地图与低保真线框图——HTML/CSS 工作区，Map/Stage/Presenter 三视图 |
@@ -748,6 +756,7 @@ mythril-agent-skills/
 │       ├── imagemagick/         # 通过 ImageMagick CLI 处理图片
 │       ├── ffmpeg/              # 通过 FFmpeg CLI 处理视频和音频
 │       ├── android-screen-reader/ # 通过 adb 读取 Android 设备屏幕
+│       ├── ios-screen-reader/   # 通过 Xcode 工具读取 iOS 设备/模拟器屏幕
 │       ├── blog-writer/         # 以技术为主的多语言博客写作
 │       ├── image-reference/     # 在文档中引用图片（<文档名>.assets/）
 │       ├── story-point-estimate/ # 斐波那契点数估算 — 含 CFR + Buffer + XLSX
