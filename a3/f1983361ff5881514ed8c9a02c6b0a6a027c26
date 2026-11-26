@@ -1,0 +1,23 @@
+mythril_agent_skills/skills/notion/SKILL.md
+  s_6f625764c75231::t_e87e3c017742c2 181
+mythril_agent_skills/skills/notion/scripts/notion_api.py
+  s_6f625764c75231::t_1f93cda9a1f986 468-484,730-732,738
+tests/skills/test_notion.py
+  s_6f625764c75231::t_9f7d2592c6a685 107-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a3f1983361ff5881514ed8c9a02c6b0a6a027c26",
+  "prompts": {},
+  "sessions": {
+    "s_6f625764c75231": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dad90601-2b45-49bf-84aa-3219e6c21457",
+        "model": "unknown"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
