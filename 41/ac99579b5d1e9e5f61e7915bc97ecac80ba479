@@ -1,0 +1,29 @@
+mythril_agent_skills/skills/figma/README.md
+  s_d70b076bbef7be::t_35caadd7f1e2fe 13,47-52,55,87,232-233
+mythril_agent_skills/skills/figma/SKILL.md
+  s_d70b076bbef7be::t_3e7cc8233eb398 34,76-81,89-90,144-154,185-186,189-194,196-204
+mythril_agent_skills/skills/figma/references/API_REFERENCE.md
+  s_d70b076bbef7be::t_f9c7942182370e 289-290
+mythril_agent_skills/skills/figma/scripts/figma_export.py
+  s_d70b076bbef7be::t_e0a473b58c029b 7-10,34-70,154-187,210-211,217-222,264-288
+mythril_agent_skills/skills/figma/scripts/figma_fetch.py
+  s_d70b076bbef7be::t_31b60eec3d0094 5-10,35-39,41,46-52,92-178,376-381,393-394,397-399,418-425,432,437-441,448-450,640-649,661-662,664,681-701,718-720,766-778,797-805,809-829,848-858,883-894
+tests/skills/test_figma.py
+  s_d70b076bbef7be::t_4a4cd850225ce5 5-9,202-216,238-246,587-866
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "41ac99579b5d1e9e5f61e7915bc97ecac80ba479",
+  "prompts": {},
+  "sessions": {
+    "s_d70b076bbef7be": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c95a3a8-9180-485a-a9d3-97b7fbbe26cd",
+        "model": "unknown"
+      },
+      "human_author": "Jie Meng <jmengxy@gmail.com>"
+    }
+  }
+}
