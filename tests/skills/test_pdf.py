@@ -225,3 +225,112 @@ class TestCommandDispatch:
     def test_all_values_callable(self):
         for name, handler in self.dispatch.items():
             assert callable(handler), f"{name} handler is not callable"
+
+
+class TestOutputConflict:
+    """Tests for pdf_ops.output_conflict."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from pdf_ops import output_conflict
+
+        self.func = output_conflict
+
+    def test_free_path_ok(self, tmp_path):
+        assert self.func(tmp_path / "out.pdf", [tmp_path / "in.pdf"], False) is None
+
+    def test_output_equal_to_input_refused_even_with_force(self, tmp_path):
+        src = tmp_path / "in.pdf"
+        src.write_bytes(b"%PDF")
+        msg = self.func(tmp_path / "." / "in.pdf", [src], True)
+        assert msg and "input" in msg
+
+    def test_existing_output_needs_force(self, tmp_path):
+        out = tmp_path / "out.pdf"
+        out.write_bytes(b"%PDF")
+        assert "--force" in self.func(out, [tmp_path / "in.pdf"], False)
+        assert self.func(out, [tmp_path / "in.pdf"], True) is None
+
+
+class TestDecryptSucceeded:
+    """Tests for pdf_ops.decrypt_succeeded (pypdf returns, never raises)."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from pdf_ops import decrypt_succeeded
+
+        self.func = decrypt_succeeded
+
+    def test_not_decrypted(self):
+        from pypdf import PasswordType
+
+        assert self.func(PasswordType.NOT_DECRYPTED) is False
+
+    def test_user_and_owner_passwords(self):
+        from pypdf import PasswordType
+
+        assert self.func(PasswordType.USER_PASSWORD) is True
+        assert self.func(PasswordType.OWNER_PASSWORD) is True
+
+
+class TestImageFilename:
+    """Tests for pdf_ops.image_filename."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from pdf_ops import image_filename
+
+        self.func = image_filename
+
+    def test_keeps_extension(self):
+        assert self.func("doc", 3, 2, "Im1.PNG") == "doc_p3_img2.png"
+
+    def test_no_extension_is_bin(self):
+        assert self.func("doc", 1, 1, "Im1") == "doc_p1_img1.bin"
+
+
+class TestGetCacheRoot:
+    """Tests for pdf_ops.get_cache_root."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from pdf_ops import get_cache_root
+
+        self.func = get_cache_root
+
+    def test_darwin(self, tmp_path):
+        assert self.func("Darwin", {}, tmp_path) == (
+            tmp_path / "Library" / "Caches" / "mythril-skills-cache"
+        )
+
+    def test_windows(self, tmp_path):
+        assert self.func("Windows", {"LOCALAPPDATA": str(tmp_path)}, tmp_path) == (
+            tmp_path / "mythril-skills-cache"
+        )
+
+    def test_linux_default(self, tmp_path):
+        assert self.func("Linux", {}, tmp_path) == (
+            tmp_path / ".cache" / "mythril-skills-cache"
+        )
+
+
+class TestCmdMergeGuards:
+    """merge never writes over one of its inputs."""
+
+    def test_merge_into_input_exits(self, tmp_path):
+        import argparse
+
+        from pypdf import PdfWriter
+
+        from pdf_ops import cmd_merge
+
+        a, b = tmp_path / "a.pdf", tmp_path / "b.pdf"
+        for f in (a, b):
+            w = PdfWriter()
+            w.add_blank_page(width=72, height=72)
+            w.write(str(f))
+        before = a.read_bytes()
+        with pytest.raises(SystemExit):
+            cmd_merge(argparse.Namespace(files=[str(a), str(b)], output=str(a),
+                                         force=True))
+        assert a.read_bytes() == before

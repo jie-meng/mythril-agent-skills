@@ -107,25 +107,27 @@ python3 SKILL_PATH/scripts/pdf_ops.py tables document.pdf --format json
 python3 SKILL_PATH/scripts/pdf_ops.py tables document.pdf --format csv --output-dir ./tables/
 ```
 
+Without `--output-dir`, CSV files go to a new directory in the skill cache (path printed).
+
 ## Convert PDF to images
 
 Renders each page as a PNG image. Useful for scanned PDFs, charts, diagrams, or any visual content.
 
 ```bash
-# Convert all pages (output to same directory as PDF)
+# Convert all pages (output to a new directory in the skill cache; paths printed)
 python3 SKILL_PATH/scripts/pdf_ops.py to-images document.pdf
 
 # Convert specific pages
 python3 SKILL_PATH/scripts/pdf_ops.py to-images document.pdf --pages 1-3
 
-# Output to a specific directory
+# Output to a specific directory (only when the user wants the PNGs kept)
 python3 SKILL_PATH/scripts/pdf_ops.py to-images document.pdf --output-dir ./pages/
 
 # Control resolution (default: 2.0x scale)
 python3 SKILL_PATH/scripts/pdf_ops.py to-images document.pdf --scale 3.0
 ```
 
-Output files are named `<stem>_page_1.png`, `<stem>_page_2.png`, etc.
+Output files are named `<stem>_page_1.png`, `<stem>_page_2.png`, etc. Renders made only so you can read the pages visually belong in the cache — omit `--output-dir`.
 
 ## Merge PDFs
 
@@ -206,5 +208,7 @@ The commands above are building blocks. Combine them to accomplish complex user 
 - **Read before manipulate**: always `info` or `text --pages 1` first to understand the document
 - **Large PDFs**: use `--pages` to limit extraction to relevant pages
 - **Empty text extraction**: if `text` returns nothing, the PDF is likely scanned/image-based — use `to-images` and read visually
-- **Output files**: `merge`, `split`, `rotate`, and `decrypt` require `-o` for the output path; they never overwrite the input file
+- **Output files**: `merge`, `split`, `rotate`, and `decrypt` require `-o` for the output path. Every write command refuses an output path that is one of its inputs, and refuses to replace an existing file unless `--force` is passed — ask the user before adding `--force`
+- **Default locations**: `to-images`, `extract-images`, `tables --format csv`, and `split --each` write to a new directory under `<user-cache>/mythril-skills-cache/pdf/` when no `--output-dir` is given; pass `--output-dir` when the user named a destination
+- **Wrong password**: `decrypt` exits with `Wrong password` — ask the user for the correct one
 - **Table extraction**: not all PDFs have machine-readable tables; complex layouts may need visual inspection via `to-images`
