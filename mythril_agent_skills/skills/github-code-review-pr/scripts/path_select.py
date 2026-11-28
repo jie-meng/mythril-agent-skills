@@ -51,7 +51,7 @@ import sys
 from pathlib import Path
 
 
-# ── cache helpers (mirrors repo_cache_lookup.py) ──────────────────────────────
+# ── cache helpers (read-only view of repo_manager.py's repo_map.json) ─────────
 
 
 def get_cache_root() -> Path:

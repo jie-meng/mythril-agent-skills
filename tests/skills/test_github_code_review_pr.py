@@ -5,7 +5,6 @@ Covers pure/deterministic functions that require no network, git, or API calls:
 - review_output_gate: speculation detection, verdict parsing, gate logic
 - review_template_builder: template rendering (English + Chinese)
 - path_select: URL parsing, normalized identity
-- repo_cache_lookup: URL parsing, normalize_key
 """
 
 from __future__ import annotations
@@ -448,37 +447,3 @@ class TestPathSelectParseRepoUrl:
         a = self.normalize("GitHub.COM", "Owner", "Repo")
         b = self.normalize("github.com", "owner", "repo")
         assert a == b
-
-
-# ── repo_cache_lookup ──────────────────────────────────────────────────────────
-
-
-class TestRepoCacheLookup:
-    """Tests for repo_cache_lookup URL parsing."""
-
-    @pytest.fixture(autouse=True)
-    def _import(self):
-        from repo_cache_lookup import parse_repo_url, normalize_key
-
-        self.parse = parse_repo_url
-        self.normalize = normalize_key
-
-    def test_https_parse(self):
-        host, owner, repo = self.parse("https://github.com/owner/repo")
-        assert (host, owner, repo) == ("github.com", "owner", "repo")
-
-    def test_ssh_parse(self):
-        host, owner, repo = self.parse("git@github.com:org/project.git")
-        assert (host, owner, repo) == ("github.com", "org", "project")
-
-    def test_normalize_key(self):
-        key = self.normalize("https://github.com/owner/repo.git")
-        assert key == "github.com/owner/repo"
-
-    def test_normalize_key_ssh(self):
-        key = self.normalize("git@github.com:owner/repo.git")
-        assert key == "github.com/owner/repo"
-
-    def test_invalid_url_raises(self):
-        with pytest.raises(ValueError):
-            self.parse("ftp://example.com/foo")

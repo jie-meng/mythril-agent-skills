@@ -88,15 +88,17 @@ Long-lived git clones are stored in a shared cache managed by `git-repo-reader`.
 - Path: `<cache-root>/git-repo-cache/`
 - Repos: `git-repo-cache/repos/<host>/<owner>/<repo>/`
 
-Only `git-repo-reader` is allowed to write to this cache. Other skills can read it using
-their local `repo_cache_lookup.py` helper.
+Writes go only through the bundled `repo_manager.py` (canonical
+`shared/git/repo_manager.py`, bundled into `git-repo-reader` and
+`github-code-review-pr`), so every writer shares the same URL validation and
+cache-path guards.
 
 ```bash
 # git-repo-reader: clone or reuse a cached repo
 python3 scripts/repo_manager.py clone "<repo-url>"
 
-# other skills: read-only lookup
-python3 scripts/repo_cache_lookup.py "<repo-url>"
+# github-code-review-pr: clone/refresh and reset to a clean default branch
+python3 scripts/repo_manager.py sync "<repo-url>"
 ```
 
 ## Download and output rules

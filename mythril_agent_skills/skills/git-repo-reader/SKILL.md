@@ -45,8 +45,9 @@ Accept URLs in any of these formats:
 - HTTPS: `https://github.com/owner/repo`, `https://github.com/owner/repo.git`
 - SSH: `git@github.com:owner/repo.git`
 - Any host: `https://gitlab.com/org/project`, `git@git.example.com:team/service.git`
+- Browser URLs: `https://github.com/owner/repo/tree/main/src`, `https://gitlab.com/g/repo/-/blob/main/x` — trimmed to the repo
 
-**Protocol rule**: Unless the user explicitly provides an SSH URL (`git@...`), always convert to HTTPS for cloning. SSH URLs require pre-configured SSH keys, while HTTPS works more broadly (public repos need no auth, private repos prompt for credentials).
+Pass the URL to the script as given: it keeps SSH URLs as SSH, clones everything else over HTTPS, drops credentials embedded in the URL, and rejects URLs whose path contains `.`/`..` or unusual characters.
 
 ### Step 2: Clone or reuse cached repo
 
@@ -59,8 +60,8 @@ python3 SKILL_PATH/scripts/repo_manager.py clone "<repo-url>"
 The script will:
 1. Normalize the URL and compute a deterministic local path
 2. Check `repo_map.json` for an existing entry
-3. If found and the directory exists → `git pull` to refresh, then return the path
-4. If found but directory is missing → remove stale entry, clone fresh
+3. If found and the checkout is healthy → check out `--branch` if given, fetch and fast-forward to the remote, then return the path. If the refresh fails (offline, auth), it keeps the cached copy and warns that it may be stale — a network failure never deletes the cache
+4. If found but the directory is missing or broken → remove the stale entry, clone fresh
 5. If not found → clone the repo (blobless clone), add entry to `repo_map.json`
 6. Print the local path to stdout on success
 
@@ -109,7 +110,7 @@ This deletes the cloned repo directory and removes its entry from `repo_map.json
 | `lookup <url>` | Look up cached path for a URL without cloning. Prints path or exits 1. |
 | `remove <url>` | Delete a cached repo and its mapping entry. |
 | `list` | List all cached repos (URL → path). |
-| `pull <url>` | Pull latest changes for a cached repo. |
+| `pull <url>` | Fetch and reset the current branch of a cached repo to its upstream. |
 
 All commands print results to stdout and errors to stderr. Exit code 0 means success.
 
@@ -119,8 +120,8 @@ All commands print results to stdout and errors to stderr. Exit code 0 means suc
 
 - **git not installed**: Print error, suggest `skills-check git-repo-reader`
 - **Clone fails** (auth, network, invalid URL): Report the git error. For private repos, suggest the user configure credentials or SSH keys.
-- **Pull fails** on existing cache: Try deleting and re-cloning. If that also fails, report the error.
-- **Corrupt mapping file**: Recreate it from scratch by scanning existing repo directories.
+- **Refresh fails** on an existing cache: the script already falls back to the cached copy — tell the user the code may be stale. Don't delete the cache yourself.
+- **`Unsafe path segment` / `Invalid host`**: the URL is malformed or crafted; ask the user for the plain repo URL.
 - **Branch not found**: Report error, suggest checking available branches with `git branch -r`.
 
 ## Examples
