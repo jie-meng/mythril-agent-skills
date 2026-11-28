@@ -46,7 +46,7 @@ Node specs (`/files/:key/nodes`) and image export (`/images/:key`) are **Tier 1*
 
 - **Several nodes from the same file → ONE command.** Pass all URLs (or `--ids`) to a single `figma_fetch.py` / `figma_export.py` run. **Never loop over nodes in the shell** — a loop of 6 exports spends 6 calls, a single batched export spends 1.
 - **Nodes from different files → one command per file.** The scripts refuse mixed files.
-- A URL **without** node-id costs nothing from Tier 1: the overview comes from the Tier 3 metadata endpoint. Add `--pages` only when you need the page/component list (one Tier 1 call).
+- A URL **without** node-id costs nothing from Tier 1: the overview comes from the Tier 3 metadata endpoint. Add `--pages` only when you need the page/component list (one Tier 1 call). If the metadata endpoint returns 403, the script stops instead of silently spending a Tier 1 call — ask the user before re-running with `--pages`.
 
 ## Passing URLs and node ids
 
@@ -132,7 +132,7 @@ python3 SKILL_PATH/scripts/figma_export.py "https://www.figma.com/design/ABC123/
 | `--format` | `png` | `png`, `jpg`, `svg`, or `pdf` |
 | `--scale` | `2.0` | Export scale factor 0.01–4 (e.g. `2` for @2x retina) |
 | `--output PATH` | — | Destination file — **single node only** |
-| `--out-dir DIR` | current dir | Destination directory for one or more nodes. **Always use the cache dir above for temp exports.** |
+| `--out-dir DIR` | new dir under the cache | Destination directory for one or more nodes. Without `--output`/`--out-dir`, files go into a fresh `mythril-skills-cache/figma/<random>/` dir. |
 | `--names a,b,c` | `figma_<node-id>` | File names (no extension), one per node, in the order the nodes were given (URLs first, then `--ids`) |
 | `--version V` | latest | Render a specific file version id |
 | `--contents-only false` | API default `true` | Also render content overlapping the node |

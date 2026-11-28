@@ -60,13 +60,14 @@ optimized for text-heavy content — general OCR, dense table/form parsing, and
 # Workflow
 
 1. **Confirm the main model failed to see the image** (it said it cannot view the image).
-2. **Locate the image file.** If the user attached an image and you do not know its path, ask the user for the path (or check likely locations like `~/Downloads/`). Local paths are required — you cannot see the image yourself to locate it.
-3. **Run the bundled script** with the image path(s) and the user's question:
+2. **Get consent before the first upload.** The image leaves the machine: it is sent to Zhipu AI's third-party API (open.bigmodel.cn, servers in mainland China) and is subject to their data policy. Before the first upload in a conversation, tell the user this in one sentence and wait for an explicit yes. If the image may hold confidential material (internal dashboards, customer data, credentials, unreleased designs), name that risk too. If the user declines, stop and suggest switching to an image-capable model. One yes covers later images in the same conversation unless the user says otherwise.
+3. **Locate the image file.** If the user attached an image and you do not know its path, ask the user for the path (or check likely locations like `~/Downloads/`). Local paths are required — you cannot see the image yourself to locate it.
+4. **Run the bundled script** with the image path(s) and the user's question:
    ```bash
    python3 SKILL_PATH/scripts/vision_fallback.py "<image-path>" -q "<question>"
    ```
    `SKILL_PATH` is this skill's installed directory. Use the user's original question (translated if needed) so the answer matches their intent and language.
-4. **Relay the answer** to the user. If the user's question needs follow-up analysis (e.g. "what does this error message mean"), you can elaborate on the GLM result — but never fabricate details the vision model did not report.
+5. **Relay the answer** to the user. If the user's question needs follow-up analysis (e.g. "what does this error message mean"), you can elaborate on the GLM result — but never fabricate details the vision model did not report.
 
 # Running the Script
 
@@ -102,6 +103,8 @@ python3 SKILL_PATH/scripts/vision_fallback.py screenshot.png -o answer.md
 | `--strict` | off | Verbatim extraction mode: greedy low-randomness sampling, forced original wording, no fabrication; unreadable content marked `[无法识别]` |
 | `-o / --output` | stdout | Save the answer to a file instead of printing |
 | `--max-tokens` | model default (4096 in `--strict`) | Cap the answer length |
+
+Local images larger than 5 MB are rejected before upload with a resize hint — downscale into the unified cache dir (e.g. `magick in.png -resize 50% "$CACHE_DIR/small.jpg"`) and pass the smaller file.
 
 ## Extracting dense text (screenshots, PPTs, forms)
 

@@ -6,17 +6,19 @@ Required environment variables:
   ATLASSIAN_USER_EMAIL — Atlassian account email (Basic auth)
 
 Optional (one of):
-  JIRA_BASE_URL        — e.g. https://jira.yourcompany.com (takes precedence)
+  JIRA_BASE_URL        — e.g. https://yoursite.atlassian.net (takes precedence)
   ATLASSIAN_BASE_URL   — e.g. https://yoursite.atlassian.net (shared fallback)
                          Not needed when passing a full Jira URL to issue commands.
 
 Uses only Python 3.10+ standard library (zero dependencies).
 """
 
-import os, sys, json, re, argparse, base64, ssl
+import os, sys, json, re, argparse, base64, ssl, platform, tempfile
 import urllib.request
 import urllib.error
-from urllib.parse import urlencode
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import urlencode, urlparse, parse_qs
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from secret_guard import guard_args, install as install_secret_guard  # noqa: E402
@@ -73,20 +75,27 @@ def get_email() -> str:
     return email
 
 
-def get_base_url() -> str:
-    """Return base URL from environment. Checks JIRA_BASE_URL first,
-    falls back to ATLASSIAN_BASE_URL. Exits if neither is set."""
+def configured_base_url() -> str | None:
+    """Return the configured base URL (JIRA_BASE_URL > ATLASSIAN_BASE_URL)."""
     base_url = (
         os.environ.get("JIRA_BASE_URL")
         or os.environ.get("ATLASSIAN_BASE_URL")
-    )
+        or ""
+    ).strip().rstrip("/")
+    return base_url or None
+
+
+def get_base_url() -> str:
+    """Return base URL from environment. Checks JIRA_BASE_URL first,
+    falls back to ATLASSIAN_BASE_URL. Exits if neither is set."""
+    base_url = configured_base_url()
     if base_url:
-        return base_url.strip().rstrip("/")
+        return base_url
 
     print("ERROR: Neither JIRA_BASE_URL nor ATLASSIAN_BASE_URL is set, and no Jira URL provided.", file=sys.stderr)
     print("", file=sys.stderr)
     print("Set one of:", file=sys.stderr)
-    print('  export JIRA_BASE_URL="https://jira.yourcompany.com"', file=sys.stderr)
+    print('  export JIRA_BASE_URL="https://yoursite.atlassian.net"', file=sys.stderr)
     print('  export ATLASSIAN_BASE_URL="https://yoursite.atlassian.net"', file=sys.stderr)
     print("", file=sys.stderr)
     print("Or pass a full Jira URL instead of an issue key:", file=sys.stderr)
@@ -94,21 +103,80 @@ def get_base_url() -> str:
     sys.exit(1)
 
 
+ISSUE_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]+-\d+$")
+
+
+def issue_key_from_url(url: str) -> str | None:
+    """Extract the issue key from any Jira Cloud issue URL, or None.
+
+    Handles ``/browse/KEY``, ``.../issues/KEY``, service-desk queue URLs and
+    board/backlog URLs with ``?selectedIssue=KEY``.
+    """
+    parsed = urlparse(url)
+    selected = parse_qs(parsed.query).get("selectedIssue")
+    if selected and ISSUE_KEY_RE.match(selected[0]):
+        return selected[0]
+    keys = [seg for seg in parsed.path.split("/") if ISSUE_KEY_RE.match(seg)]
+    return keys[-1] if keys else None
+
+
+def _is_atlassian_cloud(host: str) -> bool:
+    """True for an Atlassian Cloud site host (``<site>.atlassian.net``)."""
+    return host.endswith(".atlassian.net")
+
+
+def resolve_url_base(url: str, configured_base: str | None) -> str:
+    """Return the API base URL for a pasted URL, refusing untrusted hosts.
+
+    The credential is only ever sent to the configured base URL's host, or to
+    an Atlassian Cloud site (``*.atlassian.net``, base = scheme + host) when no
+    base URL is configured or the configured one is itself an atlassian.net
+    site. Plain http is refused unless it is exactly the configured base URL's
+    scheme and host. Raises ValueError (message never contains a credential).
+    """
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if not host:
+        raise ValueError(f"Could not find a host in URL: {url}")
+    cfg = urlparse(configured_base) if configured_base else None
+    cfg_host = (cfg.hostname or "").lower() if cfg else ""
+    if parsed.scheme != "https" and not (
+        cfg and parsed.scheme == "http" and cfg.scheme == "http" and host == cfg_host
+    ):
+        raise ValueError(
+            f"Refusing non-https URL {url!r}: the API token would travel in clear text."
+        )
+    if cfg and host == cfg_host:
+        return configured_base.rstrip("/")
+    if _is_atlassian_cloud(host) and (not cfg or _is_atlassian_cloud(cfg_host)):
+        port = f":{parsed.port}" if parsed.port else ""
+        return f"https://{host}{port}"
+    raise ValueError(
+        f"Refusing to send credentials to {host!r}: it does not match the "
+        "configured JIRA_BASE_URL / ATLASSIAN_BASE_URL host. If this is your "
+        "Jira site, set JIRA_BASE_URL to it."
+    )
+
+
 def parse_issue_input(input_str: str) -> tuple[str, str]:
     """Parse an issue key or full Jira URL. Returns (base_url, issue_key).
 
     Accepts:
-      PROJ-123                                          → (from env, PROJ-123)
-      https://yoursite.atlassian.net/browse/PROJ-123    → (https://yoursite.atlassian.net, PROJ-123)
-      https://yoursite.atlassian.net/jira/browse/PROJ-123 → (https://yoursite.atlassian.net/jira, PROJ-123)
+      PROJ-123                                                    → (from env, PROJ-123)
+      https://site.atlassian.net/browse/PROJ-123                  → (https://site.atlassian.net, PROJ-123)
+      https://site.atlassian.net/jira/software/c/projects/PROJ/issues/PROJ-123
+      https://site.atlassian.net/jira/software/projects/PROJ/boards/1?selectedIssue=PROJ-123
     """
     if input_str.startswith("http://") or input_str.startswith("https://"):
-        m = re.search(r"(/browse/|/issues/)([A-Z][A-Z0-9_]+-\d+)", input_str)
-        if not m:
+        issue_key = issue_key_from_url(input_str)
+        if not issue_key:
             print(f"ERROR: Could not parse issue key from URL: {input_str}", file=sys.stderr)
             sys.exit(2)
-        issue_key = m.group(2)
-        base_url = input_str[: m.start()]
+        try:
+            base_url = resolve_url_base(input_str, configured_base_url())
+        except ValueError as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            sys.exit(2)
         return base_url, issue_key
 
     return get_base_url(), input_str
@@ -185,9 +253,325 @@ def _agile_request(
         sys.exit(1)
 
 
+def download_binary(url: str, token: str) -> bytes:
+    """GET a file (e.g. an attachment) with auth and return its bytes.
+
+    The Authorization header is not forwarded on redirects.
+    """
+    guard_args(url=url)
+    req = urllib.request.Request(url)
+    req.add_unredirected_header("Authorization", _auth_header(token))
+    try:
+        ctx = _create_ssl_context()
+        with urllib.request.urlopen(req, timeout=120, context=ctx) as resp:
+            return resp.read()
+    except urllib.error.HTTPError as e:
+        print(f"ERROR: download failed with HTTP {e.code}", file=sys.stderr)
+        sys.exit(1)
+    except urllib.error.URLError as e:
+        print(f"ERROR: Network error: {e.reason}", file=sys.stderr)
+        sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# Pure helpers: cache dir, attachments
+# ---------------------------------------------------------------------------
+
+def skill_cache_dir(skill: str = "jira") -> Path:
+    """Return the unified per-user cache directory for this skill (not created)."""
+    home = Path.home()
+    system = platform.system()
+    if system == "Darwin":
+        root = home / "Library" / "Caches" / "mythril-skills-cache"
+    elif system == "Windows":
+        local = os.environ.get("LOCALAPPDATA")
+        root = (Path(local) if local else home / "AppData" / "Local") / "mythril-skills-cache"
+    else:
+        xdg = os.environ.get("XDG_CACHE_HOME")
+        root = (Path(xdg) if xdg else home / ".cache") / "mythril-skills-cache"
+    return root / skill
+
+
+def safe_attachment_name(name: str) -> str:
+    """Reduce an attachment file name to a safe file name (no directories)."""
+    name = re.split(r"[\\/]", name.strip())[-1]
+    name = re.sub(r'[<>:"|?*\x00-\x1f]', "_", name).strip()
+    if name in ("", ".", ".."):
+        return "attachment"
+    return name
+
+
+def select_attachments(attachments: list[dict], names: list[str]) -> tuple[list[dict], list[str]]:
+    """Pick attachments by filename; with no names, pick every image attachment.
+
+    Returns (selected, missing_names). Matching is exact first, then
+    case-insensitive.
+    """
+    if not names:
+        picked = [a for a in attachments if str(a.get("mimeType", "")).startswith("image/")]
+        return picked, []
+    selected: list[dict] = []
+    missing: list[str] = []
+    for name in names:
+        match = next((a for a in attachments if a.get("filename") == name), None)
+        if match is None:
+            lowered = name.lower()
+            match = next(
+                (a for a in attachments if str(a.get("filename", "")).lower() == lowered), None
+            )
+        if match is None:
+            missing.append(name)
+        elif match not in selected:
+            selected.append(match)
+    return selected, missing
+
+
+def attachment_content_url(base_url: str, attachment_id: str) -> str:
+    """Build the content URL for an attachment id on ``base_url``.
+
+    The URL is built from the id (never taken from the API response), so the
+    credential can only go to ``base_url``. Raises ValueError on a bad id.
+    """
+    if not re.fullmatch(r"\d+", str(attachment_id)):
+        raise ValueError(f"invalid attachment id: {attachment_id!r}")
+    return f"{base_url}/rest/api/3/attachment/content/{attachment_id}?redirect=false"
+
+
+def format_attachments_markdown(attachments: list[dict]) -> str:
+    """Render an issue's attachment list as markdown bullets."""
+    lines = []
+    for a in attachments:
+        lines.append(
+            f"- {a.get('filename', '')} ({a.get('mimeType', '')}, "
+            f"{a.get('size', '?')} bytes, id: {a.get('id', '')})"
+        )
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Markdown → ADF (minimal: paragraphs, headings, lists, code, quotes, links)
+# ---------------------------------------------------------------------------
+
+_MD_INLINE_RE = re.compile(
+    r"(?P<code>`[^`\n]+`)"
+    r"|(?P<link>\[(?P<ltext>[^\]\n]+)\]\((?P<lhref>[^)\s]+)\))"
+    r"|(?P<strong>\*\*(?P<stext>[^*\n]+)\*\*|__(?P<stext2>[^_\n]+)__)"
+    r"|(?P<em>(?<![\w*])\*(?P<etext>[^*\s][^*\n]*)\*(?![\w*])"
+    r"|(?<![\w_])_(?P<etext2>[^_\s][^_\n]*)_(?![\w_]))"
+    r"|(?P<url>https?://[^\s<>()\[\]]*[^\s<>()\[\].,;:!?'\"])"
+)
+_MD_HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)(?:\s+#+)?\s*$")
+_MD_FENCE_RE = re.compile(r"^\s*(```|~~~)\s*([\w+#.-]*)\s*$")
+_MD_LIST_RE = re.compile(r"^(\s*)([-*+]|\d+[.)])\s+(.*)$")
+_MD_QUOTE_RE = re.compile(r"^\s*>\s?(.*)$")
+_MD_RULE_RE = re.compile(r"^\s*([-*_])(?:\s*\1){2,}\s*$")
+
+
+def _md_inline(text: str) -> list[dict]:
+    """Convert one line of inline markdown into ADF text nodes."""
+    nodes: list[dict] = []
+
+    def add(value: str, marks: list[dict] | None = None) -> None:
+        if not value:
+            return
+        node: dict = {"type": "text", "text": value}
+        if marks:
+            node["marks"] = marks
+        nodes.append(node)
+
+    pos = 0
+    for m in _MD_INLINE_RE.finditer(text):
+        add(text[pos:m.start()])
+        if m.group("code"):
+            add(m.group("code")[1:-1], [{"type": "code"}])
+        elif m.group("link"):
+            add(m.group("ltext"), [{"type": "link", "attrs": {"href": m.group("lhref")}}])
+        elif m.group("strong"):
+            add(m.group("stext") or m.group("stext2"), [{"type": "strong"}])
+        elif m.group("em"):
+            add(m.group("etext") or m.group("etext2"), [{"type": "em"}])
+        else:
+            url = m.group("url")
+            add(url, [{"type": "link", "attrs": {"href": url}}])
+        pos = m.end()
+    add(text[pos:])
+    return nodes
+
+
+def _md_paragraph(lines: list[str]) -> dict:
+    content: list[dict] = []
+    for i, line in enumerate(lines):
+        if i:
+            content.append({"type": "hardBreak"})
+        content.extend(_md_inline(line))
+    return {"type": "paragraph", "content": content}
+
+
+def _indent(prefix: str) -> int:
+    return len(prefix.expandtabs(4))
+
+
+def _md_list(lines: list[str], i: int) -> tuple[dict, int]:
+    """Parse a (possibly nested) list starting at line ``i``."""
+    first = _MD_LIST_RE.match(lines[i])
+    base = _indent(first.group(1))
+    ordered = first.group(2)[0].isdigit()
+    node: dict = {"type": "orderedList" if ordered else "bulletList", "content": []}
+    if ordered:
+        start = int(re.match(r"\d+", first.group(2)).group())
+        if start != 1:
+            node["attrs"] = {"order": start}
+    while i < len(lines):
+        line = lines[i]
+        m = _MD_LIST_RE.match(line)
+        if m is None or _MD_RULE_RE.match(line):
+            if not line.strip():
+                j = i + 1
+                while j < len(lines) and not lines[j].strip():
+                    j += 1
+                nxt = _MD_LIST_RE.match(lines[j]) if j < len(lines) else None
+                if nxt and _indent(nxt.group(1)) >= base:
+                    i = j
+                    continue
+                break
+            if _indent(line[: len(line) - len(line.lstrip())]) > base and node["content"]:
+                para = node["content"][-1]["content"][0]
+                para["content"].append({"type": "hardBreak"})
+                para["content"].extend(_md_inline(line.strip()))
+                i += 1
+                continue
+            break
+        level = _indent(m.group(1))
+        if level < base:
+            break
+        if level > base:
+            child, i = _md_list(lines, i)
+            node["content"][-1]["content"].append(child)
+            continue
+        if m.group(2)[0].isdigit() != ordered:
+            break
+        node["content"].append({"type": "listItem", "content": [_md_paragraph([m.group(3)])]})
+        i += 1
+    return node, i
+
+
+def _md_blocks(lines: list[str]) -> list[dict]:
+    out: list[dict] = []
+    para: list[str] = []
+
+    def flush() -> None:
+        if para:
+            out.append(_md_paragraph(para))
+            para.clear()
+
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        fence = _MD_FENCE_RE.match(line)
+        if fence:
+            flush()
+            marker, lang = fence.group(1), fence.group(2)
+            body: list[str] = []
+            i += 1
+            while i < len(lines) and not lines[i].strip().startswith(marker):
+                body.append(lines[i])
+                i += 1
+            i += 1
+            code: dict = {"type": "codeBlock", "content": []}
+            if body:
+                code["content"] = [{"type": "text", "text": "\n".join(body)}]
+            if lang:
+                code["attrs"] = {"language": lang}
+            out.append(code)
+            continue
+        if not line.strip():
+            flush()
+            i += 1
+            continue
+        heading = _MD_HEADING_RE.match(line)
+        if heading:
+            flush()
+            out.append({
+                "type": "heading",
+                "attrs": {"level": len(heading.group(1))},
+                "content": _md_inline(heading.group(2)),
+            })
+            i += 1
+            continue
+        if _MD_RULE_RE.match(line):
+            flush()
+            out.append({"type": "rule"})
+            i += 1
+            continue
+        if _MD_QUOTE_RE.match(line):
+            flush()
+            quoted: list[str] = []
+            while i < len(lines) and _MD_QUOTE_RE.match(lines[i]):
+                quoted.append(_MD_QUOTE_RE.match(lines[i]).group(1))
+                i += 1
+            inner = []
+            for block in _md_blocks(quoted):
+                if block["type"] == "heading":
+                    block = {"type": "paragraph", "content": block["content"]}
+                if block["type"] != "rule":
+                    inner.append(block)
+            out.append({"type": "blockquote", "content": inner or [{"type": "paragraph", "content": []}]})
+            continue
+        if _MD_LIST_RE.match(line):
+            flush()
+            node, i = _md_list(lines, i)
+            out.append(node)
+            continue
+        para.append(line.strip())
+        i += 1
+    flush()
+    return out
+
+
+def markdown_to_adf(text: str) -> dict:
+    """Convert simple markdown into an ADF document.
+
+    Supports paragraphs (single newlines become hard breaks), ATX headings,
+    bullet/ordered lists with nesting, fenced code blocks, blockquotes,
+    horizontal rules, and inline code, links, bare URLs, bold and italic.
+    """
+    lines = text.replace("\r\n", "\n").split("\n")
+    content = _md_blocks(lines) or [{"type": "paragraph", "content": []}]
+    return {"version": 1, "type": "doc", "content": content}
+
+
 # ---------------------------------------------------------------------------
 # Formatters — convert API responses to readable markdown
 # ---------------------------------------------------------------------------
+
+def _apply_marks(text: str, marks: list[dict]) -> str:
+    """Render ADF text marks (link, code, strong, em, strike) as markdown."""
+    href = None
+    for mark in marks or []:
+        mtype = mark.get("type")
+        if mtype == "code":
+            text = f"`{text}`"
+        elif mtype == "strong":
+            text = f"**{text}**"
+        elif mtype == "em":
+            text = f"*{text}*"
+        elif mtype == "strike":
+            text = f"~~{text}~~"
+        elif mtype == "link":
+            href = (mark.get("attrs") or {}).get("href")
+    if href and href != text:
+        return f"[{text}]({href})"
+    return text
+
+
+def _media_text(node: dict) -> str:
+    attrs = node.get("attrs") or {}
+    alt = attrs.get("alt")
+    if alt:
+        return f"![{alt}](attachment:{alt})"
+    if attrs.get("type") == "external" and attrs.get("url"):
+        return f"![]({attrs['url']})"
+    return f"[media: {attrs.get('id', '')}]"
 
 def format_adf_to_text(node: dict | list | str | None, depth: int = 0) -> str:
     """Best-effort conversion of Atlassian Document Format to plain text."""
@@ -205,7 +589,23 @@ def format_adf_to_text(node: dict | list | str | None, depth: int = 0) -> str:
     text = node.get("text", "")
 
     if ntype == "text":
-        return text
+        return _apply_marks(text, node.get("marks") or [])
+    if ntype in ("inlineCard", "blockCard", "embedCard"):
+        url = (node.get("attrs") or {}).get("url", "")
+        return url if ntype == "inlineCard" else url + "\n"
+    if ntype == "emoji":
+        attrs = node.get("attrs") or {}
+        return attrs.get("text") or attrs.get("shortName", "")
+    if ntype == "status":
+        return f"[{(node.get('attrs') or {}).get('text', '')}]"
+    if ntype == "date":
+        ts = (node.get("attrs") or {}).get("timestamp", "")
+        try:
+            return datetime.fromtimestamp(int(ts) / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+        except (TypeError, ValueError):
+            return str(ts)
+    if ntype == "rule":
+        return "---\n"
     if ntype == "hardBreak":
         return "\n"
     if ntype == "paragraph":
@@ -232,6 +632,8 @@ def format_adf_to_text(node: dict | list | str | None, depth: int = 0) -> str:
     if ntype == "codeBlock":
         lang = node.get("attrs", {}).get("language", "")
         inner = "".join(format_adf_to_text(c, depth) for c in content)
+        if inner and not inner.endswith("\n"):
+            inner += "\n"
         return f"```{lang}\n{inner}```\n"
     if ntype == "blockquote":
         inner = "".join(format_adf_to_text(c, depth) for c in content)
@@ -245,11 +647,10 @@ def format_adf_to_text(node: dict | list | str | None, depth: int = 0) -> str:
             rows.append(" | ".join(cells))
         return "\n".join(rows) + "\n"
     if ntype in ("mediaGroup", "mediaSingle"):
-        for c in content:
-            if c.get("type") == "media":
-                mid = c.get("attrs", {}).get("id", "")
-                return f"[media: {mid}]\n"
-        return ""
+        media = [_media_text(c) for c in content if c.get("type") == "media"]
+        return "\n".join(media) + "\n" if media else ""
+    if ntype == "mediaInline":
+        return _media_text(node)
     if ntype == "mention":
         return "@" + node.get("attrs", {}).get("text", "someone")
 
@@ -327,6 +728,12 @@ def format_issue_markdown(issue: dict) -> str:
             t_key = target.get("key", "")
             t_summary = target.get("fields", {}).get("summary", "")
             lines.append(f"- {link_type} {t_key}: {t_summary}")
+
+    attachments = fields.get("attachment") or []
+    if attachments:
+        lines.append("")
+        lines.append("### Attachments")
+        lines.append(format_attachments_markdown(attachments))
 
     return "\n".join(lines)
 
@@ -458,7 +865,8 @@ def cmd_view(args: argparse.Namespace) -> None:
     base_url, issue_key = parse_issue_input(args.issue)
     fields_param = (
         "summary,status,issuetype,priority,assignee,reporter,labels,components,"
-        "fixVersions,description,created,updated,parent,subtasks,issuelinks,resolution"
+        "fixVersions,description,created,updated,parent,subtasks,issuelinks,resolution,"
+        "attachment"
     )
     data = jira_request("GET", f"/issue/{issue_key}", base_url, token,
                         params={"fields": fields_param})
@@ -499,11 +907,7 @@ def cmd_create(args: argparse.Namespace) -> None:
         "issuetype": {"name": args.type},
     }
     if args.description:
-        fields["description"] = {
-            "version": 1,
-            "type": "doc",
-            "content": [{"type": "paragraph", "content": [{"type": "text", "text": args.description}]}],
-        }
+        fields["description"] = markdown_to_adf(args.description)
     if args.priority:
         fields["priority"] = {"name": args.priority}
     if args.assignee:
@@ -528,11 +932,7 @@ def cmd_edit(args: argparse.Namespace) -> None:
     if args.summary:
         fields["summary"] = args.summary
     if args.description:
-        fields["description"] = {
-            "version": 1,
-            "type": "doc",
-            "content": [{"type": "paragraph", "content": [{"type": "text", "text": args.description}]}],
-        }
+        fields["description"] = markdown_to_adf(args.description)
     if args.priority:
         fields["priority"] = {"name": args.priority}
     if args.assignee:
@@ -578,13 +978,7 @@ def cmd_transition(args: argparse.Namespace) -> None:
     if args.comment:
         payload["update"] = {
             "comment": [{
-                "add": {
-                    "body": {
-                        "version": 1,
-                        "type": "doc",
-                        "content": [{"type": "paragraph", "content": [{"type": "text", "text": args.comment}]}],
-                    }
-                }
+                "add": {"body": markdown_to_adf(args.comment)}
             }]
         }
     if args.resolution:
@@ -598,13 +992,7 @@ def cmd_comment(args: argparse.Namespace) -> None:
     """Add a comment to an issue."""
     token = get_token()
     base_url, issue_key = parse_issue_input(args.issue)
-    body = {
-        "body": {
-            "version": 1,
-            "type": "doc",
-            "content": [{"type": "paragraph", "content": [{"type": "text", "text": args.body}]}],
-        }
-    }
+    body = {"body": markdown_to_adf(args.body)}
     data = jira_request("POST", f"/issue/{issue_key}/comment", base_url, token, data=body)
     print(f"Comment added to {issue_key} (id: {data.get('id', '')})")
 
@@ -616,6 +1004,49 @@ def cmd_comments(args: argparse.Namespace) -> None:
     params = {"maxResults": args.max_results, "orderBy": "-created"}
     data = jira_request("GET", f"/issue/{issue_key}/comment", base_url, token, params=params)
     print(format_comments_markdown(data, issue_key))
+
+
+def cmd_download_attachment(args: argparse.Namespace) -> None:
+    """Download issue attachments (all images by default) into the cache dir."""
+    token = get_token()
+    base_url, issue_key = parse_issue_input(args.issue)
+    data = jira_request("GET", f"/issue/{issue_key}", base_url, token,
+                        params={"fields": "attachment"})
+    attachments = (data.get("fields") or {}).get("attachment") or []
+    selected, missing = select_attachments(attachments, args.names)
+    for name in missing:
+        print(f"ERROR: no attachment named {name!r} on {issue_key}", file=sys.stderr)
+    if not selected:
+        if not missing:
+            print(f"No image attachments on {issue_key}.", file=sys.stderr)
+        sys.exit(1)
+
+    if args.out_dir:
+        out_dir = Path(args.out_dir).expanduser().resolve()
+        out_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        cache = skill_cache_dir()
+        cache.mkdir(parents=True, exist_ok=True)
+        out_dir = Path(tempfile.mkdtemp(dir=cache))
+
+    used: set[str] = set()
+    failed = len(missing)
+    for att in selected:
+        try:
+            url = attachment_content_url(base_url, att.get("id", ""))
+        except ValueError as e:
+            print(f"ERROR: {e}", file=sys.stderr)
+            failed += 1
+            continue
+        name = safe_attachment_name(str(att.get("filename", "")))
+        if name in used:
+            name = f"{att.get('id')}_{name}"
+        used.add(name)
+        dest = out_dir / name
+        dest.write_bytes(download_binary(url, token))
+        print(dest)
+    if failed:
+        sys.exit(1)
 
 
 def cmd_myself(args: argparse.Namespace) -> None:
@@ -719,7 +1150,7 @@ def main() -> None:
     p_create.add_argument("--project", required=True, help="Project key (e.g. PROJ)")
     p_create.add_argument("--summary", required=True, help="Issue summary")
     p_create.add_argument("--type", default="Task", help="Issue type (default: Task)")
-    p_create.add_argument("--description", help="Description text")
+    p_create.add_argument("--description", help="Description (markdown, converted to ADF)")
     p_create.add_argument("--priority", help="Priority name (e.g. High)")
     p_create.add_argument("--assignee", help="Assignee account ID")
     p_create.add_argument("--labels", nargs="*", help="Labels")
@@ -731,7 +1162,7 @@ def main() -> None:
     p_edit = sub.add_parser("edit", help="Edit an existing issue")
     p_edit.add_argument("issue", help=ISSUE_HELP)
     p_edit.add_argument("--summary", help="New summary")
-    p_edit.add_argument("--description", help="New description")
+    p_edit.add_argument("--description", help="New description (markdown, converted to ADF)")
     p_edit.add_argument("--priority", help="New priority")
     p_edit.add_argument("--assignee", help="New assignee account ID")
     p_edit.add_argument("--labels", nargs="*", help="Replace labels")
@@ -759,7 +1190,7 @@ def main() -> None:
     # comment
     p_comment = sub.add_parser("comment", help="Add a comment to an issue")
     p_comment.add_argument("issue", help=ISSUE_HELP)
-    p_comment.add_argument("body", help="Comment text")
+    p_comment.add_argument("body", help="Comment text (markdown, converted to ADF)")
     p_comment.set_defaults(func=cmd_comment)
 
     # comments
@@ -767,6 +1198,16 @@ def main() -> None:
     p_comments.add_argument("issue", help=ISSUE_HELP)
     p_comments.add_argument("--max-results", type=int, default=10, help="Max results (default: 10)")
     p_comments.set_defaults(func=cmd_comments)
+
+    # download-attachment
+    p_dl = sub.add_parser(
+        "download-attachment",
+        help="Download issue attachments (default: all images) into the skill cache dir",
+    )
+    p_dl.add_argument("issue", help=ISSUE_HELP)
+    p_dl.add_argument("names", nargs="*", help="Attachment file names (default: every image)")
+    p_dl.add_argument("--out-dir", help="Destination directory (default: a new dir under the unified cache)")
+    p_dl.set_defaults(func=cmd_download_attachment)
 
     # link
     p_link = sub.add_parser("link", help="Link two issues")

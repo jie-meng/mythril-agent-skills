@@ -19,7 +19,7 @@ import ssl
 import sys
 import urllib.error
 import urllib.request
-from urllib.parse import urlsplit, urlencode
+from urllib.parse import parse_qs, urlsplit, urlencode
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from secret_guard import guard_args, install as install_secret_guard  # noqa: E402
@@ -170,6 +170,12 @@ def extract_id(value: str) -> str | None:
     v = value.strip()
     if _BARE_ID_RE.fullmatch(v):
         return v.replace("-", "")
+    if "://" in v:
+        # A page opened in peek mode from a database view carries the page in
+        # ?p=<page id>; the path then holds the database id.
+        peek = parse_qs(urlsplit(v).query).get("p")
+        if peek and _BARE_ID_RE.fullmatch(peek[0].strip()):
+            return peek[0].strip().replace("-", "")
     # Search only the URL path: the query string may carry other IDs
     # (e.g. ?v=<database view id>) that must not be mistaken for the page.
     path = urlsplit(v).path if "://" in v else v
@@ -383,6 +389,45 @@ def with_title(title: str, markdown: str) -> str:
     if markdown.lstrip().startswith("# "):
         return markdown
     return f"# {title}\n\n{markdown}"
+
+
+def item_markdown(title: str, markdown: str, properties: dict, schema_types: dict[str, str]) -> str:
+    """Body markdown for create-item.
+
+    When the title is written into the data source's title property, the body
+    is sent as-is (no extra H1 that would duplicate the title); otherwise the
+    title is prepended as an H1 so the page still gets it.
+    """
+    title_prop = next((n for n, t in schema_types.items() if t == "title"), None)
+    if title_prop and title_prop in properties:
+        return markdown
+    return with_title(title, markdown)
+
+
+def read_markdown_arg(markdown: str | None, markdown_file: str | None) -> str:
+    """Return markdown from --markdown, or from --markdown-file ('-' = stdin).
+
+    Raises ValueError when both are given or the file cannot be read.
+    """
+    if markdown and markdown_file:
+        raise ValueError("use either --markdown or --markdown-file, not both")
+    if not markdown_file:
+        return markdown or ""
+    if markdown_file == "-":
+        return sys.stdin.read()
+    try:
+        with open(os.path.expanduser(markdown_file), encoding="utf-8") as f:
+            return f.read()
+    except OSError as e:
+        raise ValueError(f"cannot read --markdown-file {markdown_file}: {e.strerror}") from e
+
+
+def _markdown_or_exit(args: argparse.Namespace) -> str:
+    try:
+        return read_markdown_arg(args.markdown, args.markdown_file)
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 def split_list_value(value: str) -> list[str]:
@@ -601,12 +646,13 @@ def cmd_search(args: argparse.Namespace) -> None:
 
 
 def cmd_create(args: argparse.Namespace) -> None:
-    if not args.title and not args.markdown:
-        print("ERROR: provide --title or --markdown.", file=sys.stderr)
+    markdown = _markdown_or_exit(args)
+    if not args.title and not markdown:
+        print("ERROR: provide --title or --markdown/--markdown-file.", file=sys.stderr)
         sys.exit(1)
     token = get_token()
     body = {
-        "markdown": with_title(args.title or "", args.markdown or ""),
+        "markdown": with_title(args.title or "", markdown),
         "markdown_version": MARKDOWN_VERSION,
     }
     if args.parent:
@@ -622,10 +668,14 @@ def cmd_create(args: argparse.Namespace) -> None:
 
 
 def cmd_append(args: argparse.Namespace) -> None:
+    markdown = _markdown_or_exit(args)
+    if not markdown:
+        print("ERROR: provide --markdown or --markdown-file.", file=sys.stderr)
+        sys.exit(1)
     token = get_token()
     page_id = parse_page_input(args.page)
     page = _load_page(token, page_id)
-    insert: dict = {"content": args.markdown}
+    insert: dict = {"content": markdown}
     if args.position:
         insert["position"] = {"type": args.position}
     body = {
@@ -724,6 +774,7 @@ def cmd_schema(args: argparse.Namespace) -> None:
 
 
 def cmd_create_item(args: argparse.Namespace) -> None:
+    markdown = _markdown_or_exit(args)
     token = get_token()
     ds_id = parse_page_input(args.data_source)
     try:
@@ -746,7 +797,7 @@ def cmd_create_item(args: argparse.Namespace) -> None:
     properties = add_title_property(properties, schema_types, args.title)
     body: dict = {
         "parent": {"type": "data_source_id", "data_source_id": ds_id},
-        "markdown": with_title(args.title, args.markdown or ""),
+        "markdown": item_markdown(args.title, markdown, properties, schema_types),
         "markdown_version": MARKDOWN_VERSION,
     }
     if properties:
@@ -826,6 +877,7 @@ def main() -> None:
     p = sub.add_parser("create", help="Create a page from markdown")
     p.add_argument("--title", help="Page title (first H1 in markdown is used otherwise)")
     p.add_argument("--markdown", default="", help="Page content as Notion-flavored Markdown v2")
+    p.add_argument("--markdown-file", help="Read the content from this file ('-' = stdin)")
     p.add_argument("--parent", help="Parent page/data source ID or URL")
     p.add_argument(
         "--parent-type", choices=("page_id", "data_source_id"), default="page_id"
@@ -834,7 +886,8 @@ def main() -> None:
 
     p = sub.add_parser("append", help="Append markdown content to a page")
     p.add_argument("page", help=PAGE_HELP)
-    p.add_argument("--markdown", required=True, help="Markdown to insert")
+    p.add_argument("--markdown", default="", help="Markdown to insert")
+    p.add_argument("--markdown-file", help="Read the markdown from this file ('-' = stdin)")
     p.add_argument(
         "--position", choices=("start", "end"), help="Insert at start or end (default: end)"
     )
@@ -885,6 +938,7 @@ def main() -> None:
     p.add_argument("data_source", help=DS_HELP)
     p.add_argument("--title", required=True, help="Item title")
     p.add_argument("--markdown", default="", help="Item body as markdown")
+    p.add_argument("--markdown-file", help="Read the body from this file ('-' = stdin)")
     p.add_argument(
         "--status", help="Status value (type taken from the data source schema)"
     )

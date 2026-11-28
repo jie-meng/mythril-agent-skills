@@ -25,7 +25,20 @@ Trigger this skill when the user mentions **"glean"** combined with an action in
 **NOT a trigger** (do NOT invoke this skill):
 - Generic web search not targeting company knowledge
 - User asks to search GitHub issues/PRs — use `gh-operations`
-- User asks to search Confluence — use `confluence` skill
+- User names a specific tool (Confluence, Jira, Notion) — use that tool's skill. Glean's `--datasource confluence` filter is only for when the user asked for Glean.
+- Generic "search company docs" when `glean` is not installed/authenticated and another knowledge tool is clearly in use — ask which tool to use instead of installing Glean
+
+## Safety gate — writes visible to the whole organization
+
+Read commands run freely: `search`, `chat`, `schema`, `agents list/get/schemas`, `documents get/summarize`, `collections list/get`, `shortcuts list`, `answers list/get`, `pins list/get`, `entities`, `insights`, `messages get`, `verification list`.
+
+Every command that **creates, changes, deletes, or notifies** affects other people — announcements reach the whole company, go-links and pins change everyone's search, `verification remind` pings document owners. Before running any of them:
+
+1. Run it once with `--dry-run` and show the user the exact request body.
+2. Get an explicit "yes" for that exact request in the current conversation — a general instruction earlier ("set up some go-links") is not approval for a specific alias or destination.
+3. Then run it without `--dry-run`, and report the result.
+
+This applies to: `announcements create/update/delete`, `shortcuts create` (and any update/delete), `answers create/update/delete`, `pins create/update/remove`, `collections create/add-items` (and any update/delete), `verification verify/remind`, `activity report/feedback`, `agents run` and `tools run` when the agent/tool performs actions, and any `glean api` call with a method other than a read.
 
 ## Security — MANDATORY rules for AI agents
 
@@ -100,8 +113,9 @@ glean chat "What are our company holidays?"
 glean chat --timeout 120000 "Summarize all Q1 OKRs across teams"
 glean chat --json '{"messages":[{"author":"USER","messageType":"CONTENT","fragments":[{"text":"What is Glean?"}]}]}'
 echo "What is Glean?" | glean chat
-glean chat    # interactive multiline input, Ctrl+D to send
 ```
+
+Never run bare `glean chat` (no message, no stdin) — it waits for interactive input and hangs the agent.
 
 | Flag | Description |
 |---|---|
@@ -176,14 +190,9 @@ glean api search --method POST --raw-field '{"query":"rust","pageSize":3}'
 glean api --preview search --method POST --raw-field '{"query":"test"}'
 ```
 
-## 11) Interactive TUI
+## 11) Interactive TUI (humans only)
 
-Running `glean` with no arguments opens a full-screen chat:
-
-```bash
-glean            # open TUI
-glean --continue # resume the most recent session
-```
+Running `glean` with no arguments (or `glean --continue`) opens a full-screen chat for a human at the terminal. **Never run it from an agent** — it blocks waiting for keyboard input. Suggest it to the user instead.
 
 # Output Expectations
 
@@ -191,7 +200,7 @@ For every task, provide:
 
 1. Commands executed (or planned) in code blocks
 2. Short result summary
-3. If write operation succeeded, include the result explicitly
+3. For writes: the dry-run body the user approved, then the result
 4. If operation fails, include exact error and next action
 
 All `glean` commands return structured JSON on stdout and errors on stderr. Use `jq` for parsing. Use `--dry-run` to preview requests before sending.
@@ -214,4 +223,5 @@ All `glean` commands return structured JSON on stdout and errors on stderr. Use 
 - Use `--dry-run` to preview requests before sending.
 - Use `glean schema <command>` for machine-readable flag documentation.
 - Use `--output ndjson` for streaming large result sets.
-- The interactive TUI (`glean` with no args) is for human-interactive sessions; prefer `glean chat "..."` or `glean search "..."` for agent workflows.
+- The interactive TUI (`glean` with no args) is for humans only; agents use `glean chat "..."` or `glean search "..."`.
+- Org-wide writes always go through the safety gate above (dry-run → explicit approval → run).

@@ -12,7 +12,7 @@ Uses only Python 3.10+ standard library (zero dependencies).
 import os, sys, json, time, argparse, base64, ssl
 import urllib.request
 import urllib.error
-from urllib.parse import urlencode, quote
+from urllib.parse import urlencode, quote, unquote, urlsplit
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from secret_guard import guard_args, install as install_secret_guard  # noqa: E402
@@ -135,6 +135,57 @@ def job_path(job: str) -> str:
             print(f"ERROR: Invalid job path segment: {seg!r}", file=sys.stderr)
             sys.exit(2)
     return "".join("/job/" + quote(seg, safe="") for seg in segments)
+
+
+BUILD_ALIASES = (
+    "lastBuild",
+    "lastSuccessfulBuild",
+    "lastFailedBuild",
+    "lastCompletedBuild",
+    "lastStableBuild",
+    "lastUnstableBuild",
+    "lastUnsuccessfulBuild",
+)
+
+
+def parse_job_url(url: str, base_url: str) -> tuple[str, str | None]:
+    """Split a pasted Jenkins URL into (job name, build or None).
+
+    ``https://ci/job/team/job/app/42/console`` -> ("team/app", "42").
+    Path segments are percent-decoded once, so a multibranch branch shown as
+    ``feature%252Fx`` in the browser becomes the item name ``feature%2Fx``.
+    ``/view/<name>/`` prefixes are skipped. Raises ValueError when the URL is
+    not on ``base_url`` or names no job.
+    """
+    target, base = urlsplit(url), urlsplit(base_url)
+    if (target.hostname or "").lower() != (base.hostname or "").lower() or (
+        (target.port or None) != (base.port or None)
+    ):
+        raise ValueError(
+            f"URL host {target.hostname!r} is not the configured JENKINS_URL host "
+            f"{base.hostname!r}."
+        )
+    path = target.path
+    prefix = base.path.rstrip("/")
+    if prefix and (path == prefix or path.startswith(prefix + "/")):
+        path = path[len(prefix):]
+    segments = [seg for seg in path.split("/") if seg]
+    names: list[str] = []
+    build: str | None = None
+    i = 0
+    while i < len(segments):
+        seg = segments[i]
+        if seg in ("job", "view") and i + 1 < len(segments):
+            if seg == "job":
+                names.append(unquote(segments[i + 1]))
+            i += 2
+            continue
+        if names and (seg.isdigit() or seg in BUILD_ALIASES):
+            build = seg
+        break
+    if not names:
+        raise ValueError(f"No /job/<name> segment in URL: {url}")
+    return "/".join(names), build
 
 
 def build_url_path(job: str, build: str | int | None) -> str:
@@ -453,6 +504,34 @@ def parameter_names(info: dict) -> list[str]:
 # Subcommands
 # ---------------------------------------------------------------------------
 
+def resolve_job_args(args: argparse.Namespace) -> None:
+    """Accept a pasted Jenkins URL in ``args.job`` (and its build number)."""
+    job = getattr(args, "job", None)
+    if not job or not job.startswith(("http://", "https://")):
+        return
+    base_url, _, _ = get_env()
+    try:
+        name, build = parse_job_url(job, base_url)
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(2)
+    args.job = name
+    if build is not None and getattr(args, "build", None) is None and hasattr(args, "build"):
+        args.build = build
+
+
+def resolve_build_number(job: str, build: str | int | None) -> str:
+    """Pin 'latest' (or an alias) to a concrete build number."""
+    if build is not None and str(build).isdigit():
+        return str(build)
+    data = api_get_json(f"{build_url_path(job, build)}/api/json", params={"tree": "number"})
+    number = data.get("number")
+    if number is None:
+        print(f"ERROR: Could not determine the build number for {job}.", file=sys.stderr)
+        sys.exit(1)
+    return str(number)
+
+
 def cmd_whoami(args: argparse.Namespace) -> None:
     """Verify connectivity and authentication."""
     base_url, _, _ = get_env()
@@ -615,6 +694,10 @@ def cmd_console(args: argparse.Namespace) -> None:
             print("", "(log continues — increase tail or use --follow)", file=sys.stderr)
         return
 
+    # Pin the build number once: following "lastBuild" would jump to a newer
+    # build mid-stream and apply the old offset to its log.
+    if args.build is None or not str(args.build).isdigit():
+        path = build_url_path(args.job, resolve_build_number(args.job, args.build))
     deadline = time.time() + args.timeout if args.timeout else None
     offset = 0
     grace_polls = 20  # a 404 at start usually means the build is still in queue
@@ -649,9 +732,17 @@ def cmd_console(args: argparse.Namespace) -> None:
 
 
 def cmd_stop(args: argparse.Namespace) -> None:
-    """Abort a build (latest by default)."""
+    """Abort one specific build (the build number is required)."""
     base_url, _, _ = get_env()
-    n = args.build if args.build is not None else "lastBuild"
+    if args.build is None or not str(args.build).isdigit():
+        print(
+            "ERROR: stop needs an explicit build number (--build N, or a build URL) "
+            "so it never aborts a different, newer build. Find it with: status "
+            f"{args.job}",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    n = args.build
     _post_action(base_url, f"{job_path(args.job)}/{n}/stop")
     print(f"Stop requested for {args.job} #{n}")
 
@@ -659,6 +750,12 @@ def cmd_stop(args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 # CLI parser
 # ---------------------------------------------------------------------------
+
+JOB_HELP = (
+    "Job name, slash-separated for folders (e.g. 'team/deploy'), or a pasted "
+    "Jenkins job/build URL"
+)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -675,11 +772,11 @@ def main() -> None:
     p.set_defaults(func=cmd_jobs)
 
     p = sub.add_parser("job", help="Show job details (status, health, parameters)")
-    p.add_argument("job", help="Job name, slash-separated for folders (e.g. 'team/deploy')")
+    p.add_argument("job", help=JOB_HELP)
     p.set_defaults(func=cmd_job)
 
     p = sub.add_parser("build", help="Trigger a build (auto-detects parameterized jobs)")
-    p.add_argument("job", help="Job name")
+    p.add_argument("job", help=JOB_HELP)
     p.add_argument("--param", action="append", metavar="NAME=VALUE",
                    help="Build parameter (repeatable)")
     p.add_argument("--wait", nargs="?", const=600, type=int, metavar="SECONDS",
@@ -687,17 +784,17 @@ def main() -> None:
     p.set_defaults(func=cmd_build)
 
     p = sub.add_parser("status", help="Show a build's status (latest by default)")
-    p.add_argument("job", help="Job name")
+    p.add_argument("job", help=JOB_HELP)
     p.add_argument("--build", type=int, help="Build number (default: latest)")
     p.set_defaults(func=cmd_status)
 
     p = sub.add_parser("stages", help="Show pipeline stage progress (Pipeline jobs)")
-    p.add_argument("job", help="Job name")
+    p.add_argument("job", help=JOB_HELP)
     p.add_argument("--build", type=int, help="Build number (default: latest)")
     p.set_defaults(func=cmd_stages)
 
     p = sub.add_parser("console", help="Read a build's console log")
-    p.add_argument("job", help="Job name")
+    p.add_argument("job", help=JOB_HELP)
     p.add_argument("--build", type=int, help="Build number (default: latest)")
     p.add_argument("--tail", type=int, default=200, metavar="N",
                    help="Show last N lines (default: 200; 0 = full log)")
@@ -706,12 +803,13 @@ def main() -> None:
                    help="Max seconds for --follow (0 = no limit)")
     p.set_defaults(func=cmd_console)
 
-    p = sub.add_parser("stop", help="Abort a build (latest by default)")
-    p.add_argument("job", help="Job name")
-    p.add_argument("--build", type=int, help="Build number (default: latest)")
+    p = sub.add_parser("stop", help="Abort a build (explicit build number required)")
+    p.add_argument("job", help=JOB_HELP)
+    p.add_argument("--build", type=int, help="Build number (required unless the job URL has one)")
     p.set_defaults(func=cmd_stop)
 
     args = parser.parse_args()
+    resolve_job_args(args)
     args.func(args)
 
 

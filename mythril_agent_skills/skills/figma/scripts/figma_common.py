@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import re
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlencode, urlsplit
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -221,6 +224,28 @@ def figma_get(path: str, token: str, params: dict[str, object] | None = None) ->
         raise FigmaAPIError(e.code, f"Figma API {e.code} for {path}: {body}")
     except urllib.error.URLError as e:
         raise FigmaAPIError(None, f"Network error: {e.reason}")
+
+
+def skill_cache_dir(skill: str = "figma") -> Path:
+    """Return the unified per-user cache directory for this skill (not created)."""
+    home = Path.home()
+    system = platform.system()
+    if system == "Darwin":
+        root = home / "Library" / "Caches" / "mythril-skills-cache"
+    elif system == "Windows":
+        local = os.environ.get("LOCALAPPDATA")
+        root = (Path(local) if local else home / "AppData" / "Local") / "mythril-skills-cache"
+    else:
+        xdg = os.environ.get("XDG_CACHE_HOME")
+        root = (Path(xdg) if xdg else home / ".cache") / "mythril-skills-cache"
+    return root / skill
+
+
+def new_cache_run_dir() -> Path:
+    """Create and return a fresh random directory under the figma cache dir."""
+    cache = skill_cache_dir()
+    cache.mkdir(parents=True, exist_ok=True)
+    return Path(tempfile.mkdtemp(dir=cache))
 
 
 def fail(message: str, code: int = 1) -> None:

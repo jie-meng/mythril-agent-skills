@@ -65,6 +65,8 @@ The script outputs structured markdown. Build results use Jenkins result codes: 
 
 All commands use `scripts/jenkins_api.py`. `SKILL_PATH` below is this skill's installed directory.
 
+**Job argument**: a job name (folders slash-separated, e.g. `team/services/deploy`) **or a pasted Jenkins URL** — `https://ci.example.com/job/team/job/app/42/console` becomes job `team/app`, build `42`. The URL must be on `JENKINS_URL`'s host. Multibranch branches whose name contains `/` are stored by Jenkins as `feature%2Fx` (shown as `feature%252Fx` in the browser): pass `repo/feature%2Fx`, or just paste the URL.
+
 ### Verify setup and connectivity
 
 ```bash
@@ -121,7 +123,10 @@ python3 SKILL_PATH/scripts/jenkins_api.py console deploy-dev --build 42 --tail 1
 python3 SKILL_PATH/scripts/jenkins_api.py console deploy-dev --tail 0        # full log
 python3 SKILL_PATH/scripts/jenkins_api.py console deploy-dev --follow        # stream until finished
 python3 SKILL_PATH/scripts/jenkins_api.py console deploy-dev --follow --timeout 600
+python3 SKILL_PATH/scripts/jenkins_api.py console "https://ci.example.com/job/deploy-dev/42/"
 ```
+
+`--follow` pins the build number when it starts, so a newer build cannot hijack the stream.
 
 Exit code follows the final build result (0 = SUCCESS, 1 = FAILURE, …).
 
@@ -129,9 +134,10 @@ Exit code follows the final build result (0 = SUCCESS, 1 = FAILURE, …).
 
 ```bash
 python3 SKILL_PATH/scripts/jenkins_api.py stop deploy-dev --build 42
+python3 SKILL_PATH/scripts/jenkins_api.py stop "https://ci.example.com/job/deploy-dev/42/"
 ```
 
-Confirm with the user before aborting.
+A build number is **required** (from `--build` or the URL) — `stop` never defaults to the latest build, which could be someone else's. Confirm with the user before aborting.
 
 # Error Handling
 
@@ -146,6 +152,6 @@ Confirm with the user before aborting.
 
 - The script uses only the Python standard library — no `pip install` needed.
 - Auth is HTTP Basic with `JENKINS_USER:JENKINS_API_TOKEN`. API-token auth bypasses the CSRF crumb on Jenkins 2.96+; a crumb retry is kept for older or stricter instances.
-- Folders are slash-separated job names (`team/services/deploy` → `/job/team/job/services/job/deploy`).
+- Folders are slash-separated job names (`team/services/deploy` → `/job/team/job/services/job/deploy`); each name is percent-encoded once, so `feature%2Fx` → `/job/feature%252Fx` as Jenkins expects.
 - Console reading uses the `progressiveText` endpoint's `X-Text-Size` / `X-More-Data` headers, so `--follow` is incremental, not full-log refetching.
 - For advanced use cases not covered by the script (creating jobs, editing config, remote-trigger tokens), see `SKILL_PATH/references/API_REFERENCE.md`.

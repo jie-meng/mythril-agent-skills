@@ -827,6 +827,19 @@ def fetch_variable_names(file_key: str, token: str) -> dict[str, str]:
     return variable_names(data)
 
 
+def nodes_params(node_ids: list[str], max_depth: int, version: str | None) -> dict[str, object]:
+    """Query params for GET /v1/files/:key/nodes.
+
+    Asks the API for one level below the deepest rendered level (so truncated
+    children can still be counted) instead of downloading the full subtree.
+    """
+    return {
+        "ids": ",".join(node_ids),
+        "version": version,
+        "depth": max(max_depth, 0) + 1,
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI parser."""
     parser = argparse.ArgumentParser(
@@ -878,7 +891,7 @@ def main() -> None:
             data = figma_get(
                 f"/v1/files/{file_key}/nodes",
                 token,
-                {"ids": ",".join(node_ids), "version": args.version},
+                nodes_params(node_ids, args.depth, args.version),
             )
             var_names = (
                 fetch_variable_names(file_key, token)
@@ -905,11 +918,13 @@ def main() -> None:
             except FigmaAPIError as e:
                 if e.status != 403:
                     raise
-                print(
-                    "NOTE: metadata endpoint returned 403 (token may lack "
-                    "the file_metadata:read scope); falling back to the full "
-                    "file request.",
-                    file=sys.stderr,
+                # Do not silently fall back to GET /files: it is a Tier 1 call
+                # (View/Collab seats get 6 per month).
+                fail(
+                    "metadata endpoint returned 403 (the token may lack the "
+                    "file_metadata:read scope). Re-run with --pages to read the "
+                    "overview from the full file instead — that costs one Tier 1 "
+                    "call — or pass a layer link (node-id)."
                 )
         data = figma_get(
             f"/v1/files/{file_key}", token, {"depth": 1, "version": args.version}

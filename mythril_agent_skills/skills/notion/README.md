@@ -65,10 +65,10 @@ python3 scripts/notion_api.py view "https://www.notion.so/My-Page-1234567890abcd
 python3 scripts/notion_api.py search "deployment guide"
 
 # Create a page (the first H1 becomes the title)
-python3 scripts/notion_api.py create --title "Design Doc" --markdown "## Overview\n\nDetails."
+python3 scripts/notion_api.py create --title "Design Doc" --markdown-file design.md
 
 # Append / replace content
-python3 scripts/notion_api.py append PAGE --markdown "## Next steps\n\n- [ ] Review"
+python3 scripts/notion_api.py append PAGE --markdown $'## Next steps\n\n- [ ] Review'
 python3 scripts/notion_api.py update PAGE --old "old text" --new "new text"
 
 # Comments

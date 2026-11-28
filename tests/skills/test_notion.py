@@ -557,3 +557,60 @@ class TestSkillsCheckNotion:
         assert "https://www.notion.so/developers/tokens" in out
         assert "New token" in out
         assert "Notion API" in out
+
+
+class TestPeekUrl:
+    """A page opened in peek mode keeps the database id in the path."""
+
+    def test_p_query_param_wins(self):
+        from notion_api import extract_id
+        url = (
+            "https://www.notion.so/ws/" + "a" * 32 + "?v=" + "b" * 32
+            + "&p=" + "c" * 32 + "&pm=s"
+        )
+        assert extract_id(url) == "c" * 32
+
+    def test_dashed_p_param(self):
+        from notion_api import extract_id
+        dashed = "12345678-1234-1234-1234-123456789abc"
+        url = "https://www.notion.so/ws/" + "a" * 32 + "?p=" + dashed
+        assert extract_id(url) == dashed.replace("-", "")
+
+    def test_invalid_p_param_ignored(self):
+        from notion_api import extract_id
+        url = "https://www.notion.so/ws/Page-" + "a" * 32 + "?p=nope"
+        assert extract_id(url) == "a" * 32
+
+
+class TestItemMarkdown:
+    def test_no_h1_when_title_property_set(self):
+        from notion_api import item_markdown
+        props = {"Name": {"title": [{"text": {"content": "Fix"}}]}}
+        assert item_markdown("Fix", "body", props, {"Name": "title"}) == "body"
+
+    def test_h1_when_no_title_property(self):
+        from notion_api import item_markdown
+        assert item_markdown("Fix", "body", {}, {}) == "# Fix\n\nbody"
+
+
+class TestReadMarkdownArg:
+    def test_inline_markdown(self):
+        from notion_api import read_markdown_arg
+        assert read_markdown_arg("## A", None) == "## A"
+        assert read_markdown_arg(None, None) == ""
+
+    def test_file_keeps_real_newlines(self, tmp_path):
+        from notion_api import read_markdown_arg
+        f = tmp_path / "doc.md"
+        f.write_text("## Overview\n\nDetails\n", encoding="utf-8")
+        assert read_markdown_arg("", str(f)) == "## Overview\n\nDetails\n"
+
+    def test_both_given_is_error(self, tmp_path):
+        from notion_api import read_markdown_arg
+        with pytest.raises(ValueError):
+            read_markdown_arg("x", str(tmp_path / "a.md"))
+
+    def test_missing_file_is_error(self, tmp_path):
+        from notion_api import read_markdown_arg
+        with pytest.raises(ValueError, match="cannot read"):
+            read_markdown_arg("", str(tmp_path / "missing.md"))

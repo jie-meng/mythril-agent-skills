@@ -144,3 +144,36 @@ class TestHttpErrorMessage:
         assert message == (
             "GLM vision API returned HTTP 429 rate limited - wait a moment and retry."
         )
+
+
+class TestCheckImageSize:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from vision_fallback import MAX_IMAGE_BYTES, check_image_size
+        self.fn = check_image_size
+        self.limit = MAX_IMAGE_BYTES
+
+    def test_within_limit(self):
+        from pathlib import Path
+        self.fn(Path("a.png"), self.limit)
+
+    def test_over_limit_raises_with_hint(self):
+        from pathlib import Path
+        with pytest.raises(ValueError, match="too large.*resize|too large"):
+            self.fn(Path("a.png"), self.limit + 1)
+
+    def test_encode_rejects_large_file_before_reading(self, tmp_path):
+        from vision_fallback import encode_image_data_url
+        big = tmp_path / "big.png"
+        with open(big, "wb") as f:
+            f.write(b"\x89PNG")
+            f.seek(self.limit + 10)
+            f.write(b"\0")
+        with pytest.raises(ValueError, match="too large"):
+            encode_image_data_url(big)
+
+    def test_encode_small_file(self, tmp_path):
+        from vision_fallback import encode_image_data_url
+        small = tmp_path / "s.png"
+        small.write_bytes(b"\x89PNG\r\n\x1a\n")
+        assert encode_image_data_url(small).startswith("data:image/png;base64,")

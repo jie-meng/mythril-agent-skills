@@ -386,3 +386,44 @@ class TestSkillsCheckJenkins:
         out = capsys.readouterr().out
         assert TOKEN_URL in out
         assert "Add new Token" in out
+
+
+class TestParseJobUrl:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from jenkins_api import parse_job_url
+
+        self.fn = parse_job_url
+
+    def test_job_and_build(self):
+        assert self.fn("https://ci.example.com/job/team/job/app/42/console",
+                       "https://ci.example.com") == ("team/app", "42")
+
+    def test_job_only(self):
+        assert self.fn("https://ci.example.com/job/deploy-dev/",
+                       "https://ci.example.com") == ("deploy-dev", None)
+
+    def test_context_path_and_port(self):
+        assert self.fn("https://ci.example.com:8443/jenkins/job/a/lastBuild/",
+                       "https://ci.example.com:8443/jenkins") == ("a", "lastBuild")
+
+    def test_view_prefix_skipped(self):
+        assert self.fn("https://ci/view/All/job/a/7/", "https://ci") == ("a", "7")
+
+    def test_multibranch_branch_decoded_once(self):
+        job, build = self.fn("https://ci/job/repo/job/feature%252Fx/3/", "https://ci")
+        assert (job, build) == ("repo/feature%2Fx", "3")
+
+    def test_round_trip_with_job_path(self):
+        from jenkins_api import job_path
+
+        job, _ = self.fn("https://ci/job/repo/job/feature%252Fx/", "https://ci")
+        assert job_path(job) == "/job/repo/job/feature%252Fx"
+
+    def test_other_host_refused(self):
+        with pytest.raises(ValueError, match="not the configured"):
+            self.fn("https://evil.com/job/a/1/", "https://ci.example.com")
+
+    def test_no_job_segment(self):
+        with pytest.raises(ValueError, match="No /job/"):
+            self.fn("https://ci/manage/", "https://ci")

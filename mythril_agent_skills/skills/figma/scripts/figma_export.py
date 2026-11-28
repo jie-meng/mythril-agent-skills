@@ -27,6 +27,7 @@ from figma_common import (  # noqa: E402
     fail,
     figma_get,
     get_token,
+    new_cache_run_dir,
 )
 
 VALID_FORMATS = ("png", "jpg", "svg", "pdf")
@@ -113,7 +114,8 @@ def plan_outputs(
     """Map each node id to its destination file. Raises ValueError on misuse.
 
     `output` is only valid for a single node. Otherwise files go into `out_dir`
-    (default: current dir) as `<name>.<fmt>`, where name comes from `names`
+    (main() passes a fresh cache dir when none is given) as `<name>.<fmt>`,
+    where name comes from `names`
     (same order as node ids) or defaults to `figma_<node-id>`.
     """
     if output and out_dir:
@@ -228,7 +230,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--output", metavar="PATH", help="Destination file (single node only)"
     )
     parser.add_argument(
-        "--out-dir", metavar="DIR", help="Destination directory (multiple nodes)"
+        "--out-dir",
+        metavar="DIR",
+        help="Destination directory (default: a new dir under the unified "
+        "mythril-skills-cache/figma cache)",
     )
     parser.add_argument(
         "--names",
@@ -280,7 +285,11 @@ def main() -> None:
                 )
         except ValueError as e:
             fail(str(e), 2)
-        out_dir = Path(args.out_dir or ".").expanduser().resolve()
+        out_dir = (
+            Path(args.out_dir).expanduser().resolve()
+            if args.out_dir
+            else new_cache_run_dir()
+        )
         token = get_token()
         if download_image_fills(file_key, token, refs, out_dir, names):
             sys.exit(1)
@@ -294,11 +303,14 @@ def main() -> None:
                 "selection' and pass that URL, or add --ids."
             )
         names = [n.strip() for n in args.names.split(",")] if args.names else None
+        out_dir = args.out_dir
+        if not args.output and not out_dir:
+            out_dir = str(new_cache_run_dir())
         plan = plan_outputs(
             node_ids,
             args.format,
             output=args.output,
-            out_dir=args.out_dir,
+            out_dir=out_dir,
             names=names,
         )
     except ValueError as e:
