@@ -44,8 +44,166 @@ class TestAutoConvert:
     def test_plain_string(self):
         assert self.func("hello world") == "hello world"
 
-    def test_string_with_leading_zero(self):
-        assert self.func("007") == 7
+    def test_string_with_leading_zero_stays_text(self):
+        assert self.func("007") == "007"
+        assert self.func("00123") == "00123"
+        assert self.func("007.5") == "007.5"
+
+    def test_zero_and_decimal_below_one_still_numeric(self):
+        assert self.func("0") == 0
+        assert self.func("0.5") == pytest.approx(0.5)
+
+    def test_long_integer_stays_text(self):
+        assert self.func("1234567890123456") == "1234567890123456"
+        assert self.func("123456789012345") == 123456789012345
+
+    def test_nan_inf_stay_text(self):
+        for value in ("nan", "NaN", "inf", "-Infinity"):
+            assert self.func(value) == value
+
+    def test_underscore_and_unicode_digits_stay_text(self):
+        assert self.func("1_000") == "1_000"
+        assert self.func("²") == "²"
+
+
+class TestCsvCellValue:
+    """Tests for excel_ops._csv_cell_value."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from excel_ops import _csv_cell_value
+        self.func = _csv_cell_value
+
+    def test_default_keeps_text(self):
+        assert self.func("007", False) == "007"
+        assert self.func("42", False) == "42"
+        assert self.func("true", False) == "true"
+
+    def test_default_empty_is_none(self):
+        assert self.func("", False) is None
+
+    def test_infer_types(self):
+        assert self.func("42", True) == 42
+        assert self.func("007", True) == "007"
+
+
+class TestParseDelimiter:
+    """Tests for excel_ops._parse_delimiter."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from excel_ops import _parse_delimiter
+        self.func = _parse_delimiter
+
+    def test_literal_backslash_t_is_tab(self):
+        assert self.func("\\t") == "\t"
+
+    def test_named_tab(self):
+        assert self.func("tab") == "\t"
+        assert self.func("TAB") == "\t"
+
+    def test_single_char_passthrough(self):
+        assert self.func(";") == ";"
+        assert self.func("\t") == "\t"
+
+    def test_multi_char_rejected(self):
+        with pytest.raises(ValueError):
+            self.func(",,")
+
+
+class TestLossyParts:
+    """Tests for excel_ops.lossy_parts."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from excel_ops import lossy_parts
+        self.func = lossy_parts
+
+    def test_plain_workbook(self):
+        names = ["xl/workbook.xml", "xl/worksheets/sheet1.xml"]
+        assert self.func(names) == []
+
+    def test_charts_and_images(self):
+        names = ["xl/charts/chart1.xml", "xl/media/image1.png", "xl/charts/chart2.xml"]
+        assert self.func(names) == ["charts", "images"]
+
+
+class TestXlsCachePath:
+    """Tests for excel_ops.xls_cache_path and get_cache_root."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from excel_ops import get_cache_root, xls_cache_path
+        self.func = xls_cache_path
+        self.root = get_cache_root
+
+    def test_lives_in_cache_not_next_to_source(self, tmp_path):
+        src = tmp_path / "docs" / "report.xls"
+        out = self.func(src, tmp_path / "cache", 1, 2)
+        assert out.name == "report.xlsx"
+        assert (tmp_path / "cache" / "excel" / "xls-converted") in out.parents
+        assert src.parent not in out.parents
+
+    def test_changes_when_source_changes(self, tmp_path):
+        src = tmp_path / "report.xls"
+        a = self.func(src, tmp_path, 1, 100)
+        b = self.func(src, tmp_path, 2, 100)
+        assert a != b
+
+    def test_cache_root_per_platform(self, tmp_path):
+        assert self.root("Darwin", {}, tmp_path) == (
+            tmp_path / "Library" / "Caches" / "mythril-skills-cache"
+        )
+        assert self.root("Linux", {"XDG_CACHE_HOME": str(tmp_path / "x")}, tmp_path) == (
+            tmp_path / "x" / "mythril-skills-cache"
+        )
+
+
+class TestCmdImportCsv:
+    """Integration tests for excel_ops.cmd_import_csv."""
+
+    def _args(self, xlsx, csv_path, **kw):
+        import argparse
+        base = dict(file=str(xlsx), csv_file=str(csv_path), sheet=None,
+                    encoding="utf-8", delimiter=",", infer_types=False,
+                    in_place=False)
+        base.update(kw)
+        return argparse.Namespace(**base)
+
+    def test_tsv_with_literal_backslash_t(self, tmp_path):
+        import openpyxl
+        from excel_ops import cmd_import_csv
+        tsv = tmp_path / "d.tsv"
+        tsv.write_text("id\tzip\n1\t00123\n", encoding="utf-8")
+        xlsx = tmp_path / "out.xlsx"
+        cmd_import_csv(self._args(xlsx, tsv, delimiter="\\t"))
+        wb = openpyxl.load_workbook(xlsx)
+        assert wb.sheetnames == ["d"]
+        ws = wb["d"]
+        assert ws["B1"].value == "zip"
+        assert ws["B2"].value == "00123"
+        assert ws["A2"].value == "1"
+
+    def test_infer_types(self, tmp_path):
+        import openpyxl
+        from excel_ops import cmd_import_csv
+        csv_path = tmp_path / "d.csv"
+        csv_path.write_text("n,zip\n42,00123\n", encoding="utf-8")
+        xlsx = tmp_path / "out.xlsx"
+        cmd_import_csv(self._args(xlsx, csv_path, infer_types=True))
+        ws = openpyxl.load_workbook(xlsx)["d"]
+        assert ws["A2"].value == 42
+        assert ws["B2"].value == "00123"
+
+
+class TestMacroWorkbook:
+    """Saving an .xlsm keeps its VBA project."""
+
+    def test_keep_vba_flag(self):
+        from excel_ops import _is_macro_enabled
+        assert _is_macro_enabled("a.xlsm")
+        assert _is_macro_enabled("A.XLTM")
+        assert not _is_macro_enabled("a.xlsx")
 
 
 class TestCellValueStr:

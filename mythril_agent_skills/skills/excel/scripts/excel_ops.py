@@ -12,8 +12,13 @@ Optional: xls2xlsx (pip install xls2xlsx) — for .xls support
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import math
+import os
+import platform
 import sys
+import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -36,15 +41,90 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 
+SKILL_NAME = "excel"
+
+# Parts of an .xlsx package that openpyxl does not round-trip: they are
+# silently dropped when a loaded workbook is saved again.
+_LOSSY_PART_PREFIXES = {
+    "xl/charts/": "charts",
+    "xl/drawings/": "drawings/shapes",
+    "xl/media/": "images",
+    "xl/pivotTables/": "pivot tables",
+    "xl/slicers/": "slicers",
+}
+
+
 def _is_xls(path: str) -> bool:
     """Check if the file is a legacy .xls format."""
     return Path(path).suffix.lower() == ".xls"
 
 
+def _is_macro_enabled(path: str) -> bool:
+    """Check if the file is a macro-enabled workbook/template (.xlsm/.xltm)."""
+    return Path(path).suffix.lower() in (".xlsm", ".xltm")
+
+
+def get_cache_root(
+    system: str | None = None,
+    env: dict[str, str] | None = None,
+    home: Path | None = None,
+) -> Path:
+    """Return the per-user mythril-skills-cache root for the given platform."""
+    system = system if system is not None else platform.system()
+    env = env if env is not None else dict(os.environ)
+    home = home if home is not None else Path.home()
+    if system == "Darwin":
+        return home / "Library" / "Caches" / "mythril-skills-cache"
+    if system == "Windows":
+        local = env.get("LOCALAPPDATA")
+        base = Path(local) if local else home / "AppData" / "Local"
+        return base / "mythril-skills-cache"
+    xdg = env.get("XDG_CACHE_HOME")
+    base = Path(xdg) if xdg else home / ".cache"
+    return base / "mythril-skills-cache"
+
+
+def xls_cache_path(xls_path: Path, cache_root: Path, mtime_ns: int, size: int) -> Path:
+    """Return the cache location for the .xlsx conversion of a .xls file.
+
+    The key covers the absolute path, modification time and size, so an
+    edited source is re-converted instead of reusing a stale copy, and two
+    files with the same name never collide.
+    """
+    key = f"{xls_path.resolve()}|{mtime_ns}|{size}"
+    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
+    return cache_root / SKILL_NAME / "xls-converted" / digest / f"{xls_path.stem}.xlsx"
+
+
+def lossy_parts(names: list[str]) -> list[str]:
+    """Return labels of package parts openpyxl drops on save (charts, images...)."""
+    found: list[str] = []
+    for prefix, label in _LOSSY_PART_PREFIXES.items():
+        if any(n.startswith(prefix) for n in names) and label not in found:
+            found.append(label)
+    return found
+
+
+def _warn_lossy_parts(path: str) -> None:
+    """Print a stderr warning if saving this workbook would drop content."""
+    try:
+        with zipfile.ZipFile(path) as zf:
+            labels = lossy_parts(zf.namelist())
+    except (OSError, zipfile.BadZipFile):
+        return
+    if labels:
+        print(
+            f"WARNING: {Path(path).name} contains {', '.join(labels)}; openpyxl "
+            "does not preserve these, so they will be missing from the saved file.",
+            file=sys.stderr,
+        )
+
+
 def _convert_xls_to_xlsx(xls_path: str) -> str:
     """Convert a .xls file to .xlsx using xls2xlsx. Returns the .xlsx path.
 
-    The converted file is placed next to the original with .xlsx extension.
+    The converted file goes to the skill cache directory (never next to the
+    user's file), keyed by path + mtime + size.
     """
     try:
         from xls2xlsx import XLS2XLSX
@@ -58,10 +138,11 @@ def _convert_xls_to_xlsx(xls_path: str) -> str:
         sys.exit(2)
 
     p = Path(xls_path)
-    xlsx_path = p.with_suffix(".xlsx")
+    st = p.stat()
+    xlsx_path = xls_cache_path(p, get_cache_root(), st.st_mtime_ns, st.st_size)
     if xlsx_path.exists():
-        print(f"Using existing converted file: {xlsx_path}")
         return str(xlsx_path)
+    xlsx_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
         x2x = XLS2XLSX(str(p))
@@ -73,8 +154,14 @@ def _convert_xls_to_xlsx(xls_path: str) -> str:
         sys.exit(2)
 
 
-def _load_workbook(path: str, *, data_only: bool = False) -> openpyxl.Workbook:
-    """Load a workbook, handling .xls auto-conversion and common errors."""
+def _load_workbook(
+    path: str, *, data_only: bool = False, for_write: bool = False
+) -> openpyxl.Workbook:
+    """Load a workbook, handling .xls auto-conversion and common errors.
+
+    Macro-enabled files keep their VBA project. With *for_write*, warn when
+    the file holds content openpyxl cannot save back (charts, images...).
+    """
     p = Path(path)
     if not p.exists():
         print(f"ERROR: File not found: {path}", file=sys.stderr)
@@ -84,8 +171,14 @@ def _load_workbook(path: str, *, data_only: bool = False) -> openpyxl.Workbook:
     if _is_xls(path):
         actual_path = _convert_xls_to_xlsx(path)
 
+    if for_write:
+        _warn_lossy_parts(actual_path)
     try:
-        return openpyxl.load_workbook(actual_path, data_only=data_only)
+        return openpyxl.load_workbook(
+            actual_path,
+            data_only=data_only,
+            keep_vba=_is_macro_enabled(actual_path),
+        )
     except Exception as exc:
         print(f"ERROR: Cannot open workbook: {exc}", file=sys.stderr)
         sys.exit(2)
@@ -211,22 +304,61 @@ def _effective_dimensions(ws: Any) -> tuple[int, int]:
     return (eff_row or max_row, eff_col or max_col)
 
 
+# Integers longer than this lose precision in Excel (IEEE double, 15 digits).
+_MAX_SAFE_DIGITS = 15
+
+
 def _auto_convert(value: str) -> Any:
-    """Convert string value to appropriate Python type for Excel."""
+    """Convert string value to appropriate Python type for Excel.
+
+    Identifier-like strings stay text so no data is lost: leading zeros
+    ("007", zip codes), integers longer than 15 digits (card/ID numbers),
+    and nan/inf spellings.
+    """
     if value == "":
         return None
     if value.lower() in ("true", "false"):
         return value.lower() == "true"
-    try:
+    digits = value.lstrip("+-")
+    if digits.isascii() and digits.isdigit():
+        if len(digits) > 1 and digits.startswith("0"):
+            return value
+        if len(digits) > _MAX_SAFE_DIGITS:
+            return value
         return int(value)
-    except ValueError:
-        pass
+    if len(digits) > 1 and digits[0] == "0" and digits[1].isdigit():
+        return value  # "007.5" style codes
+    if "_" in value:
+        return value  # float() accepts "1_000"; Excel users mean text
     try:
-        return float(value)
+        num = float(value)
     except ValueError:
-        pass
-    if value.startswith("="):
         return value
+    if math.isnan(num) or math.isinf(num):
+        return value
+    return num
+
+
+def _csv_cell_value(value: str, infer_types: bool) -> Any:
+    """Value to store for a CSV cell: text by default, typed with --infer-types."""
+    if infer_types:
+        return _auto_convert(value)
+    return value if value != "" else None
+
+
+def _parse_delimiter(raw: str) -> str:
+    """Turn a --delimiter argument into a single character.
+
+    Accepts escapes the shell passes through literally ("\\t") and names
+    such as "tab"; raises ValueError for anything that is not one character.
+    """
+    aliases = {"\\t": "\t", "tab": "\t", "pipe": "|",
+               "comma": ",", "semicolon": ";", "space": " "}
+    value = aliases.get(raw.lower(), raw)
+    if len(value) != 1:
+        raise ValueError(
+            f"delimiter must be one character (or tab/\\t), got {raw!r}"
+        )
     return value
 
 
@@ -271,7 +403,7 @@ def cmd_info(args: argparse.Namespace) -> None:
 
 def cmd_read(args: argparse.Namespace) -> None:
     """Read cell range and output as markdown table or JSON."""
-    wb = _load_workbook(args.file, data_only=True)
+    wb = _load_workbook(args.file, data_only=not args.formulas)
     ws = _get_sheet(wb, args.sheet)
 
     if args.range:
@@ -379,7 +511,7 @@ def cmd_export_csv(args: argparse.Namespace) -> None:
 
 def cmd_write(args: argparse.Namespace) -> None:
     """Write values to cells."""
-    wb = _load_workbook(args.file)
+    wb = _load_workbook(args.file, for_write=True)
     ws = _get_sheet(wb, args.sheet)
 
     for spec in args.cells:
@@ -399,7 +531,7 @@ def cmd_write(args: argparse.Namespace) -> None:
 
 def cmd_write_range(args: argparse.Namespace) -> None:
     """Write a block of data from JSON input."""
-    wb = _load_workbook(args.file)
+    wb = _load_workbook(args.file, for_write=True)
     ws = _get_sheet(wb, args.sheet)
 
     try:
@@ -451,7 +583,7 @@ def cmd_create(args: argparse.Namespace) -> None:
 
 def cmd_add_sheet(args: argparse.Namespace) -> None:
     """Add a new sheet to the workbook."""
-    wb = _load_workbook(args.file)
+    wb = _load_workbook(args.file, for_write=True)
     if args.name in wb.sheetnames:
         print(f"ERROR: Sheet '{args.name}' already exists.", file=sys.stderr)
         sys.exit(2)
@@ -463,7 +595,7 @@ def cmd_add_sheet(args: argparse.Namespace) -> None:
 
 def cmd_delete_sheet(args: argparse.Namespace) -> None:
     """Delete a sheet from the workbook."""
-    wb = _load_workbook(args.file)
+    wb = _load_workbook(args.file, for_write=True)
     ws = _get_sheet(wb, args.name)
     if len(wb.sheetnames) == 1:
         print("ERROR: Cannot delete the only sheet in a workbook.", file=sys.stderr)
@@ -476,7 +608,7 @@ def cmd_delete_sheet(args: argparse.Namespace) -> None:
 
 def cmd_rename_sheet(args: argparse.Namespace) -> None:
     """Rename a sheet."""
-    wb = _load_workbook(args.file)
+    wb = _load_workbook(args.file, for_write=True)
     ws = _get_sheet(wb, args.old_name)
     if args.new_name in wb.sheetnames:
         print(f"ERROR: Sheet '{args.new_name}' already exists.", file=sys.stderr)
@@ -489,7 +621,7 @@ def cmd_rename_sheet(args: argparse.Namespace) -> None:
 
 def cmd_copy_sheet(args: argparse.Namespace) -> None:
     """Copy a sheet within the workbook."""
-    wb = _load_workbook(args.file)
+    wb = _load_workbook(args.file, for_write=True)
     ws = _get_sheet(wb, args.source)
     new_ws = wb.copy_worksheet(ws)
     if args.name:
@@ -501,7 +633,7 @@ def cmd_copy_sheet(args: argparse.Namespace) -> None:
 
 def cmd_add_column(args: argparse.Namespace) -> None:
     """Add a column with a header and optional default value."""
-    wb = _load_workbook(args.file)
+    wb = _load_workbook(args.file, for_write=True)
     ws = _get_sheet(wb, args.sheet)
 
     if args.position:
@@ -522,7 +654,7 @@ def cmd_add_column(args: argparse.Namespace) -> None:
 
 def cmd_delete_column(args: argparse.Namespace) -> None:
     """Delete a column by letter or index."""
-    wb = _load_workbook(args.file)
+    wb = _load_workbook(args.file, for_write=True)
     ws = _get_sheet(wb, args.sheet)
     col = _parse_col(args.column)
     header = _cell_value_str(ws.cell(1, col).value)
@@ -534,7 +666,7 @@ def cmd_delete_column(args: argparse.Namespace) -> None:
 
 def cmd_rename_column(args: argparse.Namespace) -> None:
     """Rename a column header."""
-    wb = _load_workbook(args.file)
+    wb = _load_workbook(args.file, for_write=True)
     ws = _get_sheet(wb, args.sheet)
     col = _parse_col(args.column)
     old_header = _cell_value_str(ws.cell(1, col).value)
@@ -546,7 +678,7 @@ def cmd_rename_column(args: argparse.Namespace) -> None:
 
 def cmd_add_row(args: argparse.Namespace) -> None:
     """Add a row with values."""
-    wb = _load_workbook(args.file)
+    wb = _load_workbook(args.file, for_write=True)
     ws = _get_sheet(wb, args.sheet)
 
     if args.position:
@@ -580,7 +712,7 @@ def cmd_add_row(args: argparse.Namespace) -> None:
 
 def cmd_delete_row(args: argparse.Namespace) -> None:
     """Delete one or more rows."""
-    wb = _load_workbook(args.file)
+    wb = _load_workbook(args.file, for_write=True)
     ws = _get_sheet(wb, args.sheet)
     rows_sorted = sorted(args.rows, reverse=True)
     for r in rows_sorted:
@@ -592,7 +724,7 @@ def cmd_delete_row(args: argparse.Namespace) -> None:
 
 def cmd_set_style(args: argparse.Namespace) -> None:
     """Apply styling to a cell range."""
-    wb = _load_workbook(args.file)
+    wb = _load_workbook(args.file, for_write=True)
     ws = _get_sheet(wb, args.sheet)
 
     min_col, min_row, max_col, max_row = _parse_range(args.range)
@@ -649,7 +781,7 @@ def cmd_set_style(args: argparse.Namespace) -> None:
 
 def cmd_merge(args: argparse.Namespace) -> None:
     """Merge a range of cells."""
-    wb = _load_workbook(args.file)
+    wb = _load_workbook(args.file, for_write=True)
     ws = _get_sheet(wb, args.sheet)
     ws.merge_cells(args.range)
     print(f"Merged cells: {args.range}")
@@ -659,7 +791,7 @@ def cmd_merge(args: argparse.Namespace) -> None:
 
 def cmd_unmerge(args: argparse.Namespace) -> None:
     """Unmerge a range of cells."""
-    wb = _load_workbook(args.file)
+    wb = _load_workbook(args.file, for_write=True)
     ws = _get_sheet(wb, args.sheet)
     ws.unmerge_cells(args.range)
     print(f"Unmerged cells: {args.range}")
@@ -669,7 +801,7 @@ def cmd_unmerge(args: argparse.Namespace) -> None:
 
 def cmd_freeze(args: argparse.Namespace) -> None:
     """Freeze panes at a given cell (e.g. A2 freezes row 1)."""
-    wb = _load_workbook(args.file)
+    wb = _load_workbook(args.file, for_write=True)
     ws = _get_sheet(wb, args.sheet)
     ws.freeze_panes = args.cell if args.cell.upper() != "NONE" else None
     action = "Unfroze all panes" if args.cell.upper() == "NONE" else f"Froze panes at {args.cell}"
@@ -680,7 +812,7 @@ def cmd_freeze(args: argparse.Namespace) -> None:
 
 def cmd_autofilter(args: argparse.Namespace) -> None:
     """Set auto-filter on a range (e.g. A1:D100)."""
-    wb = _load_workbook(args.file)
+    wb = _load_workbook(args.file, for_write=True)
     ws = _get_sheet(wb, args.sheet)
     ws.auto_filter.ref = args.range
     print(f"Auto-filter set on {args.range}")
@@ -690,7 +822,7 @@ def cmd_autofilter(args: argparse.Namespace) -> None:
 
 def cmd_column_width(args: argparse.Namespace) -> None:
     """Set column width."""
-    wb = _load_workbook(args.file)
+    wb = _load_workbook(args.file, for_write=True)
     ws = _get_sheet(wb, args.sheet)
     col_letter = _col_label(_parse_col(args.column))
     ws.column_dimensions[col_letter].width = args.width
@@ -701,7 +833,7 @@ def cmd_column_width(args: argparse.Namespace) -> None:
 
 def cmd_row_height(args: argparse.Namespace) -> None:
     """Set row height."""
-    wb = _load_workbook(args.file)
+    wb = _load_workbook(args.file, for_write=True)
     ws = _get_sheet(wb, args.sheet)
     ws.row_dimensions[args.row].height = args.height
     print(f"Row {args.row} height set to {args.height}")
@@ -720,23 +852,33 @@ def cmd_import_csv(args: argparse.Namespace) -> None:
 
     xlsx_path = Path(args.file)
     if xlsx_path.exists():
-        wb = _load_workbook(args.file)
+        wb = _load_workbook(args.file, for_write=True)
         is_new = False
     else:
         wb = openpyxl.Workbook()
         is_new = True
 
     sheet_name = args.sheet or csv_path.stem
-    if sheet_name in wb.sheetnames:
+    if is_new:
+        # Rename the blank default sheet instead of leaving it empty in front.
+        ws = wb.active
+        ws.title = sheet_name
+    elif sheet_name in wb.sheetnames:
         ws = wb[sheet_name]
     else:
         ws = wb.create_sheet(sheet_name)
 
+    try:
+        delimiter = _parse_delimiter(args.delimiter)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(2)
+
     with open(csv_path, newline="", encoding=args.encoding) as f:
-        reader = csv.reader(f, delimiter=args.delimiter)
+        reader = csv.reader(f, delimiter=delimiter)
         for ri, row in enumerate(reader, start=1):
             for ci, val in enumerate(row, start=1):
-                ws.cell(ri, ci, value=_auto_convert(val))
+                ws.cell(ri, ci, value=_csv_cell_value(val, args.infer_types))
 
     if is_new:
         out = args.file
@@ -794,6 +936,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--limit", "-n", type=int, help="Max rows to read")
     p.add_argument("--header", action="store_true", help="First row is header")
     p.add_argument("--format", "-f", choices=["markdown", "json"], default="markdown")
+    p.add_argument(
+        "--formulas",
+        action="store_true",
+        help="Show formulas instead of cached values (cells written by this "
+        "script have no cached value until Excel recalculates them)",
+    )
 
     # --- search ---
     p = sub.add_parser("search", help="Search for a value")
@@ -964,7 +1112,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("csv_file", help="Path to CSV file")
     p.add_argument("--sheet", "-s", help="Target sheet name (default: CSV filename)")
     p.add_argument("--encoding", default="utf-8", help="CSV encoding (default: utf-8)")
-    p.add_argument("--delimiter", default=",", help="CSV delimiter (default: ,)")
+    p.add_argument(
+        "--delimiter", default=",",
+        help="CSV delimiter: one character, or tab / \\t (default: ,)",
+    )
+    p.add_argument(
+        "--infer-types",
+        action="store_true",
+        help="Convert numbers/booleans (default: keep every cell as text, "
+        "so IDs and zip codes keep leading zeros)",
+    )
     _add_in_place_flag(p)
 
     return parser

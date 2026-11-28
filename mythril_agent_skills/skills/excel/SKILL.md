@@ -19,7 +19,9 @@ license: Apache-2.0
 - Import/export: CSV to/from Excel conversion
 - Creating new workbooks from scratch
 
-> **Format support**: natively handles `.xlsx`, `.xlsm`, `.xltx`, `.xltm` (Excel 2010+). Legacy `.xls` (Excel 97-2003) is also supported — the script auto-converts it to `.xlsx` via xls2xlsx before processing. Write operations on `.xls` source files always output `.xlsx`.
+> **Format support**: natively handles `.xlsx`, `.xlsm`, `.xltx`, `.xltm` (Excel 2010+); macros in `.xlsm`/`.xltm` are kept on save. Legacy `.xls` (Excel 97-2003) is also supported — the script converts it to `.xlsx` via xls2xlsx into the skill cache (`<user-cache>/mythril-skills-cache/excel/xls-converted/`), never next to the user's file. Write operations on `.xls` source files always output `.xlsx`.
+>
+> **Content openpyxl cannot save**: charts, images, shapes, pivot tables, and slicers in an existing workbook are dropped when any write command saves it. Write commands print a `WARNING:` on stderr when the file contains them — tell the user before using `--in-place` on such a file (the default timestamped copy keeps the original intact).
 
 # Prerequisites
 
@@ -85,7 +87,12 @@ python3 SKILL_PATH/scripts/excel_ops.py read report.xlsx --header --limit 50
 
 # Read as JSON (useful for programmatic processing)
 python3 SKILL_PATH/scripts/excel_ops.py read report.xlsx --header --format json
+
+# Show formulas instead of cached values
+python3 SKILL_PATH/scripts/excel_ops.py read report.xlsx --formulas
 ```
+
+`read` shows the values Excel cached at its last save. Formulas written by this script have no cached value yet, so they read back as empty cells until the file is opened and saved in Excel — use `--formulas` to confirm what was written.
 
 ## Search
 
@@ -194,8 +201,11 @@ python3 SKILL_PATH/scripts/excel_ops.py row-height report.xlsx 1 30
 python3 SKILL_PATH/scripts/excel_ops.py export-csv report.xlsx --output data.csv
 python3 SKILL_PATH/scripts/excel_ops.py export-csv report.xlsx --sheet "Sales" --output sales.csv
 python3 SKILL_PATH/scripts/excel_ops.py import-csv report.xlsx data.csv
-python3 SKILL_PATH/scripts/excel_ops.py import-csv report.xlsx data.tsv --delimiter "\t"
+python3 SKILL_PATH/scripts/excel_ops.py import-csv report.xlsx data.tsv --delimiter tab
+python3 SKILL_PATH/scripts/excel_ops.py import-csv report.xlsx data.csv --infer-types
 ```
+
+`import-csv` keeps every cell as text by default, so IDs, zip codes, and phone numbers keep their leading zeros. Pass `--infer-types` to store numbers and booleans as typed values (identifier-like values such as `007` or 16+ digit numbers still stay text). `--delimiter` takes one character or `tab` (`\t` also works).
 
 # Composing Multi-Step Workflows
 
@@ -219,4 +229,4 @@ When chaining multiple writes on the same file, apply `--in-place` to avoid crea
 
 - **Read before write**: always `info` or `read` first to understand the file structure
 - **Large files**: use `--limit` when reading to avoid overwhelming output
-- **Auto-type conversion**: the script auto-converts string inputs — `42` becomes int, `3.14` becomes float, `=SUM(A:A)` stays as formula, `true`/`false` become booleans
+- **Auto-type conversion** (`write`, `add-row --values`, `add-column --default`, `import-csv --infer-types`): `42` becomes int, `3.14` becomes float, `=SUM(A:A)` stays as formula, `true`/`false` become booleans. Values that would lose data stay text: leading zeros (`007`), integers longer than 15 digits, and `nan`/`inf`
