@@ -19,7 +19,7 @@ license: Apache-2.0
 Trigger this skill when the user mentions **"gh"**, **"github"**, or **"GitHub"** combined with an action intent:
 
 - "use gh to view this issue" / "用 gh 看一下" / "gh issue view"
-- "gh pr list" / "gh pr create" / "用 gh 创建 PR"
+- "gh pr list" / "gh pr checks" / "用 gh 查 PR"
 - "github issue" / "看一下这个 github issue" / "github PR"
 - "使用 gh" / "用 gh 访问" / "gh 看看"
 - User provides an issue/PR URL **and** explicitly says to use gh or GitHub
@@ -81,10 +81,8 @@ tokens; running `gh` settles it in one call. So once triggered:
    ```bash
    gh auth status
    ```
-3. If not authenticated, run:
-   ```bash
-   gh auth login
-   ```
+3. If not authenticated, stop and ask the user to run `gh auth login`
+   (or `gh auth login --hostname <host>`) themselves — it is interactive.
 4. Confirm target repository:
     - If working in a repo directory, use current repo context.
     - If user provides a full GitHub URL, keep that URL as the primary identifier.
@@ -143,6 +141,9 @@ gh pr checks 456
 
 ### Create PR
 
+For a PR that should follow the repo's PR template and a branch-derived
+title, use `github-pr-create` instead. For a quick one-off:
+
 ```bash
 gh pr create --base main --head feature-branch --title "feat: add export API" --body "Closes #123"
 ```
@@ -165,7 +166,8 @@ gh pr comment "https://github.com/OWNER/REPO/pull/456" --body "I left one concer
 gh pr comment "https://<github-host>/OWNER/REPO/pull/456" --body "Please clarify expected behavior here."
 ```
 
-Inline (line-level) review comment on a PR diff line:
+Inline (line-level) review comment on a PR diff line (add
+`--hostname <host>` after `gh api` for GitHub Enterprise):
 
 ```bash
 HEAD_SHA=$(gh pr view 456 --json headRefOid -q .headRefOid)
@@ -180,13 +182,19 @@ gh api repos/OWNER/REPO/pulls/456/comments \
 
 Notes:
 
-- `line` is the line number in the PR diff context for the target side.
+- `line` is the line number in the file itself on the chosen `side`
+  (`RIGHT` = new version, `LEFT` = old) — not a position within the diff.
+  It must fall inside a diff hunk, or the API returns 422. Read the hunk
+  header (`@@ -a,b +c,d @@`) in `gh pr diff` and count from `c`.
 - For enterprise hosts, keep using URL-first reads and authenticated host context.
 
 ## 4) Optional: GitHub commit metadata (`gh api` + repo context)
 
 Use this only when commit metadata is needed from GitHub's API (or the user
 explicitly asks for `gh`-based commit operations):
+
+`gh api` switches to POST as soon as a `-f`/`-F` field is added, so put
+query parameters in the URL (or add `-X GET`) for reads.
 
 ```bash
 gh api repos/{owner}/{repo}/commits/<sha>
@@ -196,7 +204,7 @@ gh api repos/{owner}/{repo}/commits/<sha> --jq '{sha: .sha, author: .commit.auth
 List recent commits:
 
 ```bash
-gh api repos/{owner}/{repo}/commits -f per_page=20 --jq '.[] | {sha: .sha, message: .commit.message}'
+gh api "repos/{owner}/{repo}/commits?per_page=20" --jq '.[] | {sha: .sha, message: .commit.message}'
 ```
 
 ## 5) Visual evidence handling for issue/PR/doc links
@@ -277,7 +285,7 @@ For every task, provide:
   2. If it's not GitHub at all, this skill only supports GitHub (including GHE)
   - Report the `gh` error and let the user decide; don't label the host "GitLab" or add prefaces like "not a GitHub URL" — `git.xxx.com`-style domains are commonly GHE.
   - Don't switch to `WebFetch`, `curl`, `glab`, or a browser before `gh` has been tried.
-- **Not logged in**: run `gh auth login`, then retry.
+- **Not logged in**: ask the user to run `gh auth login` (interactive), then retry.
 - **Wrong host / enterprise**: use `gh auth login --hostname <host-from-url>`, then rerun the same URL command unchanged.
 - **Auth failure — allowed recovery steps only**: when `gh` fails with auth/host errors:
   1. Report the `gh` error message to the user
