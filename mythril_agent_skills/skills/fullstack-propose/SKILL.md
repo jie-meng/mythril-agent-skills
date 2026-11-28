@@ -251,6 +251,15 @@ These bind whoever writes. The templates hold the exact shapes.
   mechanism adds risks, tests, and review findings of its own.
 - **Testable Success Criteria.** "Works correctly" is not one; "returns 200
   with JSON matching schema X for inputs A, B, C" is.
+- **Mechanisms verified, not just cited.** Every existing endpoint, field,
+  permission path, or hook the design relies on is confirmed to behave as
+  assumed (read the code that decides it). Line numbers only where a
+  developer copies from them.
+- **Phases a fresh developer can finish.** `fullstack-apply` gives each
+  phase of a large repo slice its own developer. A port of existing logic
+  starts with a differential-check task (original vs port, same inputs).
+- **Risks in one place** — `plan.md` §Risks / Open Questions; `analysis.md`
+  cites `R<n>` / `A<n>` ids, never a second table.
 - **Frozen cross-repo contracts (multi-repo).** `fullstack-apply` derives
   parallel waves from the `Depends On` column, and downstream repos code
   against interfaces while upstream is still being built. So every
@@ -373,6 +382,10 @@ Mode: standard | deep (spike) — tier: lean | full
 Next: tell me to "implement this" to run fullstack-apply — preferably in a
 fresh session; the work-directory documents are the handoff.
 ```
+
+Say the fresh-session part out loud when this session is long (exploration,
+discussion, review rounds): every apply orchestration step would otherwise
+re-send all of it.
 
 On `NEEDS_USER_DECISION`, replace `Next:` with a request for the decisions
 ("answer the open decisions above — I will re-run the plan review").

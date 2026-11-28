@@ -55,14 +55,22 @@ architecture review. A new cross-repo data flow does.
    - Rollback strategy spanning multiple repos
 5. **Break into phases** — Concrete tasks per repo with clear boundaries.
    Each phase should be independently verifiable. Identify dependencies
-   between phases and repos.
+   between phases and repos. Size a phase so one fresh developer can
+   finish it: `fullstack-apply` runs a separate developer per phase of a
+   large repo slice, so a phase that bundles a port, a data layer, and a
+   service layer is too big. When the work ports existing logic to
+   another language or module, make a **differential check** the first
+   task (run the original and the port on the same generated inputs and
+   compare) — it is the strongest evidence a port criterion can have.
 6. **Define success** — Testable acceptance criteria, not subjective ones.
    "Works correctly" is not a criterion; "returns 200 with valid JSON
    matching schema X for inputs A, B, C" is. These land in `plan.md`'s
    `## Success Criteria` section and are checked against evidence in
    `review.md`.
 7. **Surface risks** — Call out unknowns, edge cases, and cross-repo
-   dependencies. For each risk, suggest a mitigation.
+   dependencies. For each risk, suggest a mitigation. Risks and
+   assumptions are written once, in `plan.md` §Risks / Open Questions;
+   `analysis.md` cites their ids instead of repeating the table.
 8. **Name the files** — Per repo, the files this work is expected to
    change, with the symbols a reader would search for when they only know
    a function name. These land in `plan.md`'s `## Code Map`, the reverse
@@ -83,6 +91,14 @@ architecture review. A new cross-repo data flow does.
 - Prefer the context the orchestrator provides; read source code only to
   verify the specifics you freeze (exact signatures, field names, types),
   not to explore implementation details.
+- **Verify mechanisms before line numbers.** For every existing mechanism
+  the design depends on — an endpoint that must accept a field, a service
+  call that must pass a permission check from the caller you plan, a hook
+  that must fire in the mode you assume — read the code that decides it
+  and confirm it works that way. A mechanism that does not exist sinks
+  the design; a line reference that is slightly off costs nothing. Cite
+  line numbers only where a developer must copy from them (a port
+  source, a frozen contract), not for every fact.
 - Do not over-plan simple tasks. A brief recommendation with key
   considerations is better than a 10-section document.
 - Do not present a single option as the only possibility. Even if one

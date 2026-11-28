@@ -111,6 +111,11 @@ work them in this order, because that is their order of cost:
    `Codebase verification`: `graphify: used | skipped: <reason> | n/a`. This
    is the single most common hallucination class and the cheapest to catch.
    New artifacts are exempt — verify only the ones asserted as already present.
+   Existence includes **behavior the design relies on**: when the plan says
+   an existing endpoint "rebinds X" or a cleanup "runs under the sweeper's
+   context", check that the request model has that field and that the
+   permission path admits that caller. A missing mechanism is P0; a
+   slightly-off line number is not a finding.
 
 4. **Testability of the Success Criteria.** Apply one hard test to each
    criterion: *can this land as a single row of the Evidence table in
