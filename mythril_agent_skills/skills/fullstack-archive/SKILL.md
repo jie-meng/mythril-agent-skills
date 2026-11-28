@@ -114,7 +114,7 @@ directory name.
 | Check | Done when | Not done when |
 |-------|-----------|---------------|
 | Success Criteria | every criterion in `plan.md` has an Evidence row in `review.md` marked `✅ Pass` / `✅ 通过`, or is explicitly waived (`⚠️ Skipped` / `⚠️ 跳过`) with a documented reason the user has accepted | any `❌ Fail` / `❌ 未通过`, `待核验` / `Pending`, missing row, or an unaccepted `⚠️ Skipped` / `⚠️ 跳过` |
-| Review verdict | the newest code-review verdict (the last `### Verdict` / `### 结论`, or the Status Overview's latest verdict) is `PASS` or `PASS_WITH_RISKS` | `NEEDS_FIXES`, `FAIL`, `BLOCKED`, or `NEEDS_USER_DECISION` |
+| Review verdict | the newest code-review verdict (the last `### Verdict` / `### 结论`, or the Status Overview's latest verdict) is `PASS` or `PASS_WITH_RISKS` | `NEEDS_FIXES`, `NEEDS_USER_DECISION`, or no verdict at all |
 | Open work | `progress.md` ends in a completed state (merged / shipped / done) | an open blocker, an in-progress tail, or an unresolved decision |
 
 If any row is "not done", **STOP** — report `NOT DONE` with the failing
@@ -181,23 +181,37 @@ Rules:
   preserve historical timestamps.
 - **Idempotence**: if the source work-name already starts with
   `YYYY-MM-DD-` (a migration leftover), do NOT stack a second date —
-  keep the existing date and add only the type prefix.
+  keep the existing date and insert the type after it:
+  `2026-01-02-login-fix` → `2026-01-02-fix-login-fix`.
 - **Collision**: if `<docs-dir>/changes/archive/YYYY-MM-DD-<type>-<work-name>/`
   already exists, **FAIL HARD** — do not overwrite. Report the collision
   and ask the user how to proceed.
 
 ## Step 5 — Archive
 
-```bash
-mkdir -p <docs-dir>/changes/archive
-mv <docs-dir>/changes/<type>/<work-name> <docs-dir>/changes/archive/YYYY-MM-DD-<type>-<work-name>
-```
-
-Then commit the docs repo (including any changelog entry from Step 3):
+Move with `git mv` when the item is tracked, so the old path's deletion is
+staged together with the new path (a plain `mv` followed by
+`git add <new-path>` leaves the deletion unstaged):
 
 ```bash
 cd <docs-dir>
-git add changes/archive/YYYY-MM-DD-<type>-<work-name>
+mkdir -p changes/archive
+SRC=changes/<type>/<work-name>
+DST=changes/archive/YYYY-MM-DD-<type>-<work-name>
+if git ls-files --error-unmatch "$SRC" >/dev/null 2>&1; then
+  git mv "$SRC" "$DST"
+else
+  mv "$SRC" "$DST"
+fi
+```
+
+Then stage everything this archive touched — the moved directory (with
+any uncommitted edits inside it, such as an override entry in
+`progress.md`) and the changelog entry from Step 3 — and commit:
+
+```bash
+git add -A -- "$DST" <changelog-file-if-written>
+git status --short   # the old path must show as renamed/deleted, nothing left unstaged for it
 git commit -m "docs: archive <work-name>"
 ```
 
@@ -246,7 +260,7 @@ Notes:
 - Never overwrite an existing archive directory — fail hard on collision.
 - Never reopen an archived directory. Successors are new work items.
 - The 2a done gate is blocking: never archive an item with failing
-  Success Criteria or a `NEEDS_FIXES` / `FAIL` review verdict. An
+  Success Criteria or a `NEEDS_FIXES` / `NEEDS_USER_DECISION` review verdict. An
   informed override must be recorded in `progress.md` before the move.
 - Document integrity checks are advisory — report deficiencies, don't
   block.

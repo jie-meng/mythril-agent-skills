@@ -160,9 +160,11 @@ Mode-specific gate — every required item must hold before the move:
 missing:**
 
 - `resolved` with no fix pointer, or with a pointer but no verification.
-- The symptom still reproduces, the relevant tests fail, or the issue's
-  `## 下一步` / `## Next Steps` still lists an unresolved investigation
-  step.
+- `resolved` while the symptom still reproduces, the relevant tests fail,
+  or the issue's `## 下一步` / `## Next Steps` still lists an unresolved
+  investigation step. These apply to `resolved` only: a `proposed` close
+  hands open investigation to the work item, and `wontfix` / `merged`
+  close without claiming a fix.
 - `proposed` but the work item does not exist.
 - `merged` but the absorbing path does not exist.
 - `wontfix` with no explicit user decision.

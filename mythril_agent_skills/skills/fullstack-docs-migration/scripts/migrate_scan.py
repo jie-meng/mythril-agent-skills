@@ -11,10 +11,14 @@ The script only READS. It never moves, renames, or deletes anything.
 Usage:
     python3 migrate_scan.py <docs-dir>
 
+Exit codes: 0 = inventory printed, 1 = <docs-dir> is not a git repository,
+2 = usage error / not a directory.
+
 Output (JSON):
     {
       "work_items": [ {old_path, type, name, four_files, plan_status,
-                       progress_status, last_active, matching_spike} ],
+                       progress_status, last_active, last_active_source,
+                       matching_spike} ],
       "spikes": [ {old_path, name, verdict, impl_counterpart} ],
       "non_convention_dirs": ["docs", ...]
     }
@@ -26,20 +30,38 @@ import json
 import re
 import subprocess
 import sys
+from datetime import date, datetime
 from pathlib import Path
 
 WORK_TYPES = ("feat", "refactor", "fix")
 
-# Completion markers in progress.md (case-insensitive substring match).
-COMPLETION_MARKERS = (
-    "complete",
-    "completed",
-    "done",
-    "已完成",
-    "已合并",
-    "merged",
-    "shipped",
+# Completion markers in progress.md, matched as whole words (so
+# "Incomplete", "undone", "abandoned" never count) and mapped to a
+# canonical value. Chinese markers carry the 已 prefix, so 未完成 / 尚未合并
+# cannot match.
+COMPLETION_WORDS = {
+    "complete": "complete",
+    "completed": "complete",
+    "done": "done",
+    "finished": "done",
+    "merged": "merged",
+    "shipped": "shipped",
+}
+COMPLETION_WORD_RE = re.compile(
+    r"(?<![A-Za-z])(" + "|".join(COMPLETION_WORDS) + r")(?![A-Za-z])", re.I
 )
+COMPLETION_ZH = ("已完成", "已合并", "已上线")
+# A marker preceded (within three words) by one of these is not a claim of
+# completion: "not done", "not yet merged", "almost complete".
+NEGATION_WORDS = frozenset(
+    {
+        "not", "never", "no", "isn't", "wasn't", "aren't", "hasn't",
+        "haven't", "nothing", "almost", "nearly", "partially", "half",
+    }
+)
+STATUS_LINE_RE = re.compile(r"(?i)\bstatus\b|状态")
+UNCHECKED_BOX_RE = re.compile(r"^\s*[-*]\s*\[\s\]")
+ISO_DATE_RE = re.compile(r"(?<!\d)(20\d{2})-(\d{2})-(\d{2})(?!\d)")
 
 
 def read_file_text(path: Path) -> str:
@@ -61,16 +83,42 @@ def extract_status(text: str) -> str:
     return ""
 
 
+def _line_marker(line: str) -> str:
+    """Return the canonical completion marker one line asserts, or ""."""
+    for marker in COMPLETION_ZH:
+        if marker in line:
+            return marker
+    for match in COMPLETION_WORD_RE.finditer(line):
+        before = re.findall(r"[A-Za-z']+", line[: match.start()].lower())[-3:]
+        if NEGATION_WORDS.intersection(before):
+            continue
+        return COMPLETION_WORDS[match.group(1).lower()]
+    return ""
+
+
 def extract_progress_status(text: str) -> str:
-    """Extract a completion marker from progress.md, or empty."""
+    """Extract a completion marker from progress.md, or empty.
+
+    Status lines (containing "status" / "状态") decide when present — the
+    last one wins, since progress logs append — so "Status: In Progress"
+    is not overridden by a stray "done" elsewhere. Without a status line,
+    any non-heading line may assert completion. Headings (e.g.
+    "## Completed Steps") and unchecked checklist items never count, and
+    negated markers ("not done", "almost complete") are ignored.
+    """
     if not text:
         return ""
-    lowered = text.lower()
-    for marker in COMPLETION_MARKERS:
-        if marker in lowered:
-            # Return the canonical marker (skip the empty first element).
-            marker_lower = marker.lower()
-            return marker_lower
+    lines = text.splitlines()
+    status_lines = [line for line in lines if STATUS_LINE_RE.search(line)]
+    if status_lines:
+        return _line_marker(status_lines[-1])
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("#") or UNCHECKED_BOX_RE.match(line):
+            continue
+        marker = _line_marker(stripped)
+        if marker:
+            return marker
     return ""
 
 
@@ -106,9 +154,56 @@ def git_last_commit_date(root: Path, rel_path: str) -> str:
         return ""
 
 
-def last_active_date(root: Path, item_dir: Path, name: str) -> str:
-    """Best-effort last-active date: git log, else empty."""
-    return git_last_commit_date(root, str(item_dir.relative_to(root)))
+def latest_date_in_text(text: str, today: date | None = None) -> str:
+    """Return the latest valid ISO date (YYYY-MM-DD) in text, not in the future."""
+    limit = today or date.today()
+    best: date | None = None
+    for year, month, day in ISO_DATE_RE.findall(text):
+        try:
+            found = date(int(year), int(month), int(day))
+        except ValueError:
+            continue
+        if found <= limit and (best is None or found > best):
+            best = found
+    return best.isoformat() if best else ""
+
+
+def last_active_info(root: Path, item_dir: Path) -> tuple[str, str]:
+    """Return (date, source) for a work item's last activity.
+
+    Sources, in order: the last git commit touching the directory
+    (`git`), the latest date written in progress.md (`progress`), the
+    newest file modification time (`mtime`). ("", "") when none applies.
+    """
+    committed = git_last_commit_date(root, str(item_dir.relative_to(root)))
+    if committed:
+        return committed, "git"
+    written = latest_date_in_text(read_file_text(item_dir / "progress.md"))
+    if written:
+        return written, "progress"
+    mtimes = [p.stat().st_mtime for p in item_dir.rglob("*") if p.is_file()]
+    if mtimes:
+        return datetime.fromtimestamp(max(mtimes)).date().isoformat(), "mtime"
+    return "", ""
+
+
+def last_active_date(root: Path, item_dir: Path, name: str = "") -> str:
+    """Best-effort last-active date; see `last_active_info`."""
+    return last_active_info(root, item_dir)[0]
+
+
+def is_git_work_tree(root: Path) -> bool:
+    """True when root is inside a git work tree (and git is installed)."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0 and result.stdout.strip() == "true"
 
 
 def normalize_name(name: str) -> str:
@@ -153,6 +248,7 @@ def scan_work_items(root: Path) -> tuple[list[dict], dict[str, list[Path]]]:
             progress_status = extract_progress_status(
                 read_file_text(item_dir / "progress.md")
             )
+            last_active, last_active_source = last_active_info(root, item_dir)
             items.append(
                 {
                     "old_path": f"{work_type}/{name}",
@@ -161,7 +257,8 @@ def scan_work_items(root: Path) -> tuple[list[dict], dict[str, list[Path]]]:
                     "four_files": four_files,
                     "plan_status": plan_status,
                     "progress_status": progress_status,
-                    "last_active": last_active_date(root, item_dir, name),
+                    "last_active": last_active,
+                    "last_active_source": last_active_source,
                     "matching_spike": None,  # filled by scan_spikes
                 }
             )
@@ -205,6 +302,7 @@ def scan_non_convention_dirs(root: Path) -> list[str]:
         d.name
         for d in root.iterdir()
         if d.is_dir()
+        and not d.name.startswith(".")
         and d.name not in WORK_TYPES
         and d.name not in ("spike", "changes", "archive")
     )
@@ -219,6 +317,14 @@ def main() -> int:
     if not root.is_dir():
         print(f"ERROR: not a directory: {root}", file=sys.stderr)
         return 2
+
+    if not is_git_work_tree(root):
+        print(
+            f"ERROR: not a git repository: {root} — the docs repo must be a "
+            "git repo (the migration is committed as one atomic commit)",
+            file=sys.stderr,
+        )
+        return 1
 
     items, work_dirs = scan_work_items(root)
     spikes = scan_spikes(root, work_dirs, items)

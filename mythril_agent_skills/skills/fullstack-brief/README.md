@@ -25,8 +25,9 @@ A single `.md` file written **for an AI reader**, not humans:
 - Conventions, current work state, domain glossary
 
 Self-contained by construction: no local file/image references, no embeds.
-Mermaid source and public internet links are allowed. A mandatory
-secret-redaction pass runs before anything is written.
+Mermaid source and public internet links are allowed. A bundled scanner
+(`scripts/secret_scan.py`) gates the draft and the written file; any
+finding blocks the brief until it is redacted.
 
 ## Modes
 
@@ -42,8 +43,8 @@ optional topic focus allocates extra depth to one area.
 
 ## Usage
 
-Trigger phrases: "fullstack brief", "export context", "context handoff",
-"生成上下文简报", "导出上下文", "喂给网页AI".
+Trigger phrases: "fullstack brief", "context brief", "export context",
+"导出上下文", "上下文简报", "生成简报", "喂给网页AI".
 
 ```text
 fullstack brief                          # standard depth, whole scope

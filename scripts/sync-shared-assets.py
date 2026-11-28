@@ -171,7 +171,6 @@ def specs() -> list[SyncSpec]:
         "fullstack-apply",
         "fullstack-explore",
         "fullstack-propose",
-        "fullstack-archive",
         "fullstack-brief",
     )
     graphify_source = SHARED_ROOT / "graphify" / "graphify_check.py"
@@ -220,6 +219,21 @@ def specs() -> list[SyncSpec]:
                 for skill in secret_guard_consumers
             ),
             description="credential redaction guard",
+        )
+    )
+
+    # --- shared/secrets/secret_scan.py → <skill>/scripts/secret_scan.py
+    # Blocking gate for files that leave the machine: the brief pasted into
+    # a web AI, and issue evidence committed to the shared docs repo.
+    secret_scan_consumers = ("fullstack-brief", "fullstack-issue-create")
+    out.append(
+        SyncSpec(
+            source=SHARED_ROOT / "secrets" / "secret_scan.py",
+            targets=tuple(
+                SKILLS_ROOT / skill / "scripts" / "secret_scan.py"
+                for skill in secret_scan_consumers
+            ),
+            description="secret scanner gate",
         )
     )
 

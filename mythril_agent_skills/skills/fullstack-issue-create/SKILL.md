@@ -6,8 +6,8 @@ description: >
   belongs to fullstack-issue-archive. Triggers: "fullstack issue", "全栈 issue",
   "记录这个问题", "把这个 bug 先记下来", "track this problem", "log this problem". NOT for
   GitHub/GitLab/Jira issues (gh, github, or an issue URL → gh-operations or
-  jira); a bare "create an issue" means GitHub unless workspace context is
-  present.
+  jira); a bare "create an issue" is a workspace issue only inside a
+  fullstack workspace (fullstack.json present), otherwise GitHub.
 license: Apache-2.0
 ---
 
@@ -114,7 +114,21 @@ this table — the section set and their order never change:
      creating. Never overwrite an existing issue.
 4. **Store raw evidence in `log/`** (rules below).
 5. **Write `README.md`** using the fixed skeleton (below).
-6. **Commit the docs repo** (directly on its main branch):
+6. **Secret scan gate (blocking)** — the docs repo is shared, and device
+   dumps or tool output often carry tokens, cookies, or connection
+   strings:
+
+   ```bash
+   python3 SKILL_PATH/scripts/secret_scan.py <docs-dir>/issues/YYYY-MM-DD-<name>
+   ```
+
+   `STATUS=FAIL` → nothing is committed yet, so redact each reported value
+   in place (replace it with `[REDACTED]`), note "credentials redacted
+   before commit" next to that file in `## 证据`, and re-run until
+   `STATUS=PASS`. Findings print masked excerpts only — never print or
+   copy the value itself. A confirmed false positive may stay only after
+   the user agrees, marked with `secret-scan: allow` on that line.
+7. **Commit the docs repo** (directly on its main branch):
 
    ```bash
    cd <docs-dir>
@@ -129,7 +143,8 @@ this table — the section set and their order never change:
 - **Filename**: `YYYY-MM-DD-<source>[-<description>].log` — the source
   is a device id, a tool, or a scenario, e.g.
   `log/2026-10-11-robo-az3-serial-capture.log`.
-- **A raw file is NEVER modified once archived.** To keep a trimmed or
+- **A raw file is NEVER modified once committed** (redacting credentials
+  before the first commit is the one allowed change — Step 1.6). To keep a trimmed or
   filtered version, write a derived file with the SAME basename plus a
   `.cleaned.log` suffix (e.g.
   `log/2026-10-11-robo-az3-serial-capture.cleaned.log`) and state the
@@ -209,7 +224,8 @@ Only ACTIVE issues (under `issues/`) may be updated:
 2. New evidence goes into `log/` under the same naming rules
    (`YYYY-MM-DD-<source>[-<description>].log`; raw files immutable;
    trimmed versions as `.cleaned.log`), and is mentioned in `## 证据`.
-3. Commit the docs repo in the same round.
+3. Run the secret scan gate (Step 1.6) on the issue directory, then
+   commit the docs repo in the same round.
 
 An ARCHIVED issue (under `issues/archive/`) must NEVER be edited. If
 the problem resurfaces or the investigation continues, create a NEW
@@ -250,15 +266,18 @@ Two rules remain visible from here:
 
 This skill records WORKSPACE issues in the docs repo. It is **NOT a trigger** for platform issue tracking:
 
-- Requests mentioning `gh`, GitHub, GitLab, Jira, a remote repository,
-  or an issue URL → route to `gh-operations` (or `jira`) instead; do
-  NOT run this skill.
-- Bare English "create an issue" defaults to a GitHub issue unless the
-  workspace context is clearly present.
-- A genuinely ambiguous bare "issue" with no platform context defaults
-  to THIS skill — but announce it in one sentence (e.g. "先记到工作区
-  issues/ 目录") and offer to file a GitHub issue instead if that was
-  what the user meant.
+One rule decides, checked in order:
+
+1. The request names a platform — `gh`, GitHub, GitLab, Jira, a remote
+   repository, or an issue URL → `gh-operations` (or `jira`); do NOT run
+   this skill.
+2. No platform named, and the session runs inside a fullstack workspace
+   (`fullstack.json` at the root) → THIS skill, for "create an issue",
+   "记录这个问题", or a bare "issue" alike. Announce it in one sentence
+   (e.g. "先记到工作区 issues/ 目录") and offer a GitHub issue instead if
+   that was meant.
+3. No platform named, outside a fullstack workspace → not this skill;
+   a bare "create an issue" means a GitHub issue (`gh-operations`).
 
 ## Requirements
 
@@ -276,8 +295,9 @@ This skill records WORKSPACE issues in the docs repo. It is **NOT a trigger** fo
   removal.
 - Same-day name collisions get a `-HHMM` suffix — never overwrite an
   existing issue directory.
-- Raw evidence files are immutable once archived; trimming produces a
+- Raw evidence files are immutable once committed; trimming produces a
   `.cleaned.log` derivative, never an in-place edit.
+- Nothing is committed while `secret_scan.py` reports `STATUS=FAIL`.
 - Only active issues (under `issues/`) can be updated; archived issues
   are read-only forever. Closing is delegated to
   `fullstack-issue-archive`.

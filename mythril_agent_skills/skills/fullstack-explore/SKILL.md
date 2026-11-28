@@ -7,7 +7,10 @@ description: >
   graphify graphs, then source. Triggers: "fullstack explore", "全栈探索",
   "workspace query"; also discovery questions inside a fullstack workspace —
   "which repo handles X", "哪个仓库负责X", "explain the architecture", "讲解架构",
-  "Y的代码在哪里", "这个项目的技术栈是什么".
+  "Y的代码在哪里", "这个项目的技术栈是什么". Inside a fullstack workspace
+  (fullstack.json at the root) use this skill rather than graphify for
+  codebase and architecture questions — it runs graphify queries itself,
+  after the workspace docs.
 license: Apache-2.0
 ---
 
@@ -160,6 +163,14 @@ When the user asks to record what you found ("记下来", "沉淀一下",
 place for findings that are not yet a plan. Never write a partial work
 directory under `changes/`: a work item is four documents created by
 `fullstack-propose`.
+
+## Relationship to the graphify Skill
+
+Inside a fullstack workspace this skill owns codebase questions, even
+when a repo has `graphify-out/`: graphify is one source in Step 3 and
+Step 5, consulted after the workspace documents, and its answers are
+verified in source. Use the `graphify` skill directly only to build or
+update a graph, or outside a fullstack workspace.
 
 ## Repos Outside the Workspace
 

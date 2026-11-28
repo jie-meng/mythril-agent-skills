@@ -19,8 +19,9 @@ human. The user pastes this file into a web AI session (ChatGPT, Claude.ai,
 Gemini, ...) and continues solution discussions there — instead of paying
 local CLI agent tokens for every message.
 
-This skill is read-only on all code repos. It writes exactly one file: the
-output brief.
+This skill never edits existing files in any repo. It writes a draft into
+its cache directory and, after the user confirms the destination, exactly
+one output file: the brief.
 
 ## Core Principles
 
@@ -54,10 +55,19 @@ The output file will be pasted into THIRD-PARTY web services. Therefore:
 2. **NEVER include token/key/password values** in any form: API keys, JWTs,
    connection strings with credentials, private keys, cookies,
    `Authorization` headers. Refer to them by variable name only.
-3. **Self-scan before writing**: search the composed markdown for
-   secret-looking strings (`sk-`, `ghp_`, `github_pat_`, `AKIA`, `xoxb`,
-   `BEGIN ... PRIVATE KEY`, `password=`, long base64/hex blobs). Remove or
-   redact every hit before showing the preview to the user.
+3. **Scan gate (blocking)**: run the bundled scanner on the draft before
+   asking for the destination, and again on the written file:
+
+   ```bash
+   python3 SKILL_PATH/scripts/secret_scan.py <file>
+   ```
+
+   `STATUS=FAIL` → replace every reported value with its variable name or
+   `[REDACTED]` and re-run until `STATUS=PASS`. Never finish with a
+   failing scan. Findings print masked excerpts only — do not open the
+   source file to "see" the value. A false positive (e.g. a public test
+   fixture) may be kept only after the user confirms it, by adding
+   `secret-scan: allow` on that line.
 4. **Internal-only URLs** (intranet wikis, VPN-only Jira/Confluence,
    staging hosts) are unreachable from a web AI session. Include only with
    an "(internal)" marker, or drop when they add nothing.
@@ -150,7 +160,7 @@ allocate extra depth to related repos/modules and compress unrelated ones.
 
 **Trimming order** (cut from the bottom first): open questions → glossary →
 current state → conventions → code map → key flows → repo map → mission &
-architecture. Never trim the security self-scan or snapshot header.
+architecture. Never trim the snapshot header, and never skip the scan gate.
 
 ## Step 1 — Gather Context
 
@@ -263,9 +273,30 @@ What the user plans to discuss (if stated). Empty if none.
 ### Mermaid authoring rules
 
 - Read bundled `references/MERMAID-RULES.md` before authoring diagrams.
-- Lint EVERY diagram before writing the file:
-  `python3 SKILL_PATH/scripts/mermaid_lint.py <draft.md>` — fix all errors.
 - Keep diagrams under ~30 nodes; prefer several small diagrams over one giant.
+
+### Write the draft, then gate it
+
+Write the composed brief to a draft file in this skill's cache directory
+(never into a repo — the destination is not confirmed yet):
+
+```bash
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  CACHE_ROOT="$HOME/Library/Caches/mythril-skills-cache"
+else
+  CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/mythril-skills-cache"
+fi
+mkdir -p "$CACHE_ROOT/fullstack-brief"
+DRAFT=$(mktemp "$CACHE_ROOT/fullstack-brief/draft-XXXXXXXX")
+```
+
+(Windows: `%LOCALAPPDATA%\mythril-skills-cache\fullstack-brief\`.) Then run
+both gates on the draft and fix it until both pass:
+
+```bash
+python3 SKILL_PATH/scripts/mermaid_lint.py "$DRAFT"   # STATUS=PASS required
+python3 SKILL_PATH/scripts/secret_scan.py "$DRAFT"    # STATUS=PASS required
+```
 
 ## Step 3 — Confirm Destination & Write (user confirms first)
 
@@ -294,14 +325,15 @@ Confirm? (Enter = write here, or provide another path/filename)
 
 After confirmation:
 
-1. Run the secret self-scan (Security rules) on the final markdown.
-2. `mkdir -p` the destination directory and write the file.
+1. `mkdir -p` the destination directory and copy the gated draft there.
+2. Run `secret_scan.py` on the written file. `STATUS=FAIL` → redact it in
+   place and re-run; never report success with a failing scan.
 3. Report: final path, size in KB, estimated tokens (~chars/4 for mixed
    CJK content count CJK chars individually), and usage hint:
    "Paste the entire file as your first message in the web AI session."
 
 ## Requirements
 
-- Python 3.10+ (stdlib only)
+- Python 3.10+ (stdlib only); bundled `secret_scan.py` and `mermaid_lint.py`
 - Optional: `graphify` CLI for knowledge-graph queries (checked via
   bundled `graphify_check.py`; skipped gracefully when absent)
