@@ -35,8 +35,13 @@ directory:
    fix is the check. When the user adds a requirement mid-implementation
    (a product rule, a window, a copy change) that stays inside the item's
    repos and contracts, append it as the next `REQ<n>` verbatim in
-   `analysis.md` §Original Requirements, add its Success Criterion and
-   tasks to `plan.md`, and run the loop above. Only a new goal, a new repo,
+   `analysis.md` §Original Requirements (`— Source: follow-up <date>`),
+   add its `SC<n>` criterion, its `T<n>` tasks, and its Evidence row, and
+   run the loop above. Quote the new requirement and criterion in the
+   code-reviewer's brief; the round's review section then carries a
+   `### Requirements Coverage` row for it (`review-formats.<lang>.md`) —
+   that row is the requirement's coverage record, since no plan review
+   will see it. Only a new goal, a new repo,
    or a changed frozen contract that the user wants planned first goes
    back to `fullstack-propose` — as a `-vN` successor or a separate item,
    never as plan-review round N+1 on this one.

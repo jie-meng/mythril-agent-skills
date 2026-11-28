@@ -38,7 +38,10 @@ Checks:
    except the planner's own summary — the party being audited. Every
    `REQ` cited in a review round's coverage matrix must exist there, and
    every declared `REQ` must have a row in at least one round's matrix —
-   a prose mention never counts as coverage.
+   a prose mention never counts as coverage. Plan-review rounds and
+   code-review rounds both count: a requirement added by a follow-up
+   during implementation never gets a plan review, so the code-review
+   round that verifies it carries its coverage row instead.
 7. **Finding discipline** — a round listing more than five P2 findings,
    or a later round carrying more P0/P1 than the round before it
    (oscillation). Both are capped in prose by the reviewer's brief;
@@ -410,18 +413,22 @@ def parse_evidence_rows(review_text: str) -> set[str] | None:
 
 
 def parse_coverage_rows(review_text: str) -> set[str] | None:
-    """Return the REQ ids rowed in every plan-review coverage matrix.
+    """Return the REQ ids rowed in every review round's coverage matrix.
 
     Only table rows inside a `### 需求覆盖` / `### Requirements Coverage`
-    section of a plan-review round count, so a REQ named in a finding
-    bullet or in prose does not. Returns None when no coverage matrix
-    exists in any round.
+    section of a plan-review or code-review round count, so a REQ named
+    in a finding bullet or in prose does not. A code-review round carries
+    a matrix only when a follow-up added a requirement mid-implementation
+    — that requirement never goes back through a plan review. Returns
+    None when no coverage matrix exists in any round.
     """
     found = False
     ids: set[str] = set()
     for heading, body in split_sections(review_text):
-        if not heading.startswith("## ") or not PLAN_REVIEW_HEADING_RE.match(
-            heading
+        if not heading.startswith("## "):
+            continue
+        if not (
+            PLAN_REVIEW_HEADING_RE.match(heading) or _is_code_review_round(heading)
         ):
             continue
         in_matrix = False
@@ -1204,7 +1211,10 @@ def _check_requirements_of_record(
                 "ERROR",
                 "declared requirements never appear in any review round's "
                 "coverage matrix, so nobody asserted their coverage: "
-                + ", ".join(uncited),
+                + ", ".join(uncited)
+                + " — a requirement added during implementation gets its row "
+                "in the '### Requirements Coverage' / '### 需求覆盖' table of "
+                "the code-review round that verifies it",
             )
         )
     return findings

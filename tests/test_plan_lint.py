@@ -1618,3 +1618,60 @@ class TestPlanReviewClosure:
         )
         findings = self._lint(tmp_path, REVIEW_UNCONVERGED + CLOSURE, plan)
         assert not [m for m in _warnings(findings) if "newest plan-review" in m]
+
+
+# ---------------------------------------------------------------------------
+# Check 6 — a follow-up requirement is covered by its code-review round
+# ---------------------------------------------------------------------------
+
+ANALYSIS_FOLLOW_UP_REQ = ANALYSIS_REQS.replace(
+    "## 根因",
+    "- **REQ3**「夜里十点后别主动搭话」— Source: follow-up 2026-09-25\n\n## 根因",
+)
+
+CODE_ROUND_FOLLOW_UP = """
+## 代码审查 — api — 第 2 轮 — 2026-09-25
+
+### 结论
+
+PASS — 夜间静默已实现。
+
+### 文档同步
+
+**文档同步**：`analysis.md` —— 追加 REQ3；`plan.md` —— 新增 SC3；
+`progress.md` —— 新条目；`review.md` —— 本轮
+"""
+
+FOLLOW_UP_COVERAGE = """
+### 需求覆盖
+
+| 需求 | 对应成功标准 | 对应任务 | 状态 |
+|------|------------|---------|------|
+| REQ3 | SC3 | T1 | 覆盖 — ✅ |
+"""
+
+
+class TestFollowUpRequirementCoverage:
+    def _lint(self, tmp_path: Path, review: str):
+        plan = PLAN_OK.replace(
+            "- [ ] SC2 also works\n", "- [ ] SC2 also works\n- [ ] SC3 quiet hours\n"
+        )
+        review = review.replace("| SC2 | 待核验 | |", "| SC2 | 待核验 | |\n| SC3 | ✅ | t |")
+        return lint_work_dir(
+            _work_dir(tmp_path, plan, review, ANALYSIS_FOLLOW_UP_REQ)
+        )
+
+    def test_follow_up_req_without_coverage_fails(self, tmp_path: Path):
+        errors = _errors(self._lint(tmp_path, REVIEW_COV + CODE_ROUND_FOLLOW_UP))
+        assert any("REQ3" in m and "code-review round" in m for m in errors)
+
+    def test_code_review_round_coverage_counts(self, tmp_path: Path):
+        review = REVIEW_COV + CODE_ROUND_FOLLOW_UP + FOLLOW_UP_COVERAGE
+        assert _errors(self._lint(tmp_path, review)) == []
+        assert parse_coverage_rows(review) == {"REQ1", "REQ2", "REQ3"}
+
+    def test_prose_mention_in_code_round_is_not_coverage(self, tmp_path: Path):
+        """REQ3 named in the Document Sync line is not a matrix row."""
+        review = REVIEW_COV + CODE_ROUND_FOLLOW_UP
+        assert "REQ3" in review
+        assert parse_coverage_rows(review) == {"REQ1", "REQ2"}
