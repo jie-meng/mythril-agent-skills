@@ -30,6 +30,9 @@ With v7 installs that lack the standalone tools, run `mogrify` / `montage` /
 # Basic conversion (format inferred from extension)
 magick input.png output.jpg
 
+# PNG/WebP with transparency to JPEG (flatten first, or transparent areas turn black)
+magick input.png -background white -alpha remove -alpha off output.jpg
+
 # With quality control
 magick input.png -quality 85 -strip output.jpg
 
@@ -56,7 +59,7 @@ magick input.jpg -resize 800x output.jpg
 magick input.jpg -resize x600 output.jpg
 
 # Exact dimensions (ignores aspect ratio)
-magick input.jpg -resize 800x600! output.jpg
+magick input.jpg -resize '800x600!' output.jpg
 
 # Scale by percentage
 magick input.jpg -resize 50% output.jpg
@@ -82,7 +85,7 @@ magick input.jpg -gravity center -crop 400x400+0+0 +repage output.jpg
 
 ```bash
 # Square thumbnail from any aspect ratio
-magick input.jpg -resize 200x200^ -gravity center -extent 200x200 thumb.jpg
+magick input.jpg -resize '200x200^' -gravity center -extent 200x200 thumb.jpg
 
 # With specific background for padding
 magick input.jpg -resize 200x200 -background white -gravity center -extent 200x200 thumb.jpg
@@ -218,14 +221,16 @@ Common format tokens: `%f` filename, `%w` width, `%h` height, `%b` file size, `%
 mkdir -p resized
 mogrify -path ./resized -resize 800x600 *.jpg
 
-# Convert all PNGs to JPEG (output directory preserves originals)
+# Convert all PNGs to JPEG (output directory preserves originals;
+# -alpha remove flattens transparency onto white instead of black)
 mkdir -p output
-mogrify -path ./output -format jpg -quality 85 -strip *.png
+mogrify -path ./output -format jpg -background white -alpha remove -alpha off \
+  -quality 85 -strip *.png
 
 # Batch thumbnails
 mkdir -p thumbnails
-mogrify -path ./thumbnails -resize 200x200^ -gravity center \
-  -crop 200x200+0+0 +repage *.jpg
+mogrify -path ./thumbnails -resize '200x200^' -gravity center \
+  -extent 200x200 *.jpg
 
 # In-place overwrite (ONLY when user explicitly requests it)
 mogrify -resize 800x600 *.jpg
@@ -239,9 +244,9 @@ for size in 320 640 1024 1920; do
   magick input.jpg -resize ${size}x -quality 85 "output-${size}w.jpg"
 done
 
-# Convert with custom naming
+# Convert with custom naming (flatten transparency for JPEG)
 for img in *.png; do
-  magick "$img" -quality 90 "${img%.png}.jpg"
+  magick "$img" -background white -alpha remove -alpha off -quality 90 "${img%.png}.jpg"
 done
 ```
 
@@ -254,15 +259,16 @@ magick -delay 100 -loop 0 frame*.png animated.gif
 # Optimize existing GIF
 magick animated.gif -fuzz 5% -layers Optimize optimized.gif
 
-# Extract frames
-magick animated.gif frame_%03d.png
+# Extract frames (-coalesce rebuilds full frames; optimized GIFs store only
+# the changed region of each frame)
+magick animated.gif -coalesce frame_%03d.png
 ```
 
 ## Contact Sheets (Montage)
 
 ```bash
-# Basic grid with labels
-montage *.jpg -geometry 200x200+5+5 -label '%f' contact-sheet.jpg
+# Basic grid with labels (-label is a setting: it must come BEFORE the inputs)
+montage -label '%f' *.jpg -geometry 200x200+5+5 contact-sheet.jpg
 
 # 3-column layout
 montage *.jpg -tile 3x -geometry 200x200+5+5 contact-sheet.jpg
