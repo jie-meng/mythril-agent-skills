@@ -1178,6 +1178,27 @@ rejection in the same round:
 A finding dropped during revision without a `Rejected:` line is
 treated as a new P0 in the next round.
 
+**Closing a loop that did not converge.** When the loop stops on a
+`NEEDS_FIXES` round — the lean confirmation pass still finds issues, the
+full loop reached its 3-pass cap, or the rounds oscillate — the
+orchestrator appends a closure record right after that round instead of
+rewriting the reviewer's verdict. Every open P1/P2 first becomes an
+`R<n>` row in `plan.md` §Risks. An open P0 is never closed this way: fix
+it and re-review, or escalate it as `NEEDS_USER_DECISION`. `plan_lint.py`
+accepts a `NEEDS_FIXES` last round only when this record follows it.
+
+```markdown
+## Plan Review Closure — <date>
+
+**Why**: <lean confirmation pass not converged | loop cap reached (3 passes) | oscillation>
+
+**Residual**: <R3, R4> — <one line each: the open finding, now a risk in plan.md>
+
+### Verdict
+
+PASS_WITH_RISKS — closed by the orchestrator; the residual risks above stay open
+```
+
 <!-- /lang -->
 
 <!-- lang:zh -->
@@ -1241,6 +1262,25 @@ planner 拒绝某条问题时，orchestrator 在同一轮记录：
 ```
 
 未经 `已拒绝` 标注即在修订中消失的问题，在下一轮按新的 P0 处理。
+
+**未收敛时如何收口。** 循环停在一个 `NEEDS_FIXES` 轮次上时——lean 档确认轮
+仍有问题、full 档到了 3 轮上限、或轮次来回震荡——orchestrator 在该轮之后
+追加一段收口记录，而不是改写审查代理给出的结论。先把每条未解决的 P1/P2
+写成 `plan.md` §风险 中的一行 `R<n>`。未解决的 P0 永远不能这样收口：修掉
+再审，或升级为 `NEEDS_USER_DECISION`。只有后面跟着这段记录时，
+`plan_lint.py` 才接受最后一轮是 `NEEDS_FIXES`。
+
+```markdown
+## 方案审查收口 — <date>
+
+**原因**：<lean 确认轮未收敛 | 达到循环上限（3 轮）| 轮次震荡>
+
+**残留**：<R3、R4> — <每条一行：未解决的问题，已记为 plan.md 中的风险>
+
+### 结论
+
+PASS_WITH_RISKS — 由 orchestrator 收口；上述残留风险继续跟踪
+```
 
 <!-- /lang -->
 

@@ -110,6 +110,27 @@ rejection in the same round:
 A finding dropped during revision without a `Rejected:` line is
 treated as a new P0 in the next round.
 
+**Closing a loop that did not converge.** When the loop stops on a
+`NEEDS_FIXES` round — the lean confirmation pass still finds issues, the
+full loop reached its 3-pass cap, or the rounds oscillate — the
+orchestrator appends a closure record right after that round instead of
+rewriting the reviewer's verdict. Every open P1/P2 first becomes an
+`R<n>` row in `plan.md` §Risks. An open P0 is never closed this way: fix
+it and re-review, or escalate it as `NEEDS_USER_DECISION`. `plan_lint.py`
+accepts a `NEEDS_FIXES` last round only when this record follows it.
+
+```markdown
+## Plan Review Closure — <date>
+
+**Why**: <lean confirmation pass not converged | loop cap reached (3 passes) | oscillation>
+
+**Residual**: <R3, R4> — <one line each: the open finding, now a risk in plan.md>
+
+### Verdict
+
+PASS_WITH_RISKS — closed by the orchestrator; the residual risks above stay open
+```
+
 
 
 ### Author self-check (optional section)

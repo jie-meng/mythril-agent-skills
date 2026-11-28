@@ -15,7 +15,13 @@ Checks:
 2. **Plan-review closure** — the last `## Plan Review` / `## 方案审查`
    round must end in `PASS` or `PASS_WITH_RISKS`. A `NEEDS_FIXES` round
    with no successor round means review-driven revisions were self-
-   attested and never independently verified.
+   attested and never independently verified — unless a `## Plan Review
+   Closure` / `## 方案审查收口` record follows it. That record is how the
+   loop ends when it stops without converging (the lean confirmation
+   pass, the 3-pass cap, oscillation): verdict `PASS_WITH_RISKS`, a
+   `**Residual**` / `**残留**` line citing the `R<n>` / `A<n>` rows the
+   open findings became in `plan.md`, and no unrejected `[P0]` in the
+   round it closes — a P0 never closes as a known risk.
 3. **Round numbering** — plan-review rounds must run 1..N ascending
    without gaps or duplicates, so "round 2+" can be scoped to the
    previous findings.
@@ -246,7 +252,19 @@ CONFIG_FILENAME = "fullstack.json"
 WORK_ITEM_TYPES = ("feat", "refactor", "fix")
 MAX_MENTIONS_PER_ITEM = 3
 MAX_DOCS_DIR_WALK_UP = 6
-PLAN_REVIEW_HEADING_RE = re.compile(r"^##\s+(?:Plan Review|方案审查)\b", re.MULTILINE)
+PLAN_REVIEW_HEADING_RE = re.compile(
+    r"^##\s+(?:Plan Review|方案审查)\b(?!\s*(?:Closure|收口))", re.MULTILINE
+)
+# The orchestrator's record that ends a loop which stopped without
+# converging. It is not a round: it carries no number and no findings.
+PLAN_REVIEW_CLOSURE_RE = re.compile(
+    r"^##\s+(?:Plan Review Closure|方案审查收口)", re.IGNORECASE
+)
+RESIDUAL_RE = re.compile(
+    r"\*\*\s*(?:Residual|残留)\s*\*\*\s*[:：]\s*(.+)", re.IGNORECASE
+)
+RISK_ID_RE = re.compile(r"\b[RA]\d+\b")
+REJECTED_RE = re.compile(r"Rejected|已拒绝", re.IGNORECASE)
 VERDICT_HEADING_RE = re.compile(
     r"^#{3,}\s*(?:Verdict|判定|结论)", re.MULTILINE
 )
@@ -456,6 +474,84 @@ def parse_plan_review_rounds(review_text: str) -> list[PlanReviewRound]:
             )
         )
     return rounds
+
+
+def parse_plan_review_closure(review_text: str) -> str | None:
+    """Return the closure record that follows the last plan-review round.
+
+    The body is returned so the caller can read its verdict and residual
+    line; None when no closure follows the newest round (a closure written
+    before a later round no longer closes anything).
+    """
+    closure: str | None = None
+    for heading, body in split_sections(review_text):
+        if PLAN_REVIEW_HEADING_RE.match(heading):
+            closure = None
+        elif PLAN_REVIEW_CLOSURE_RE.match(heading):
+            closure = body
+    return closure
+
+
+def open_p0_findings(round_body: str) -> list[str]:
+    """Return the `[P0]` finding lines of a round that were not rejected."""
+    return [
+        line.strip()
+        for line in round_body.splitlines()
+        if re.match(r"^\s*[-*]\s*\[P0\]", line) and not REJECTED_RE.search(line)
+    ]
+
+
+def _closure_findings(
+    closure: str, last: PlanReviewRound, plan_text: str
+) -> list[Finding]:
+    """Validate a closure record against the round it closes."""
+    findings: list[Finding] = []
+    verdict = detect_verdict(closure)
+    if verdict != "PASS_WITH_RISKS":
+        findings.append(
+            Finding(
+                "ERROR",
+                f"the plan review closure after round {last.number} must "
+                f"close as PASS_WITH_RISKS, found {verdict or 'no verdict'} — "
+                "a loop that stopped without converging cannot claim PASS",
+            )
+        )
+    residual = ""
+    for line in closure.splitlines():
+        match = RESIDUAL_RE.search(line)
+        if match:
+            residual = match.group(1)
+            break
+    cited = set(RISK_ID_RE.findall(residual))
+    declared = set(RISK_ID_RE.findall(plan_text))
+    if not cited:
+        findings.append(
+            Finding(
+                "ERROR",
+                f"the plan review closure after round {last.number} has no "
+                "'**Residual**' / '**残留**' line citing R<n> / A<n> rows — "
+                "the open findings must become risks in plan.md §Risks",
+            )
+        )
+    elif cited - declared:
+        findings.append(
+            Finding(
+                "ERROR",
+                "the plan review closure cites residual risks that plan.md "
+                "does not declare: " + ", ".join(sorted(cited - declared)),
+            )
+        )
+    p0 = open_p0_findings(last.body)
+    if p0:
+        findings.append(
+            Finding(
+                "ERROR",
+                f"round {last.number} still has {len(p0)} open P0 finding(s); "
+                "a P0 never closes as a known risk — fix it and re-review, or "
+                "escalate it as NEEDS_USER_DECISION: " + p0[0][:80],
+            )
+        )
+    return findings
 
 
 def find_placeholders(text: str) -> list[str]:
@@ -827,7 +923,7 @@ def lint_work_dir(work_dir: Path) -> list[Finding]:
 
     findings.extend(_check_criteria_ids(plan_text))
     findings.extend(_check_evidence_coverage(plan_text, review_text))
-    findings.extend(_check_plan_review_rounds(review_text))
+    findings.extend(_check_plan_review_rounds(review_text, plan_text))
     findings.extend(_check_task_ids(plan_text, review_text))
     findings.extend(_check_task_refs_in_plan(plan_text))
     findings.extend(_check_task_list_ids(plan_text))
@@ -931,7 +1027,9 @@ def _check_evidence_coverage(plan_text: str, review_text: str) -> list[Finding]:
     return findings
 
 
-def _check_plan_review_rounds(review_text: str) -> list[Finding]:
+def _check_plan_review_rounds(
+    review_text: str, plan_text: str = ""
+) -> list[Finding]:
     """Checks 2 and 3 — the review loop is closed and numbered."""
     rounds = parse_plan_review_rounds(review_text)
     if not rounds:
@@ -966,6 +1064,10 @@ def _check_plan_review_rounds(review_text: str) -> list[Finding]:
             )
         )
     elif last.verdict not in CLOSING_VERDICTS:
+        closure = parse_plan_review_closure(review_text)
+        if closure is not None and last.verdict == "NEEDS_FIXES":
+            findings.extend(_closure_findings(closure, last, plan_text))
+            return findings
         findings.append(
             Finding(
                 "ERROR",
@@ -1220,11 +1322,15 @@ def _check_summary_freshness(plan_text: str, review_text: str) -> list[Finding]:
         # claiming a position. Same legacy escape as checks 6 and 8.
         return []
 
+    verdict = newest.verdict
+    closure = parse_plan_review_closure(review_text)
+    if closure is not None and verdict == "NEEDS_FIXES":
+        verdict = detect_verdict(closure) or verdict
     missing: list[str] = []
     if not _mentions_round(status, newest.number):
         missing.append(f"round {newest.number}")
-    if newest.verdict and newest.verdict not in VERDICT_RE.findall(status):
-        missing.append(newest.verdict)
+    if verdict and verdict not in VERDICT_RE.findall(status):
+        missing.append(verdict)
     if not missing:
         return []
 

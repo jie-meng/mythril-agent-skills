@@ -107,3 +107,28 @@ class TestShippedTemplatesLint:
             if line.startswith(("**Status**", "**状态**"))
         )
         assert "lean | full" in status
+
+    def test_template_closure_record_closes_an_unconverged_loop(
+        self, tmp_path: Path, lang: str
+    ):
+        """The shipped closure record is what plan_lint accepts after NEEDS_FIXES."""
+        work_dir = _template_work_dir(tmp_path, lang)
+        closure = next(
+            block
+            for block in _blocks(f"template-review.{lang}.md")
+            if block.startswith(("## Plan Review Closure", "## 方案审查收口"))
+        )
+        closure = re.sub(r"<R3[,、] ?R4>", "R1", closure).replace(
+            "<date>", "2026-01-02"
+        )
+        review = work_dir / "review.md"
+        text = review.read_text(encoding="utf-8")
+        # The round ends unconverged with only a P1 left open.
+        text = re.sub(r"^- \[P0\].*\n", "", text, flags=re.MULTILINE)
+        text = re.sub(
+            r"^PASS — ", "NEEDS_FIXES — ", text, count=1, flags=re.MULTILINE
+        )
+        review.write_text(text, encoding="utf-8")
+        assert any("not closed" in m for m in _errors(work_dir))
+        review.write_text(text + "\n" + closure, encoding="utf-8")
+        assert _errors(work_dir) == []

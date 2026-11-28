@@ -1497,3 +1497,124 @@ class TestCriterionIds:
         plan = PLAN_OK.replace("- [ ] SC1 works", "- [ ] SC-1 works")
         findings = lint_work_dir(_work_dir(tmp_path, plan, REVIEW_OK))
         assert [m for m in _errors(findings) if "SC<n> id" in m]
+
+
+# ---------------------------------------------------------------------------
+# Check 2 — a loop that stopped without converging closes with a record
+# ---------------------------------------------------------------------------
+
+PLAN_WITH_RISK = PLAN_OK + """
+## 风险 / 待确认问题
+
+| # | 风险 | 可能性 | 影响 | 应对 |
+|---|------|--------|------|------|
+| R1 | 主题缓存可能过期 | 中 | 低 | 监控 |
+"""
+
+REVIEW_UNCONVERGED = REVIEW_OK + """
+## 方案审查 — 第 2 轮 — 2026-09-22
+
+### 问题清单
+
+- [P1] plan.md §成功标准 — SC2 的阈值没写 — 影响：返工 — 建议：写上
+
+### 结论
+
+NEEDS_FIXES — one P1 remains.
+"""
+
+CLOSURE = """
+## 方案审查收口 — 2026-09-22
+
+**原因**：lean 确认轮未收敛
+
+**残留**：R1 — SC2 阈值未定，已记为风险
+
+### 结论
+
+PASS_WITH_RISKS — 由 orchestrator 收口
+"""
+
+
+class TestPlanReviewClosure:
+    def _lint(self, tmp_path: Path, review: str, plan: str = PLAN_WITH_RISK):
+        return lint_work_dir(_work_dir(tmp_path, plan, review))
+
+    def test_unconverged_round_without_closure_fails(self, tmp_path: Path):
+        errors = _errors(self._lint(tmp_path, REVIEW_UNCONVERGED))
+        assert any("plan review is not closed" in m for m in errors)
+
+    def test_closure_record_closes_the_loop(self, tmp_path: Path):
+        findings = self._lint(tmp_path, REVIEW_UNCONVERGED + CLOSURE)
+        assert _errors(findings) == []
+
+    def test_closure_is_not_a_round(self, tmp_path: Path):
+        rounds = parse_plan_review_rounds(REVIEW_UNCONVERGED + CLOSURE)
+        assert [r.number for r in rounds] == [1, 2]
+
+    def test_english_closure_heading_is_not_a_round(self, tmp_path: Path):
+        text = REVIEW_UNCONVERGED + CLOSURE.replace(
+            "## 方案审查收口", "## Plan Review Closure"
+        )
+        assert [r.number for r in parse_plan_review_rounds(text)] == [1, 2]
+        assert _errors(self._lint(tmp_path, text)) == []
+
+    def test_closure_cannot_claim_pass(self, tmp_path: Path):
+        review = REVIEW_UNCONVERGED + CLOSURE.replace(
+            "PASS_WITH_RISKS — 由", "PASS — 由"
+        )
+        errors = _errors(self._lint(tmp_path, review))
+        assert any("must close as PASS_WITH_RISKS" in m for m in errors)
+
+    def test_closure_needs_residual_risk_ids(self, tmp_path: Path):
+        review = REVIEW_UNCONVERGED + CLOSURE.replace(
+            "**残留**：R1 — SC2 阈值未定，已记为风险", "**残留**：见上"
+        )
+        errors = _errors(self._lint(tmp_path, review))
+        assert any("Residual" in m for m in errors)
+
+    def test_residual_must_exist_in_plan(self, tmp_path: Path):
+        review = REVIEW_UNCONVERGED + CLOSURE.replace("**残留**：R1", "**残留**：R7")
+        errors = _errors(self._lint(tmp_path, review))
+        assert any("does not declare: R7" in m for m in errors)
+
+    def test_open_p0_never_closes(self, tmp_path: Path):
+        review = REVIEW_UNCONVERGED.replace("- [P1]", "- [P0]") + CLOSURE
+        errors = _errors(self._lint(tmp_path, review))
+        assert any("open P0" in m for m in errors)
+
+    def test_rejected_p0_does_not_block_closure(self, tmp_path: Path):
+        review = (
+            REVIEW_UNCONVERGED.replace(
+                "- [P1] plan.md §成功标准 — SC2 的阈值没写 — 影响：返工 — 建议：写上",
+                "- [P0] 误报 — **已拒绝**：接口已存在\n"
+                "- [P1] plan.md §成功标准 — SC2 的阈值没写",
+            )
+            + CLOSURE
+        )
+        assert _errors(self._lint(tmp_path, review)) == []
+
+    def test_closure_before_a_later_round_does_not_count(self, tmp_path: Path):
+        review = (
+            REVIEW_UNCONVERGED
+            + CLOSURE
+            + REVIEW_UNCONVERGED.split("\n## 方案审查 — 第 2 轮")[1]
+            .join(["\n## 方案审查 — 第 3 轮", ""])
+        )
+        errors = _errors(self._lint(tmp_path, review))
+        assert any("plan review is not closed" in m for m in errors)
+
+    def test_closure_does_not_rescue_needs_user_decision(self, tmp_path: Path):
+        review = REVIEW_UNCONVERGED.replace(
+            "NEEDS_FIXES — one P1", "NEEDS_USER_DECISION — one P1"
+        ) + CLOSURE
+        errors = _errors(self._lint(tmp_path, review))
+        assert any("plan review is not closed" in m for m in errors)
+
+    def test_summary_names_the_closure_verdict(self, tmp_path: Path):
+        plan = PLAN_WITH_RISK.replace(
+            "**状态**：第 1 轮方案审查 PASS，规划完成。",
+            "**状态**：第 2 轮方案审查 PASS_WITH_RISKS（收口），规划完成。",
+        )
+        findings = self._lint(tmp_path, REVIEW_UNCONVERGED + CLOSURE, plan)
+        assert not [m for m in _warnings(findings) if "newest plan-review" in m]

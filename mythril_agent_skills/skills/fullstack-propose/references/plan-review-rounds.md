@@ -5,11 +5,15 @@ at full tier, the orchestrator itself at lean tier.
 
 Read this when a plan review round returns `NEEDS_FIXES`, or when a
 `NEEDS_USER_DECISION` answer sends the plan back for another pass. A plan
-that passes on its first round never needs this file.
+that passes on its first round never needs this file. The non-negotiables
+in `SKILL.md` Step 4.5 (never weaken a plan, a narrowed `REQ` is the
+user's call, contradicting an answered clarification is a P0) bind every
+round; they are not repeated here.
 
 ## Counting the rounds — the cap counts passes, and a re-plan starts a new loop
 
-
+- The cap — lean: 1 pass + 1 confirmation; full: 3 passes — counts
+  independent plan-review passes within the current loop.
 - A **re-plan** starts a new loop. When the user answers a
   `NEEDS_USER_DECISION` with a different design and the planner rewrites the
   documents instead of amending them, the rewritten plan is a new proposal:
@@ -26,9 +30,6 @@ Record which loop the current round belongs to in `review.md` §状态速览 /
 §Status Overview, next to the round count — `方案审查 4 轮（第 2–4 轮同一循环，
 上限 3 轮）`. Without it a reader cannot tell a run that reached the cap from
 one that quietly ignored it, and neither can the next agent.
-
-Do not skip the gate because the plan "looks fine" — that judgment is the
-thing being tested.
 
 ## Round 2+ briefs — incremental, minimal, fresh
 
@@ -51,13 +52,8 @@ in this brief — history lives in `review.md` and git, fetched on demand.
 Dispatch the round-2+ confirmation as a **fresh agent** with this minimal
 brief; do not continue an existing heavyweight subagent session — context
 that grows every round is what makes repeats slow and unconvergent. When
-no agent can be spawned, the fallback above applies unchanged.
-
-**A plan that contradicts an answered clarification is a P0.** The
-`§Clarifications` answers are part of the baseline the reviewer falsifies
-against; a plan that re-opens a settled decision, or silently substitutes
-its own assumption for the user's answer, is not a wording issue — it is
-the plan promising something the user already declined.
+no agent can be spawned, the fallback in `SKILL.md` Step 4.5 applies
+unchanged.
 
 ## Rules that keep the loop convergent
 
@@ -68,21 +64,18 @@ the plan promising something the user already declined.
 - **Round 2+ verifies the previous findings and the content changed to
   resolve them only** — never a fresh full audit. Otherwise every round
   harvests new P2s and the plan never converges.
-- **Never weaken a plan to satisfy a reviewer.** Deleting a criterion,
-  widening a contract to "TBD", or dropping a requirement to reach `PASS`
-  is worse than shipping with a documented P1. If the honest fix is a
-  choice only the user can make, that is `NEEDS_USER_DECISION`.
-- **A finding whose fix narrows a `REQ` is not the planner's to resolve.**
-  When the only available fix shrinks what a requirement promises — the
-  accepted behavior becomes a subset of what `REQ<n>` says as the user
-  wrote it — reporting `NEEDS_USER_DECISION` is required, with the
-  requirement quoted and the subset named. Writing the subset down as a
-  documented boundary is correct engineering *and* still a scope
-  decision; from inside the plan the two look identical, which is why
-  this needs its own rule rather than riding on the one above.
 - **Oscillation stops the loop.** If a round produces more new findings
-  than the previous round resolved, stop, record the residual items as
-  known risks in `plan.md`, and report them in Step 5.
+  than the previous round resolved, stop and close the loop with a Plan
+  Review Closure record (see below), then report the residual risks in
+  Step 5.
+- **Ending a loop that did not converge.** Lean confirmation still
+  `NEEDS_FIXES`, the full cap reached, or oscillation: turn every open
+  P1/P2 into an `R<n>` row in `plan.md` §Risks, then append the closure
+  record from `template-review.<lang>.md` right after the last round —
+  `**Why**`, `**Residual**: R<n>, …`, verdict `PASS_WITH_RISKS`. Leave the
+  reviewer's `NEEDS_FIXES` verdict as written. An open P0 is never closed
+  this way; `plan_lint` rejects a closure whose round still lists an
+  unrejected `[P0]`.
 - **Re-run the affected mechanical gates after revisions** — `plan_lint`
   after any document edit, the Mermaid gate if a diagram changed, the DAG
   gate if the repositories table changed. At lean tier this mechanical
