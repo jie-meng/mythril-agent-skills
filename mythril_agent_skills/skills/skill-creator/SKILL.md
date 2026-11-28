@@ -277,9 +277,9 @@ Once all runs are done:
 
 1. **Grade each run** — spawn a grader subagent (or grade inline) that reads `agents/grader.md` and evaluates each assertion against the outputs. Save results to `grading.json` in each run directory. The grading.json expectations array must use the fields `text`, `passed`, and `evidence` (not `name`/`met`/`details` or other variants) — the viewer depends on these exact field names. For assertions that can be checked programmatically, write and run a script rather than eyeballing it — scripts are faster, more reliable, and can be reused across iterations.
 
-2. **Aggregate into benchmark** — run the aggregation script (`SKILL_PATH` is this skill's installed directory; `PYTHONPATH` lets `python -m scripts.*` run from any working directory):
+2. **Aggregate into benchmark** — run the aggregation script (`SKILL_PATH` is this skill's installed directory; `PYTHONPATH` lets `python3 -m scripts.*` run from any working directory):
    ```bash
-   PYTHONPATH=SKILL_PATH python -m scripts.aggregate_benchmark <workspace>/iteration-N --skill-name <name>
+   PYTHONPATH=SKILL_PATH python3 -m scripts.aggregate_benchmark <workspace>/iteration-N --skill-name <name>
    ```
    This produces `benchmark.json` and `benchmark.md` with pass_rate, time, and tokens for each configuration, with mean ± stddev and the delta. If generating benchmark.json manually, see `references/schemas.md` for the exact schema the viewer expects.
 Put each with_skill version before its baseline counterpart.
@@ -288,7 +288,7 @@ Put each with_skill version before its baseline counterpart.
 
 4. **Launch the viewer** with both qualitative outputs and quantitative data:
    ```bash
-   nohup python SKILL_PATH/eval-viewer/generate_review.py \
+   nohup python3 SKILL_PATH/eval-viewer/generate_review.py \
      <workspace>/iteration-N \
      --skill-name "my-skill" \
      --benchmark <workspace>/iteration-N/benchmark.json \
@@ -429,12 +429,24 @@ This step matters — bad eval queries lead to bad descriptions.
 
 ### Step 3: Run the optimization loop
 
+**Requirements** (check before starting, and tell the user if any is missing):
+- The `claude` CLI on PATH — each trigger test runs `claude -p`.
+- The `anthropic` Python package (`pip install anthropic`) and an
+  `ANTHROPIC_API_KEY` in the environment — the description-improvement step
+  calls the Messages API directly with extended thinking. A Claude Code
+  subscription login alone is not enough. Never print or echo the key; let
+  the script read it from the environment.
+- If a skill with the same name is already installed (e.g. in
+  `~/.claude/skills/`), Claude may invoke that copy instead of the temporary
+  one under test, which counts as "not triggered". Tell the user, and run the
+  loop with the installed copy disabled if the scores look implausibly low.
+
 Tell the user: "This will take some time — I'll run the optimization loop in the background and check on it periodically."
 
 Save the eval set to the workspace, then run in the background:
 
 ```bash
-PYTHONPATH=SKILL_PATH python -m scripts.run_loop \
+PYTHONPATH=SKILL_PATH python3 -m scripts.run_loop \
   --eval-set <path-to-trigger-eval.json> \
   --skill-path <path-to-skill> \
   --model <model-id-powering-this-session> \
@@ -465,7 +477,7 @@ Take `best_description` from the JSON output and update the skill's SKILL.md fro
 Check whether you have access to the `present_files` tool. If you don't, skip this step. If you do, package the skill and present the .skill file to the user:
 
 ```bash
-PYTHONPATH=SKILL_PATH python -m scripts.package_skill <path/to/skill-folder>
+PYTHONPATH=SKILL_PATH python3 -m scripts.package_skill <path/to/skill-folder>
 ```
 
 After packaging, direct the user to the resulting `.skill` file path so they can install it.
@@ -531,7 +543,7 @@ If you're in Cowork, the main things to know are:
 - For whatever reason, the Cowork setup seems to disincline Claude from generating the eval viewer after running the tests, so just to reiterate: whether you're in Cowork or in Claude Code, after running tests, you should always generate the eval viewer for the human to look at examples before revising the skill yourself and trying to make corrections, using `generate_review.py` (not writing your own boutique html code). Sorry in advance but I'm gonna go all caps here: GENERATE THE EVAL VIEWER *BEFORE* evaluating inputs yourself. You want to get them in front of the human ASAP!
 - Feedback works differently: since there's no running server, the viewer's "Submit All Reviews" button will download `feedback.json` as a file. You can then read it from there (you may have to request access first).
 - Packaging works — `package_skill.py` just needs Python and a filesystem.
-- Description optimization (`run_loop.py` / `run_eval.py`) should work in Cowork just fine since it uses `claude -p` via subprocess, not a browser, but please save it until you've fully finished making the skill and the user agrees it's in good shape.
+- Description optimization (`run_loop.py` / `run_eval.py`) needs no browser — trigger tests use `claude -p` via subprocess — but the improvement step also needs the `anthropic` package and an `ANTHROPIC_API_KEY` (see "Step 3: Run the optimization loop"). Save it until you've fully finished making the skill and the user agrees it's in good shape.
 
 ---
 
