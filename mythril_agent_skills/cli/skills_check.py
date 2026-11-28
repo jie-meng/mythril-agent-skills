@@ -1161,8 +1161,8 @@ _NODE_INSTALL_HINTS: dict[str, list[str]] = {
 def check_web_tester(config_path: Path) -> bool:
     """Check Node.js >= 18 and npm for the web-tester Playwright toolbox.
 
-    Chromium itself is installed per-project by the skill's setup.sh, so
-    nothing to configure here beyond the JS runtime.
+    Playwright and Chromium are installed into the skill cache by the
+    skill's setup.sh, so nothing to configure here beyond the JS runtime.
     """
     print(f"\n{BOLD}web-tester (node >= 18 / npm):{NC}")
 

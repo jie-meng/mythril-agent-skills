@@ -12,7 +12,10 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
+import platform
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -37,9 +40,77 @@ except ImportError:
     sys.exit(1)
 
 
+SKILL_NAME = "pdf"
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def get_cache_root(
+    system: str | None = None,
+    env: dict[str, str] | None = None,
+    home: Path | None = None,
+) -> Path:
+    """Return the per-user mythril-skills-cache root for the given platform."""
+    system = system if system is not None else platform.system()
+    env = env if env is not None else dict(os.environ)
+    home = home if home is not None else Path.home()
+    if system == "Darwin":
+        return home / "Library" / "Caches" / "mythril-skills-cache"
+    if system == "Windows":
+        local = env.get("LOCALAPPDATA")
+        base = Path(local) if local else home / "AppData" / "Local"
+        return base / "mythril-skills-cache"
+    xdg = env.get("XDG_CACHE_HOME")
+    base = Path(xdg) if xdg else home / ".cache"
+    return base / "mythril-skills-cache"
+
+
+def output_conflict(output: Path, inputs: list[Path], force: bool) -> str | None:
+    """Return an error message if writing *output* is unsafe, else None.
+
+    Writing over an input is always refused (even with --force); an existing
+    unrelated file is refused unless *force* is set.
+    """
+    out_resolved = output.expanduser().resolve()
+    for inp in inputs:
+        if inp.expanduser().resolve() == out_resolved:
+            return (
+                f"output {output} is also an input file; "
+                "write to a different path"
+            )
+    if output.exists() and not force:
+        return f"output {output} already exists; pass --force to overwrite"
+    return None
+
+
+def _check_outputs(outputs: list[Path], inputs: list[Path], force: bool) -> None:
+    """Exit with an error if any planned output is unsafe to write."""
+    for out in outputs:
+        problem = output_conflict(out, inputs, force)
+        if problem:
+            print(f"ERROR: {problem}", file=sys.stderr)
+            sys.exit(2)
+
+
+def _resolve_output_dir(raw: str | None, stem: str) -> Path:
+    """Return the user's --output-dir, or a fresh run dir in the skill cache."""
+    if raw:
+        out = Path(raw).expanduser()
+        out.mkdir(parents=True, exist_ok=True)
+        return out
+    cache_dir = get_cache_root() / SKILL_NAME
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return Path(tempfile.mkdtemp(prefix=f"{stem}-", dir=cache_dir))
+
+
+def _require_file(path: str) -> None:
+    """Exit with a clear error if *path* does not exist."""
+    if not Path(path).exists():
+        print(f"ERROR: File not found: {path}", file=sys.stderr)
+        sys.exit(2)
 
 
 def _parse_page_spec(spec: str, total_pages: int) -> list[int]:
@@ -172,6 +243,7 @@ def cmd_info(args: argparse.Namespace) -> None:
 
 def cmd_text(args: argparse.Namespace) -> None:
     """Extract text from PDF pages."""
+    _require_file(args.file)
     with pdfplumber.open(args.file) as pdf:
         total = len(pdf.pages)
         page_indices = _resolve_pages(args, total)
@@ -197,6 +269,7 @@ def cmd_text(args: argparse.Namespace) -> None:
 
 def cmd_tables(args: argparse.Namespace) -> None:
     """Extract tables from PDF pages."""
+    _require_file(args.file)
     with pdfplumber.open(args.file) as pdf:
         total = len(pdf.pages)
         page_indices = _resolve_pages(args, total)
@@ -231,14 +304,14 @@ def cmd_tables(args: argparse.Namespace) -> None:
             print(json.dumps(all_tables, indent=2, ensure_ascii=False))
 
         elif fmt == "csv":
-            output_dir = Path(args.output_dir) if args.output_dir else Path(".")
-            output_dir.mkdir(parents=True, exist_ok=True)
             stem = Path(args.file).stem
-            for tbl in all_tables:
-                csv_path = (
-                    output_dir
-                    / f"{stem}_p{tbl['page']}_t{tbl['table_number']}.csv"
-                )
+            output_dir = _resolve_output_dir(args.output_dir, stem)
+            csv_paths = [
+                output_dir / f"{stem}_p{tbl['page']}_t{tbl['table_number']}.csv"
+                for tbl in all_tables
+            ]
+            _check_outputs(csv_paths, [Path(args.file)], args.force)
+            for tbl, csv_path in zip(all_tables, csv_paths):
                 with open(csv_path, "w", newline="", encoding="utf-8") as f:
                     writer = csv.writer(f)
                     for row in tbl["rows"]:
@@ -298,17 +371,16 @@ def cmd_to_images(args: argparse.Namespace) -> None:
         total = len(pdf)
         page_indices = _resolve_pages(args, total)
 
-        output_dir = Path(args.output_dir) if args.output_dir else p.parent
-        output_dir.mkdir(parents=True, exist_ok=True)
+        output_dir = _resolve_output_dir(args.output_dir, p.stem)
+        out_paths = [output_dir / f"{p.stem}_page_{idx + 1}.png" for idx in page_indices]
+        _check_outputs(out_paths, [p], args.force)
 
         scale = args.scale if args.scale else 2.0
 
-        for idx in page_indices:
+        for idx, out_path in zip(page_indices, out_paths):
             page = pdf[idx]
             bitmap = page.render(scale=scale)
             img = bitmap.to_pil()
-
-            out_path = output_dir / f"{p.stem}_page_{idx + 1}.png"
             img.save(str(out_path), "PNG")
             print(f"Saved: {out_path} ({img.width}x{img.height})")
     finally:
@@ -321,6 +393,7 @@ def cmd_merge(args: argparse.Namespace) -> None:
         print("ERROR: At least 2 PDF files required for merge.", file=sys.stderr)
         sys.exit(2)
 
+    _check_outputs([Path(args.output)], [Path(f) for f in args.files], args.force)
     writer = PdfWriter()
     for pdf_path in args.files:
         reader = _load_reader(pdf_path)
@@ -338,14 +411,14 @@ def cmd_split(args: argparse.Namespace) -> None:
     total = len(reader.pages)
 
     if args.each:
-        output_dir = Path(args.output_dir) if args.output_dir else Path(".")
-        output_dir.mkdir(parents=True, exist_ok=True)
         stem = Path(args.file).stem
+        output_dir = _resolve_output_dir(args.output_dir, stem)
         page_indices = _resolve_pages(args, total)
-        for idx in page_indices:
+        outs = [output_dir / f"{stem}_page_{idx + 1}.pdf" for idx in page_indices]
+        _check_outputs(outs, [Path(args.file)], args.force)
+        for idx, out in zip(page_indices, outs):
             w = PdfWriter()
             w.add_page(reader.pages[idx])
-            out = output_dir / f"{stem}_page_{idx + 1}.pdf"
             _write_pdf(w, str(out))
             print(f"Saved: {out}")
         return
@@ -361,6 +434,7 @@ def cmd_split(args: argparse.Namespace) -> None:
         print("ERROR: -o/--output is required for split.", file=sys.stderr)
         sys.exit(2)
 
+    _check_outputs([Path(args.output)], [Path(args.file)], args.force)
     page_indices = _parse_page_spec(args.pages, total)
     writer = PdfWriter()
     for idx in page_indices:
@@ -383,6 +457,7 @@ def cmd_rotate(args: argparse.Namespace) -> None:
     if not args.output:
         print("ERROR: -o/--output is required for rotate.", file=sys.stderr)
         sys.exit(2)
+    _check_outputs([Path(args.output)], [Path(args.file)], args.force)
 
     page_indices = set(_resolve_pages(args, total))
 
@@ -397,101 +472,53 @@ def cmd_rotate(args: argparse.Namespace) -> None:
     print(f"Rotated {rotated_desc} by {angle}° -> {args.output}")
 
 
+def image_filename(stem: str, page_num: int, index: int, name: str) -> str:
+    """Build an output name like ``doc_p3_img2.png`` from pypdf's image name.
+
+    pypdf names images ``Im1.png`` / ``X5.jpg``; only the extension is kept
+    (lowercased), defaulting to ``bin`` when it has none.
+    """
+    suffix = Path(name).suffix.lower().lstrip(".")
+    ext = suffix if suffix.isalnum() else "bin"
+    return f"{stem}_p{page_num}_img{index}.{ext or 'bin'}"
+
+
 def cmd_extract_images(args: argparse.Namespace) -> None:
-    """Extract embedded images from a PDF."""
+    """Extract embedded images from a PDF via pypdf's image decoder."""
     reader = _load_reader(args.file)
     total = len(reader.pages)
     page_indices = _resolve_pages(args, total)
-
-    output_dir = Path(args.output_dir) if args.output_dir else Path(".")
-    output_dir.mkdir(parents=True, exist_ok=True)
+    stem = Path(args.file).stem
+    output_dir = _resolve_output_dir(args.output_dir, stem)
 
     img_count = 0
-    stem = Path(args.file).stem
-
     for idx in page_indices:
         page = reader.pages[idx]
-        if "/XObject" not in page.get("/Resources", {}):
+        try:
+            images = list(page.images)
+        except Exception as exc:  # pypdf raises on unsupported filters
+            print(f"WARNING: page {idx + 1}: cannot decode images ({exc})",
+                  file=sys.stderr)
             continue
-        x_objects = page["/Resources"]["/XObject"].get_object()
-        for obj_name in x_objects:
-            obj = x_objects[obj_name].get_object()
-            if obj.get("/Subtype") != "/Image":
-                continue
+        for image in images:
             img_count += 1
-
-            width = obj.get("/Width", 0)
-            height = obj.get("/Height", 0)
-
-            data = obj.get_data()
-            filt = obj.get("/Filter", "")
-
-            if filt == "/DCTDecode":
-                ext = "jpg"
-            elif filt == "/JPXDecode":
-                ext = "jp2"
-            elif filt == "/FlateDecode":
-                ext = "png"
-            elif filt == "/CCITTFaxDecode":
-                ext = "tiff"
-            else:
-                ext = "bin"
-
-            out_path = output_dir / f"{stem}_p{idx + 1}_img{img_count}.{ext}"
-
-            if ext == "png":
-                try:
-                    from PIL import Image
-
-                    if "/SMask" in obj:
-                        has_alpha = True
-                    else:
-                        has_alpha = False
-
-                    cs = obj.get("/ColorSpace", "")
-                    if isinstance(cs, list):
-                        cs = str(cs[0])
-
-                    if cs in ("/DeviceRGB", "/CalRGB") or "RGB" in str(cs):
-                        mode = "RGBA" if has_alpha else "RGB"
-                        channels = 4 if has_alpha else 3
-                    elif cs in ("/DeviceGray", "/CalGray") or "Gray" in str(cs):
-                        mode = "LA" if has_alpha else "L"
-                        channels = 2 if has_alpha else 1
-                    elif cs in ("/DeviceCMYK",) or "CMYK" in str(cs):
-                        mode = "CMYK"
-                        channels = 4
-                    else:
-                        mode = "RGB"
-                        channels = 3
-
-                    expected = int(width) * int(height) * channels
-                    if len(data) >= expected:
-                        img = Image.frombytes(mode, (int(width), int(height)), data)
-                        if mode == "CMYK":
-                            img = img.convert("RGB")
-                        img.save(str(out_path), "PNG")
-                    else:
-                        out_path = out_path.with_suffix(".bin")
-                        with open(out_path, "wb") as f:
-                            f.write(data)
-                except ImportError:
-                    out_path = out_path.with_suffix(".bin")
-                    with open(out_path, "wb") as f:
-                        f.write(data)
-            else:
-                with open(out_path, "wb") as f:
-                    f.write(data)
-
-            print(
-                f"Extracted: {out_path} "
-                f"({width}x{height}, {ext})"
-            )
+            out_path = output_dir / image_filename(stem, idx + 1, img_count, image.name)
+            _check_outputs([out_path], [Path(args.file)], args.force)
+            out_path.write_bytes(image.data)
+            size = ""
+            if getattr(image, "image", None) is not None:
+                size = f" ({image.image.width}x{image.image.height})"
+            print(f"Extracted: {out_path}{size}")
 
     if img_count == 0:
         print("No embedded images found in the specified pages.")
     else:
-        print(f"\nExtracted {img_count} image(s).")
+        print(f"\nExtracted {img_count} image(s) to {output_dir}")
+
+
+def decrypt_succeeded(result: Any) -> bool:
+    """True if pypdf's decrypt() result is not PasswordType.NOT_DECRYPTED (0)."""
+    return int(result) != 0
 
 
 def cmd_decrypt(args: argparse.Namespace) -> None:
@@ -506,10 +533,15 @@ def cmd_decrypt(args: argparse.Namespace) -> None:
         print("This PDF is not encrypted.")
         return
 
+    _check_outputs([Path(args.output)], [Path(args.file)], args.force)
     try:
-        reader.decrypt(args.password)
+        result = reader.decrypt(args.password)
     except Exception as exc:
         print(f"ERROR: Failed to decrypt: {exc}", file=sys.stderr)
+        sys.exit(2)
+    if not decrypt_succeeded(result):
+        print("ERROR: Wrong password — the PDF could not be decrypted.",
+              file=sys.stderr)
         sys.exit(2)
 
     writer = PdfWriter()
@@ -558,20 +590,35 @@ def build_parser() -> argparse.ArgumentParser:
     p_tables.add_argument(
         "--output-dir", help="Output directory for CSV files"
     )
+    p_tables.add_argument(
+        "--force", action="store_true",
+        help="Overwrite existing output files (never an input file)",
+    )
 
     # to-images
     p_imgs = sub.add_parser("to-images", help="Convert PDF pages to PNG")
     p_imgs.add_argument("file", help="PDF file path")
     p_imgs.add_argument("--pages", help="Page spec: 1,3,5-8")
-    p_imgs.add_argument("--output-dir", help="Output directory for images")
+    p_imgs.add_argument(
+        "--output-dir",
+        help="Output directory (default: a new dir in the skill cache)",
+    )
     p_imgs.add_argument(
         "--scale", type=float, default=2.0, help="Render scale (default: 2.0)"
+    )
+    p_imgs.add_argument(
+        "--force", action="store_true",
+        help="Overwrite existing output files (never an input file)",
     )
 
     # merge
     p_merge = sub.add_parser("merge", help="Merge multiple PDFs")
     p_merge.add_argument("files", nargs="+", help="PDF files to merge")
     p_merge.add_argument("-o", "--output", required=True, help="Output file")
+    p_merge.add_argument(
+        "--force", action="store_true",
+        help="Overwrite existing output files (never an input file)",
+    )
 
     # split
     p_split = sub.add_parser("split", help="Split PDF by pages")
@@ -586,6 +633,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_split.add_argument(
         "--output-dir", help="Output directory (for --each)"
     )
+    p_split.add_argument(
+        "--force", action="store_true",
+        help="Overwrite existing output files (never an input file)",
+    )
 
     # rotate
     p_rotate = sub.add_parser("rotate", help="Rotate PDF pages")
@@ -593,6 +644,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_rotate.add_argument("angle", type=int, help="Rotation angle: 90, 180, 270")
     p_rotate.add_argument("--pages", help="Page spec: 1,3,5-8 (default: all)")
     p_rotate.add_argument("-o", "--output", help="Output file")
+    p_rotate.add_argument(
+        "--force", action="store_true",
+        help="Overwrite existing output files (never an input file)",
+    )
 
     # extract-images
     p_eimg = sub.add_parser(
@@ -601,12 +656,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_eimg.add_argument("file", help="PDF file path")
     p_eimg.add_argument("--pages", help="Page spec: 1,3,5-8")
     p_eimg.add_argument("--output-dir", help="Output directory for images")
+    p_eimg.add_argument(
+        "--force", action="store_true",
+        help="Overwrite existing output files (never an input file)",
+    )
 
     # decrypt
     p_dec = sub.add_parser("decrypt", help="Decrypt a password-protected PDF")
     p_dec.add_argument("file", help="PDF file path")
     p_dec.add_argument("--password", required=True, help="PDF password")
     p_dec.add_argument("-o", "--output", help="Output file")
+    p_dec.add_argument(
+        "--force", action="store_true",
+        help="Overwrite existing output files (never an input file)",
+    )
 
     return parser
 

@@ -4,7 +4,6 @@
 Provides subcommands for reading, extracting, and inspecting Word documents.
 
 Requires: python-docx (pip install python-docx)
-Optional: python-docx for .docx, antiword CLI for .doc
 """
 
 from __future__ import annotations
@@ -12,13 +11,18 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 try:
     from docx import Document
-    from docx.opc.constants import RELATIONSHIP_TYPE as RT
+    from docx.table import Table
+    from docx.text.hyperlink import Hyperlink
+    from docx.text.paragraph import Paragraph
+    from docx.text.run import Run
 except ImportError:
     print(
         "ERROR: python-docx is not installed.\n"
@@ -65,9 +69,105 @@ def _load_docx(path: str) -> Document:
         raise  # unreachable, satisfies type checker
 
 
-def _extract_paragraph_text(para: Any) -> str:
-    """Extract text from a paragraph, including runs."""
-    return para.text
+def heading_level(style_name: str | None) -> int | None:
+    """Markdown heading level for a paragraph style, or None for body text.
+
+    "Heading 2" -> 2, "Title" -> 1, other "Heading ..." styles (custom or
+    unnumbered) -> 1. Levels are clamped to Markdown's 1-6.
+    """
+    if not style_name:
+        return None
+    if style_name == "Title":
+        return 1
+    if not style_name.startswith("Heading"):
+        return None
+    match = re.fullmatch(r"Heading\s*(\d+)", style_name.strip())
+    level = int(match.group(1)) if match else 1
+    return min(max(level, 1), 6)
+
+
+# Paragraph children whose runs are visible text (tracked insertions, smart
+# tags, content controls...). Deleted text (w:del, w:moveFrom) is skipped.
+_TRANSPARENT_TAGS = {"ins", "moveTo", "smartTag", "customXml", "fldSimple", "sdtContent"}
+
+
+def _local(tag: Any) -> str:
+    """Strip the XML namespace from an lxml tag."""
+    return tag.split("}")[-1] if isinstance(tag, str) else ""
+
+
+def _iter_runs(container: Any, para: Any, url: str | None = None) -> Iterator[tuple[Run, str | None]]:
+    """Yield (run, hyperlink-url) for every visible run in paragraph XML.
+
+    Unlike ``Paragraph.runs``, this includes runs inside hyperlinks, tracked
+    insertions, smart tags, and content controls.
+    """
+    for child in container.iterchildren():
+        tag = _local(child.tag)
+        if tag == "r":
+            yield Run(child, para), url
+        elif tag == "hyperlink":
+            link_url = url
+            try:
+                link_url = Hyperlink(child, para).url or url
+            except (KeyError, AttributeError):
+                pass
+            yield from _iter_runs(child, para, link_url)
+        elif tag == "sdt" or tag in _TRANSPARENT_TAGS:
+            yield from _iter_runs(child, para, url)
+
+
+def _wrap(text: str, marker: str) -> str:
+    """Wrap *text* in an emphasis marker, keeping edge whitespace outside."""
+    stripped = text.strip()
+    if not stripped or not marker:
+        return text
+    lead = text[: len(text) - len(text.lstrip())]
+    trail = text[len(text.rstrip()):]
+    return f"{lead}{marker}{stripped}{marker}{trail}"
+
+
+def format_segments(segments: list[tuple[str, bool, bool, str | None]]) -> str:
+    """Render (text, bold, italic, url) runs as Markdown.
+
+    Adjacent runs with identical formatting are merged first, so Word's habit
+    of splitting a word across runs does not produce ``**a****b**``.
+    """
+    merged: list[list[Any]] = []
+    for text, bold, italic, url in segments:
+        if not text:
+            continue
+        key = (bool(bold), bool(italic), url)
+        if merged and merged[-1][1] == key:
+            merged[-1][0] += text
+        else:
+            merged.append([text, key])
+
+    links: list[list[Any]] = []
+    for text, (bold, italic, url) in merged:
+        marker = "***" if bold and italic else "**" if bold else "*" if italic else ""
+        piece = _wrap(text, marker)
+        if links and links[-1][1] == url:
+            links[-1][0] += piece
+        else:
+            links.append([piece, url])
+
+    out: list[str] = []
+    for text, url in links:
+        if url and text.strip():
+            out.append(f"[{text}]({url})")
+        else:
+            out.append(text)
+    return "".join(out)
+
+
+def paragraph_to_markdown(para: Any) -> str:
+    """Convert a body paragraph to inline Markdown (bold, italic, links)."""
+    segments = [
+        (run.text, bool(run.bold), bool(run.italic), url)
+        for run, url in _iter_runs(para._p, para)
+    ]
+    return format_segments(segments).strip()
 
 
 def _table_to_markdown(table: Any) -> str:
@@ -99,6 +199,23 @@ def _table_to_markdown(table: Any) -> str:
     return "\n".join(lines)
 
 
+def unique_headers(headers: list[str]) -> list[str]:
+    """Make header names usable as JSON keys: fill blanks, de-duplicate.
+
+    ["Name", "", "Name"] -> ["Name", "col_2", "Name_2"]
+    """
+    seen: dict[str, int] = {}
+    result: list[str] = []
+    for i, header in enumerate(headers):
+        key = header or f"col_{i + 1}"
+        if key in seen:
+            seen[key] += 1
+            key = f"{key}_{seen[key]}"
+        seen.setdefault(key, 1)
+        result.append(key)
+    return result
+
+
 def _table_to_json(table: Any) -> list[dict[str, str]]:
     """Convert a docx Table to a list of dicts (first row = keys)."""
     rows: list[list[str]] = []
@@ -108,7 +225,7 @@ def _table_to_json(table: Any) -> list[dict[str, str]]:
     if len(rows) < 2:
         return []
 
-    headers = rows[0]
+    headers = unique_headers(rows[0])
     result: list[dict[str, str]] = []
     for row in rows[1:]:
         record: dict[str, str] = {}
@@ -188,11 +305,8 @@ def cmd_info(args: argparse.Namespace) -> None:
     # Heading outline
     headings: list[tuple[int, str]] = []
     for para in doc.paragraphs:
-        if para.style and para.style.name and para.style.name.startswith("Heading"):
-            try:
-                level = int(para.style.name.replace("Heading ", ""))
-            except ValueError:
-                continue
+        level = heading_level(para.style.name if para.style else None)
+        if level is not None:
             text = para.text.strip()
             if text:
                 headings.append((level, text))
@@ -216,10 +330,9 @@ def cmd_text(args: argparse.Namespace) -> None:
         text = para.text
         if text.strip():
             # Show heading style indicator
-            style_name = para.style.name if para.style else ""
-            if style_name.startswith("Heading"):
-                level = style_name.replace("Heading ", "")
-                print(f"{'#' * int(level)} {text}")
+            level = heading_level(para.style.name if para.style else None)
+            if level is not None:
+                print(f"{'#' * level} {text}")
                 print()
             else:
                 print(text)
@@ -294,63 +407,31 @@ def cmd_extract_images(args: argparse.Namespace) -> None:
 def cmd_to_markdown(args: argparse.Namespace) -> None:
     """Convert Word document to Markdown format."""
     doc = _load_docx(args.file)
+    body = doc._body
 
     lines: list[str] = []
-    table_index = 0
-
-    for element in doc.element.body:
-        tag = element.tag.split("}")[-1] if "}" in element.tag else element.tag
+    for element in doc.element.body.iterchildren():
+        tag = _local(element.tag)
 
         if tag == "p":
-            # Paragraph
-            para = None
-            for p in doc.paragraphs:
-                if p._element is element:
-                    para = p
-                    break
-            if para is None:
+            para = Paragraph(element, body)
+            level = heading_level(para.style.name if para.style else None)
+            if level is not None:
+                text = para.text.strip()
+                if text:
+                    lines.append(f"{'#' * level} {text}")
+                    lines.append("")
                 continue
-
-            text = para.text.strip()
-            if not text:
-                lines.append("")
-                continue
-
-            style_name = para.style.name if para.style else ""
-            if style_name.startswith("Heading"):
-                try:
-                    level = int(style_name.replace("Heading ", ""))
-                except ValueError:
-                    level = 1
-                lines.append(f"{'#' * level} {text}")
-                lines.append("")
-            else:
-                # Check for bold/italic in runs
-                formatted_parts: list[str] = []
-                for run in para.runs:
-                    run_text = run.text
-                    if not run_text:
-                        continue
-                    if run.bold and run.italic:
-                        formatted_parts.append(f"***{run_text}***")
-                    elif run.bold:
-                        formatted_parts.append(f"**{run_text}**")
-                    elif run.italic:
-                        formatted_parts.append(f"*{run_text}*")
-                    else:
-                        formatted_parts.append(run_text)
-                lines.append("".join(formatted_parts))
+            text = paragraph_to_markdown(para)
+            lines.append(text)
+            if text:
                 lines.append("")
 
         elif tag == "tbl":
-            # Table
-            if table_index < len(doc.tables):
-                table = doc.tables[table_index]
-                table_index += 1
-                md = _table_to_markdown(table)
-                if md:
-                    lines.append(md)
-                    lines.append("")
+            md = _table_to_markdown(Table(element, body))
+            if md:
+                lines.append(md)
+                lines.append("")
 
     output = "\n".join(lines)
 

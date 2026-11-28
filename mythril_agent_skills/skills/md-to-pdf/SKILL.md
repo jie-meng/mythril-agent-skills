@@ -22,7 +22,7 @@ license: Apache-2.0
 Pre-flight check:
 
 ```bash
-python3 -c "import markdown_pdf; print('markdown-pdf', markdown_pdf.__version__)"
+python3 -c "import markdown_pdf; print('markdown-pdf OK')"
 ```
 
 Install if missing:
@@ -120,6 +120,7 @@ python3 SKILL_PATH/scripts/md_to_pdf.py README.md \
 # Guidelines
 
 - **Output defaults to same directory as input**: `notes.md` produces `notes.pdf` in the same folder
+- **Existing PDFs are not overwritten**: if the output already exists the script stops; confirm with the user, then re-run with `--force` (or pick another `-o`)
 - **Images**: relative image paths in markdown are resolved from the markdown file's directory
 - **UTF-8**: full Unicode support for any language
 - **Large documents**: use `--optimize` to reduce file size

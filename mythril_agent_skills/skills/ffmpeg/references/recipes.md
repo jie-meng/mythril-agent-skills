@@ -2,7 +2,8 @@
 
 Copy-ready commands for common jobs. Replace `input.*` / `output.*` with real
 paths (quoted), and follow the output-naming rules in SKILL.md — never write
-over the source file unless the user asked.
+over the source file unless the user asked. Add `-n` (never overwrite) to the
+commands below unless the user approved replacing the output.
 
 ## Contents
 
@@ -85,7 +86,8 @@ ffmpeg -i input.mp4 -c:v libx264 -crf 23 -preset ultrafast -c:a copy output_fast
 # Target file size (e.g., ~50MB for a 10-minute video)
 # bitrate = target_size_bits / duration_seconds
 # 50MB = 400Mbit; 400Mbit / 600s ≈ 667kbit/s video (subtract ~128k for audio)
-ffmpeg -i input.mp4 -c:v libx264 -b:v 540k -c:a aac -b:a 128k -pass 1 -f null /dev/null && \
+# Pass 1 analyses video only (-an); use NUL instead of /dev/null on Windows.
+ffmpeg -y -i input.mp4 -c:v libx264 -b:v 540k -pass 1 -an -f null /dev/null && \
 ffmpeg -i input.mp4 -c:v libx264 -b:v 540k -c:a aac -b:a 128k -pass 2 output.mp4
 ```
 
@@ -241,7 +243,7 @@ ffmpeg -i input.mp3 -af loudnorm output_normalized.mp3
 # Trim audio (same syntax as video)
 ffmpeg -i input.mp3 -ss 00:00:30 -to 00:02:00 -c copy output_clip.mp3
 
-# Fade in/out (fade in 3s, fade out last 3s)
+# Fade in/out (fade in 3s, fade out last 3s of a 60s file: st = duration - 3)
 ffmpeg -i input.mp3 -af "afade=t=in:st=0:d=3,afade=t=out:st=57:d=3" output_faded.mp3
 
 # Merge/concatenate audio files
@@ -378,13 +380,15 @@ done
 # Create HLS stream
 ffmpeg -i input.mp4 -c:v libx264 -c:a aac -f hls -hls_time 10 -hls_list_size 0 output.m3u8
 
-# Create multiple bitrate HLS (adaptive)
+# Create multiple bitrate HLS (adaptive) — map video AND audio once per
+# variant: var_stream_map needs v:0/v:1 to exist, and the HLS muxer refuses
+# one audio stream shared by two variants
 ffmpeg -i input.mp4 \
-  -map 0:v -map 0:a -c:v libx264 -c:a aac \
+  -map 0:v:0 -map 0:a:0 -map 0:v:0 -map 0:a:0 -c:v libx264 -c:a aac \
   -b:v:0 800k -s:v:0 640x360 \
   -b:v:1 1400k -s:v:1 1280x720 \
   -f hls -hls_time 10 -master_pl_name master.m3u8 \
-  -var_stream_map "v:0,a:0 v:1,a:0" \
+  -var_stream_map "v:0,a:0 v:1,a:1" \
   stream_%v/output.m3u8
 ```
 

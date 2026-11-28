@@ -129,16 +129,18 @@ there is nothing to locate. Adapt as follows:
 Self-contained Playwright helpers shipped with this skill. Requires Node ≥ 18
 and Chromium (installed by `setup.sh`).
 
-**Setup — run once, from the project under test's root:**
+**Setup — run once per machine:**
 
 ```bash
-bash "SKILL_PATH/scripts/setup.sh" .
+bash "SKILL_PATH/scripts/setup.sh"
 ```
 
 `SKILL_PATH` is the directory containing this SKILL.md. `setup.sh` installs
-`playwright` as a devDependency of the project under test and downloads
-Chromium. It is idempotent. (Windows agents: run the two commands it contains
-instead — `npm i -D playwright` and `npx playwright install chromium`.)
+`playwright` into the skill's runtime directory in the unified cache
+(`<user-cache>/mythril-skills-cache/web-tester/runtime/`) and downloads
+Chromium. It never touches the project under test — no `package.json`,
+lockfile, or `node_modules` changes. It is idempotent. (Windows agents without
+bash: run the PowerShell commands listed in the script's header.)
 
 **API (`SKILL_PATH/scripts/lib.mjs`):**
 
@@ -146,17 +148,19 @@ instead — `npm i -D playwright` and `npx playwright install chromium`.)
 |--------|---------|
 | `DEVICES` | Device preset table (`desktop`, `iphone-14`, `iphone-se`, `pixel-7`, `ipad`) |
 | `lookupDevice(name)` | Preset lookup; throws with valid names on unknown input |
-| `createSession(url, opts)` | Launch headless Chromium + context with preset; opts: `device`, `landscape`, `video`, `evidenceDir`, `headless`, `gotoTimeoutMs`. Auto-collects console + page errors. **Loads `playwright` from the current working directory** — always run node from the project under test's root |
+| `createSession(url, opts)` | Launch headless Chromium + context with preset; opts: `device`, `landscape`, `video`, `evidenceDir`, `headless`, `gotoTimeoutMs`. Auto-collects console + page errors. Loads `playwright` from the skill runtime dir (then the current directory). Default evidence dir: `<cwd>/web-tester-evidence/web-tester-<timestamp>/` — run node from the project under test's root |
 | `tap(session, x, y)` | Touchscreen tap in touch contexts, mouse click otherwise |
 | `swipe(session, {fromX, fromY, toX, toY, steps?, durationMs?})` | Real touch-sequence drag (CDP) in touch contexts, interpolated mouse drag otherwise |
 | `longPress(session, x, y, ms?)` | Touch press-and-hold, mouse fallback |
-| `saveShot(session, name)` | PNG screenshot into the session's evidence dir; returns the path |
+| `saveShot(session, name)` | PNG screenshot into the session's evidence dir; returns the absolute path |
 | `closeSession(session)` | Closes cleanly; returns `{ consoleLog, pageErrors, videos }` |
 
 **One-shot script pattern** — write a small script per test point into the
 project under test (e.g. `web-tester-scratch/`, gitignored), run it with node,
 then read the screenshots it produced. See `SKILL_PATH/examples/`:
-`example-mobile-tap.mjs`, `example-canvas-swipe.mjs`.
+`example-mobile-tap.mjs`, `example-canvas-swipe.mjs`. Import `lib.mjs` by its
+absolute path; on Windows use a file URL
+(`import ... from "file:///C:/Users/.../web-tester/scripts/lib.mjs"`).
 
 ```js
 import { createSession, tap, saveShot, closeSession } from "SKILL_PATH/scripts/lib.mjs";
@@ -171,7 +175,8 @@ console.log(JSON.stringify({ consoleLog, pageErrors }, null, 2));
 ```
 
 **Evidence convention.** All artifacts (screenshots, videos, captured logs)
-land under `web-tester-evidence/<run-name>/` in the project under test. Name
+land under `web-tester-evidence/<run-name>/` in the current directory (the
+project under test's root) unless `evidenceDir` is passed. Name
 screenshots by test point: `t1-initial.png`, `t1-after-tap.png`. Reference
 these paths in the report.
 

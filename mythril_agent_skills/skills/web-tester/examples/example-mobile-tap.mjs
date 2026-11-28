@@ -1,6 +1,7 @@
 // web-tester example — mobile profile: open a page, tap, capture evidence.
 //
-// Usage (run from the project under test's root, after setup.sh):
+// Usage (after setup.sh; run from the project under test's root so evidence
+// lands in ./web-tester-evidence/):
 //   node "SKILL_PATH/examples/example-mobile-tap.mjs" <url> [device] [tapX] [tapY]
 //
 // Adapt me: per SKILL.md, write your own one-shot script per test point —

@@ -1,11 +1,10 @@
 // web-tester skill — bundled Playwright toolbox (fallback capability level).
 //
 // Design notes:
-// - `playwright` is loaded LAZILY via createRequire anchored at the current
-//   working directory, so this module imports cleanly on machines without
-//   playwright (pure functions stay unit-testable) and so one-shot test
-//   scripts resolve the copy installed in the PROJECT UNDER TEST. Always run
-//   node from the project under test's root.
+// - `playwright` is loaded LAZILY, so this module imports cleanly on machines
+//   without playwright (pure functions stay unit-testable). It resolves from
+//   the skill's runtime dir in the unified cache (installed by setup.sh,
+//   never inside the project under test), then from the current directory.
 // - Pure helpers (device presets, naming) never touch playwright or the
 //   filesystem, and are tested by lib.test.mjs (node --test).
 //
@@ -14,7 +13,8 @@
 
 import { mkdirSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 
 /** Device presets. `hasTouch` + real UA matter: touch emulation without a
  * touch UA misreports mobile behavior. */
@@ -107,27 +107,64 @@ export function sanitizeShotName(name) {
   return cleaned || "shot";
 }
 
-function loadPlaywright() {
-  try {
-    // Anchor at cwd so the playwright copy installed in the project under
-    // test is the one that loads, regardless of where this skill lives.
-    const require = createRequire(join(process.cwd(), "package.json"));
-    return require("playwright");
-  } catch (err) {
-    throw new Error(
-      "playwright is not resolvable from the current directory. Run `bash " +
-        "SKILL_PATH/scripts/setup.sh .` from the project under test's root " +
-        "(see SKILL.md — Bundled Toolbox), then re-run node from that root.",
-      { cause: err },
-    );
+/** Per-user mythril-skills-cache root (same rules as the Python skills).
+ * All inputs injectable for tests. */
+export function cacheRoot({
+  platform = process.platform,
+  env = process.env,
+  home = homedir(),
+} = {}) {
+  if (platform === "darwin") {
+    return join(home, "Library", "Caches", "mythril-skills-cache");
   }
+  if (platform === "win32") {
+    const base = env.LOCALAPPDATA || join(home, "AppData", "Local");
+    return join(base, "mythril-skills-cache");
+  }
+  const base = env.XDG_CACHE_HOME || join(home, ".cache");
+  return join(base, "mythril-skills-cache");
+}
+
+/** Directory setup.sh installs playwright into. */
+export function runtimeDir(opts = {}) {
+  return join(cacheRoot(opts), "web-tester", "runtime");
+}
+
+/** Directories searched for `playwright`, in order: the skill runtime dir,
+ * then `cwd` (a project that already ships playwright). */
+export function playwrightSearchDirs({ cwd = process.cwd(), ...opts } = {}) {
+  return [runtimeDir(opts), cwd];
+}
+
+/** Default evidence dir: absolute `<cwd>/web-tester-evidence/<run-name>`. */
+export function defaultEvidenceDir(cwd = process.cwd(), now = new Date()) {
+  return resolve(cwd, "web-tester-evidence", evidenceDirName("web-tester", now));
+}
+
+function loadPlaywright() {
+  const errors = [];
+  for (const dir of playwrightSearchDirs()) {
+    try {
+      const require = createRequire(join(dir, "package.json"));
+      return require("playwright");
+    } catch (err) {
+      errors.push(err);
+    }
+  }
+  throw new Error(
+    "playwright is not installed. Run `bash SKILL_PATH/scripts/setup.sh` " +
+      `(installs into ${runtimeDir()}; the project under test is not ` +
+      "modified), then re-run the test script.",
+    { cause: errors[0] },
+  );
 }
 
 /** Launch headless Chromium with a device preset and open `url`.
  *
  * opts: device (preset name, default "desktop"), landscape (swap viewport
  * w/h), video (record .webm into the evidence dir), evidenceDir (default
- * `evidenceDirName()` in cwd), headless (default true), gotoTimeoutMs.
+ * `defaultEvidenceDir()` = <cwd>/web-tester-evidence/web-tester-<stamp>;
+ * always made absolute), headless (default true), gotoTimeoutMs.
  *
  * Returns a session: { browser, context, page, deviceName, device,
  * evidenceDir, consoleLog, pageErrors }. consoleLog/pageErrors fill as the
@@ -143,7 +180,9 @@ export async function createSession(url, opts = {}) {
     viewport = { width: viewport.height, height: viewport.width };
   }
 
-  const evidenceDir = opts.evidenceDir ?? evidenceDirName();
+  const evidenceDir = opts.evidenceDir
+    ? resolve(opts.evidenceDir)
+    : defaultEvidenceDir();
   mkdirSync(evidenceDir, { recursive: true });
 
   const browser = await chromium.launch({ headless: opts.headless ?? true });

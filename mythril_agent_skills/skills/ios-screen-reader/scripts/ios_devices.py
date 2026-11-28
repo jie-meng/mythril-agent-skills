@@ -17,6 +17,8 @@ import platform
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -150,6 +152,25 @@ def probe_physical(udid: str) -> str:
     return lock_state_label(result if isinstance(result, dict) else None)
 
 
+def probe_all(
+    devices: list[dict[str, str]],
+    probe: Callable[[str], str],
+    max_workers: int = 8,
+) -> None:
+    """Set each device's ``state`` by running *probe* on all UDIDs in parallel.
+
+    Probes of unreachable devices take up to the full timeout, so running
+    them concurrently bounds `list` to roughly one timeout, not one per device.
+    """
+    if not devices:
+        return
+    workers = max(1, min(max_workers, len(devices)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        states = list(pool.map(probe, [d["udid"] for d in devices]))
+    for dev, state in zip(devices, states):
+        dev["state"] = state
+
+
 def list_devices(probe: bool) -> list[dict[str, str]]:
     """Collect paired physical devices and booted simulators."""
     devices: list[dict[str, str]] = []
@@ -157,8 +178,7 @@ def list_devices(probe: bool) -> list[dict[str, str]]:
     if data is not None:
         devices.extend(parse_devicectl_devices(data))
     if probe:
-        for dev in devices:
-            dev["state"] = probe_physical(dev["udid"])
+        probe_all(devices, probe_physical)
     sims = _run_json(["xcrun", "simctl", "list", "devices", "booted", "-j"], 60)
     if sims is not None:
         devices.extend(parse_simctl_booted(sims))

@@ -43,6 +43,15 @@ def resolve_output_path(input_path: Path, output: str | None) -> Path:
     return input_path.with_suffix(".pdf")
 
 
+def output_conflict(input_path: Path, output_path: Path, force: bool) -> str | None:
+    """Return an error message if writing *output_path* is unsafe, else None."""
+    if output_path.expanduser().resolve() == input_path.expanduser().resolve():
+        return f"output {output_path} is the input file; choose another path"
+    if output_path.exists() and not force:
+        return f"output {output_path} already exists; pass --force to overwrite"
+    return None
+
+
 def read_css_file(css_path: str) -> str:
     """Read a CSS file and return its contents."""
     p = Path(css_path)
@@ -127,6 +136,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="PDF metadata author",
     )
     parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite the output PDF if it already exists",
+    )
+    parser.add_argument(
         "--optimize",
         action="store_true",
         help="Optimize PDF file size",
@@ -149,6 +163,10 @@ def main() -> None:
         sys.exit(2)
 
     output_path = resolve_output_path(input_path, args.output)
+    problem = output_conflict(input_path, output_path, args.force)
+    if problem:
+        print(f"ERROR: {problem}", file=sys.stderr)
+        sys.exit(2)
 
     css_text = None
     if args.css:

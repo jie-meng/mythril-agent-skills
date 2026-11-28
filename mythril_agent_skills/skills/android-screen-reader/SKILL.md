@@ -113,22 +113,35 @@ Parse `window_dump.xml` for:
 buttons, lists, dialogs, menus).
 
 **Take a screenshot too** when:
+- The dump command fails or prints an error instead of `UI hierchary dumped to:`
+  (commonly `ERROR: could not get idle state` on animated screens, video, or
+  games) — skip the pull and go straight to the screenshot
 - The dump is empty (`<hierarchy rotation="0" />` with no children)
 - The screen is a game, camera, map, drawing canvas, or media player
 - Key visible text is absent from the hierarchy (custom views, WebView, etc.)
 
 ### Fallback / supplement: Screenshot
 
+Capture on the device, then `adb pull` — this transfers the PNG as a file, so
+it works the same in every shell (PowerShell pipelines decode native-command
+output as text and corrupt binary data, so never redirect `exec-out` there).
+
 **Bash:**
 ```bash
-adb -s "$SERIAL" exec-out screencap -p > "$RUN_DIR/screen.png"
+adb -s "$SERIAL" shell screencap -p /sdcard/screen.png
+adb -s "$SERIAL" pull /sdcard/screen.png "$RUN_DIR/screen.png"
+adb -s "$SERIAL" shell rm -f /sdcard/screen.png
 ```
 
-**PowerShell** (the Bash redirect does not work for binary output on Windows):
+**PowerShell:**
 ```powershell
-$bytes = adb -s $SERIAL exec-out screencap -p
-[System.IO.File]::WriteAllBytes("$RUN_DIR\screen.png", $bytes)
+adb -s $SERIAL shell screencap -p /sdcard/screen.png
+adb -s $SERIAL pull /sdcard/screen.png "$RUN_DIR\screen.png"
+adb -s $SERIAL shell rm -f /sdcard/screen.png
 ```
+
+A completely black screenshot usually means the app sets `FLAG_SECURE`
+(banking, DRM video) — report that rather than guessing the content.
 
 Load `screen.png` as an image and read it visually. Combine with hierarchy data
 when both were captured — hierarchy for exact strings, screenshot for visual

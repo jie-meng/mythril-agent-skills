@@ -145,3 +145,14 @@ class TestMarkdownLink:
 
     def test_blank_alt_uses_stem(self):
         assert self.func("a.assets/x.png", "   ") == "![x](a.assets/x.png)"
+
+    def test_doc_name_with_spaces_is_encoded(self):
+        assert self.func("My Notes.assets/a (1).png", "Shot") == (
+            "![Shot](My%20Notes.assets/a%20%281%29.png)"
+        )
+
+    def test_cjk_left_readable(self):
+        assert self.func("指南.assets/图.png", "图") == "![图](指南.assets/图.png)"
+
+    def test_brackets_in_alt_escaped(self):
+        assert self.func("a.assets/x.png", "see [1]") == "![see \\[1\\]](a.assets/x.png)"

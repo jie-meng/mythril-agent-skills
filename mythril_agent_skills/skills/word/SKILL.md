@@ -74,7 +74,7 @@ python3 SKILL_PATH/scripts/word_ops.py text document.docx --limit 50
 python3 SKILL_PATH/scripts/word_ops.py text document.docx --skip-empty
 ```
 
-Headings are shown with `#` markers for visual hierarchy.
+Headings are shown with `#` markers for visual hierarchy. `text` covers paragraphs only — table content is not included; use `to-markdown` when tables matter.
 
 ## Extract tables
 
@@ -108,7 +108,7 @@ python3 SKILL_PATH/scripts/word_ops.py to-markdown document.docx
 python3 SKILL_PATH/scripts/word_ops.py to-markdown document.docx -o document.md
 ```
 
-Preserves heading hierarchy, bold/italic formatting, and tables.
+Preserves heading hierarchy, bold/italic formatting, hyperlinks (as `[text](url)`), tracked insertions, and tables in document order.
 
 # Composing Multi-Step Workflows
 
@@ -126,8 +126,8 @@ The commands above are building blocks. Combine them to accomplish complex user 
 
 **"Read this Word doc and summarize it":**
 1. `info` to understand the structure
-2. `text` to extract all content
-3. Summarize based on the extracted text
+2. `to-markdown` to extract all content, including tables, in document order
+3. Summarize based on the extracted Markdown
 
 # Guidelines
 

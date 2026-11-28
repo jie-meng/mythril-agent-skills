@@ -1,7 +1,8 @@
 // web-tester example — canvas profile: coordinate swipe on a canvas game,
 // before/after screenshots, optional read-only debug-hook state, video.
 //
-// Usage (run from the project under test's root, after setup.sh):
+// Usage (after setup.sh; run from the project under test's root so evidence
+// lands in ./web-tester-evidence/):
 //   node "SKILL_PATH/examples/example-canvas-swipe.mjs" <url> [device]
 //
 // Adapt me: per SKILL.md, write your own one-shot script per test point —
