@@ -45,10 +45,27 @@ class TestLoadConfig:
         cfg.write_text('{"docs_dir": "my-docs"}')
         assert self.func(tmp_path) == {"docs_dir": "my-docs"}
 
-    def test_corrupt_json(self, tmp_path: Path):
+    def test_corrupt_json_raises(self, tmp_path: Path):
+        from workspace_init import WorkspaceConfigError
+
         cfg = tmp_path / "fullstack.json"
         cfg.write_text("not json at all")
-        assert self.func(tmp_path) == {}
+        with pytest.raises(WorkspaceConfigError):
+            self.func(tmp_path)
+
+    def test_trailing_comma_raises(self, tmp_path: Path):
+        from workspace_init import WorkspaceConfigError
+
+        (tmp_path / "fullstack.json").write_text('{"docs_dir": "my-docs",}')
+        with pytest.raises(WorkspaceConfigError):
+            self.func(tmp_path)
+
+    def test_non_object_raises(self, tmp_path: Path):
+        from workspace_init import WorkspaceConfigError
+
+        (tmp_path / "fullstack.json").write_text('["my-docs"]')
+        with pytest.raises(WorkspaceConfigError):
+            self.func(tmp_path)
 
     def test_legacy_fallback(self, tmp_path: Path):
         legacy = tmp_path / ".fullstack-init.json"
@@ -150,6 +167,35 @@ class TestResolveDocsDir:
     def test_empty_string_cli_uses_saved(self, tmp_path: Path):
         self.save(tmp_path, {"docs_dir": "saved"})
         assert self.func(tmp_path, "") == "saved"
+
+    def test_mismatch_with_existing_docs_dir_is_refused(self, tmp_path: Path):
+        from workspace_init import WorkspaceConfigError
+
+        self.save(tmp_path, {"docs_dir": "saved"})
+        (tmp_path / "saved").mkdir()
+        with pytest.raises(WorkspaceConfigError, match="differs"):
+            self.func(tmp_path, "other")
+
+    def test_same_name_as_saved_is_accepted(self, tmp_path: Path):
+        self.save(tmp_path, {"docs_dir": "saved"})
+        (tmp_path / "saved").mkdir()
+        assert self.func(tmp_path, "saved") == "saved"
+
+    @pytest.mark.parametrize(
+        "name", ["../outside", "/abs/docs", "a/b", "a\\b", ".hidden", ".", ".."]
+    )
+    def test_unsafe_names_are_refused(self, tmp_path: Path, name: str):
+        from workspace_init import WorkspaceConfigError
+
+        with pytest.raises(WorkspaceConfigError, match="Invalid docs"):
+            self.func(tmp_path, name)
+
+    def test_unsafe_saved_name_is_refused(self, tmp_path: Path):
+        from workspace_init import WorkspaceConfigError
+
+        self.save(tmp_path, {"docs_dir": "../escape"})
+        with pytest.raises(WorkspaceConfigError):
+            self.func(tmp_path, None)
 
 
 # ---------------------------------------------------------------------------
@@ -1790,6 +1836,39 @@ class TestBootstrapThreeWay:
         assert any("Work Tracking" in c for c in report["conflicts"])
         assert (tmp_path / ".agents" / "init-pending" / "AGENTS.md").is_file()
 
+    def test_first_run_keeps_a_hand_written_readme(self, tmp_path: Path):
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        mine = "# My Team Workspace\n\nHand-written notes I care about.\n"
+        (tmp_path / "README.md").write_text(mine)
+
+        report = self.run(tmp_path)
+
+        assert (tmp_path / "README.md").read_text() == mine
+        pending = tmp_path / ".agents" / "init-pending" / "README.md"
+        assert pending.is_file()
+        assert "Quick Start" in pending.read_text()
+        assert any("README.md" in item for item in report["review"])
+
+    def test_corrupt_config_stops_before_any_write(self, tmp_path: Path):
+        from workspace_init import WorkspaceConfigError
+
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        (tmp_path / "fullstack.json").write_text('{"docs_dir": "my-docs",}')
+        with pytest.raises(WorkspaceConfigError):
+            self.run(tmp_path)
+        assert (tmp_path / "fullstack.json").read_text() == '{"docs_dir": "my-docs",}'
+        assert not (tmp_path / "AGENTS.md").exists()
+        assert not (tmp_path / "central-docs").exists()
+
+    def test_docs_dir_rename_is_refused(self, tmp_path: Path):
+        from workspace_init import WorkspaceConfigError
+
+        _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
+        self.run(tmp_path, docs_dir="docs")
+        with pytest.raises(WorkspaceConfigError):
+            self.run(tmp_path, docs_dir="docs2")
+        assert not (tmp_path / "docs2").exists()
+
     def test_readme_language_is_persisted(self, tmp_path: Path):
         _make_repo(tmp_path, "web", "# Web\n\nApp.\n")
         self.run(tmp_path, lang="zh")
@@ -1908,3 +1987,36 @@ class TestSymlinkedToolDirectory:
         (tmp_path / ".opencode").symlink_to(".agents", target_is_directory=True)
         messages = create_agent_symlinks(tmp_path)
         assert not any("opencode" in m and "skipped" in m for m in messages)
+
+
+class TestMainConfigErrors:
+    """The CLI turns an untrustworthy config into a clean exit 1."""
+
+    SCRIPT = (
+        Path(__file__).resolve().parents[2]
+        / "mythril_agent_skills/skills/fullstack-init/scripts/workspace_init.py"
+    )
+
+    def _run(self, root: Path, *args: str):
+        import subprocess
+        import sys
+
+        return subprocess.run(
+            [sys.executable, str(self.SCRIPT), str(root), *args],
+            capture_output=True,
+            text=True,
+        )
+
+    def test_corrupt_config_exits_1(self, tmp_path: Path):
+        _make_repo(tmp_path, "web")
+        (tmp_path / "fullstack.json").write_text("{broken")
+        result = self._run(tmp_path, "--no-github")
+        assert result.returncode == 1
+        assert "not valid JSON" in result.stderr
+        assert "Traceback" not in result.stderr
+
+    def test_unsafe_docs_dir_exits_1(self, tmp_path: Path):
+        _make_repo(tmp_path, "web")
+        result = self._run(tmp_path, "--docs-dir", "../outside", "--no-github")
+        assert result.returncode == 1
+        assert not (tmp_path.parent / "outside").exists()

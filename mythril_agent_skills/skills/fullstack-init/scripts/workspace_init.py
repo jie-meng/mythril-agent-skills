@@ -70,20 +70,42 @@ LEGACY_GENERATED_AGENTS = ("planner", "developer", "reviewer", "debugger")
 # Config persistence (fullstack.json is the ONLY persistent state)
 # ---------------------------------------------------------------------------
 
+class WorkspaceConfigError(Exception):
+    """The workspace config cannot be trusted; the run must stop."""
+
+
+def _read_config_file(path: Path) -> dict:
+    """Parse one config file; raise WorkspaceConfigError when it is unusable.
+
+    A broken `fullstack.json` must stop the run: falling back to defaults
+    would silently switch the docs directory, re-classify the real docs
+    repo as a code repo, and overwrite the user's config.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:
+        raise WorkspaceConfigError(
+            f"{path.name} is not valid JSON ({exc}). Fix or remove it, then "
+            "re-run — refusing to fall back to defaults."
+        ) from exc
+    if not isinstance(data, dict):
+        raise WorkspaceConfigError(
+            f"{path.name} must hold a JSON object, got {type(data).__name__}."
+        )
+    return data
+
+
 def load_config(root: Path) -> dict[str, str]:
-    """Load workspace config from fullstack.json (with legacy fallback)."""
+    """Load workspace config from fullstack.json (with legacy fallback).
+
+    Raises WorkspaceConfigError when the file exists but cannot be parsed.
+    """
     config_path = root / CONFIG_FILENAME
     if config_path.exists():
-        try:
-            return json.loads(config_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            return {}
+        return _read_config_file(config_path)
     legacy_path = root / LEGACY_CONFIG_FILENAME
     if legacy_path.exists():
-        try:
-            return json.loads(legacy_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            return {}
+        return _read_config_file(legacy_path)
     return {}
 
 
@@ -99,14 +121,50 @@ def save_config(root: Path, config: dict[str, str]) -> None:
         legacy_path.unlink()
 
 
+def validate_docs_dir_name(name: str) -> str:
+    """Return `name` if it is a plain directory name under the root.
+
+    The docs dir is joined onto the workspace root and excluded from repo
+    discovery by name, so a path (`a/b`, `../x`, `/abs`) or a dot-name
+    would create directories outside the workspace or slip past discovery.
+    """
+    if (
+        not name
+        or name in (".", "..")
+        or name.startswith(".")
+        or "/" in name
+        or "\\" in name
+        or Path(name).is_absolute()
+    ):
+        raise WorkspaceConfigError(
+            f"Invalid docs directory name {name!r}: use a single plain "
+            "directory name such as 'central-docs' (no path separators, "
+            "no leading dot)."
+        )
+    return name
+
+
 def resolve_docs_dir(root: Path, cli_docs_dir: str | None) -> str:
-    """Determine docs dir: CLI arg > saved config > default."""
-    if cli_docs_dir:
-        return cli_docs_dir
+    """Determine docs dir: CLI arg > saved config > default.
+
+    A CLI name that differs from the saved one is refused while the saved
+    directory still exists: re-pointing the config would leave the real
+    docs repo behind as a "code repo" and start an empty one.
+    """
     config = load_config(root)
     saved = config.get("docs_dir")
+    if cli_docs_dir:
+        name = validate_docs_dir_name(cli_docs_dir)
+        if saved and saved != name and (root / str(saved)).exists():
+            raise WorkspaceConfigError(
+                f"--docs-dir {name!r} differs from the configured docs "
+                f"directory {saved!r}, which still exists. To rename it, move "
+                f"the directory and update 'docs_dir' in {CONFIG_FILENAME} by "
+                "hand, then re-run without --docs-dir."
+            )
+        return name
     if saved:
-        return saved
+        return validate_docs_dir_name(str(saved))
     return DEFAULT_DOCS_DIR
 
 
@@ -405,6 +463,10 @@ def generate_agents_md(
     graphify_cmd, _ = skill_command(
         "fullstack-init", "graphify_check.py", "<repo-path>", home
     )
+    # Built outside the template: Python < 3.12 rejects a backslash anywhere
+    # inside an f-string's expression part, nested literals included.
+    repo_skills_note = f"  {repo_skills_caveat}\n" if repo_skills_caveat else ""
+    plan_lint_note = f"\n   {plan_lint_caveat}\n" if plan_lint_caveat else ""
     return f"""\
 # {project_name}
 
@@ -442,7 +504,7 @@ This is a multi-repo fullstack workspace. Every subdirectory — including
   the way the user said it: the script resolves a bare directory name
   against this workspace first and a sibling workspace next, so ask for a
   path only when it answers `AMBIGUOUS_REPO`.
-{repo_skills_caveat and f"  {repo_skills_caveat}\n"}
+{repo_skills_note}
 - **Knowledge Graph (graphify)**: Some repos may have a `graphify-out/`
   directory generated by the `graphify` skill — a knowledge graph of the
   codebase for fast, accurate information retrieval and cross-file
@@ -515,7 +577,7 @@ which path the change takes.
    ```bash
    {plan_lint_cmd}
    ```
-{plan_lint_caveat and f'\n   {plan_lint_caveat}\n'}
+{plan_lint_note}
    Only `CODEMAP:` lines are ownership, and only under an active
    `changes/<type>/` directory; `SUBSTRING:` and `MENTION:` lines are
    candidates to confirm. `STATUS=OWNER` exits 0, `CANDIDATE` / `NONE`
@@ -2099,8 +2161,12 @@ def bootstrap_workspace(
     if force:
         readme_text, readme_outcome = readme_generated, "updated"
     else:
+        # No baseline means no record of what this script wrote: a README
+        # on disk may be the user's own, so it is never treated as an old
+        # template (that would overwrite it). It is kept and the template
+        # parked, like every other unit without a baseline.
         readme_previous = (
-            previous.get("README.md") if previous is not None else existing_readme
+            previous.get("README.md") if previous is not None else None
         )
         readme_text, readme_outcome = three_way(
             existing_readme, readme_previous, readme_generated
@@ -2112,7 +2178,9 @@ def bootstrap_workspace(
         report["kept"].append("README.md")
     elif readme_outcome == "conflict":
         write_pending(root, "README.md", readme_generated)
-        report["conflicts"].append(f"README.md → .agents/{PENDING_DIRNAME}/README.md")
+        report["conflicts" if previous is not None else "review"].append(
+            f"README.md (template: .agents/{PENDING_DIRNAME}/README.md)"
+        )
 
     save_baseline(root, baseline)
     reported = " ".join(report["conflicts"] + report["review"])
@@ -2228,14 +2296,18 @@ def main() -> None:
     elif args.no_github:
         github_repos = False
 
-    report = bootstrap_workspace(
-        root,
-        docs_dir=args.docs_dir,
-        dry_run=args.dry_run,
-        lang=args.lang,
-        github_repos=github_repos,
-        force=args.force,
-    )
+    try:
+        report = bootstrap_workspace(
+            root,
+            docs_dir=args.docs_dir,
+            dry_run=args.dry_run,
+            lang=args.lang,
+            github_repos=github_repos,
+            force=args.force,
+        )
+    except WorkspaceConfigError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     if args.json_output:
         print(json.dumps(report, indent=2))

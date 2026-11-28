@@ -29,7 +29,7 @@ it generates now.
 | *Workspace Conventions* bullets | Three-way per bullet; shipped bullets (*Repo Skills*, *Knowledge Graph*) always take the template; your own bullets are never touched |
 | *Repositories* table | Row by row: rows follow the current repo set, an untouched row refreshes its detected role / stack / description, an edited row keeps your cells, notes around the table stay |
 | `.agents/agents/*.md` | Three-way per file |
-| `README.md` | Three-way as a whole file; language saved in `fullstack.json` |
+| `README.md` | Three-way as a whole file; language saved in `fullstack.json`. With no baseline an existing README is kept and the template parked (`Review once`) |
 | `<docs-dir>/AGENTS.md` | Three-way per section; with no baseline it is treated as hand-written (nothing is added) |
 | `fullstack.json`, `<docs-dir>/` content, `scripts/`, `.agents/skills/` | Never overwritten; directories created if missing |
 
@@ -95,6 +95,15 @@ The name is configurable (defaults to `central-docs`) and stored in
    `--docs-dir <name>`.
 3. **Otherwise, ask the user** — the name is hard to change later, so do not silently use the default:
    > What should I name the shared docs directory? (default: `central-docs`)
+
+The name must be a single plain directory name (no `/`, `\`, `..`, or
+leading dot). The script refuses — exit 1, nothing written — when:
+
+- `--docs-dir` differs from the `docs_dir` saved in `fullstack.json` while
+  that directory still exists. Renaming is manual: move the directory,
+  edit `docs_dir`, re-run without `--docs-dir`.
+- `fullstack.json` is not valid JSON. Show the error to the user and fix
+  the file with them; never delete it to make the run pass.
 
 ## Usage
 
