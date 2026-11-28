@@ -92,22 +92,27 @@ MIN_PRIMITIVE_VARIETY = 2   # at least 2 different atomic primitive types when b
 MONOTONY_THRESHOLD    = 0.8 # >= 80% of atomic elements being the same type = monotonous
 
 
-def collect_element_ids(layout: dict | None) -> set[str]:
-    """Walk a layout tree and collect all element ids (containers + leaves +
-    side-key-rail keys)."""
-    ids: set[str] = set()
+def collect_element_id_list(layout: dict | None) -> list[str]:
+    """Like collect_element_ids, but keeps duplicates in document order."""
+    ids: list[str] = []
     if not isinstance(layout, dict):
         return ids
     _walk_collect_ids(layout, ids)
     return ids
 
 
-def _walk_collect_ids(node: dict, out: set[str]) -> None:
+def collect_element_ids(layout: dict | None) -> set[str]:
+    """Walk a layout tree and collect all element ids (containers + leaves +
+    side-key-rail keys)."""
+    return set(collect_element_id_list(layout))
+
+
+def _walk_collect_ids(node: dict, out: list[str]) -> None:
     if not isinstance(node, dict):
         return
     el_id = node.get("id")
     if isinstance(el_id, str) and el_id:
-        out.add(el_id)
+        out.append(el_id)
     el_type = node.get("type")
     if el_type in CONTAINER_TYPES:
         for child in node.get("elements", []) or []:
@@ -117,36 +122,36 @@ def _walk_collect_ids(node: dict, out: set[str]) -> None:
             if isinstance(key, dict):
                 kid = key.get("id")
                 if isinstance(kid, str) and kid:
-                    out.add(kid)
+                    out.append(kid)
     elif el_type == "tab-bar":
         for item in node.get("items", []) or []:
             if isinstance(item, dict):
                 iid = item.get("id")
                 if isinstance(iid, str) and iid:
-                    out.add(iid)
+                    out.append(iid)
     elif el_type == "key-value-list":
         for item in node.get("items", []) or []:
             if isinstance(item, dict):
                 iid = item.get("id")
                 if isinstance(iid, str) and iid:
-                    out.add(iid)
+                    out.append(iid)
     elif el_type in {"footer-bar", "app-bar"}:
         for action in node.get("actions", []) or []:
             if isinstance(action, dict):
                 aid = action.get("id")
                 if isinstance(aid, str) and aid:
-                    out.add(aid)
+                    out.append(aid)
     if el_type in {"empty-state", "alert", "section"}:
         action = node.get("action")
         if isinstance(action, dict):
             aid = action.get("id")
             if isinstance(aid, str) and aid:
-                out.add(aid)
+                out.append(aid)
 
 
-def collect_hardware_ids(screen: dict | None) -> set[str]:
-    """Collect ids from screen.hardware[] (chrome bezel slots)."""
-    ids: set[str] = set()
+def collect_hardware_id_list(screen: dict | None) -> list[str]:
+    """Ids from screen.hardware[] (chrome bezel slots), duplicates kept."""
+    ids: list[str] = []
     if not isinstance(screen, dict):
         return ids
     for slot in screen.get("hardware", []) or []:
@@ -154,8 +159,32 @@ def collect_hardware_ids(screen: dict | None) -> set[str]:
             continue
         sid = slot.get("id")
         if isinstance(sid, str) and sid:
-            ids.add(sid)
+            ids.append(sid)
     return ids
+
+
+def collect_hardware_ids(screen: dict | None) -> set[str]:
+    """Collect ids from screen.hardware[] (chrome bezel slots)."""
+    return set(collect_hardware_id_list(screen))
+
+
+def find_duplicate_element_ids(screen: dict | None) -> list[str]:
+    """Element ids used more than once on one screen (layout + hardware).
+
+    Arrows address elements as `<screen>#<element>`, so a duplicate id makes
+    the anchor ambiguous (the renderer picks the first match).
+    """
+    if not isinstance(screen, dict):
+        return []
+    seen: set[str] = set()
+    dupes: list[str] = []
+    all_ids = collect_element_id_list(screen.get("layout"))
+    all_ids += collect_hardware_id_list(screen)
+    for el_id in all_ids:
+        if el_id in seen and el_id not in dupes:
+            dupes.append(el_id)
+        seen.add(el_id)
+    return dupes
 
 
 def collect_elements(layout: dict | None) -> list[dict]:
@@ -439,6 +468,10 @@ def validate_screens(
     # keys + hardware[] slots are all valid <screen>#<element> references).
     screen_ids: dict[str, dict] = {}
     element_ids_per_screen: dict[str, set[str]] = {}
+    stage_id_set = {
+        st.get("id") for st in stages
+        if isinstance(st, dict) and isinstance(st.get("id"), str)
+    }
 
     for screen in screens:
         if not isinstance(screen, dict):
@@ -455,6 +488,30 @@ def validate_screens(
         addressable = collect_element_ids(screen.get("layout"))
         addressable.update(collect_hardware_ids(screen))
         element_ids_per_screen[sid] = addressable
+
+        for dup in find_duplicate_element_ids(screen):
+            errors.append(
+                f"screen '{sid}' uses element id '{dup}' more than once — "
+                f"'{sid}#{dup}' is ambiguous; give each element a unique id"
+            )
+
+        # stage_id must point at a real stage (else it lands in the last
+        # column). With no stages defined there is nothing to check against;
+        # validate_sync.py reports the missing stages.
+        stage_ref = screen.get("stage_id")
+        if stage_id_set and stage_ref is not None and stage_ref not in stage_id_set:
+            errors.append(
+                f"screen '{sid}' has stage_id={stage_ref!r} which is not a "
+                f"stage id in stages[] {sorted(stage_id_set)} — the canvas "
+                f"would drop it into the last column"
+            )
+
+        # legacy v2 nested transitions are ignored by the renderer
+        if "transitions" in screen:
+            errors.append(
+                f"screen '{sid}' has legacy v2 'transitions' — the renderer "
+                f"ignores it; move each entry into top-level arrows[]"
+            )
 
         # state sanity
         state = screen.get("state")

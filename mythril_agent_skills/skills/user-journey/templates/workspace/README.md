@@ -73,15 +73,13 @@ python3 SKILL_PATH/scripts/sync_index_html.py .
 
 Ask your AI assistant — invoke the `user-journey` skill and give it this directory path. It reads all three files and continues with full context.
 
-If you edit `JOURNEY.md`, `journey.json`, or `DESIGN.md` by hand, run all three gates:
+If you edit `JOURNEY.md`, `journey.json`, or `DESIGN.md` by hand, run all four gates in one go:
 
 ```bash
-python3 SKILL_PATH/scripts/validate_sync.py    .
-python3 SKILL_PATH/scripts/validate_screens.py .
-python3 SKILL_PATH/scripts/sync_index_html.py  .
+python3 SKILL_PATH/scripts/check_all.py .
 ```
 
-The first two confirm the journey stays consistent (stages ↔ md ↔ screens ↔ arrows). The third re-injects the current `journey.json` and `DESIGN.md` tokens into `index.html` so the double-click path keeps showing live content. `validate_sync.py` also reports inline-JSON drift as an error, so a missed `sync_index_html.py` gets caught on the next validation pass.
+It re-injects the current `journey.json` and `DESIGN.md` tokens into `index.html` (so the double-click path keeps showing live content), then confirms the journey stays consistent (stages ↔ md ↔ screens ↔ arrows) and lints the mermaid diagram.
 
 ## Changing visual style
 

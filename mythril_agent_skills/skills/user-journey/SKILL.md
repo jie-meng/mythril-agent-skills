@@ -66,7 +66,7 @@ Help product managers and business analysts draft user journey maps and lo-fi wi
 
 7. **Resumable.** Any session can be resumed by passing the workspace path. The skill reads all three files to rebuild full context.
 
-8. **Browser-first preview.** Double-clicking `index.html` works because `journey.json` and the design tokens are also inlined into the HTML. **This only stays true if you run `sync_index_html.py` after every edit to `journey.json` or `DESIGN.md`** — Phase 3 Gate 4 enforces that. If a user reports that double-clicking shows only 3 seed screens or stale content, the sync gate was skipped; rerun it. As an always-works fallback, `python3 preview.py` serves the workspace over HTTP and fetches the live files instead of the inline copies.
+8. **Browser-first preview.** Double-clicking `index.html` works because `journey.json` and the design tokens are also inlined into the HTML. **This only stays true if you re-sync after every edit to `journey.json` or `DESIGN.md`** — `check_all.py` (Phase 3) does that first. If a user reports that double-clicking shows only 3 seed screens or stale content, the sync gate was skipped; rerun it. As an always-works fallback, `python3 preview.py` serves the workspace over HTTP and fetches the live files instead of the inline copies.
 
 ## Phase 1 — Intake & Workspace Bootstrap
 
@@ -271,7 +271,15 @@ See `references/WIREFRAMES.md` "Device-aware modeling" + "End-to-end example B" 
 
 ## Phase 3 — Sync Discipline
 
-Four gates run after every change. All four must pass before declaring an edit done.
+Four gates run after every change. All four must pass before declaring an edit done. Run them with one command:
+
+```bash
+python3 SKILL_PATH/scripts/check_all.py "<workspace-path>"            # after every edit
+python3 SKILL_PATH/scripts/check_all.py "<workspace-path>" --strict   # before declaring the journey done
+python3 SKILL_PATH/scripts/check_all.py "<workspace-path>" --check    # read-only (never rewrites index.html)
+```
+
+It re-inlines `index.html` (Gate 4) first, then runs Gates 1–3, runs every gate even after a failure, and ends with a PASS/FAIL line per gate plus `STATUS=`. The sections below explain each gate; run one directly only to debug it.
 
 ### Gate 1 — Sync Validator
 
@@ -279,7 +287,7 @@ Four gates run after every change. All four must pass before declaring an edit d
 python3 SKILL_PATH/scripts/validate_sync.py "<workspace-path>"
 ```
 
-Compares `JOURNEY.md` + `journey.json` and reports drift (missing stages, mismatched step counts, undefined personas). **Never** declare an edit complete with drift outstanding.
+Compares `JOURNEY.md` + `journey.json` and reports drift (missing stages, mismatched step counts, undefined personas). Requires `schema_version: "3"` — older workspaces must be upgraded per `references/SCHEMA.md`. **Never** declare an edit complete with drift outstanding.
 
 ### Gate 2 — Screens + Arrows Validator
 
@@ -291,7 +299,7 @@ python3 SKILL_PATH/scripts/validate_screens.py "<workspace-path>"
 python3 SKILL_PATH/scripts/validate_screens.py "<workspace-path>" --strict
 ```
 
-Validates screens and arrows: unique screen ids, every `arrow.to` and `step.screen_refs` resolves, every `arrow.from` resolves (screen + element), at most one `is_default: true` arrow per source screen, plus orphan / dead-end warnings.
+Validates screens and arrows: unique screen ids, unique element ids within a screen, every `screen.stage_id` names a real stage, every `arrow.to` and `step.screen_refs` resolves, every `arrow.from` resolves (screen + element), at most one `is_default: true` arrow per source screen, no legacy v2 `transitions`, plus orphan / dead-end warnings.
 
 It also enforces two **harness-level** rules:
 
@@ -328,7 +336,7 @@ python3 SKILL_PATH/scripts/sync_index_html.py "<workspace-path>" --check
 
 1. Update `journey.json` (the structured source).
 2. Regenerate the affected section of `JOURNEY.md` from the JSON (prose + mermaid). Use `<br/>` for any line break inside a mermaid label.
-3. Run `validate_sync.py`, `validate_screens.py`, `mermaid_lint.py`, AND `sync_index_html.py`. All four must pass.
+3. Run `check_all.py` (all four gates). It must end with `STATUS=PASS`.
 4. Tell the user what changed in plain language.
 
 ## Phase 4 — Resumption (User Returns Later)
@@ -338,8 +346,7 @@ When the user provides a workspace path and asks to continue:
 1. Read `JOURNEY.md` (business context, persona, narrative).
 2. Read `journey.json` (current structured state).
 3. Read `DESIGN.md` (visual style).
-4. Optionally `git log --oneline -20` for recent change history.
-5. Confirm understanding in one short message:
+4. Confirm understanding in one short message:
    > 已加载工作区。当前覆盖 4 个阶段（Discover → Sign up → First task → Habit），共 12 个屏，18 条箭头。最近一次修改：调整了 "Sign up" 的痛点。要继续做什么？
 
 Never start editing without the user's go-ahead.
@@ -383,6 +390,8 @@ This skill does NOT require API tokens or credentials. It writes only to the use
 | Item | Path |
 |---|---|
 | Bootstrap script | `SKILL_PATH/scripts/init_workspace.py` |
+| All four gates in one run | `SKILL_PATH/scripts/check_all.py` |
+| Inline JSON sync (double-click) | `SKILL_PATH/scripts/sync_index_html.py` |
 | Sync validator | `SKILL_PATH/scripts/validate_sync.py` |
 | Screens + arrows validator | `SKILL_PATH/scripts/validate_screens.py` |
 | Mermaid lint (compat gate) | `SKILL_PATH/scripts/mermaid_lint.py` |
@@ -411,7 +420,7 @@ This skill does NOT require API tokens or credentials. It writes only to the use
 - ❌ **Fanning return arrows across columns** — N terminal screens each drawing a long backward arrow to `main-menu`. Funnel them through a single `continue-or-exit` / "Anything else?" hub instead. One short forward arrow per terminal, one shared arrow back.
 - ❌ Cramming more than 7 stages into one journey — split it.
 - ❌ Asking 10 questions upfront — infer and confirm in ONE block.
-- ❌ Declaring done without running ALL THREE: `validate_sync.py`, `validate_screens.py`, AND `mermaid_lint.py`.
+- ❌ Declaring done without a passing `check_all.py --strict` run (all four gates).
 - ❌ Using `\n` for line breaks inside a mermaid label — use `<br/>` instead.
 - ❌ Setting `screen.state` to `success` on every screen — state should mean something. Use it intentionally.
 - ❌ **Reassigning the meaning of state / arrow colors in `DESIGN.md`.** The semantic palette is a CROSS-WORKSPACE visual contract: **red = error, green = success, amber = warning, blue = loading, gray = default/cancel**. Every stakeholder reads the canvas this way without thinking. You MAY shift brightness / saturation for theme fit (e.g. the `dark-engineering` preset uses `#7F1D1D` deep-red for `--state-error-bg` instead of `#FEE2E2`), but you MUST NEVER make red = success or green = error. Themes that need a third "info" or "neutral-positive" hue should pick from the `--color-tertiary` accent slot, not repaint the state palette.

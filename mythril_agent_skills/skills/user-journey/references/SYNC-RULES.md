@@ -7,14 +7,15 @@
 After ANY edit to either file:
 
 ```bash
-python3 SKILL_PATH/scripts/validate_sync.py    <workspace>
-python3 SKILL_PATH/scripts/validate_screens.py <workspace>
+python3 SKILL_PATH/scripts/check_all.py <workspace>   # all four gates in one run
 ```
+
+It runs `sync_index_html.py`, `validate_sync.py`, `validate_screens.py`, and `mermaid_lint.py`:
 
 `validate_sync.py` — structural integrity of `JOURNEY.md` ↔ `journey.json` (stages/personas/IDs).
 `validate_screens.py` — integrity of `screens[]` and the top-level `arrows[]` (orphans, dangling refs, default-path uniqueness). See [SCREENS-RULES.md](./SCREENS-RULES.md).
 
-Both must exit `0` before you declare done.
+All must exit `0` before you declare done (`check_all.py` prints `STATUS=PASS`).
 
 Exit codes:
 - `0` — in sync, OK to continue
@@ -109,4 +110,4 @@ Sync rules are unchanged for stages / personas, but:
 - The JOURNEY.md `## Screens & Arrows` section (optional) — if present, must list the same `screen.id`s as `journey.json` `screens[].id`.
 - `step.screen_refs[]` is a JSON-only convenience; it does NOT need a counterpart in JOURNEY.md. It IS validated by `validate_screens.py` for resolution.
 - Mermaid in `JOURNEY.md` continues to show STAGES only (not screens). For screen-to-screen flow, the canvas in `index.html` is the source of truth.
-- v1 / v2 workspaces are NOT readable by the v3 renderer. `validate_sync.py` still accepts `schema_version: "1"`, `"2"`, or `"3"` for tooling-only inspection.
+- v1 / v2 workspaces are NOT readable by the v3 renderer, so `validate_sync.py` rejects any `schema_version` other than `"3"` and any leftover `screens[].transitions` — upgrade per [SCHEMA.md](./SCHEMA.md).

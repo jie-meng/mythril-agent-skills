@@ -153,7 +153,7 @@ class TestBuildInitialJourney:
         )
         assert out["language"] == "zh"
         assert [s["label"] for s in out["stages"]] == ["发现", "尝试", "习惯"]
-        assert out["personas"][0]["id"] == "untitled"
+        assert out["personas"][0]["id"] == "primary-user"
 
     def test_rejects_bad_language(self):
         with pytest.raises(ValueError):
@@ -476,7 +476,7 @@ class TestExtractStageSubsectionIds:
 
 def _good_journey() -> dict:
     return {
-        "schema_version": "1",
+        "schema_version": "3",
         "title": "ok",
         "language": "en",
         "personas": [{"id": "u", "name": "U", "role": "r"}],
@@ -656,9 +656,11 @@ class TestValidateWorkspace:
         assert r["structure_ok"] is True
         assert r["errors"] == []
 
-    def test_schema_v2_is_accepted(self, tmp_path: Path):
+    @pytest.mark.parametrize("version", ["1", "2"])
+    def test_legacy_schema_is_rejected(self, tmp_path: Path, version: str):
+        """Regression: v1/v2 passed Gate 1 but the renderer ignores them."""
         journey = _good_journey()
-        journey["schema_version"] = "2"
+        journey["schema_version"] = version
         journey["screens"] = []
         (tmp_path / "journey.json").write_text(json.dumps(journey))
         (tmp_path / "JOURNEY.md").write_text(
@@ -667,8 +669,7 @@ class TestValidateWorkspace:
             "### 1. Discover\n"
         )
         r = self.func(tmp_path)
-        assert r["structure_ok"] is True
-        assert r["errors"] == []
+        assert any("schema_version must be '3'" in e for e in r["errors"])
 
     def test_unsupported_schema_version_errors(self, tmp_path: Path):
         journey = _good_journey()
@@ -2181,3 +2182,218 @@ class TestValidateSyncInlineDriftGate:
         (ws / "DESIGN.md").unlink()
         journey = json.loads((ws / "journey.json").read_text(encoding="utf-8"))
         assert self.check(ws, journey) == []
+
+
+# ---------------------------------------------------------------------------
+# Review-fix regressions: script-safe inline JSON, HTML-escaped title,
+# persona slug fallback, stage_id / duplicate-id / legacy checks, check_all
+# ---------------------------------------------------------------------------
+
+
+class TestSerializeInlineJson:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from init_workspace import serialize_inline_json
+        self.func = serialize_inline_json
+
+    def test_escapes_script_close_and_comment_open(self):
+        obj = {"text": "a </script><b>x</b> <!-- c", "zh": "中文"}
+        out = self.func(obj)
+        assert "</" not in out
+        assert "<!--" not in out
+        assert "中文" in out  # still ensure_ascii=False
+        assert json.loads(out) == obj  # round-trips to the original strings
+
+    def test_sync_and_init_serialize_identically(self):
+        from sync_index_html import serialize_design_tokens, serialize_journey
+
+        obj = {"t": "</script>"}
+        assert serialize_journey(obj) == self.func(obj)
+        assert serialize_design_tokens(obj) == self.func(obj)
+
+    def test_sync_is_stable_with_script_close_in_label(self, tmp_path: Path):
+        """Regression: a '</script>' label caused permanent drift + corruption."""
+        from sync_index_html import extract_inline_journey, run_sync
+
+        journey = {
+            "schema_version": "3", "title": "T", "language": "en",
+            "personas": [{"id": "p", "name": "N"}],
+            "stages": [{"id": "a", "label": "A", "steps": []}],
+            "screens": [], "arrows": [],
+            "stickies": [{"text": "escape </script> and <!-- in labels"}],
+        }
+        ws = _make_minimal_workspace(tmp_path, journey=journey, journey_inline="{}")
+        assert run_sync(ws, check_only=False, quiet=True) == 0
+        assert run_sync(ws, check_only=True, quiet=True) == 0
+        html = (ws / "index.html").read_text(encoding="utf-8")
+        assert html.count("</script>") == 2
+        assert json.loads(extract_inline_journey(html)) == journey
+        assert html.endswith("<body>BODY</body></html>")
+
+
+class TestRenderTemplateEscapesHtml:
+    def _render(self, escape_html: bool) -> str:
+        from init_workspace import render_template
+
+        return render_template(
+            "<title>{{TITLE}}</title><div>{{TITLE}}</div>"
+            '<script type="application/json">{{JOURNEY_JSON}}</script>',
+            title="A <b> & \"C\"", subtitle="", language="en",
+            persona_name="", persona_slug="", persona_role="",
+            first_stage_label="", mermaid_body="", date="",
+            journey_json='{"k": "<x>"}', design_tokens_json="{}",
+            escape_html=escape_html,
+        )
+
+    def test_html_mode_escapes_text_tokens_only(self):
+        out = self._render(True)
+        assert "<title>A &lt;b&gt; &amp; &quot;C&quot;</title>" in out
+        assert '{"k": "<x>"}' in out  # JSON token untouched
+
+    def test_markdown_mode_is_raw(self):
+        assert "<title>A <b> & \"C\"</title>" in self._render(False)
+
+
+class TestPersonaSlugFallback:
+    def test_cjk_persona_gets_primary_user_id(self):
+        from init_workspace import build_initial_journey
+
+        j = build_initial_journey(
+            title="T", subtitle="", persona_name="新用户",
+            persona_role="r", language="zh",
+        )
+        assert j["personas"][0]["id"] == "primary-user"
+
+    def test_ascii_persona_keeps_slug(self):
+        from init_workspace import build_initial_journey
+
+        j = build_initial_journey(
+            title="T", subtitle="", persona_name="New User",
+            persona_role="r", language="en",
+        )
+        assert j["personas"][0]["id"] == "new-user"
+
+
+def _screen(sid: str, **extra) -> dict:
+    base = {
+        "id": sid,
+        "kind": "mobile-screen",
+        "layout": {"type": "stack", "elements": [
+            {"type": "button", "id": "go", "label": "Go"},
+        ]},
+    }
+    base.update(extra)
+    return base
+
+
+class TestStageIdValidation:
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from validate_screens import validate_screens
+        self.func = validate_screens
+
+    def test_unknown_stage_id_errors(self):
+        stages = [{"id": "discover", "steps": []}]
+        r = self.func([_screen("a", stage_id="discovr")], stages, [])
+        assert any("stage_id='discovr'" in e for e in r["errors"])
+
+    def test_known_stage_id_ok(self):
+        stages = [{"id": "discover", "steps": []}]
+        r = self.func([_screen("a", stage_id="discover")], stages, [])
+        assert not any("stage_id" in e for e in r["errors"])
+
+    def test_missing_stage_id_ok(self):
+        stages = [{"id": "discover", "steps": []}]
+        r = self.func([_screen("a")], stages, [])
+        assert not any("stage_id" in e for e in r["errors"])
+
+
+class TestDuplicateElementIds:
+    def test_find_duplicates_across_layout_and_hardware(self):
+        from validate_screens import find_duplicate_element_ids
+
+        screen = {
+            "layout": {"type": "stack", "elements": [
+                {"type": "button", "id": "ok"},
+                {"type": "tab-bar", "items": [{"id": "home"}, {"id": "ok"}]},
+            ]},
+            "hardware": [{"id": "home"}],
+        }
+        assert find_duplicate_element_ids(screen) == ["ok", "home"]
+
+    def test_no_duplicates(self):
+        from validate_screens import find_duplicate_element_ids
+
+        assert find_duplicate_element_ids(_screen("a")) == []
+
+    def test_validate_screens_reports_duplicate(self):
+        from validate_screens import validate_screens
+
+        screen = _screen("a")
+        screen["layout"]["elements"].append({"type": "button", "id": "go"})
+        r = validate_screens([screen], [], [])
+        assert any("element id 'go' more than once" in e for e in r["errors"])
+
+
+class TestLegacyTransitions:
+    def test_validate_screens_rejects_transitions(self):
+        from validate_screens import validate_screens
+
+        r = validate_screens([_screen("a", transitions=[{"to": "a"}])], [], [])
+        assert any("legacy v2 'transitions'" in e for e in r["errors"])
+
+    def test_validate_sync_rejects_transitions(self):
+        from validate_sync import validate_journey_structure
+
+        j = _good_journey()
+        j["screens"] = [_screen("a", transitions=[])]
+        assert any("transitions" in e for e in validate_journey_structure(j))
+
+
+class TestCheckAll:
+    def test_gate_order_and_flags(self):
+        from check_all import build_gate_commands
+
+        gates = build_gate_commands(
+            Path("/ws"), strict=True, check_only=True,
+            python="py", script_dir=Path("/s"),
+        )
+        names = [cmd[1].rsplit("/", 1)[-1] for _, cmd in gates]
+        assert names == [
+            "sync_index_html.py", "validate_sync.py",
+            "validate_screens.py", "mermaid_lint.py",
+        ]
+        assert gates[0][1][-1] == "--check"
+        assert gates[2][1][-1] == "--strict"
+        assert gates[3][1][-1] == str(Path("/ws") / "JOURNEY.md")
+
+    def test_default_flags(self):
+        from check_all import build_gate_commands
+
+        gates = build_gate_commands(Path("/ws"), python="py", script_dir=Path("/s"))
+        assert "--check" not in gates[0][1]
+        assert "--strict" not in gates[2][1]
+
+    def test_fresh_workspace_passes_and_drift_fails(self, tmp_path: Path):
+        import subprocess
+        import sys
+
+        from check_all import SCRIPT_DIR
+
+        ws = tmp_path / "ws"
+        subprocess.run(
+            [sys.executable, str(SCRIPT_DIR / "init_workspace.py"),
+             "--path", str(ws), "--title", "T", "--language", "en"],
+            check=True, capture_output=True,
+        )
+        check = [sys.executable, str(SCRIPT_DIR / "check_all.py"), str(ws), "--check"]
+        res = subprocess.run(check, capture_output=True, text=True)
+        assert res.returncode == 0, res.stdout + res.stderr
+        assert "STATUS=PASS" in res.stdout
+
+        journey = json.loads((ws / "journey.json").read_text(encoding="utf-8"))
+        journey["title"] = "Changed"
+        (ws / "journey.json").write_text(json.dumps(journey), encoding="utf-8")
+        res = subprocess.run(check, capture_output=True, text=True)
+        assert res.returncode == 1
+        assert "FAIL  inline sync (index.html)" in res.stdout

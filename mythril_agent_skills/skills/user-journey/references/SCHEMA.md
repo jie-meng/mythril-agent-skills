@@ -43,9 +43,9 @@ Concretely, compared to v2:
 | Annotations | `screen.notes` only | **`screen.annotations[]`** (numbered markers on the screen) + **top-level `stickies[]`** (canvas notes) |
 | Schema version | `"2"` | **`"3"`** |
 
-v1 / v2 workspaces are NOT read by the renderer anymore. `validate_sync.py`
-accepts `"1"`, `"2"`, and `"3"` to allow tooling to inspect older files, but
-the renderer requires `"3"`. To upgrade an old workspace, hand-edit
+v1 / v2 workspaces are NOT read by the renderer anymore, so `validate_sync.py`
+and `validate_screens.py` reject anything but `"3"` (and any leftover
+`screens[].transitions`). To upgrade an old workspace, hand-edit
 `journey.json`:
 
 1. Move every `screens[].transitions[]` entry into a top-level `arrows[]` array

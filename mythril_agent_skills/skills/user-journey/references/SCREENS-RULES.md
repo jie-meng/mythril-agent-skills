@@ -62,6 +62,17 @@ ERROR: duplicate screen id 'pin-entry'
 `screens[].id` is referenced by `step.screen_refs` and by `arrows[].from` /
 `arrows[].to`. Duplicates make references ambiguous.
 
+The same holds one level down: an element id (layout, side-key-rail key,
+tab item, action, or `hardware[]` slot) must be unique within its screen —
+`ERROR: screen 'pin-entry' uses element id 'ok' more than once`. Arrows
+address `<screen>#<element>`, and the renderer would anchor on the first match.
+
+`screen.stage_id`, when set, must name a stage in `stages[]`
+(`ERROR: screen 'x' has stage_id='discovr' which is not a stage id ...`).
+An unknown id would silently drop the screen into the last canvas column —
+typically after renaming a stage. Legacy v2 `screens[].transitions` is also
+an error: the renderer ignores it; move entries into top-level `arrows[]`.
+
 ### Rule 2 — Every `arrow.to` must resolve
 
 ```

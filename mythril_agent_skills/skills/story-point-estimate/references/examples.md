@@ -31,7 +31,7 @@ Then after answers — generate the workbook and summarize:
 > **Estimates sheet:** 5 items, 9 total points
 > - 3 functional stories (Auth), 6 points
 > - 2 CFR items (Security + Monitoring), 3 points
-> - All points linked to Summary sheet formula
+> - Summary totals are live formulas — edit any point and they update
 >
 > **RAID sheet:** rate-limit abuse risk, email deliverability dependency
 >

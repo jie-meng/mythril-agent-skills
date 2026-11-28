@@ -48,7 +48,10 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 # truth for the design-token shape. The init script is already on the same
 # `scripts/` directory.
 sys.path.insert(0, str(SCRIPT_DIR))
-from init_workspace import parse_design_frontmatter  # noqa: E402
+from init_workspace import (  # noqa: E402
+    parse_design_frontmatter,
+    serialize_inline_json,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -70,13 +73,13 @@ _DESIGN_BLOCK_RE = re.compile(
 
 
 def serialize_journey(journey: dict) -> str:
-    """Match init_workspace.py exactly so byte-equality is achievable."""
-    return json.dumps(journey, indent=2, ensure_ascii=False)
+    """Script-safe inline JSON, byte-identical to init_workspace.py."""
+    return serialize_inline_json(journey)
 
 
 def serialize_design_tokens(tokens: dict) -> str:
-    """Match init_workspace.py exactly so byte-equality is achievable."""
-    return json.dumps(tokens, indent=2, ensure_ascii=False)
+    """Script-safe inline JSON, byte-identical to init_workspace.py."""
+    return serialize_inline_json(tokens)
 
 
 def inject_inline_blocks(

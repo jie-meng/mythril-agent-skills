@@ -111,21 +111,32 @@ def _slugify(text: str) -> str:
     return text
 
 
-VALID_SCHEMA_VERSIONS = {"1", "2", "3"}
+CURRENT_SCHEMA_VERSION = "3"
 
 
 def validate_journey_structure(journey: dict) -> list[str]:
     """Run JSON-only structural validation. Returns a list of error strings.
 
-    Accepts schema_version "1" (legacy, read-only), "2" (deprecated v2 nested
-    transitions), and "3" (current — canvas + top-level arrows).
+    Only schema_version "3" (canvas + top-level arrows) is accepted: the
+    renderer ignores v1/v2 data (nested `screens[].transitions`), so a legacy
+    file would pass validation yet render without arrows.
     """
     errors: list[str] = []
-    if str(journey.get("schema_version") or "") not in VALID_SCHEMA_VERSIONS:
+    version = str(journey.get("schema_version") or "")
+    if version != CURRENT_SCHEMA_VERSION:
         errors.append(
-            f"schema_version must be one of {sorted(VALID_SCHEMA_VERSIONS)}, "
-            f"got {journey.get('schema_version')!r}"
+            f"schema_version must be {CURRENT_SCHEMA_VERSION!r}, got "
+            f"{journey.get('schema_version')!r} — the renderer only reads v3. "
+            "Upgrade per references/SCHEMA.md (move screens[].transitions into "
+            "top-level arrows[] and set schema_version to \"3\")."
         )
+    for idx, screen in enumerate(journey.get("screens") or []):
+        if isinstance(screen, dict) and "transitions" in screen:
+            errors.append(
+                f"screens[{idx}] ({screen.get('id', '?')}) has legacy v2 "
+                "'transitions' — the renderer ignores it; move each entry into "
+                "top-level arrows[]"
+            )
     if not journey.get("title"):
         errors.append("title is required")
     if journey.get("language") not in ("en", "zh"):
