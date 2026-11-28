@@ -73,7 +73,9 @@ All commands use `scripts/notion_api.py`. `SKILL_PATH` below is this skill's ins
 python3 SKILL_PATH/scripts/notion_api.py --help
 ```
 
-All commands accept a bare page ID (32 hex chars, with or without dashes) or a full Notion URL — the script parses the ID out automatically. When the user pastes a URL, pass it directly.
+All commands accept a bare page ID (32 hex chars, with or without dashes) or a full Notion URL — the script parses the ID out automatically (a database-view URL with `?p=<page id>` resolves to that page). When the user pastes a URL, pass it directly.
+
+**Multi-line markdown**: a literal `\n` inside `"..."` is NOT a newline in the shell — Notion would show the backslash. Use `--markdown-file <path>` (or `--markdown-file -` for stdin) for anything longer than one line; write the file into the unified cache dir (`<user-cache-root>/mythril-skills-cache/notion/`). `$'...'` quoting also works for short text.
 
 ### Check setup and connectivity
 
@@ -102,7 +104,7 @@ python3 SKILL_PATH/scripts/notion_api.py search "release" --limit 10 --start-cur
 ### Create a page
 
 ```bash
-python3 SKILL_PATH/scripts/notion_api.py create --title "Design Doc" --markdown "## Overview\n\nDetails here."
+python3 SKILL_PATH/scripts/notion_api.py create --title "Design Doc" --markdown-file "$CACHE_DIR/design.md"
 python3 SKILL_PATH/scripts/notion_api.py create --title "Meeting Notes" --markdown "- [ ] Follow up" \
   --parent "https://www.notion.so/Team-1234567890abcdef1234567890abcdef" --parent-type page_id
 ```
@@ -113,7 +115,7 @@ The first `#` heading becomes the page title automatically. Without `--parent` t
 
 ```bash
 # Append markdown to the end of a page
-python3 SKILL_PATH/scripts/notion_api.py append PAGE --markdown "## Next steps\n\n- [ ] Review"
+python3 SKILL_PATH/scripts/notion_api.py append PAGE --markdown $'## Next steps\n\n- [ ] Review'
 python3 SKILL_PATH/scripts/notion_api.py append PAGE --markdown "# Top note" --position start
 
 # Replace an exact string inside a page
@@ -155,7 +157,7 @@ python3 SKILL_PATH/scripts/notion_api.py query DATA_SOURCE_ID --limit 50 --start
 
 # Create an item with every field in ONE request (all-or-nothing)
 python3 SKILL_PATH/scripts/notion_api.py create-item DATA_SOURCE_ID --title "Fix login timeout" \
-  --markdown "## Description\n\nUsers hit a 30s timeout." \
+  --markdown-file "$CACHE_DIR/item.md" \
   --status "Todo" \
   --property "Tags=Bug,Auth" \
   --property "Sprint=SPRINT_PAGE_ID_OR_URL" \
@@ -180,7 +182,7 @@ override (or when the schema cannot be read). Supported types: `select`,
 - `relation` takes page IDs or page URLs (find them with `query` on the related data source).
 - `people` takes Notion user IDs (find them in `view`/`query` output of existing items, or `myself`).
 - Computed types (`formula`, `rollup`, `created_time`, …) cannot be written.
-- `create-item` writes `--title` into the data source's title property (for example `Name`); a `--property` for that field takes precedence.
+- `create-item` writes `--title` into the data source's title property (for example `Name`); a `--property` for that field takes precedence. The body is not given an extra `# Title` heading in that case.
 - Add `--dry-run` to `create-item` / `set-property` to print the request body without sending it — use it to check a write on a shared board first.
 
 Prefer one `create-item` with all `--property` flags over "create, then `set-property` field by field": if a later step fails, the latter leaves a half-filled item visible to everyone.
