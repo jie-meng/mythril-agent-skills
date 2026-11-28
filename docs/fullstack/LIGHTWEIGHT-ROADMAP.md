@@ -18,7 +18,7 @@ follows [Continuing the work](#continuing-the-work).
 
 ## Current state
 
-*Updated 2026-11-24, after Round 3. Update this section in place at the
+*Updated 2026-11-28, after Round 4. Update this section in place at the
 end of every round. Everything below [History](#history) is append-only.*
 
 **Round status**
@@ -28,6 +28,7 @@ end of every round. Everything below [History](#history) is append-only.*
 | Round 1 — slim the steps | Committed (`83fd454`) |
 | Round 2 — quick-fix path | Committed (`381152f`) |
 | Round 3 — family-wide review fixes | Implemented in the working tree and validated (pytest 1322 passed, descriptions ≤ 1024, shared assets and marketplaces in sync, `fullstack-init` rehearsed on a copy of a real workspace); committed 2026-11-24 as five `[fullstack-*]` / `[plan_lint]` / `[docs]` commits. Quick fix not yet exercised on a real change |
+| Round 4 — context budget for full-tier items | Implemented in the working tree and validated (pytest 1496 passed, descriptions ≤ 1024, shared assets in sync); not yet committed, not yet exercised on a real item |
 
 **How a change is routed today**
 
@@ -37,6 +38,12 @@ end of every round. Everything below [History](#history) is append-only.*
 | **Lean** (propose → apply) | One repo, no cross-repo contract, no data / schema / migration, no external API | Orchestrator writes plan → plan review (1 pass + ≤1 confirmation) → orchestrator writes code → code review (1 + ≤1) | Four documents |
 | **Full** (propose → apply) | Everything else, and deep (spike) mode | Planner → plan review loop (≤3) → developer per repo in waves → per-repo code review (≤3) → cross-repo review | Four documents |
 | **Follow-up** on an active item | Feedback, log, manual-test finding, new REQ mid-implementation | Lean loop (one repo) or wave loop (several repos / contract change). **Never a new plan review** | Only the invalidated docs, plus a compact review round and a one-line Document Sync |
+
+**Full-tier agents are short-lived (Round 4):** one developer per phase
+of a large repo slice; every fix round goes to a fresh developer on a
+findings-only brief, never a resumed one; developers read their brief, not
+the whole plan; risks live only in `plan.md`; `review.md` keeps a reviewer's
+Verified list as one line.
 
 **Rules in force across all paths:** an independent code review before
 every commit; the smallest change that meets the requirements (hardening
@@ -58,7 +65,10 @@ in `fullstack.json`.
 | Rule | File |
 |---|---|
 | Quick-fix conditions and steps (**canonical** — other places summarize and point here) | `mythril_agent_skills/skills/fullstack-apply/references/quick-fix.md` |
-| Rule consistency guard (quick-fix and lean-tier terms in every place that states them) | `tests/test_fullstack_rule_consistency.py` |
+| Rule consistency guard (quick-fix and lean-tier terms in every place that states them; Round 4 context-budget rules) | `tests/test_fullstack_rule_consistency.py` |
+| Context budget: developer per phase, fresh developer per fix round, start-clean advice | `mythril_agent_skills/skills/fullstack-apply/SKILL.md` (Step 1, Full tier "Context budget", 4b–4d) |
+| Developer reading scope, evidence tests on the real path, differential checks for ports | `mythril_agent_skills/skills/fullstack-init/agents/developer.md` |
+| Mechanism verification in planning and plan review | `fullstack-init/agents/planner.md`, `plan-reviewer.md`; `fullstack-propose/SKILL.md` 4c |
 | Workspace `AGENTS.md` rules, incl. Docs-Code Lockstep routing (active owner / quick fix / work item) | `mythril_agent_skills/skills/fullstack-init/scripts/workspace_init.py` (`generate_agents_md`) |
 | Three-way workspace refresh | `mythril_agent_skills/skills/fullstack-init/scripts/workspace_init.py` (`three_way`, `merge_agents_md_report`, `install_agents`, `bootstrap_workspace`) |
 | Quick-fix routing, tier table, debugger skip, smallest-change rule | `mythril_agent_skills/skills/fullstack-propose/SKILL.md` (How this skill works, Step 3, 4b, 4c) |
@@ -86,7 +96,10 @@ When a new problem report arrives:
 2. **Measure the run.** Record the measures from Round 2's table: first-diff
    size, document size, review rounds by kind, confirmation stops, time to
    the first code. Also record which findings were real defects and which
-   were bookkeeping.
+   were bookkeeping. **Record tokens per agent** — calls, total input,
+   cache-read share, peak context — from the host's per-call logs (see
+   Round 4 for where ZCode keeps them). Total tokens ≈ calls × average
+   context, so document size alone does not show where the cost is.
 3. **Find the rule that caused it.** Use [Where each rule lives](#current-state).
    Often the cause is a sentence that makes a step mandatory "in every
    tier" or "every round".
@@ -136,6 +149,7 @@ Two different costs, and they need different fixes:
 |---|---|---|
 | **Per-step cost** | Large `SKILL.md` files read in full, the planner returning a full document that is then written again, diffs pasted into reviewer briefs, every template loaded up front | Round 1 |
 | **Fixed per-item overhead** | Four documents, `plan_lint`, an independent plan review, and per-round document attestation for *every* change — even a small, already-diagnosed bug | Round 2 |
+| **Long-lived agent context** | One subagent runs hundreds of steps and re-sends a context that only grows; a finished agent is resumed for fixes; a session carries unrelated history into orchestration | Round 4 |
 
 Round 1 made each step cheaper but explicitly kept the fixed overhead
 ("the tier changes who writes and how many review rounds run — never
@@ -283,45 +297,153 @@ bullets still always take the template, because their commands are
 machine-resolved. `fullstack-docs-migration` is unchanged; see Open
 items.
 
+### Round 4 — context budget for full-tier items (2026-11-28)
+
+**Trigger — a real full-tier item that spent ~100M tokens before its
+first commit.** A three-repo feature: port a 9-dimension dialog scorer
+from an 8,000-line browser page to the backend, a question-bank
+collection, an async evaluation runner with device lease and cleanup,
+three endpoints, plus a frontend report page and API cases. Run on ZCode
+with GLM-5.3-Flash. The numbers come from ZCode's per-call logs
+(`~/.zcode/cli/rollout/model-io-<session>.jsonl`, `usage` on each
+response; subagent totals in `~/.zcode/cli/agents/<session>/*/metadata.json`).
+At measurement time only wave 1 (the backend) had been implemented and
+reviewed once; wave 2 and the cross-repo review had not started.
+
+| Agent | Calls | Input tokens | Cache read | Avg / peak context |
+|---|---|---|---|---|
+| Developer, backend (one agent, incl. resumed fix round) | 309 | 76.8M (73%) | 98% | 248K / 382K |
+| Orchestrator (one session from roadmap discussion to wave 1 review) | 95 | 13.7M | 92% | 144K / 234K |
+| Code reviewer, backend round 1 | 80 | 8.9M | 98% | 111K / 182K |
+| Planner (revision run only; first run not logged) | — | 4.0M | 99% | — |
+| Plan reviewer round 1 / round 2 | — | 1.6M / 0.8M | 94% / 89% | — |
+
+Output was about 0.35M tokens in total. Inside the developer:
+
+| Developer segment | Calls | Input | Context start → end | Same work, fresh agent (start ≈ 40K) |
+|---|---|---|---|---|
+| Phase 1 (scorer port, question bank) | 106 | 15.8M | 19K → 219K | ≈ 18M |
+| Phase 2 (runner, service, endpoints) | 164 | 46.7M | 219K → 344K | ≈ 17M |
+| Fix round for review findings (agent resumed) | 39 | 14.3M | 348K → 381K | ≈ 2M |
+
+What the run showed:
+
+- **The cost was steps × context, not documents or reviews.** The
+  developer never dropped context: phase 2 started on top of all of
+  phase 1, and the fix round was a `SendMessage` resume of the finished
+  agent. Splitting by the plan's own phases and sending fixes to a fresh
+  agent would have cut the developer from ~77M to ~37M with no check
+  removed.
+- **The reviews paid for themselves.** Plan review round 1 caught a P0
+  (the red-line pre-check contradicted the default safety policy, so every
+  run would have ended `redline_failed`). Code review round 1 caught a P0
+  (the stale-run sweeper cleaned up with a `None` auth context, so every
+  delete returned 403 and devices leaked) and three real P1s, and proved
+  the port with a 165-case differential run against the original JS.
+  Reviews were ~15% of tokens.
+- **Two defects were planning-feasibility misses.** The design's main
+  persona-rebind mechanism (`PUT /characters/{id}`) has no `personaId`
+  field, and the sweeper's caller could not pass the ACL. Line-level
+  citation checks by the planner and two plan-review rounds caught
+  neither; both are "does this mechanism exist / admit this caller"
+  questions.
+- **The P0 was hidden by a mock.** The developer's sweeper test mocked
+  the cleanup call the criterion was about.
+- **The differential harness was built by the reviewer and thrown away.**
+  It is the strongest evidence for a port; the developer should have
+  built it as the phase-1 oracle.
+- **Duplicated risk tables drifted.** `analysis.md` and `plan.md` both
+  carried R1–R11 / A1–A4. A plan-review P1 ("cleanup end state stated
+  three different ways") came from the duplication, and after the
+  code-review document sync R8 was corrected in one copy only.
+- **~2.8 of the developer's 4.5 hours were provider stalls**
+  (`ModelStreamIdleTimeoutError`, 10-minute idle timeouts, up to 7
+  attempts). The orchestrator told the user the silence was a full test
+  run. This costs wall time, not tokens, and is not a skill defect.
+
+**Changes**
+
+- `fullstack-apply/SKILL.md`: a "Context budget" rule in the full tier —
+  one developer per phase for a large repo slice (phases of one repo run
+  sequentially; the next brief carries the previous summary, not the
+  transcript); fix rounds and test-failure rounds go to a fresh developer
+  on a findings-only brief, never a resumed one; check an agent's latest
+  activity before explaining a silence. Step 1 recommends a fresh session
+  when the current one already holds propose or discussion. The
+  implementer checklist runs touched-module tests while iterating and the
+  full pipeline once before staging, requires evidence tests on the real
+  path, and a differential check for ports.
+- `developer.md`: read the brief's slice, not `plan.md` / `analysis.md`
+  whole (this contradicted apply 4a); fix briefs fix only the listed
+  findings; targeted tests while iterating, the full pipeline once,
+  summary-only output; evidence tests never mock the boundary they prove;
+  ports start with a re-runnable differential check.
+- `code-reviewer.md`: a test that mocks the boundary its criterion is
+  about does not prove the criterion; re-run the developer's differential
+  check instead of rebuilding one.
+- `planner.md`, `plan-reviewer.md`, `fullstack-propose/SKILL.md` 4c:
+  verify the mechanisms a design relies on (fields, permission paths,
+  hooks) rather than citing line numbers for every fact; size phases for
+  one fresh developer; ports get a differential-check task; risks live in
+  `plan.md` only.
+- Templates (`shared/plan/document-templates.md`, `spike-mode.md`): the
+  `analysis.md` risk table is gone. `review-formats.md` and the
+  plan-review round template keep a reviewer's Verified list as one line
+  in `review.md`; Scope, Findings, Evidence, Unverified, and Verdict stay
+  verbatim. This closes the former Open item 1.
+- `tests/test_fullstack_rule_consistency.py`: pins the new rules.
+
+**Kept on purpose:** every review, both plan-review rounds, the
+per-repo-then-cross-repo review structure, and the four documents. No
+check that caught a defect in this run was weakened.
+
+**Rollout note:** the agent files are copied into each workspace by
+`fullstack-init`; re-run it there (and `skills-setup` for the installed
+skills) before the next item.
+
 ---
 
 ## Open items
 
 Candidates for the next round, roughly in order of expected payoff:
 
-1. **`review.md` size for full work items.** Plan-review and code-review
-   rounds still append the reviewer's full output (scope, coverage,
-   findings, verified, unverified). Consider a compact round format for
-   every round, keeping only findings, verdict, and evidence rows. Move
-   the verified / unverified detail to a collapsible block, or drop it
-   once the verdict is `PASS`.
-2. **Lean-tier plan review.** For a lean item whose requirements are
+1. **Measure Round 4 on a real full-tier item.** Record the per-agent
+   token table from Round 4 again. Expected: the developer's average
+   context well under 150K, fix rounds near 2M each. If a phase-sized
+   developer still passes ~250K, phases are too coarse; tighten the
+   planner's sizing guidance.
+2. **Code Map by script.** The planner predicts a full Code Map, and the
+   orchestrator later hand-patches it (13 rows in the Round 4 run). A
+   `plan_lint` mode that merges `git show --name-only` over a round's
+   commits into the table would remove both LLM passes; the planner would
+   then list only the files the design depends on.
+3. **Lean-tier plan review.** For a lean item whose requirements are
    unambiguous, the independent plan review mostly re-checks what the code
    review will check. Measure how often lean plan reviews raise a P0/P1
    that the code review would not have caught. If that is rare, make the
    lean plan review opt-in.
-3. **Stale workspaces.** Re-running `fullstack-init` is now safe, but
+4. **Stale workspaces.** Re-running `fullstack-init` is now safe, but
    nothing tells the user it is due. Record a template digest in the
    baseline, and have `check_workspace.py` (or the init skill itself)
    compare it with the installed templates and warn when a re-run would
    change something.
-4. **`plan_lint` coupling to four documents.** Archive, `--find`, and the
+5. **`plan_lint` coupling to four documents.** Archive, `--find`, and the
    lint all assume the four-file layout. If a lighter work-item shape
    (for example a single `fix.md`) is ever wanted between the quick fix
    and lean, those three need to accept it first. Round 3 only lowered
    the format checks to warnings; 1600 lines of prose-matching remain.
-5. **Confirmation stops.** Propose Step 3 and apply Step 2 each stop for
+6. **Confirmation stops.** Propose Step 3 and apply Step 2 each stop for
    confirmation. When apply follows directly from an approved propose in
    the same session with an unchanged repo list, the second stop could be
    skipped.
-6. **Quick-fix calibration.** The "small" guide (~5 production files,
+7. **Quick-fix calibration.** The "small" guide (~5 production files,
    ~150 lines) is a first guess. Revisit it after a handful of real quick
    fixes: escalations mid-fix mean it is too loose, and work items that
    could have been quick fixes mean it is too tight.
-7. **Retire `fullstack-docs-migration`.** It is a one-time migrator from
+8. **Retire `fullstack-docs-migration`.** It is a one-time migrator from
    the pre-`changes/` layout. Once no workspace on the old layout remains,
    mark it deprecated and later remove it, so it stops costing upkeep.
-8. **Remaining prose duplication.** The consistency test pins key terms
+9. **Remaining prose duplication.** The consistency test pins key terms
    only. The document-update table still appears in the workspace
    `AGENTS.md` and in `follow-up.md`; if it drifts again, generate one from
    the other.
@@ -332,5 +454,6 @@ Before calling a round done, run it on a real item. Record the result in
 that round's entry using the same measures as Round 2's table: first-diff
 size, document size, review rounds by kind, confirmation stops, time to
 the first code, and which review findings were real defects versus
-bookkeeping. A slimming change is a regression if it removes a check that
-caught a real defect in the previous measurement.
+bookkeeping — plus, for full-tier items, the per-agent token table
+from Round 4 (calls, input, cache-read share, average and peak context). A slimming change is a regression if it
+removes a check that caught a real defect in the previous measurement.
