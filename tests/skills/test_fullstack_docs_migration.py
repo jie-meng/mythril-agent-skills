@@ -78,6 +78,46 @@ class TestExtractProgressStatus:
     def test_plain_progress_no_marker(self):
         assert self.func("## Change Log\n\nstarted\n") == ""
 
+    # --- substring false positives the scanner used to report as done ---
+
+    def test_incomplete_is_not_complete(self):
+        assert self.func("Incomplete: blocked on API review") == ""
+
+    def test_not_done_is_not_done(self):
+        assert self.func("In progress, not done yet") == ""
+
+    def test_not_yet_merged_is_not_merged(self):
+        assert self.func("PR opened, not yet merged") == ""
+
+    def test_almost_complete_is_not_complete(self):
+        assert self.func("UI almost complete") == ""
+
+    def test_completed_steps_heading_is_ignored(self):
+        assert self.func("## Completed Steps\n\n- none yet\n") == ""
+
+    def test_abandoned_does_not_contain_done(self):
+        assert self.func("abandoned approach A, trying B") == ""
+
+    def test_undone_is_not_done(self):
+        assert self.func("rollback: change undone") == ""
+
+    def test_unchecked_box_is_ignored(self):
+        assert self.func("- [ ] merged to main\n- [ ] shipped\n") == ""
+
+    def test_checked_box_counts(self):
+        assert self.func("- [x] merged to main\n") == "merged"
+
+    def test_chinese_not_completed(self):
+        assert self.func("尚未完成，等待联调") == ""
+
+    def test_status_line_decides_over_stray_marker(self):
+        text = "**Status**: In Progress\n\n- 2026-05-01 — done with API\n"
+        assert self.func(text) == ""
+
+    def test_last_status_line_wins(self):
+        text = "Status: In Progress\n...\nStatus: Done\n"
+        assert self.func(text) == "done"
+
 
 class TestExtractVerdict:
     """Tests for migrate_scan.extract_verdict."""
@@ -264,6 +304,7 @@ class TestScanFunctions:
 
     def test_main_outputs_json(self, tmp_path: Path, capsys, monkeypatch):
         self._build_legacy_docs(tmp_path)
+        subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
         from migrate_scan import main
         monkeypatch.setattr("sys.argv", ["migrate_scan.py", str(tmp_path)])
         rc = main()
@@ -272,6 +313,20 @@ class TestScanFunctions:
         assert "work_items" in data
         assert "spikes" in data
         assert "non_convention_dirs" in data
+
+    def test_main_not_a_git_repo(self, tmp_path: Path, capsys, monkeypatch):
+        self._build_legacy_docs(tmp_path)
+        monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
+        from migrate_scan import main
+        monkeypatch.setattr("sys.argv", ["migrate_scan.py", str(tmp_path)])
+        assert main() == 1
+        assert "not a git repository" in capsys.readouterr().err
+
+    def test_non_convention_dirs_skip_dot_dirs(self, tmp_path: Path):
+        self._build_legacy_docs(tmp_path)
+        (tmp_path / ".git").mkdir()
+        from migrate_scan import scan_non_convention_dirs
+        assert ".git" not in scan_non_convention_dirs(tmp_path)
 
     def test_main_bad_arg(self, tmp_path: Path, capsys, monkeypatch):
         from migrate_scan import main
@@ -284,6 +339,55 @@ class TestScanFunctions:
         monkeypatch.setattr("sys.argv", ["migrate_scan.py", str(tmp_path / "nope")])
         rc = main()
         assert rc == 2
+
+
+class TestLatestDateInText:
+    """Tests for migrate_scan.latest_date_in_text."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from migrate_scan import latest_date_in_text
+        self.func = latest_date_in_text
+
+    def test_picks_latest(self):
+        from datetime import date
+
+        text = "### 2026-03-01\n### 2026-05-03 — merged\n### 2026-04-10\n"
+        assert self.func(text, date(2026, 11, 1)) == "2026-05-03"
+
+    def test_ignores_future_and_invalid_dates(self):
+        from datetime import date
+
+        text = "2026-02-30 is invalid, 2027-01-01 is future, 2026-01-05 ok"
+        assert self.func(text, date(2026, 11, 1)) == "2026-01-05"
+
+    def test_no_date(self):
+        assert self.func("no dates here") == ""
+
+
+class TestLastActiveInfo:
+    """last_active falls back from git to progress.md dates to mtime."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self, monkeypatch, tmp_path: Path):
+        from migrate_scan import last_active_info
+        self.func = last_active_info
+        # Keep git from finding a repository above tmp_path.
+        monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path.parent))
+
+    def test_progress_dates_without_git(self, tmp_path: Path):
+        item = tmp_path / "feat" / "x"
+        item.mkdir(parents=True)
+        (item / "progress.md").write_text("### 2025-12-01 — started\n### 2026-01-09\n")
+        assert self.func(tmp_path, item) == ("2026-01-09", "progress")
+
+    def test_mtime_without_git_or_dates(self, tmp_path: Path):
+        item = tmp_path / "feat" / "y"
+        item.mkdir(parents=True)
+        (item / "plan.md").write_text("# Plan\n")
+        found, source = self.func(tmp_path, item)
+        assert source == "mtime"
+        assert len(found) == 10
 
 
 class TestGitLastCommitDate:
@@ -310,3 +414,18 @@ class TestGitLastCommitDate:
         )
         date = self.func(tmp_path, "a.md")
         assert len(date) == 10  # YYYY-MM-DD
+
+
+class TestSkillContract:
+    """SKILL.md rules that the scanner cannot enforce."""
+
+    SKILL = (
+        Path(__file__).resolve().parents[2]
+        / "mythril_agent_skills/skills/fullstack-docs-migration/SKILL.md"
+    )
+
+    def test_spike_merge_never_deletes_the_linked_record(self):
+        text = self.SKILL.read_text(encoding="utf-8")
+        assert "git rm" not in text
+        assert "../../archive/YYYY-MM-DD-spike-<name>/" in text
+        assert "the link must resolve" in text

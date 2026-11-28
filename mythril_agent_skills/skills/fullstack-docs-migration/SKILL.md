@@ -81,6 +81,7 @@ The scanner outputs machine-readable JSON:
       "plan_status": "In Progress | Done | ...",
       "progress_status": "...",
       "last_active": "2026-05-03",
+      "last_active_source": "git | progress | mtime",
       "matching_spike": "spike/add-dark-mode"
     }
   ],
@@ -94,15 +95,23 @@ The scanner outputs machine-readable JSON:
 - `four_files` — which of the four work-tracking documents exist.
 - `plan_status` — raw `**Status**:` text from `plan.md` (may be empty).
 - `progress_status` — completion marker from `progress.md` (may be empty).
-- `last_active` — last modification date (from `progress.md` content or
-  git log).
-- `matching_spike` — a legacy spike directory with the same or similar
-  name, if any.
+  Status lines decide; whole words only, negations ("not done", "almost
+  complete"), headings, and unchecked checklist items never count.
+- `last_active` — last activity date: the last git commit touching the
+  directory, else the latest date written in `progress.md`, else the
+  newest file mtime. `last_active_source` says which; treat `mtime` as
+  weak evidence (a copy or checkout resets it).
+- `matching_spike` — a legacy spike directory whose normalized name
+  (case-insensitive, `-`/`_` equivalent) equals the work item's, if any.
 - `verdict` (spikes) — `FEASIBLE` / `NOT_FEASIBLE` /
   `NEEDS_MORE_RESEARCH`, or empty if missing.
 
-If the scanner reports an error (not a docs repo, unreadable), stop and
-report.
+If the scanner exits non-zero (1 = not a git repository, 2 = bad
+argument or not a directory), stop and report its `ERROR:` line.
+
+Before moving anything, check `git -C <docs-dir> status --short` is
+empty; if not, ask the user to commit or stash first, so the migration
+commit contains only the migration.
 
 ## Step 2 — Classify Each Work Item
 
@@ -133,7 +142,7 @@ before executing:
 |--------|------|
 | **Move active** | `feat/<name>/ → changes/feat/<name>/` (same for refactor/fix) |
 | **Archive done** | `feat/<name>/ → changes/archive/YYYY-MM-DD-feat-<name>/` |
-| **Merge spike** | spike has an impl counterpart (same/similar name) → fold spike docs into the counterpart's `analysis.md` as a `## Predecessor Spike` reference section, then delete the spike directory |
+| **Merge spike** | spike has an impl counterpart (`matching_spike`) → archive the spike like an orphan (row below) AND add a `## Predecessor Spike` section to the counterpart's `analysis.md` that links to the archived spike. The spike's files are never deleted — the link must resolve |
 | **Archive orphan spike** | spike has NO impl counterpart → `spike/<name>/ → changes/archive/YYYY-MM-DD-spike-<name>/` (this preserves the record — including NOT_FEASIBLE verdicts, which are valuable "no" records) |
 | **Leave untouched** | `docs/`, `changelog/`, `errors/`, `user-survey/`, and other non-convention dirs — never move or modify them |
 
@@ -157,13 +166,22 @@ mv <docs-dir>/feat/<name> <docs-dir>/changes/feat/<name>       # active
 mv <docs-dir>/feat/<name> <docs-dir>/changes/archive/YYYY-MM-DD-feat-<name>   # done
 ```
 
-For **spike merges**:
+For **spike merges** (after the counterpart has moved to its final
+location):
 
-1. Read the spike's `analysis.md`, `findings.md`, `verdict.md`.
-2. Append a `## Predecessor Spike` section to the counterpart's
-   `analysis.md` referencing the spike directory (use a relative link
-   with correct `../../` depth) and summarizing the verdict.
-3. Delete the spike directory with `git rm -r`.
+1. Archive the spike: `git mv <docs-dir>/spike/<name>
+   <docs-dir>/changes/archive/YYYY-MM-DD-spike-<name>` (plain `mv` if it
+   is untracked).
+2. Read the spike's `analysis.md`, `findings.md`, `verdict.md`.
+3. Append a `## Predecessor Spike` section to the counterpart's
+   `analysis.md`: a relative link to the ARCHIVED spike directory and a
+   short summary of the verdict. The depth depends on where the
+   counterpart landed:
+   - active `changes/<type>/<name>/analysis.md` →
+     `../../archive/YYYY-MM-DD-spike-<name>/`
+   - archived `changes/archive/<dir>/analysis.md` →
+     `../YYYY-MM-DD-spike-<name>/`
+4. Verify the link target exists before committing.
 
 Migration moves directories; it rewrites no document body, so a `plan.md`
 that already carries a `## 代码地图` / `## Code Map` keeps it untouched.
@@ -193,7 +211,7 @@ Write `<docs-dir>/MIGRATION-REPORT.md`:
 ## Spikes
 | Old path | Action | Detail |
 |----------|--------|--------|
-| spike/oauth-pkce | merged into changes/feat/oauth-pkce | FEASIBLE |
+| spike/oauth-pkce | archived as changes/archive/2026-04-02-spike-oauth-pkce, linked from changes/feat/oauth-pkce | FEASIBLE |
 | spike/harmonyos-support | archived | orphan spike, FEASIBLE |
 
 ## Non-convention directories (untouched)
@@ -217,6 +235,9 @@ docs/  changelog/  errors/  user-survey/  …
 2. Report the migration summary to the user: counts of active vs
    archived items, spikes merged vs archived, and every warning that
    needs a human decision.
+3. Tell the user to re-run `fullstack-init` from the workspace root: it
+   creates `issues/` and refreshes the workspace and docs `AGENTS.md`,
+   which may still describe the legacy layout.
 
 ## Requirements
 
@@ -231,7 +252,7 @@ docs/  changelog/  errors/  user-survey/  …
   listed in the report.
 - **Uncertain items are treated as active**, never archived on a guess.
 - **Status conflicts are reported, not silently resolved.**
-- Spike merges preserve the record (reference section + verdict), they
-  do not discard it.
+- Spike merges preserve the record: the spike directory is archived, never
+  deleted, and the counterpart links to it.
 - The migration is committed as one atomic docs-repo commit; the report
   documents every decision so it is auditable.
