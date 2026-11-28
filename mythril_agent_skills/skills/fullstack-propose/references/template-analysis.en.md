@@ -112,11 +112,9 @@ flowchart LR
 | api | New endpoint | No |
 | web | New page | No |
 
-## Risks & Mitigations
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| ... | Medium | High | ... |
+<!-- No risk table here: risks (R<n>) and assumptions (A<n>) live only in
+plan.md §Risks / Open Questions. A second copy drifts, and every agent
+reads both. Analysis sections cite R<n> / A<n> ids instead. -->
 ```
 
 

@@ -81,11 +81,10 @@ flowchart LR
 | Repo | Impact | Breaking Change? |
 |------|--------|------------------|
 | api/ | ... | No |
-
-## Risks & Mitigations
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|-----------|
 ```
+
+Risks and assumptions go in `plan.md` §Risks / Open Questions only — not
+in `analysis.md` — so there is one copy to keep true.
 
 **Spike step 4. Write `plan.md` from the verdict.** If NOT_FEASIBLE, write the
 plan documenting why it's not proceeding (the plan still exists — the

@@ -67,8 +67,12 @@ Everything below this section stays append-only, as before.
 
 ## Per-repo staged review section (code review)
 
-Appended once per repo per review round. The code-reviewer's full
-output is preserved verbatim — do not summarize.
+Appended once per repo per review round. Copy the code-reviewer's
+Scope, Findings, Evidence, Unverified, and Verdict verbatim — do not
+summarize them. Replace its **Verified** list with one line (how many
+claims, which kinds): the Evidence table already carries the proof, and
+every later reviewer and the orchestrator re-read this file, so a long
+verified list is paid for again on every read.
 
 
 ### Chinese
@@ -78,7 +82,7 @@ output is preserved verbatim — do not summarize.
 
 ### 暂存区审查输出
 
-<code-reviewer 的完整输出，保留所有章节>
+<code-reviewer 输出：范围、问题清单、证据、未核验原样保留；已核验压成一行>
 
 ### 结论
 

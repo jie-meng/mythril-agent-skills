@@ -622,11 +622,9 @@ flowchart LR
 | api | New endpoint | No |
 | web | New page | No |
 
-## Risks & Mitigations
-
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| ... | Medium | High | ... |
+<!-- No risk table here: risks (R<n>) and assumptions (A<n>) live only in
+plan.md §Risks / Open Questions. A second copy drifts, and every agent
+reads both. Analysis sections cite R<n> / A<n> ids instead. -->
 ```
 
 <!-- /lang -->
@@ -731,11 +729,9 @@ flowchart LR
 | api | 新增接口 | 否 |
 | web | 新增页面 | 否 |
 
-## 风险与应对
-
-| 风险 | 可能性 | 影响 | 应对措施 |
-|------|--------|------|---------|
-| ... | 中 | 高 | ... |
+<!-- 这里不放风险表：风险（R<n>）与假设（A<n>）只写在 plan.md §风险 / 待确认问题
+一处。两份副本必然漂移，而且每个代理都要读两遍。analysis 各节引用 R<n> / A<n>
+编号即可。 -->
 ```
 
 ---
@@ -1129,7 +1125,9 @@ when a REQ cited here was never declared. Use the ids, not a paraphrase:
 
 ### Verified
 
-- <claims checked and confirmed>
+<One line: how many claims were checked and of which kinds (paths, symbols,
+contracts, mechanisms). The full list stays in the reviewer's return; it
+is not copied here — every later agent re-reads this file.>
 
 ### Unverified
 
@@ -1195,7 +1193,8 @@ treated as a new P0 in the next round.
 
 ### 已核验
 
-- <已确认成立的论断>
+<一行：核验了多少条论断、哪几类（路径、符号、契约、机制）。完整清单留在审查代理的
+返回里，不抄进本文件——之后每个代理都要重读它。>
 
 ### 未核验
 

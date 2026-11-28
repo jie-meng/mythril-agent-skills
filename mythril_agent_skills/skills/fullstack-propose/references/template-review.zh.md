@@ -76,7 +76,8 @@ orchestrator appends it. Section labels follow the work item's language.
 
 ### 已核验
 
-- <已确认成立的论断>
+<一行：核验了多少条论断、哪几类（路径、符号、契约、机制）。完整清单留在审查代理的
+返回里，不抄进本文件——之后每个代理都要重读它。>
 
 ### 未核验
 

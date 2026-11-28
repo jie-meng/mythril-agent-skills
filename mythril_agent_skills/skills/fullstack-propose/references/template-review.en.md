@@ -76,7 +76,9 @@ when a REQ cited here was never declared. Use the ids, not a paraphrase:
 
 ### Verified
 
-- <claims checked and confirmed>
+<One line: how many claims were checked and of which kinds (paths, symbols,
+contracts, mechanisms). The full list stays in the reviewer's return; it
+is not copied here — every later agent re-reads this file.>
 
 ### Unverified
 
