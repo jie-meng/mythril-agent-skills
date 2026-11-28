@@ -38,9 +38,10 @@ checked.
 
 If P0/P1 cross-repo issues are found:
 1. Fix upstream repo first, then downstream (topological order — the
-   wave plan from Step 4 is the order).
+   wave plan from Step 2 is the order).
 2. For each repo needing fixes, go through its scoped developer →
-   code-reviewer loop again (Steps 4b through 4e). Fixes to MUTUALLY
+   code-reviewer loop again (4b–4d in `references/full-tier.md`, then
+   4e in `SKILL.md`). Fixes to MUTUALLY
    INDEPENDENT repos may fan out in parallel, exactly like a normal
    wave.
 3. Re-run the cross-repo review after all fix repos pass.

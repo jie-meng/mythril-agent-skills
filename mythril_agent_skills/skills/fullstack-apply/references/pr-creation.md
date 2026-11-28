@@ -6,6 +6,7 @@ the anti-patterns at the end.
 
 ## Pre-conditions
 
+- Step 6 (finalize the documents) has passed every gate
 - All repos must have changes committed and pushed
 - Review verdict is PASS (or residuals documented)
 - Each repo's current branch is a feature branch (not the default)

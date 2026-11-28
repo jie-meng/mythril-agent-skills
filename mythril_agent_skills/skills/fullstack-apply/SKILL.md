@@ -7,8 +7,10 @@ description: >
   work dir from fullstack-propose. Sticky on an active work item — follow-up
   fixes from feedback or pasted logs run the same review loop. Also does a
   one-repo quick fix with no work item. Triggers: "fullstack implement",
-  "全栈实现", "implement this plan", "实现这个方案", "fix this", "这里不对", "直接修", "quick
-  fix".
+  "全栈实现", "implement this plan", "实现这个方案"; inside a fullstack
+  workspace (fullstack.json at the root) also "fix this", "这里不对", "直接修",
+  "quick fix" — outside one, those are ordinary fix requests, not this
+  skill.
 license: Apache-2.0
 ---
 
@@ -55,7 +57,8 @@ it costs a full context rebuild and buys no parallelism.
 | `references/template-rules.<lang>.md` | Writing document prose or the final report |
 | `references/review-formats.<lang>.md` | Writing a code review or cross-repo section in `review.md` |
 | `references/cross-repo-review.md` | After the final wave of a multi-repo item |
-| `references/pr-creation.md` | Step 6, only when `github_repos=true` |
+| `references/full-tier.md` | Step 4, only at full tier |
+| `references/pr-creation.md` | Step 7, only when `github_repos=true` |
 | `references/no-vcs-repos.md` | A repo in scope has no git metadata |
 | `references/quick-fix.md` | A root-caused bug or fully specified small tweak — one repo, small — with no work directory |
 | `references/follow-up.md` | Feedback, a log, or a fix request on an implemented item; resuming |
@@ -86,7 +89,7 @@ substitute a manual file check — later steps need `docs_dir` and
   Workspace: VALID | docs_dir=<DOCS_DIR> | github_repos=<true|false>
   ```
 
-This line commits you: `github_repos` decides Step 6, `docs_dir` locates
+This line commits you: `github_repos` decides Step 7, `docs_dir` locates
 work directories. If you lose track mid-session, re-run the script once and
 re-announce — never guess.
 
@@ -232,84 +235,15 @@ repo:
 
 ### Full tier — the wave loop
 
-Repos in the same wave share no dependency edge; each runs develop →
-review → commit **in parallel** with its siblings. A wave is a barrier: the
-next starts only when every repo of the current one has committed.
-Parallelism changes *when* checks run, never *whether*: every repo gets its
-staged review before commit; dependents never see unverified upstream code;
-the cross-repo review sees all final diffs once.
+**Read `references/full-tier.md`.** Repos run in dependency waves from
+`compute_waves.py`; a wave is a barrier (the next starts only when every
+repo of the current one has committed). Each repo — or each phase of a
+large repo slice — gets a fresh **developer** subagent, then its own
+per-repo code review (≤3 rounds) and commit (4e below); fix rounds go to
+a fresh developer. You write only the tracking documents, commits, and
+PRs. After the final wave's gate → Step 5.
 
-| Agent | Owns | Must NOT touch |
-|-------|------|----------------|
-| **developer** | Production code, tests, env setup | `review.md`, `progress.md`, commits |
-| **code-reviewer** | Findings + Evidence rows (per-repo and cross-repo modes) | Any file |
-| **debugger** | Root cause + fix spec; temporary instrumentation | `plan.md`, commits |
-| **you** | `progress.md`, `review.md`, commits, PRs, the user | Code (delegate it) |
-
-Only you write the work-tracking documents, so parallel agents share no
-mutable state. Never put two agents in one repo at the same time — repos
-are the unit of isolation.
-
-**Context budget — keep every agent short-lived.** An agent re-sends its
-whole context on every step, so a run's cost grows with steps × context,
-not with the code it writes. One measured full-tier item: a single
-developer ran 309 steps on one repo and its context grew from 19K to 382K
-tokens — 73% of the item's tokens; resuming that same agent for a
-five-finding fix round cost 14M tokens where a fresh one would have cost
-about 2M. Therefore:
-
-- **One developer per phase**, not per repo, when `plan.md` schedules
-  phases for a repo or its slice is large (several modules, a port plus
-  a service layer). Phases of one repo run one after another — still one
-  agent in the repo at a time. Each is a fresh subagent; the next phase's
-  brief carries the previous phase's returned summary and file list,
-  never its transcript. Stage between phases; commit once per repo after
-  review unless `plan.md` says otherwise.
-- **Fix rounds go to a fresh developer**, never to the agent that wrote
-  the code (no resume / SendMessage of a finished implementation run).
-  The fix brief is: the findings verbatim, the repo path and branch, the
-  slice paths, the implementer checklist, and "fix exactly these, then
-  re-validate and re-stage". The staged diff and the work-dir documents
-  are on disk.
-- A silent agent is not evidence of a long test run; check its latest
-  activity before telling the user why it is quiet.
-
-For each wave, in order:
-
-**4a. Briefs — a slice of the plan per repo, never the four documents
-whole.** The repo's row and tasks; the Success Criteria it proves; the
-relevant `analysis.md` sections; for consumers, the **frozen contracts**
-of every upstream interface (code targets exactly these names); the
-`repo_skills.py` output verbatim; branch and "wave N of k"; the implementer
-checklist and the Code Comment Policy verbatim (the developer cannot see
-this file); the work-dir path; "return results — the orchestrator writes
-the documents".
-
-**4b. Delegate** every repo of the wave to its developer **in one turn**
-(the first phase's developer, for a repo split into phases).
-
-**4c. Handle each result as it returns** — never block a healthy sibling on
-a broken one. Tests failed → a fresh developer for THAT repo on a fix
-brief (the failure output plus the brief above). `tests:
-unknown` / `tests: none` → record it explicitly in `progress.md` and flag it
-in review; untested code never passes silently. Write each completed result
-to `progress.md` (template: `template-progress.<lang>.md`), then review.
-
-**4d. Per-repo review** — a fresh code-reviewer per repo (parallel), mode
-per-repo, with the same slice the developer got, the developer's summary
-and test result, and the work-dir path; it runs `git diff --cached`
-itself. Append its output to `review.md` below the plan review rounds
-(never renumber them; format: `review-formats.<lang>.md`).
-
-- `NEEDS_FIXES` → P0/P1 to a fresh developer for that repo on a fix
-  brief (see "Context budget") → re-validate → re-stage → re-review. P1-only fixes proven by tests / lint / build skip
-  the re-review, as in the lean loop. Max 3 review rounds per repo. A P0/P1
-  that survives one fix round, or whose cause is not evident from the
-  diff, goes to the **debugger** first.
-- `PASS` / `PASS_WITH_RISKS` → copy its Evidence rows into the `review.md`
-  Evidence table now, then commit (4e).
-- `FAIL` → stop that repo, hold its dependents, take it to the user (a
-  re-plan goes through `fullstack-propose`). Siblings continue.
+### Reviews and commits (both tiers)
 
 If the host cannot load `code-reviewer`, use any fresh-context read-only
 subagent with the agent file as its brief; failing that, self-review and
@@ -340,72 +274,63 @@ repo hostage to a red sibling):
    `review-formats.<lang>.md`.
 5. `graphify_check.py <repo>` → if present, `graphify update` in the repo.
 
-**Wave gate — before releasing wave N+1:** every repo of wave N is
-committed (not merely "done"); each frozen contract owned by wave N was
-compared with what was built — drift is fixed upstream now, or frozen as an
-explicit amendment in `analysis.md`; downstream briefs carry any amendment.
-
-After the final wave → Step 5.
-
 ## Step 5 — Cross-Repo Consistency Review (multi-repo only)
 
 Single-repo items skip this. Multi-repo: read
 `references/cross-repo-review.md` and run it — once, over all repos' final
 diffs. Per-repo reviews never substitute for it.
 
-## Step 6 — Pull Requests
+## Step 6 — Finalize the documents
 
-Read the `Workspace:` line you announced (re-run `check_workspace.py` once
-if it is not in the transcript).
+Runs before anything leaves the machine — no push, no PR while a gate
+fails.
 
-- `github_repos=false` → output EXACTLY this line and go to Step 7. Do not
-  inspect remotes, look for other platform CLIs, or build compare URLs:
-
-  ```
-  Step 6: skipped (github_repos=false — non-GitHub remote, PR creation is the user's responsibility)
-  ```
-
-- `github_repos=true` → read `references/pr-creation.md` and follow it.
-
-## Step 7 — Finalize
-
-Gates — all must pass; fix and re-run, never reason around one:
-
-1. **Review completion** — `review.md` has a code-review verdict
-   (`### Verdict` / `### 结论`) for every repo, and a cross-repo verdict for
-   multi-repo items. A plan-review verdict does not count — it predates the
-   code.
-2. **Success Criteria** — every criterion is `✅ Pass` with evidence,
-   `❌ Fail`, or waived with a documented reason. A criterion only a test
-   run can prove, with no verified run, is `⚠️ Skipped (no verified test run
-   in <repo>)` — never `✅`. A criterion changed during implementation syncs
-   its Evidence row in the same edit.
-3. **Documents match the code** — `analysis.md`'s approach, structure, flow,
-   and diagrams describe what was committed (contradicted sections are
-   rewritten, not annotated); `plan.md` tasks match `progress.md`; the Code
-   Map covers every changed file; every code-review round carries its
-   Document Sync (and Repo Skills) line.
-4. **Mermaid** — `python3 SKILL_PATH/scripts/mermaid_lint.py <file>...` on
-   every work-dir file with a ` ```mermaid ` block → `STATUS=PASS`.
-5. **Consistency** — `python3 SKILL_PATH/scripts/plan_lint.py <work-dir>` →
-   `STATUS=PASS` (run it last; a stale Evidence table is its most common
-   failure).
-
-Then:
-
-1. Update `analysis.md` if the approach, structure, or flow changed (in
-   place; the dated note goes in `progress.md`), the final `progress.md`
-   entry, `plan.md` tasks checked off and §Summary refreshed to the final
-   state, the Evidence table closed and `review.md` §Status Overview
-   refreshed.
-2. Push each code repo's branch (`git push -u origin HEAD`; skip repos
-   without git).
+1. Bring the documents to their final state: `analysis.md` updated in
+   place if the approach, structure, or flow changed (the dated note goes
+   in `progress.md`), the final `progress.md` entry, `plan.md` tasks
+   checked off and §Summary refreshed to the final state, the Evidence
+   table closed, and `review.md` §Status Overview refreshed.
+2. Run the gates — all must pass; fix and re-run, never reason around one:
+   - **Review completion** — `review.md` has a code-review verdict
+     (`### Verdict` / `### 结论`) for every repo, and a cross-repo verdict for
+     multi-repo items. A plan-review verdict does not count — it predates the
+     code.
+   - **Success Criteria** — every criterion is `✅ Pass` with evidence,
+     `❌ Fail`, or waived with a documented reason. A criterion only a test
+     run can prove, with no verified run, is `⚠️ Skipped (no verified test run
+     in <repo>)` — never `✅`. A criterion changed during implementation syncs
+     its Evidence row in the same edit.
+   - **Documents match the code** — `analysis.md`'s approach, structure, flow,
+     and diagrams describe what was committed (contradicted sections are
+     rewritten, not annotated); `plan.md` tasks match `progress.md`; the Code
+     Map covers every changed file; every code-review round carries its
+     Document Sync (and Repo Skills) line.
+   - **Mermaid** — `python3 SKILL_PATH/scripts/mermaid_lint.py <file>...` on
+     every work-dir file with a ` ```mermaid ` block → `STATUS=PASS`.
+   - **Consistency** — `python3 SKILL_PATH/scripts/plan_lint.py <work-dir>` →
+     `STATUS=PASS` (run it last; a stale Evidence table is its most common
+     failure).
 3. Commit the docs repo.
-4. Report: with `github_repos=true`, the PR URL per repo; with `false`, the
+
+## Step 7 — Push, Pull Requests, Report
+
+1. Push each code repo's branch (`git push -u origin HEAD`; skip repos
+   without git).
+2. Pull requests — read the `Workspace:` line you announced (re-run
+   `check_workspace.py` once if it is not in the transcript).
+   - `github_repos=false` → output EXACTLY this line. Do not inspect
+     remotes, look for other platform CLIs, or build compare URLs:
+
+     ```
+     Step 7: PRs skipped (github_repos=false — non-GitHub remote, PR creation is the user's responsibility)
+     ```
+
+   - `github_repos=true` → read `references/pr-creation.md` and follow it.
+3. Report: with `github_repos=true`, the PR URL per repo; with `false`, the
    pushed branch per repo and "PR creation is your responsibility". Note
    any `tests: unknown` gap and offer to add the test command to that
    repo's `AGENTS.md` (never edit a repo document without approval).
-5. Remind: "Tell me 'archive it' when you're ready (fullstack-archive)."
+4. Remind: "Tell me 'archive it' when you're ready (fullstack-archive)."
 
 ## Step 8 — Lessons Learned (optional)
 
@@ -416,8 +341,9 @@ hard-won design rationale, or a corrected recurring mistake: read
 
 ## Error Handling
 
-- Test failures → 4c; non-obvious failures → debugger first, never "try and
-  see".
+- Test failures → fix them yourself (lean) or a fresh developer on a fix
+  brief (full: `references/full-tier.md` 4c); non-obvious failures →
+  debugger first, never "try and see".
 - Environment setup fails → follow the repo README; if still failing, note
   it in `progress.md` and ask.
 - Contract mismatch → fix upstream first, re-validate downstream (wave

@@ -56,5 +56,5 @@ new directory — do not guess a location the team then has to relocate.
 - **If you deliberately skipped**, record nothing. The absence is the
   correct, intentional outcome and needs no justification entry.
 
-Commit the docs repo (with any captured insight) in the same Step 7
-finalization commit.
+Commit the docs repo with the captured insight (a docs commit of its
+own, after the Step 6 finalization commit).

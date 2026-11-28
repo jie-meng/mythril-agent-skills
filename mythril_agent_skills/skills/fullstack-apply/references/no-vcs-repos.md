@@ -7,7 +7,7 @@ cannot support branches, staging, commits, or diffs. Handle it as
 follows for the WHOLE run — do not improvise per step:
 
 - Skip branch creation (this step), staging (`git add .`), commit
-  (4e), PR creation (Step 6), and branch push (Step 7). The repo
+  (4e), and branch push and PR creation (Step 7). The repo
   still gets its developer → review loop and its wave position.
 - The developer cannot stage, so it MUST return the exact list of
   every file it created or modified, each with a path relative to the

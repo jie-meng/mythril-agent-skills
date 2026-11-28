@@ -82,7 +82,9 @@ meets the conditions above — never folded silently into the first one.
 5. **Commit** — the repo's convention. The commit body is the record:
    symptom, root cause (with the evidence anchor), what changed, how it
    was verified.
-6. **Ship** — `github_repos=true` → `references/pr-creation.md`. Deploy
+6. **Ship** — `github_repos=true` → `references/pr-creation.md` (skip
+   its `progress.md` table — a quick fix has no work directory; the PR
+   URL goes in the report). Deploy
    only when the user asks and a repo skill defines how.
 7. **Issue** — if an active issue under `<docs-dir>/issues/` describes
    this bug, close it with `fullstack-issue-archive` as `resolved`,

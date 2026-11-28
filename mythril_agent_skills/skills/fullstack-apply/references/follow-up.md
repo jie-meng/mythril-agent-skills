@@ -28,8 +28,10 @@ directory:
      `SKILL.md` Step 4: you edit the code yourself, one independent
      code-reviewer pass, at most one confirmation.
    - **Several repos, or a frozen contract changes** → re-run
-     `compute_waves.py` on the affected repos and run the wave loop
-     (Steps 4a–4e), then the cross-repo review.
+     `compute_waves.py` on the work dir (it layers every repo in the
+     table; run only the affected repos, in that wave order) and run the
+     wave loop (`references/full-tier.md`, then 4e), then the cross-repo
+     review.
 
    **A follow-up never re-runs the plan review.** The code review of the
    fix is the check. When the user adds a requirement mid-implementation
