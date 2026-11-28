@@ -23,6 +23,7 @@ that holds your journeys.
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import re
 import shutil
@@ -121,7 +122,10 @@ def build_initial_journey(
         raise ValueError(
             f"device_kind must be one of {sorted(VALID_DEVICE_KINDS)}, got {device_kind!r}"
         )
-    persona_slug = slugify(persona_name) or "primary-user"
+    # slugify() keeps ASCII only and returns "untitled" for e.g. a CJK name.
+    persona_slug = slugify(persona_name)
+    if persona_slug == "untitled":
+        persona_slug = "primary-user"
     labels, summaries, step_labels = _seed_stage_strings(language)
     today = datetime.now().strftime("%Y-%m-%d")
     fallback_stage_ids = ["discover", "try", "habit"]
@@ -639,6 +643,25 @@ def build_mermaid(journey: dict) -> str:
     return "\n".join(nodes + edges)
 
 
+def serialize_inline_json(obj: dict) -> str:
+    """Serialize JSON for an inline `<script type="application/json">` block.
+
+    `</` and `<!--` are escaped (as `<\\/` and `<\\u0021--`, both valid JSON
+    escapes) so a label such as "</script>" cannot end the script element
+    early or flip the HTML parser into a comment state. JSON.parse returns
+    the original strings. sync_index_html.py uses this same function so the
+    inline copy stays byte-identical across init and sync.
+    """
+    text = json.dumps(obj, indent=2, ensure_ascii=False)
+    return text.replace("</", "<\\/").replace("<!--", "<\\u0021--")
+
+
+_HTML_TEXT_TOKENS = (
+    "{{TITLE}}", "{{SUBTITLE}}", "{{LANG}}", "{{PERSONA_NAME}}",
+    "{{PERSONA_SLUG}}", "{{PERSONA_ROLE}}", "{{FIRST_STAGE_LABEL}}",
+)
+
+
 def render_template(
     template: str,
     *,
@@ -653,8 +676,14 @@ def render_template(
     date: str,
     journey_json: str,
     design_tokens_json: str,
+    escape_html: bool = False,
 ) -> str:
-    """Substitute the {{TOKEN}} placeholders in a template string."""
+    """Substitute the {{TOKEN}} placeholders in a template string.
+
+    With `escape_html=True` (index.html), user-provided text tokens are
+    HTML-escaped; the JSON tokens are inserted as-is (already made
+    script-safe by serialize_inline_json).
+    """
     mapping = {
         "{{TITLE}}": title,
         "{{SUBTITLE}}": subtitle,
@@ -668,6 +697,9 @@ def render_template(
         "{{JOURNEY_JSON}}": journey_json,
         "{{DESIGN_TOKENS_JSON}}": design_tokens_json,
     }
+    if escape_html:
+        for token in _HTML_TEXT_TOKENS:
+            mapping[token] = html.escape(mapping[token], quote=True)
     out = template
     for k, v in mapping.items():
         out = out.replace(k, v)
@@ -815,8 +847,8 @@ def run(args: argparse.Namespace) -> int:
     mermaid_body = build_mermaid(journey)
     first_stage_label = journey["stages"][0]["label"] if journey["stages"] else ""
 
-    journey_json_inline = json.dumps(journey, indent=2, ensure_ascii=False)
-    design_tokens_inline = json.dumps(design_tokens, indent=2, ensure_ascii=False)
+    journey_json_inline = serialize_inline_json(journey)
+    design_tokens_inline = serialize_inline_json(design_tokens)
 
     journey_md_tpl = (WORKSPACE_TPL / "JOURNEY.md").read_text(encoding="utf-8")
     index_html_tpl = (WORKSPACE_TPL / "index.html").read_text(encoding="utf-8")
@@ -837,7 +869,7 @@ def run(args: argparse.Namespace) -> int:
         design_tokens_json=design_tokens_inline,
     )
     journey_md_text = render_template(journey_md_tpl, **common_kwargs)
-    index_html_text = render_template(index_html_tpl, **common_kwargs)
+    index_html_text = render_template(index_html_tpl, **common_kwargs, escape_html=True)
     readme_text = render_template(readme_tpl, **common_kwargs)
 
     if args.dry_run:
