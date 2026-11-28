@@ -24,7 +24,8 @@ Output (machine-readable key=value lines):
 
 Exit codes:
     0 — workspace is valid
-    1 — workspace is invalid (one or more markers missing OR config corrupt)
+    1 — workspace is invalid (one or more markers missing, config corrupt,
+        or docs_dir unset / not a directory)
     2 — invalid arguments
 """
 
@@ -63,9 +64,14 @@ def check_workspace(root: Path) -> dict[str, str]:
             if "fullstack.json" not in missing:
                 missing.append("fullstack.json (corrupt)")
 
+    # Every fullstack skill locates work directories and issues under the
+    # docs directory, so a config without one would send later steps to
+    # `changes/` at the workspace root. fullstack-init always writes it.
+    if config_found and not docs_dir and "fullstack.json (corrupt)" not in missing:
+        missing.append("docs_dir (not set in fullstack.json — re-run fullstack-init)")
     # A configured docs directory that is gone (moved, renamed, never
     # cloned) would send every later step to a path that does not exist.
-    if docs_dir and not (root / docs_dir).is_dir():
+    elif docs_dir and not (root / docs_dir).is_dir():
         missing.append(f"{docs_dir}/ (docs_dir from fullstack.json)")
 
     return {

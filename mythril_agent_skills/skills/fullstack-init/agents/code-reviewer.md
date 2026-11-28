@@ -184,7 +184,7 @@ heading) and adds Commits, Repo Skills, and Document Sync itself.
 
 | Success Criterion | Result | Evidence |
 |-------------------|--------|----------|
-| <criterion> | ✅ Pass / ❌ Fail / ⚠️ Skipped | <test name and result, file:line, or why it could not be proven> |
+| SC<n> | ✅ Pass / ❌ Fail / ⚠️ Skipped | <test name and result, file:line, or why it could not be proven> |
 
 ### Cross-repo checks (cross-repo mode only)
 

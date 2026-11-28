@@ -249,8 +249,10 @@ These bind whoever writes. The templates hold the exact shapes.
   §Follow-up as candidates unless a `REQ` asks for them; list the larger
   option in the strategy table with why it was not chosen. Every extra
   mechanism adds risks, tests, and review findings of its own.
-- **Testable Success Criteria.** "Works correctly" is not one; "returns 200
-  with JSON matching schema X for inputs A, B, C" is.
+- **Testable Success Criteria, with ids.** "Works correctly" is not one;
+  "returns 200 with JSON matching schema X for inputs A, B, C" is. Each
+  criterion carries an `SC<n>` id and each task a `T<n>` id (no hyphen) —
+  `plan_lint` matches Evidence rows and task references by id.
 - **Mechanisms verified, not just cited.** Every existing endpoint, field,
   permission path, or hook the design relies on is confirmed to behave as
   assumed (read the code that decides it). Line numbers only where a
@@ -317,10 +319,19 @@ subagent with the agent file as its brief; if even that is impossible,
 review it yourself and **label it a self-review in `review.md`**.
 
 **Depth.** Lean: 1 pass; on `NEEDS_FIXES`, fix, re-run the mechanical
-gates (not a round), then one confirmation pass; still not converged →
-record residual P1/P2 as known risks and close `PASS_WITH_RISKS` (an open
-P0 moves the item to the full loop). Full: pass → revise → re-review, at
-most 3 passes. Do not skip the gate because the plan "looks fine".
+gates (not a round), then one confirmation pass. Full: pass → revise →
+re-review, at most 3 passes. Do not skip the gate because the plan "looks
+fine".
+
+**A loop that stops without converging** — the lean confirmation pass
+still returns `NEEDS_FIXES`, the full loop reaches its cap, or the rounds
+oscillate — ends with a **Plan Review Closure** record appended after the
+last round (`template-review.<lang>.md`): every open P1/P2 becomes an
+`R<n>` row in `plan.md` §Risks, and the record closes `PASS_WITH_RISKS`.
+Never rewrite the reviewer's verdict. An open P0 never closes this way:
+at lean it moves the item to the full loop; at the full cap it is
+reported as blocking, like `NEEDS_USER_DECISION`. `plan_lint` checks the
+record.
 
 **Verdicts.** Append each round to `review.md` as
 `## Plan Review — Round <N> — <date>` / `## 方案审查 — 第 <N> 轮 — <date>`
@@ -350,7 +361,8 @@ Non-negotiable in every round:
   Overview updated in place. Then re-run the affected mechanical gates.
 
 **Exit criteria — all must hold before reporting the plan as ready:**
-verdict `PASS` / `PASS_WITH_RISKS` with no open P0/P1; §Original
+the last round's verdict `PASS` / `PASS_WITH_RISKS` with no open P0/P1, or
+a Plan Review Closure with no open P0; §Original
 Requirements has one verbatim `REQ<n>` per ask; every plan-shaping
 decision is answered, `A<n>` with a reversal condition, or escalated; every
 requirement maps to ≥1 Success Criterion and every criterion to ≥1 task;
@@ -411,7 +423,8 @@ On `NEEDS_USER_DECISION`, replace `Next:` with a request for the decisions
   and the Code Map. A qualifying quick fix is not a work item — route it to
   `fullstack-apply`.
 - Every plan passes the Plan Review Gate; never report it ready with an
-  open P0/P1, an unanswered `NEEDS_USER_DECISION`, or a failing gate.
+  open P0, an open P1 outside a Plan Review Closure, an unanswered
+  `NEEDS_USER_DECISION`, or a failing gate.
 - Never weaken a plan to reach `PASS`.
 - Multi-repo plans freeze cross-repo contracts and pass the DAG gate.
 - Deep mode's output IS the work directory — no separate spike directory.

@@ -82,10 +82,16 @@ class TestContextBudgetRules:
     """Round 4 rules that keep agent contexts short; pinned against drift."""
 
     def test_apply_sends_fix_rounds_to_a_fresh_developer(self):
-        text = _read("fullstack-apply/SKILL.md")
+        text = _read("fullstack-apply/references/full-tier.md")
         assert "fix rounds go to a fresh developer" in text
         assert "one developer per phase" in text
         assert "back to that repo's developer" not in text
+        assert "fix rounds go to\na fresh developer" in _read(
+            "fullstack-apply/SKILL.md"
+        )
+
+    def test_apply_skill_points_at_the_full_tier_reference(self):
+        assert "references/full-tier.md" in _read("fullstack-apply/SKILL.md")
 
     def test_developer_reads_its_brief_and_uses_real_paths(self):
         text = _read("fullstack-init/agents/developer.md")
@@ -102,3 +108,24 @@ class TestContextBudgetRules:
         text = _read(f"fullstack-propose/references/template-analysis.{lang}.md")
         assert "## risks & mitigations" not in text
         assert "## 风险与应对" not in text
+
+
+class TestApplyFinalizeOrder:
+    """Nothing leaves the machine — push or PR — before the finalize gates."""
+
+    def test_finalize_gates_precede_pull_requests(self):
+        text = _read("fullstack-apply/SKILL.md")
+        gates = text.index("## step 6 — finalize the documents")
+        prs = text.index("## step 7 — push, pull requests, report")
+        assert gates < prs
+        assert "plan_lint.py" in text[gates:prs]
+        assert "pr-creation.md" in text[prs:]
+        assert "pr-creation.md" not in text[gates:prs]
+
+    def test_generic_fix_triggers_are_scoped_to_a_workspace(self):
+        text = _read("fullstack-apply/SKILL.md")
+        description = text.split("---")[1]
+        assert "inside a fullstack" in description
+        assert description.index("inside a fullstack") < description.index(
+            "fix this"
+        )

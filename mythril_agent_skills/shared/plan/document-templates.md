@@ -162,7 +162,7 @@ write a `**Status**:` field in `plan.md`.
 
 **In plain words**: <what will be different once this ships — one line a non-engineer can read, no ids; include the biggest remaining risk when there is one>
 
-**Status**: <planning | ready to implement | in progress | done> — <one-line latest verdict>
+**Status**: <planning | ready to implement | in progress | done> — <lean | full> tier — <one-line latest verdict, e.g. plan review round 2 PASS>
 
 **Decisions needed from you**: <none; or one line each: question → options → our recommendation>
 
@@ -178,10 +178,14 @@ write a `**Status**:` field in `plan.md`.
 
 <Testable, specific acceptance criteria — "Works correctly" is not a
 criterion; "returns 200 with valid JSON matching schema X for inputs A,
-B, C" is. Each criterion is checked against evidence in review.md.>
+B, C" is. Each criterion is checked against evidence in review.md.
+Every criterion carries an `SC<n>` id — no hyphen, numbered per work
+item, never reused. The Evidence table and the coverage matrix cite the
+id, and `plan_lint.py` matches Evidence rows to criteria by it.>
 
-- [ ] Criterion 1: <observable behavior + expected outcome>
-- [ ] Criterion 2: <...>
+- [ ] **SC1** — <observable behavior + expected outcome>
+- [ ] **SC2** — <...>
+- [ ] **SC3** — <...>
 
 ## Affected Repositories (in dependency order)
 
@@ -238,12 +242,15 @@ Rules:
 
 ## Implementation Plan
 
+<Every task carries a `T<n>` id, numbered across phases and never
+reused; review rounds and the coverage matrix cite it.>
+
 ### Phase 1: <name>
-- [ ] Task 1 in repo-x
-- [ ] Task 2 in repo-y
+- [ ] **T1** (repo-x) — <task>
+- [ ] **T2** (repo-y) — <task>
 
 ### Phase 2: <name>
-- [ ] Task 3 in repo-x
+- [ ] **T3** (repo-x) — <task>
 
 ## Dependencies
 
@@ -286,7 +293,7 @@ live exposure readable at a glance.)
 
 **大白话**：<上线之后哪里会变得不一样——一行给不写代码的人看的话，不引用编号；有残留风险就带一句最大的风险。>
 
-**状态**：<规划中 | 审查通过待实施 | 实施中 | 已完成>——<一行最新结论>
+**状态**：<规划中 | 审查通过待实施 | 实施中 | 已完成>——<lean | full> 档——<一行最新结论，如：方案审查第 2 轮 PASS>
 
 **需要你决策的事**：<无；或每条一行：问题 → 选项 → 我们的推荐>
 
@@ -301,10 +308,13 @@ live exposure readable at a glance.)
 ## 成功标准
 
 <可测试、具体的验收标准 —— "能正常工作" 不算标准；"对输入 A、B、C
-返回符合 schema X 的 200 响应" 才算。每条标准在 review.md 中对照证据核验。>
+返回符合 schema X 的 200 响应" 才算。每条标准在 review.md 中对照证据核验。
+每条标准带一个 `SC<n>` 编号——不加连字符，工作项内顺序编号、不复用。证据
+核验表与需求覆盖矩阵引用这个编号，`plan_lint.py` 也按编号把证据行对上标准。>
 
-- [ ] 标准 1：<可观察行为 + 预期结果>
-- [ ] 标准 2：<...>
+- [ ] **SC1** — <可观察行为 + 预期结果>
+- [ ] **SC2** — <...>
+- [ ] **SC3** — <...>
 
 ## 涉及仓库（按依赖顺序）
 
@@ -350,12 +360,15 @@ fullstack-apply 在每一轮把预测路径换成实际改动路径。后来的�
 
 ## 实现计划
 
+<每个任务带一个 `T<n>` 编号，跨阶段顺序编号、不复用；审查轮次与需求覆盖
+矩阵引用这个编号。>
+
 ### 阶段一：<名称>
-- [ ] repo-x 中的任务 1
-- [ ] repo-y 中的任务 2
+- [ ] **T1**（repo-x）— <任务>
+- [ ] **T2**（repo-y）— <任务>
 
 ### 阶段二：<名称>
-- [ ] repo-x 中的任务 3
+- [ ] **T3**（repo-x）— <任务>
 
 ## 依赖关系
 
@@ -545,6 +558,9 @@ plan-reviewer falsifies coverage against, and a paraphrase here is what
 lets a narrowing pass as a documented limitation. One `REQ<n>` id per
 ask; `plan.md` and `review.md` cite the ids.
 
+- **REQ1** "<exact words>" — <source: user prompt / PROJ-123 / page>
+- **REQ2** "<exact words>" — <source>
+
 ### Clarifications
 
 Question/answer record from the Step 3.5 requirements interrogation — one
@@ -659,6 +675,9 @@ flowchart LR
 这一节是方案审查判定"需求有没有被遗漏或收窄"的唯一基线：转述会把收窄藏成
 一条"已记录的边界"。每条诉求一个 `REQ<n>` 编号，plan.md 与 review.md 都
 引用编号（`R<n>` 留给风险表）。
+
+- **REQ1** 「<原话>」——<来源：用户消息 / PROJ-123 / 页面>
+- **REQ2** 「<原话>」——<来源>
 
 ### 澄清记录
 
@@ -1032,16 +1051,16 @@ code review, closed at finalization) → plan review rounds
 ## Evidence
 
 Seeded by fullstack-propose with one row per Success Criterion from
-plan.md (all `待核验` / `Pending`); each repo's code review fills its
+plan.md, keyed by its `SC<n>` id (all `待核验` / `Pending`); each repo's code review fills its
 rows, finalization closes the rest. A
 criterion without a row here is a criterion nobody verified —
 `plan_lint.py` fails the handoff and the finalization gate on it.
 
 | Success Criterion | Result | Evidence |
 |-------------------|--------|----------|
-| Criterion 1 | ✅ Pass | <test result / PR link / screenshot> |
-| Criterion 2 | ❌ Fail | <what disproved it> |
-| Criterion 3 | ⚠️ Skipped | <tests not run — no harness or no documented run command> |
+| SC1 | ✅ Pass | <test result / PR link / screenshot> |
+| SC2 | ❌ Fail | <what disproved it> |
+| SC3 | ⚠️ Skipped | <tests not run — no harness or no documented run command> |
 ```
 
 <!-- /lang -->
@@ -1068,15 +1087,15 @@ criterion without a row here is a criterion nobody verified —
 
 ## 证据核验
 
-由 fullstack-propose 预填：plan.md 中每条成功标准一行（全部标 `待核验`），
+由 fullstack-propose 预填：plan.md 中每条成功标准一行，首列写它的 `SC<n>` 编号（全部标 `待核验`），
 各仓库代码审查时填写对应证据，收尾阶段补齐其余。这里没有行的成功标准就是没人核验的标准——
 `plan_lint.py` 会在交付门与收尾门上报错。
 
 | 成功标准 | 结果 | 证据 |
 |---------|------|------|
-| 标准 1 | ✅ 通过 | <测试结果 / PR 链接 / 截图> |
-| 标准 2 | ❌ 未通过 | <反证依据> |
-| 标准 3 | ⚠️ 跳过 | <测试未运行 — 无框架或无已记录的运行命令> |
+| SC1 | ✅ 通过 | <测试结果 / PR 链接 / 截图> |
+| SC2 | ❌ 未通过 | <反证依据> |
+| SC3 | ⚠️ 跳过 | <测试未运行 — 无框架或无已记录的运行命令> |
 ```
 
 The per-round review section format and cross-repo review format are
@@ -1114,9 +1133,9 @@ when a REQ cited here was never declared. Use the ids, not a paraphrase:
 
 | Requirement | Covered by criterion | Delivered by task | Status |
 |-------------|---------------------|-------------------|--------|
-| REQ1 | SC-1 | Phase 1, task 2 | OK |
+| REQ1 | SC1 | T2 | OK |
 | REQ2 | — | — | **DROPPED** |
-| REQ3 | SC-2 | Phase 1, task 3 | **NARROWED** — <what was dropped, and who is asked about it> |
+| REQ3 | SC2 | T3 | **NARROWED** — <what was dropped, and who is asked about it> |
 
 ### Findings
 
@@ -1147,8 +1166,7 @@ is not copied here — every later agent re-reads this file.>
 Verdict meanings: `PASS` (implementable as written), `PASS_WITH_RISKS`
 (no open P0/P1, risks listed), `NEEDS_FIXES` (P0/P1 the planner can
 resolve alone), `NEEDS_USER_DECISION` (blocking item only a human can
-choose). `FAIL` and `BLOCKED` are code-review verdicts and do not apply
-to a plan.
+choose). `FAIL` is a code-review verdict and does not apply to a plan.
 
 When the planner rejects a finding, the orchestrator records the
 rejection in the same round:
@@ -1159,6 +1177,27 @@ rejection in the same round:
 
 A finding dropped during revision without a `Rejected:` line is
 treated as a new P0 in the next round.
+
+**Closing a loop that did not converge.** When the loop stops on a
+`NEEDS_FIXES` round — the lean confirmation pass still finds issues, the
+full loop reached its 3-pass cap, or the rounds oscillate — the
+orchestrator appends a closure record right after that round instead of
+rewriting the reviewer's verdict. Every open P1/P2 first becomes an
+`R<n>` row in `plan.md` §Risks. An open P0 is never closed this way: fix
+it and re-review, or escalate it as `NEEDS_USER_DECISION`. `plan_lint.py`
+accepts a `NEEDS_FIXES` last round only when this record follows it.
+
+```markdown
+## Plan Review Closure — <date>
+
+**Why**: <lean confirmation pass not converged | loop cap reached (3 passes) | oscillation>
+
+**Residual**: <R3, R4> — <one line each: the open finding, now a risk in plan.md>
+
+### Verdict
+
+PASS_WITH_RISKS — closed by the orchestrator; the residual risks above stay open
+```
 
 <!-- /lang -->
 
@@ -1182,9 +1221,9 @@ treated as a new P0 in the next round.
 
 | 需求 | 对应成功标准 | 对应任务 | 状态 |
 |------|------------|---------|------|
-| REQ1 | 标准 1 | 阶段一 / 任务 2 | 覆盖 |
+| REQ1 | SC1 | T2 | 覆盖 |
 | REQ2 | — | — | **遗漏** |
-| REQ3 | 标准 2 | 阶段一 / 任务 3 | **收窄** — <砍掉了什么，以及由谁裁定> |
+| REQ3 | SC2 | T3 | **收窄** — <砍掉了什么，以及由谁裁定> |
 
 ### 问题清单
 
@@ -1213,8 +1252,8 @@ treated as a new P0 in the next round.
 
 结论含义：`PASS`（可直接实施）、`PASS_WITH_RISKS`（无未决 P0/P1，风险
 已列明）、`NEEDS_FIXES`（planner 可自行修复的 P0/P1）、
-`NEEDS_USER_DECISION`（阻塞项只能由人决定）。`FAIL` / `BLOCKED` 属于
-代码审查结论，不适用于方案。
+`NEEDS_USER_DECISION`（阻塞项只能由人决定）。`FAIL` 属于代码审查结论，
+不适用于方案。
 
 planner 拒绝某条问题时，orchestrator 在同一轮记录：
 
@@ -1223,6 +1262,25 @@ planner 拒绝某条问题时，orchestrator 在同一轮记录：
 ```
 
 未经 `已拒绝` 标注即在修订中消失的问题，在下一轮按新的 P0 处理。
+
+**未收敛时如何收口。** 循环停在一个 `NEEDS_FIXES` 轮次上时——lean 档确认轮
+仍有问题、full 档到了 3 轮上限、或轮次来回震荡——orchestrator 在该轮之后
+追加一段收口记录，而不是改写审查代理给出的结论。先把每条未解决的 P1/P2
+写成 `plan.md` §风险 中的一行 `R<n>`。未解决的 P0 永远不能这样收口：修掉
+再审，或升级为 `NEEDS_USER_DECISION`。只有后面跟着这段记录时，
+`plan_lint.py` 才接受最后一轮是 `NEEDS_FIXES`。
+
+```markdown
+## 方案审查收口 — <date>
+
+**原因**：<lean 确认轮未收敛 | 达到循环上限（3 轮）| 轮次震荡>
+
+**残留**：<R3、R4> — <每条一行：未解决的问题，已记为 plan.md 中的风险>
+
+### 结论
+
+PASS_WITH_RISKS — 由 orchestrator 收口；上述残留风险继续跟踪
+```
 
 <!-- /lang -->
 

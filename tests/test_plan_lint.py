@@ -799,9 +799,24 @@ class TestMatchCodeMapRow:
         assert match_code_map_row("src/preferences/dark_mode.py", self.row) == 3
         assert match_code_map_row("api/src/preferences/dark_mode.py", self.row) == 3
 
-    def test_trailing_segment_and_basename_score_2(self):
+    def test_trailing_segment_scores_2(self):
         assert match_code_map_row("preferences/dark_mode.py", self.row) == 2
-        assert match_code_map_row("dark_mode.py", self.row) == 2
+
+    def test_bare_file_name_is_only_a_candidate(self):
+        """`index.ts` exists in every repo; naming it does not say which."""
+        assert match_code_map_row("dark_mode.py", self.row) == 1
+
+    def test_path_containing_a_symbol_token_is_not_an_owner(self):
+        row = {
+            "repository": "api",
+            "path": "src/index.ts",
+            "symbols": "config",
+            "change": "x",
+        }
+        assert match_code_map_row("web/lib/config.js", row) == 0
+
+    def test_path_shaped_symbol_matches_when_spelled_whole(self):
+        assert match_code_map_row("GET /pref", self.row) == 2
 
     def test_symbol_scores_2(self):
         assert match_code_map_row("ThemePreference", self.row) == 2
@@ -1239,10 +1254,13 @@ class TestTaskRefsInPlan:
         )
         assert _errors(findings) == []
 
-    def test_plan_without_task_ids_is_silent(self, tmp_path: Path):
+    def test_plan_without_task_ids_only_warns(self, tmp_path: Path):
+        """Check 11 has nothing to resolve; check 16 asks for T<n> ids."""
         findings = lint_work_dir(_work_dir(tmp_path, PLAN_NO_TASK_IDS, REVIEW_OK))
         assert _errors(findings) == []
-        assert not any("task list" in m for m in _warnings(findings))
+        unnumbered = [m for m in _warnings(findings) if "T<n> id" in m]
+        assert len(unnumbered) == 1
+        assert "任务 1" in unnumbered[0]
 
 
 # ---------------------------------------------------------------------------
@@ -1447,3 +1465,263 @@ class TestLoopCap:
         assert any(
             "one loop" in m and "cap 3" in m for m in _warnings(findings)
         )
+
+
+# ---------------------------------------------------------------------------
+# Checks 15–16 — criteria and tasks carry ids
+# ---------------------------------------------------------------------------
+
+PLAN_UNLABELLED_CRITERIA = PLAN_OK.replace(
+    "- [ ] SC1 works\n- [ ] SC2 also works\n",
+    "- [ ] 标准 1：works\n- [ ] 标准 2：also works\n",
+)
+
+PLAN_ONE_UNLABELLED_CRITERION = PLAN_OK.replace(
+    "- [ ] SC2 also works\n",
+    "- [ ] SC2 also works\n  - sub-point without an id is fine\n"
+    "- [ ] a third criterion nobody numbered\n",
+)
+
+
+class TestCriterionIds:
+    def test_unlabelled_criteria_are_an_error(self, tmp_path: Path):
+        """Without ids, check 1 cannot see criteria and goes silent."""
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_UNLABELLED_CRITERIA, REVIEW_OK)
+        )
+        errors = [m for m in _errors(findings) if "SC<n> id" in m]
+        assert len(errors) == 1
+        assert errors[0].startswith("2 Success Criteria")
+
+    def test_one_unlabelled_criterion_among_labelled_ones(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_ONE_UNLABELLED_CRITERION, REVIEW_OK)
+        )
+        errors = [m for m in _errors(findings) if "SC<n> id" in m]
+        assert len(errors) == 1
+        assert "a third criterion" in errors[0]
+        assert "sub-point" not in errors[0]
+
+    def test_labelled_criteria_are_silent(self, tmp_path: Path):
+        findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, REVIEW_OK))
+        assert not [m for m in _errors(findings) if "SC<n> id" in m]
+        assert not [m for m in _warnings(findings) if "T<n> id" in m]
+
+    def test_hyphenated_id_is_not_an_id(self, tmp_path: Path):
+        """`SC-1` is not matched by the Evidence check, so it must not pass."""
+        plan = PLAN_OK.replace("- [ ] SC1 works", "- [ ] SC-1 works")
+        findings = lint_work_dir(_work_dir(tmp_path, plan, REVIEW_OK))
+        assert [m for m in _errors(findings) if "SC<n> id" in m]
+
+
+# ---------------------------------------------------------------------------
+# Check 2 — a loop that stopped without converging closes with a record
+# ---------------------------------------------------------------------------
+
+PLAN_WITH_RISK = PLAN_OK + """
+## 风险 / 待确认问题
+
+| # | 风险 | 可能性 | 影响 | 应对 |
+|---|------|--------|------|------|
+| R1 | 主题缓存可能过期 | 中 | 低 | 监控 |
+"""
+
+REVIEW_UNCONVERGED = REVIEW_OK + """
+## 方案审查 — 第 2 轮 — 2026-09-22
+
+### 问题清单
+
+- [P1] plan.md §成功标准 — SC2 的阈值没写 — 影响：返工 — 建议：写上
+
+### 结论
+
+NEEDS_FIXES — one P1 remains.
+"""
+
+CLOSURE = """
+## 方案审查收口 — 2026-09-22
+
+**原因**：lean 确认轮未收敛
+
+**残留**：R1 — SC2 阈值未定，已记为风险
+
+### 结论
+
+PASS_WITH_RISKS — 由 orchestrator 收口
+"""
+
+
+class TestPlanReviewClosure:
+    def _lint(self, tmp_path: Path, review: str, plan: str = PLAN_WITH_RISK):
+        return lint_work_dir(_work_dir(tmp_path, plan, review))
+
+    def test_unconverged_round_without_closure_fails(self, tmp_path: Path):
+        errors = _errors(self._lint(tmp_path, REVIEW_UNCONVERGED))
+        assert any("plan review is not closed" in m for m in errors)
+
+    def test_closure_record_closes_the_loop(self, tmp_path: Path):
+        findings = self._lint(tmp_path, REVIEW_UNCONVERGED + CLOSURE)
+        assert _errors(findings) == []
+
+    def test_closure_is_not_a_round(self, tmp_path: Path):
+        rounds = parse_plan_review_rounds(REVIEW_UNCONVERGED + CLOSURE)
+        assert [r.number for r in rounds] == [1, 2]
+
+    def test_english_closure_heading_is_not_a_round(self, tmp_path: Path):
+        text = REVIEW_UNCONVERGED + CLOSURE.replace(
+            "## 方案审查收口", "## Plan Review Closure"
+        )
+        assert [r.number for r in parse_plan_review_rounds(text)] == [1, 2]
+        assert _errors(self._lint(tmp_path, text)) == []
+
+    def test_closure_cannot_claim_pass(self, tmp_path: Path):
+        review = REVIEW_UNCONVERGED + CLOSURE.replace(
+            "PASS_WITH_RISKS — 由", "PASS — 由"
+        )
+        errors = _errors(self._lint(tmp_path, review))
+        assert any("must close as PASS_WITH_RISKS" in m for m in errors)
+
+    def test_closure_needs_residual_risk_ids(self, tmp_path: Path):
+        review = REVIEW_UNCONVERGED + CLOSURE.replace(
+            "**残留**：R1 — SC2 阈值未定，已记为风险", "**残留**：见上"
+        )
+        errors = _errors(self._lint(tmp_path, review))
+        assert any("Residual" in m for m in errors)
+
+    def test_residual_must_exist_in_plan(self, tmp_path: Path):
+        review = REVIEW_UNCONVERGED + CLOSURE.replace("**残留**：R1", "**残留**：R7")
+        errors = _errors(self._lint(tmp_path, review))
+        assert any("does not declare: R7" in m for m in errors)
+
+    def test_open_p0_never_closes(self, tmp_path: Path):
+        review = REVIEW_UNCONVERGED.replace("- [P1]", "- [P0]") + CLOSURE
+        errors = _errors(self._lint(tmp_path, review))
+        assert any("open P0" in m for m in errors)
+
+    def test_rejected_p0_does_not_block_closure(self, tmp_path: Path):
+        review = (
+            REVIEW_UNCONVERGED.replace(
+                "- [P1] plan.md §成功标准 — SC2 的阈值没写 — 影响：返工 — 建议：写上",
+                "- [P0] 误报 — **已拒绝**：接口已存在\n"
+                "- [P1] plan.md §成功标准 — SC2 的阈值没写",
+            )
+            + CLOSURE
+        )
+        assert _errors(self._lint(tmp_path, review)) == []
+
+    def test_closure_before_a_later_round_does_not_count(self, tmp_path: Path):
+        review = (
+            REVIEW_UNCONVERGED
+            + CLOSURE
+            + REVIEW_UNCONVERGED.split("\n## 方案审查 — 第 2 轮")[1]
+            .join(["\n## 方案审查 — 第 3 轮", ""])
+        )
+        errors = _errors(self._lint(tmp_path, review))
+        assert any("plan review is not closed" in m for m in errors)
+
+    def test_closure_does_not_rescue_needs_user_decision(self, tmp_path: Path):
+        review = REVIEW_UNCONVERGED.replace(
+            "NEEDS_FIXES — one P1", "NEEDS_USER_DECISION — one P1"
+        ) + CLOSURE
+        errors = _errors(self._lint(tmp_path, review))
+        assert any("plan review is not closed" in m for m in errors)
+
+    def test_summary_names_the_closure_verdict(self, tmp_path: Path):
+        plan = PLAN_WITH_RISK.replace(
+            "**状态**：第 1 轮方案审查 PASS，规划完成。",
+            "**状态**：第 2 轮方案审查 PASS_WITH_RISKS（收口），规划完成。",
+        )
+        findings = self._lint(tmp_path, REVIEW_UNCONVERGED + CLOSURE, plan)
+        assert not [m for m in _warnings(findings) if "newest plan-review" in m]
+
+
+# ---------------------------------------------------------------------------
+# Check 6 — a follow-up requirement is covered by its code-review round
+# ---------------------------------------------------------------------------
+
+ANALYSIS_FOLLOW_UP_REQ = ANALYSIS_REQS.replace(
+    "## 根因",
+    "- **REQ3**「夜里十点后别主动搭话」— Source: follow-up 2026-09-25\n\n## 根因",
+)
+
+CODE_ROUND_FOLLOW_UP = """
+## 代码审查 — api — 第 2 轮 — 2026-09-25
+
+### 结论
+
+PASS — 夜间静默已实现。
+
+### 文档同步
+
+**文档同步**：`analysis.md` —— 追加 REQ3；`plan.md` —— 新增 SC3；
+`progress.md` —— 新条目；`review.md` —— 本轮
+"""
+
+FOLLOW_UP_COVERAGE = """
+### 需求覆盖
+
+| 需求 | 对应成功标准 | 对应任务 | 状态 |
+|------|------------|---------|------|
+| REQ3 | SC3 | T1 | 覆盖 — ✅ |
+"""
+
+
+class TestFollowUpRequirementCoverage:
+    def _lint(self, tmp_path: Path, review: str):
+        plan = PLAN_OK.replace(
+            "- [ ] SC2 also works\n", "- [ ] SC2 also works\n- [ ] SC3 quiet hours\n"
+        )
+        review = review.replace("| SC2 | 待核验 | |", "| SC2 | 待核验 | |\n| SC3 | ✅ | t |")
+        return lint_work_dir(
+            _work_dir(tmp_path, plan, review, ANALYSIS_FOLLOW_UP_REQ)
+        )
+
+    def test_follow_up_req_without_coverage_fails(self, tmp_path: Path):
+        errors = _errors(self._lint(tmp_path, REVIEW_COV + CODE_ROUND_FOLLOW_UP))
+        assert any("REQ3" in m and "code-review round" in m for m in errors)
+
+    def test_code_review_round_coverage_counts(self, tmp_path: Path):
+        review = REVIEW_COV + CODE_ROUND_FOLLOW_UP + FOLLOW_UP_COVERAGE
+        assert _errors(self._lint(tmp_path, review)) == []
+        assert parse_coverage_rows(review) == {"REQ1", "REQ2", "REQ3"}
+
+    def test_prose_mention_in_code_round_is_not_coverage(self, tmp_path: Path):
+        """REQ3 named in the Document Sync line is not a matrix row."""
+        review = REVIEW_COV + CODE_ROUND_FOLLOW_UP
+        assert "REQ3" in review
+        assert parse_coverage_rows(review) == {"REQ1", "REQ2"}
+
+
+class TestFindFalseOwners:
+    """`--find` must not report ownership from a bare name or a symbol token."""
+
+    CODE_MAP_INDEX = """## 代码地图（Code Map）
+
+| 仓库 | 路径 | 符号 | 改了什么 |
+|---|---|---|---|
+| api | `src/index.ts` | `config` | 入口 |
+"""
+
+    def test_common_file_name_claims_no_owner(self, tmp_path: Path):
+        docs = _docs_dir_with(
+            tmp_path,
+            {
+                "feat/a": _plan_with(self.CODE_MAP_INDEX),
+                "feat/b": _plan_with(self.CODE_MAP_INDEX),
+            },
+        )
+        hits, weak, _ = find_in_docs_dir(docs, "index.ts")
+        assert hits == []
+        assert len(weak) == 2
+
+    def test_other_repo_file_with_symbol_token_claims_no_owner(
+        self, tmp_path: Path
+    ):
+        docs = _docs_dir_with(tmp_path, {"feat/a": _plan_with(self.CODE_MAP_INDEX)})
+        hits, weak, _ = find_in_docs_dir(docs, "web/lib/config.js")
+        assert hits == [] and weak == []
+
+    def test_full_path_still_finds_the_owner(self, tmp_path: Path):
+        docs = _docs_dir_with(tmp_path, {"feat/a": _plan_with(self.CODE_MAP_INDEX)})
+        hits, _, _ = find_in_docs_dir(docs, "api/src/index.ts")
+        assert len(hits) == 1

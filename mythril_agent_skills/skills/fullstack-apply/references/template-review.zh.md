@@ -22,15 +22,15 @@
 
 ## 证据核验
 
-由 fullstack-propose 预填：plan.md 中每条成功标准一行（全部标 `待核验`），
+由 fullstack-propose 预填：plan.md 中每条成功标准一行，首列写它的 `SC<n>` 编号（全部标 `待核验`），
 各仓库代码审查时填写对应证据，收尾阶段补齐其余。这里没有行的成功标准就是没人核验的标准——
 `plan_lint.py` 会在交付门与收尾门上报错。
 
 | 成功标准 | 结果 | 证据 |
 |---------|------|------|
-| 标准 1 | ✅ 通过 | <测试结果 / PR 链接 / 截图> |
-| 标准 2 | ❌ 未通过 | <反证依据> |
-| 标准 3 | ⚠️ 跳过 | <测试未运行 — 无框架或无已记录的运行命令> |
+| SC1 | ✅ 通过 | <测试结果 / PR 链接 / 截图> |
+| SC2 | ❌ 未通过 | <反证依据> |
+| SC3 | ⚠️ 跳过 | <测试未运行 — 无框架或无已记录的运行命令> |
 ```
 
 The per-round review section format and cross-repo review format are
@@ -65,9 +65,9 @@ orchestrator appends it. Section labels follow the work item's language.
 
 | 需求 | 对应成功标准 | 对应任务 | 状态 |
 |------|------------|---------|------|
-| REQ1 | 标准 1 | 阶段一 / 任务 2 | 覆盖 |
+| REQ1 | SC1 | T2 | 覆盖 |
 | REQ2 | — | — | **遗漏** |
-| REQ3 | 标准 2 | 阶段一 / 任务 3 | **收窄** — <砍掉了什么，以及由谁裁定> |
+| REQ3 | SC2 | T3 | **收窄** — <砍掉了什么，以及由谁裁定> |
 
 ### 问题清单
 
@@ -96,8 +96,8 @@ orchestrator appends it. Section labels follow the work item's language.
 
 结论含义：`PASS`（可直接实施）、`PASS_WITH_RISKS`（无未决 P0/P1，风险
 已列明）、`NEEDS_FIXES`（planner 可自行修复的 P0/P1）、
-`NEEDS_USER_DECISION`（阻塞项只能由人决定）。`FAIL` / `BLOCKED` 属于
-代码审查结论，不适用于方案。
+`NEEDS_USER_DECISION`（阻塞项只能由人决定）。`FAIL` 属于代码审查结论，
+不适用于方案。
 
 planner 拒绝某条问题时，orchestrator 在同一轮记录：
 
@@ -106,6 +106,25 @@ planner 拒绝某条问题时，orchestrator 在同一轮记录：
 ```
 
 未经 `已拒绝` 标注即在修订中消失的问题，在下一轮按新的 P0 处理。
+
+**未收敛时如何收口。** 循环停在一个 `NEEDS_FIXES` 轮次上时——lean 档确认轮
+仍有问题、full 档到了 3 轮上限、或轮次来回震荡——orchestrator 在该轮之后
+追加一段收口记录，而不是改写审查代理给出的结论。先把每条未解决的 P1/P2
+写成 `plan.md` §风险 中的一行 `R<n>`。未解决的 P0 永远不能这样收口：修掉
+再审，或升级为 `NEEDS_USER_DECISION`。只有后面跟着这段记录时，
+`plan_lint.py` 才接受最后一轮是 `NEEDS_FIXES`。
+
+```markdown
+## 方案审查收口 — <date>
+
+**原因**：<lean 确认轮未收敛 | 达到循环上限（3 轮）| 轮次震荡>
+
+**残留**：<R3、R4> — <每条一行：未解决的问题，已记为 plan.md 中的风险>
+
+### 结论
+
+PASS_WITH_RISKS — 由 orchestrator 收口；上述残留风险继续跟踪
+```
 
 
 ### Author self-check (optional section)

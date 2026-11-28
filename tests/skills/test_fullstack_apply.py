@@ -94,10 +94,23 @@ class TestCheckWorkspace:
         assert result["WORKSPACE_VALID"] == "false"
         assert ".agents" in result["MISSING"]
 
-    def test_docs_dir_default_empty(self, tmp_path: Path):
+    def test_unset_docs_dir_is_invalid(self, tmp_path: Path):
+        """Without docs_dir every later step would look for changes/ at root."""
         self._make_valid_workspace(tmp_path, {"github_repos": True})
         result = self.func(tmp_path)
         assert result["DOCS_DIR"] == ""
+        assert result["WORKSPACE_VALID"] == "false"
+        assert "docs_dir" in result["MISSING"]
+
+    def test_empty_string_docs_dir_is_invalid(self, tmp_path: Path):
+        self._make_valid_workspace(tmp_path, {"docs_dir": "", "github_repos": True})
+        assert self.func(tmp_path)["WORKSPACE_VALID"] == "false"
+
+    def test_corrupt_config_does_not_also_report_docs_dir(self, tmp_path: Path):
+        (tmp_path / "fullstack.json").write_text("not valid json {")
+        (tmp_path / "AGENTS.md").write_text("# AGENTS")
+        (tmp_path / ".agents").mkdir()
+        assert "docs_dir" not in self.func(tmp_path)["MISSING"]
 
     def test_github_repos_false(self, tmp_path: Path):
         self._make_valid_workspace(tmp_path, {"docs_dir": "docs", "github_repos": False})

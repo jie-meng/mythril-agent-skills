@@ -15,7 +15,13 @@ Checks:
 2. **Plan-review closure** — the last `## Plan Review` / `## 方案审查`
    round must end in `PASS` or `PASS_WITH_RISKS`. A `NEEDS_FIXES` round
    with no successor round means review-driven revisions were self-
-   attested and never independently verified.
+   attested and never independently verified — unless a `## Plan Review
+   Closure` / `## 方案审查收口` record follows it. That record is how the
+   loop ends when it stops without converging (the lean confirmation
+   pass, the 3-pass cap, oscillation): verdict `PASS_WITH_RISKS`, a
+   `**Residual**` / `**残留**` line citing the `R<n>` / `A<n>` rows the
+   open findings became in `plan.md`, and no unrejected `[P0]` in the
+   round it closes — a P0 never closes as a known risk.
 3. **Round numbering** — plan-review rounds must run 1..N ascending
    without gaps or duplicates, so "round 2+" can be scoped to the
    previous findings.
@@ -32,7 +38,10 @@ Checks:
    except the planner's own summary — the party being audited. Every
    `REQ` cited in a review round's coverage matrix must exist there, and
    every declared `REQ` must have a row in at least one round's matrix —
-   a prose mention never counts as coverage.
+   a prose mention never counts as coverage. Plan-review rounds and
+   code-review rounds both count: a requirement added by a follow-up
+   during implementation never gets a plan review, so the code-review
+   round that verifies it carries its coverage row instead.
 7. **Finding discipline** — a round listing more than five P2 findings,
    or a later round carrying more P0/P1 than the round before it
    (oscillation). Both are capped in prose by the reviewer's brief;
@@ -115,11 +124,20 @@ Checks:
     a matching instruction can be missed without anyone noticing — the
     line forces the judgement to be written down. Repos with no skills
     are silent, and so is a work directory outside a fullstack workspace.
+15. **Criterion ids** — every top-level bullet of `plan.md`'s
+    `## 成功标准` / `## Success Criteria` section carries an `SC<n>` id.
+    Check 1 matches Evidence rows to criteria by id, so a criterion
+    written as "Criterion 1" is invisible to it: the Evidence table could
+    drop that row and nothing would fail. An unlabelled criterion is
+    therefore an error, not a style issue.
+16. **Task ids** — a checkbox task in `## 实现计划` / `## Implementation
+    Plan` with no `T<n>` id is a warning: checks 4 and 11 resolve task
+    references by id, so an unnumbered task cannot be cited or checked.
 
-Checks 5, 7, 8, 10, 12, 13 and 14 are warnings: they check how a document
+Checks 5, 7, 8, 10, 12, 13, 14 and 16 are warnings: they check how a document
 is written or kept, and none of them breaks the chain — a missing
 attestation, a stale summary line, or an unrecorded skill index is worth
-fixing but must not block a commit. Checks 1-4, 6, 9 and 11 are errors:
+fixing but must not block a commit. Checks 1-4, 6, 9, 11 and 15 are errors:
 each one lets an unverifiable claim enter the definition of done, or leaves
 the work item untraceable from its own code. Item 6 stays silent for work items that
 have neither the section nor a coverage matrix, so legacy items do not
@@ -207,6 +225,11 @@ SUMMARY_STATUS_RE = re.compile(
     re.MULTILINE,
 )
 CODE_MAP_HEADINGS = ("## 代码地图", "## Code Map")
+SUCCESS_CRITERIA_HEADINGS = ("## 成功标准", "## Success Criteria")
+# A top-level list item (no indentation): a criterion or a task line.
+# Indented bullets are sub-points of the item above them.
+TOP_LEVEL_ITEM_RE = re.compile(r"^(?:[-*+]|\d+[.)])\s+(.*)$")
+CHECKBOX_ITEM_RE = re.compile(r"^\s*[-*+]\s+\[[ xX]\]\s*(.*)$")
 IMPLEMENTATION_PLAN_HEADINGS = ("## 实现计划", "## Implementation Plan")
 CODE_REVIEW_HEADINGS = ("## 代码审查", "## Code Review")
 # Items written before the prefixed convention title their code rounds
@@ -232,7 +255,19 @@ CONFIG_FILENAME = "fullstack.json"
 WORK_ITEM_TYPES = ("feat", "refactor", "fix")
 MAX_MENTIONS_PER_ITEM = 3
 MAX_DOCS_DIR_WALK_UP = 6
-PLAN_REVIEW_HEADING_RE = re.compile(r"^##\s+(?:Plan Review|方案审查)\b", re.MULTILINE)
+PLAN_REVIEW_HEADING_RE = re.compile(
+    r"^##\s+(?:Plan Review|方案审查)\b(?!\s*(?:Closure|收口))", re.MULTILINE
+)
+# The orchestrator's record that ends a loop which stopped without
+# converging. It is not a round: it carries no number and no findings.
+PLAN_REVIEW_CLOSURE_RE = re.compile(
+    r"^##\s+(?:Plan Review Closure|方案审查收口)", re.IGNORECASE
+)
+RESIDUAL_RE = re.compile(
+    r"\*\*\s*(?:Residual|残留)\s*\*\*\s*[:：]\s*(.+)", re.IGNORECASE
+)
+RISK_ID_RE = re.compile(r"\b[RA]\d+\b")
+REJECTED_RE = re.compile(r"Rejected|已拒绝", re.IGNORECASE)
 VERDICT_HEADING_RE = re.compile(
     r"^#{3,}\s*(?:Verdict|判定|结论)", re.MULTILINE
 )
@@ -378,18 +413,22 @@ def parse_evidence_rows(review_text: str) -> set[str] | None:
 
 
 def parse_coverage_rows(review_text: str) -> set[str] | None:
-    """Return the REQ ids rowed in every plan-review coverage matrix.
+    """Return the REQ ids rowed in every review round's coverage matrix.
 
     Only table rows inside a `### 需求覆盖` / `### Requirements Coverage`
-    section of a plan-review round count, so a REQ named in a finding
-    bullet or in prose does not. Returns None when no coverage matrix
-    exists in any round.
+    section of a plan-review or code-review round count, so a REQ named
+    in a finding bullet or in prose does not. A code-review round carries
+    a matrix only when a follow-up added a requirement mid-implementation
+    — that requirement never goes back through a plan review. Returns
+    None when no coverage matrix exists in any round.
     """
     found = False
     ids: set[str] = set()
     for heading, body in split_sections(review_text):
-        if not heading.startswith("## ") or not PLAN_REVIEW_HEADING_RE.match(
-            heading
+        if not heading.startswith("## "):
+            continue
+        if not (
+            PLAN_REVIEW_HEADING_RE.match(heading) or _is_code_review_round(heading)
         ):
             continue
         in_matrix = False
@@ -442,6 +481,84 @@ def parse_plan_review_rounds(review_text: str) -> list[PlanReviewRound]:
             )
         )
     return rounds
+
+
+def parse_plan_review_closure(review_text: str) -> str | None:
+    """Return the closure record that follows the last plan-review round.
+
+    The body is returned so the caller can read its verdict and residual
+    line; None when no closure follows the newest round (a closure written
+    before a later round no longer closes anything).
+    """
+    closure: str | None = None
+    for heading, body in split_sections(review_text):
+        if PLAN_REVIEW_HEADING_RE.match(heading):
+            closure = None
+        elif PLAN_REVIEW_CLOSURE_RE.match(heading):
+            closure = body
+    return closure
+
+
+def open_p0_findings(round_body: str) -> list[str]:
+    """Return the `[P0]` finding lines of a round that were not rejected."""
+    return [
+        line.strip()
+        for line in round_body.splitlines()
+        if re.match(r"^\s*[-*]\s*\[P0\]", line) and not REJECTED_RE.search(line)
+    ]
+
+
+def _closure_findings(
+    closure: str, last: PlanReviewRound, plan_text: str
+) -> list[Finding]:
+    """Validate a closure record against the round it closes."""
+    findings: list[Finding] = []
+    verdict = detect_verdict(closure)
+    if verdict != "PASS_WITH_RISKS":
+        findings.append(
+            Finding(
+                "ERROR",
+                f"the plan review closure after round {last.number} must "
+                f"close as PASS_WITH_RISKS, found {verdict or 'no verdict'} — "
+                "a loop that stopped without converging cannot claim PASS",
+            )
+        )
+    residual = ""
+    for line in closure.splitlines():
+        match = RESIDUAL_RE.search(line)
+        if match:
+            residual = match.group(1)
+            break
+    cited = set(RISK_ID_RE.findall(residual))
+    declared = set(RISK_ID_RE.findall(plan_text))
+    if not cited:
+        findings.append(
+            Finding(
+                "ERROR",
+                f"the plan review closure after round {last.number} has no "
+                "'**Residual**' / '**残留**' line citing R<n> / A<n> rows — "
+                "the open findings must become risks in plan.md §Risks",
+            )
+        )
+    elif cited - declared:
+        findings.append(
+            Finding(
+                "ERROR",
+                "the plan review closure cites residual risks that plan.md "
+                "does not declare: " + ", ".join(sorted(cited - declared)),
+            )
+        )
+    p0 = open_p0_findings(last.body)
+    if p0:
+        findings.append(
+            Finding(
+                "ERROR",
+                f"round {last.number} still has {len(p0)} open P0 finding(s); "
+                "a P0 never closes as a known risk — fix it and re-review, or "
+                "escalate it as NEEDS_USER_DECISION: " + p0[0][:80],
+            )
+        )
+    return findings
 
 
 def find_placeholders(text: str) -> list[str]:
@@ -546,28 +663,40 @@ def _contains_whole_identifier(haystack: str, needle: str) -> bool:
 def match_code_map_row(needle: str, row: dict[str, str]) -> int:
     """Score one Code Map row against a lookup needle.
 
-    3 = whole path, 2 = trailing path segment or symbol, 1 = substring,
-    0 = no match. The score exists so a lookup for `src/x.py` does not
-    rank a `docs/x.py` row beside the real owner.
+    3 = whole path, 2 = trailing path segment or symbol, 1 = substring
+    or bare file name, 0 = no match. The score exists so a lookup for
+    `src/x.py` does not rank a `docs/x.py` row beside the real owner.
+
+    Two spellings are deliberately weak (1, never ownership): a bare file
+    name (`index.ts` exists in every repo, so naming it does not say
+    which one), and a path whose only link to the row is a symbol token
+    it happens to contain (`web/lib/config.js` is not owned by a row whose
+    symbol is `config`). A needle with a `/` matches a symbol only when it
+    spells the whole symbol (`Class/method`, `GET /pref`).
     """
     target = normalize_path(needle)
     if not target:
         return 0
+    is_path = "/" in target
     candidates = code_map_row_candidates(row)
     if target in candidates:
         return 3
-    for candidate in candidates:
-        base = candidate.rsplit("/", 1)[-1]
-        if target == base or candidate.endswith("/" + target):
-            return 2
-    for symbol in re.split(r"[,，、;；/]+", row.get("symbols", "")):
-        cleaned = normalize_path(symbol)
-        if cleaned and (
-            cleaned == target
-            or _contains_whole_identifier(cleaned, target)
-            or _contains_whole_identifier(target, cleaned)
-        ):
-            return 2
+    if is_path and any(c.endswith("/" + target) for c in candidates):
+        return 2
+    symbols = row.get("symbols", "")
+    if is_path:
+        for symbol in re.split(r"[,，、;；]+", symbols):
+            if normalize_path(symbol) == target:
+                return 2
+    else:
+        for symbol in re.split(r"[,，、;；/]+", symbols):
+            cleaned = normalize_path(symbol)
+            if cleaned and (
+                cleaned == target
+                or _contains_whole_identifier(cleaned, target)
+                or _contains_whole_identifier(target, cleaned)
+            ):
+                return 2
     for candidate in candidates:
         if target in candidate or candidate in target:
             return 1
@@ -811,10 +940,12 @@ def lint_work_dir(work_dir: Path) -> list[Finding]:
     if findings:
         return findings
 
+    findings.extend(_check_criteria_ids(plan_text))
     findings.extend(_check_evidence_coverage(plan_text, review_text))
-    findings.extend(_check_plan_review_rounds(review_text))
+    findings.extend(_check_plan_review_rounds(review_text, plan_text))
     findings.extend(_check_task_ids(plan_text, review_text))
     findings.extend(_check_task_refs_in_plan(plan_text))
+    findings.extend(_check_task_list_ids(plan_text))
     findings.extend(_check_requirements_of_record(analysis_text, review_text))
     findings.extend(_check_placeholders(plan_text, analysis_text))
     findings.extend(_check_finding_discipline(review_text))
@@ -826,6 +957,53 @@ def lint_work_dir(work_dir: Path) -> list[Finding]:
     findings.extend(_check_repo_skills(work_dir, review_text))
 
     return findings
+
+
+def _check_criteria_ids(plan_text: str) -> list[Finding]:
+    """Check 15 — every Success Criterion carries an `SC<n>` id."""
+    body = find_section_body(plan_text, SUCCESS_CRITERIA_HEADINGS)
+    if body is None:
+        return []
+    unlabelled: list[str] = []
+    for line in body.splitlines()[1:]:
+        match = TOP_LEVEL_ITEM_RE.match(line)
+        if match and not SC_ID_RE.search(match.group(1)):
+            unlabelled.append(line.strip())
+    if not unlabelled:
+        return []
+    return [
+        Finding(
+            "ERROR",
+            f"{len(unlabelled)} Success Criteria in {PLAN_FILE} carry no "
+            "SC<n> id (write `- [ ] **SC1** — <criterion>`; no hyphen) — the "
+            "Evidence table is matched to criteria by id, so an unlabelled "
+            "criterion can lose its Evidence row unnoticed: "
+            + unlabelled[0][:80],
+        )
+    ]
+
+
+def _check_task_list_ids(plan_text: str) -> list[Finding]:
+    """Check 16 — every checkbox task in the task list carries a `T<n>` id."""
+    body = find_section_body(plan_text, IMPLEMENTATION_PLAN_HEADINGS)
+    if body is None:
+        return []
+    unnumbered = [
+        line.strip()
+        for line in body.splitlines()
+        if (match := CHECKBOX_ITEM_RE.match(line))
+        and not TASK_ID_RE.search(match.group(1))
+    ]
+    if not unnumbered:
+        return []
+    return [
+        Finding(
+            "WARN",
+            f"{len(unnumbered)} task(s) in {PLAN_FILE}'s task list carry no "
+            "T<n> id (write `- [ ] **T1** (repo) — <task>`) — review rounds "
+            "and the coverage matrix cite tasks by id: " + unnumbered[0][:80],
+        )
+    ]
 
 
 def _check_evidence_coverage(plan_text: str, review_text: str) -> list[Finding]:
@@ -868,7 +1046,9 @@ def _check_evidence_coverage(plan_text: str, review_text: str) -> list[Finding]:
     return findings
 
 
-def _check_plan_review_rounds(review_text: str) -> list[Finding]:
+def _check_plan_review_rounds(
+    review_text: str, plan_text: str = ""
+) -> list[Finding]:
     """Checks 2 and 3 — the review loop is closed and numbered."""
     rounds = parse_plan_review_rounds(review_text)
     if not rounds:
@@ -903,6 +1083,10 @@ def _check_plan_review_rounds(review_text: str) -> list[Finding]:
             )
         )
     elif last.verdict not in CLOSING_VERDICTS:
+        closure = parse_plan_review_closure(review_text)
+        if closure is not None and last.verdict == "NEEDS_FIXES":
+            findings.extend(_closure_findings(closure, last, plan_text))
+            return findings
         findings.append(
             Finding(
                 "ERROR",
@@ -1039,7 +1223,10 @@ def _check_requirements_of_record(
                 "ERROR",
                 "declared requirements never appear in any review round's "
                 "coverage matrix, so nobody asserted their coverage: "
-                + ", ".join(uncited),
+                + ", ".join(uncited)
+                + " — a requirement added during implementation gets its row "
+                "in the '### Requirements Coverage' / '### 需求覆盖' table of "
+                "the code-review round that verifies it",
             )
         )
     return findings
@@ -1157,11 +1344,15 @@ def _check_summary_freshness(plan_text: str, review_text: str) -> list[Finding]:
         # claiming a position. Same legacy escape as checks 6 and 8.
         return []
 
+    verdict = newest.verdict
+    closure = parse_plan_review_closure(review_text)
+    if closure is not None and verdict == "NEEDS_FIXES":
+        verdict = detect_verdict(closure) or verdict
     missing: list[str] = []
     if not _mentions_round(status, newest.number):
         missing.append(f"round {newest.number}")
-    if newest.verdict and newest.verdict not in VERDICT_RE.findall(status):
-        missing.append(newest.verdict)
+    if verdict and verdict not in VERDICT_RE.findall(status):
+        missing.append(verdict)
     if not missing:
         return []
 

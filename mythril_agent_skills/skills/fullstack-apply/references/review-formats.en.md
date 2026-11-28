@@ -103,6 +103,14 @@ read; skill-b did not
 
 **Document Sync**: `analysis.md` — <what this round invalidated, or why
 nothing changed>; `plan.md` — <…>; `progress.md` — <…>; `review.md` — <…>
+
+### Requirements Coverage
+
+(only when this round implements a requirement a follow-up added)
+
+| Requirement | Covered by criterion | Delivered by task | Status |
+|-------------|---------------------|-------------------|--------|
+| REQ4 | SC5 | T7 | OK — <the Evidence row's result> |
 ```
 
 
@@ -182,6 +190,17 @@ the workspace root, so the index is the only discovery path.
 - `plan_lint.py` check 14 fails when the line is missing or omits an
   indexed skill. A repo with no skills is silent, and so is a work
   directory outside a fullstack workspace.
+
+### Requirements Coverage in a code-review round
+
+A requirement added during implementation (`follow-up.md`: appended as the
+next `REQ<n>` with its own Success Criterion and task) never goes back
+through a plan review, so no plan-review matrix will ever row it. The
+code-review round that implements it carries a `### Requirements
+Coverage` / `### 需求覆盖` table with one row per newly added `REQ`,
+citing its `SC<n>` / `T<n>` and the Evidence result the reviewer gave.
+`plan_lint.py` check 6 counts these rows exactly like plan-review rows.
+Rounds that add no requirement omit the subsection.
 
 ### Keeping commits in sync after hash changes
 

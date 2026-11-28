@@ -35,6 +35,9 @@ plan-reviewer falsifies coverage against, and a paraphrase here is what
 lets a narrowing pass as a documented limitation. One `REQ<n>` id per
 ask; `plan.md` and `review.md` cite the ids.
 
+- **REQ1** "<exact words>" — <source: user prompt / PROJ-123 / page>
+- **REQ2** "<exact words>" — <source>
+
 ### Clarifications
 
 Question/answer record from the Step 3.5 requirements interrogation — one
