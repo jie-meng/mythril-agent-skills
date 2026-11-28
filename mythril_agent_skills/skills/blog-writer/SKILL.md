@@ -64,7 +64,7 @@ After extracting what you can, assess what's missing. There are three possible o
 > 5. 个人思考 / 非技术话题
 > 6. 其他 (请描述)
 
-After the user answers, proceed to Phase 2 (do NOT ask follow-up questions about style/audience/format — use defaults).
+After the user answers, proceed to Phase 2 (do NOT ask follow-up questions about style/audience/format — use defaults). The only later question allowed is the angle pick in Phase 2 step 5.
 
 **Case 3 — Multiple things are ambiguous**: Present a confirmation block that lists all inferred values and highlights the gaps. The user can confirm, override, or fill in missing values in a single reply.
 
@@ -78,7 +78,7 @@ Example (Chinese):
 > - **读者**: 工程师同行
 > - **风格**: 务实简洁
 > - **素材**: 无（写出来会比较泛，建议提供代码/文档/链接）
-> - **存放位置**: `./blogs/`
+> - **存放位置**: 当前目录 `./`（若已有 `blogs/` 目录则放在其中）
 >
 > 回复确认，或修改任意项。
 
@@ -92,7 +92,7 @@ Example (English):
 > - **Audience**: Fellow engineers
 > - **Style**: Pragmatic and concise
 > - **Materials**: None (output may be generic — consider sharing code/docs/links)
-> - **Output path**: `./blogs/`
+> - **Output path**: current directory `./` (or `blogs/` if one already exists)
 >
 > Reply to confirm, or change any item.
 
@@ -100,7 +100,7 @@ Example (English):
 - Show ALL parameters (inferred + missing) in one place — the user gets a complete picture.
 - Mark missing items with _(请补充)_ / _(please specify)_.
 - The user can reply with just "ok" / "确认" to accept all defaults, or override specific items like "风格改成轻松有趣" / "style: casual".
-- After confirmation, proceed to Phase 2. Do NOT ask further questions.
+- After confirmation, proceed to Phase 2. Do NOT ask further parameter questions — the only exception is the angle pick in Phase 2 step 5, when the material is too large to cover.
 
 #### 1c. Handling "Just Write It"
 
@@ -114,7 +114,7 @@ If the user says "just write" / "直接写" without providing a topic or enough 
 2. **Read source materials**: If the user pointed to code, README files, project directories, or URLs — read them thoroughly. Understand the technical substance before writing.
 3. **Study reference articles**: If the user provided example articles for style reference, analyze their structure, tone, paragraph rhythm, and formatting conventions.
 4. **Identify the narrative arc**: Plan a "why should I care" hook → problem exploration → solution → honest assessment arc before writing.
-5. **Select angles**: If source materials are extensive (large README, many files), identify the 2–3 most interesting angles and propose them to the user for selection before writing.
+5. **Select angles**: If source materials are extensive (large README, many files), identify the 2–3 most interesting angles and propose them to the user for selection before writing. This is the one question allowed after Phase 1 — ask it once, as a numbered list, and recommend one.
 
 ### Phase 3: Writing
 
@@ -125,6 +125,8 @@ If the user says "just write" / "直接写" without providing a topic or enough 
 - **End with substance**: Summarize the core conclusion (don't just repeat the body). Include actionable next steps, links, or an honest assessment of limitations.
 
 #### Format-Specific Rules
+
+**Length units**: counts below are English words; for Chinese, count characters (字) at roughly 1.5× the number (e.g. 2000–5000 words ≈ 3000–7500 字).
 
 **Personal blog (default):**
 - 2000–5000 words (can be shorter if user requests)
@@ -172,6 +174,13 @@ If the user says "just write" / "直接写" without providing a topic or enough 
 - **Filler phrases**: No "无需赘述", "相信读者已经了解", "如有不足，欢迎指正".
 - **Buzzword soup**: No "赋能", "落地", "闭环", "抓手".
 
+#### Accuracy — Never Fabricate
+
+- **No invented facts**: never make up benchmarks, numbers, dates, version numbers, quotes, API names, or URLs. Every concrete claim must come from the source materials, a page you actually read, or well-established knowledge.
+- **No material, no specifics**: when writing without source materials, stay at the level you can stand behind and leave explicit placeholders for what only the author knows — e.g. `[TODO: 补充实际 QPS 数据]` / `[TODO: link to repo]` — and list them in the post-draft notes.
+- **Code**: prefer code taken from the source materials. If you write new code and cannot run it, say so in the post-draft notes ("snippets not executed"), rather than presenting it as tested.
+- **Links**: only include URLs you got from the user or verified; otherwise describe the resource and leave a `[TODO: link]`.
+
 ### Phase 4: Output & Review
 
 #### File Output Rules
@@ -196,12 +205,14 @@ Create parent directories if they don't exist (`mkdir -p`).
 
 After the draft:
 1. **Explain choices briefly**: Why this opening, this tone, this structure — 2–3 sentences, not a paragraph.
+   List any `[TODO: ...]` placeholders and unexecuted code so the author knows what to verify.
 2. **Provide alternatives** (for personal blog format): 3 alternative titles + 1 SEO meta description.
 3. **Invite iteration**: Ask if the user wants to adjust tone, length, depth, or emphasis.
 
 #### Editing an Existing Article
 
 When the user asks to edit/refine an existing article (not write from scratch):
+- **Where the result goes**: edit the original file in place (the user's version control or editor history is the undo). If the article isn't under version control or the user asks to keep the original, write `<name>.refined.md` next to it instead. If the article was pasted into chat, return the refined text in chat unless the user asks for a file.
 - Preserve the author's voice — don't rewrite from scratch.
 - Point out logical gaps, unclear explanations, or missing context.
 - Suggest specific cuts and rewrites with reasoning.
