@@ -864,3 +864,36 @@ class TestSniffImageExt:
         from figma_export import sniff_image_ext
 
         assert sniff_image_ext(head) == ext
+
+
+class TestNodesParams:
+    def test_requests_one_level_below_render_depth(self):
+        from figma_fetch import nodes_params
+        assert nodes_params(["1:2", "3:4"], 2, None) == {
+            "ids": "1:2,3:4",
+            "version": None,
+            "depth": 3,
+        }
+
+    def test_depth_zero_still_counts_children(self):
+        from figma_fetch import nodes_params
+        assert nodes_params(["1:2"], 0, "v1")["depth"] == 1
+
+    def test_depth_keeps_truncation_count(self):
+        """Children one level below max_depth are fetched, so they can be counted."""
+        from figma_fetch import nodes_params, simplify_node
+        depth = nodes_params(["1:2"], 1, None)["depth"]
+        # A tree trimmed by the API to `depth` levels below the root.
+        leaf = {"id": "3:3", "type": "TEXT", "name": "t"}
+        tree = {"id": "1:2", "type": "FRAME", "name": "root", "children": [
+            {"id": "2:2", "type": "FRAME", "name": "c", "children": [leaf, leaf]},
+        ]}
+        assert depth == 2
+        simplified = simplify_node(tree, max_depth=1)
+        assert simplified["children"][0]["_children_truncated"] == 2
+
+
+class TestSkillCacheDir:
+    def test_figma_cache_dir(self):
+        from figma_common import skill_cache_dir
+        assert skill_cache_dir().parts[-2:] == ("mythril-skills-cache", "figma")

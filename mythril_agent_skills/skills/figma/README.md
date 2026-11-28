@@ -81,7 +81,7 @@ python3 scripts/figma_export.py "https://www.figma.com/design/ABC123/Name?node-i
 | `--format` | `png` | `png`, `jpg`, `svg`, or `pdf` |
 | `--scale` | `2.0` | Export scale factor 0.01–4 (1.0 = @1x, 2.0 = @2x) |
 | `--output` | `./figma_<node-id>.<format>` | Output file path (single node only) |
-| `--out-dir` | current dir | Output directory (one or more nodes) |
+| `--out-dir` | new dir under `mythril-skills-cache/figma/` | Output directory (one or more nodes) |
 | `--names` | `figma_<node-id>` | One file name per node, in order |
 | `--version` | latest | Render a specific file version |
 | `--image-fills` | — | Download the original images behind image fills (the `ref:` values from `figma_fetch.py`) instead of rendering nodes. Tier 2 — no Tier 1 quota |
