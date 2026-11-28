@@ -58,7 +58,7 @@ below).
 ### 2a. PR metadata
 
 ```bash
-GH_PAGER=cat gh pr view <URL_or_NUMBER> --json number,title,body,state,author,baseRefName,headRefName,labels,reviewDecision,additions,deletions,changedFiles,commits,files,comments,reviews,url
+GH_PAGER=cat gh pr view <URL_or_NUMBER> --json number,title,body,state,author,baseRefName,headRefName,labels,reviewDecision,additions,deletions,changedFiles,commits,files,comments,reviews,url,headRefOid,isCrossRepository
 ```
 
 Key fields:
@@ -158,16 +158,26 @@ fetch/checkout/clone, so cleanup still runs on mid-review failures.
 
 When `SELECTED_PATH=A`:
 
+Commit or stash local work first — this switches the working tree.
+
 ```bash
-git fetch origin <baseRefName> <headRefName>
 ORIGINAL_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-git checkout <headRefName>
+git fetch origin <baseRefName>
+# pull/<PR_NUMBER>/head is the PR's exact head for fork and same-repo PRs.
+# Never check out origin/<headRefName>: for a fork PR that is an unrelated
+# upstream branch that merely shares the name (main, patch-1, ...).
+if FETCH_ERR="$(git fetch origin "pull/<PR_NUMBER>/head" 2>&1)"; then
+  git checkout --detach FETCH_HEAD
+else
+  CONTEXT_MODE="diff_only"
+  CONTEXT_LIMITATION="PR head checkout failed: $FETCH_ERR"
+fi
 ```
 
-Use `git checkout <headRefName>` directly (branch name known from 2a) rather
-than `gh pr checkout`, which can fail on Enterprise hosts that need a separate
-`gh auth login --hostname` even when `gh pr view/diff` works. After the review,
-restore the original branch (see [Manual cleanup](#manual-cleanup)).
+Use plain git rather than `gh pr checkout`, which can fail on Enterprise hosts
+that need a separate `gh auth login --hostname` even when `gh pr view/diff`
+works. After the review, restore the original branch (see
+[Manual cleanup](#manual-cleanup)).
 
 ## Path B: shared repo cache hit
 
@@ -177,34 +187,15 @@ known from 2a):
 
 ```bash
 cd "$REPO_PATH"
-
-# Fetch both branches: base for diff comparison, head for the PR code
-git fetch origin <baseRefName> <headRefName>
-
-# Checkout the PR branch using the branch name from metadata
-git checkout <headRefName>
-```
-
-If that fails (missing remote branch, force-pushed branch, stale refs, or
-host-specific behavior), do not silently continue as if full repo context were
-available. Run this fallback sequence:
-
-```bash
-# Keep error output for the final review limitation note
-FETCH_ERR="$(git fetch origin <baseRefName> <headRefName> 2>&1)" || true
-
-if ! git rev-parse --verify --quiet "origin/<headRefName>" >/dev/null; then
-  # Fallback: fetch PR head ref directly by PR number
-  git fetch origin "pull/<PR_NUMBER>/head:pr-<PR_NUMBER>-head" 2>&1 || true
-fi
-
-if git rev-parse --verify --quiet "origin/<headRefName>" >/dev/null; then
-  git checkout <headRefName>
-elif git rev-parse --verify --quiet "pr-<PR_NUMBER>-head" >/dev/null; then
-  git checkout "pr-<PR_NUMBER>-head"
+git fetch origin <baseRefName>
+# pull/<PR_NUMBER>/head is the PR's exact head for fork and same-repo PRs.
+# Never check out origin/<headRefName>: for a fork PR that is an unrelated
+# upstream branch that merely shares the name (main, patch-1, ...).
+if FETCH_ERR="$(git fetch origin "pull/<PR_NUMBER>/head" 2>&1)"; then
+  git checkout --detach FETCH_HEAD
 else
   CONTEXT_MODE="diff_only"
-  CONTEXT_LIMITATION="Path B branch checkout failed: ${FETCH_ERR:-unknown fetch error}"
+  CONTEXT_LIMITATION="PR head checkout failed: $FETCH_ERR"
 fi
 ```
 
@@ -214,11 +205,9 @@ When `CONTEXT_MODE=diff_only`:
 - State this limitation explicitly in the review output.
 - Still run cleanup and print `[PATH-CLEANUP] ...` status lines.
 
-**Why `git checkout <headRefName>` instead of `gh pr checkout`:** `gh pr
-checkout` can fail if the host hasn't been authenticated with `gh auth login
---hostname <host>`, even when `gh pr view/diff` succeeds (they may use a
-different auth path). After `git fetch origin <headRefName>` the branch is
-available, so plain `git checkout` is more reliable.
+**Why plain git instead of `gh pr checkout`:** `gh pr checkout` can fail if the
+host hasn't been authenticated with `gh auth login --hostname <host>`, even
+when `gh pr view/diff` succeeds (they may use a different auth path).
 
 For base-branch comparison, use `origin/<baseRefName>` (the remote-tracking
 ref, fresh after the fetch).
@@ -252,13 +241,20 @@ This command:
 4. Registers the repo in `repo_map.json` for future lookups.
 5. Prints the local path to stdout.
 
-Then fetch and check out the PR branches — same as Path B, including the same
-`pull/<PR_NUMBER>/head` fallback sequence if checkout fails:
+Then check out the PR head exactly as in Path B:
 
 ```bash
 cd "$REPO_PATH"
-git fetch origin <baseRefName> <headRefName>
-git checkout <headRefName>
+git fetch origin <baseRefName>
+# pull/<PR_NUMBER>/head is the PR's exact head for fork and same-repo PRs.
+# Never check out origin/<headRefName>: for a fork PR that is an unrelated
+# upstream branch that merely shares the name (main, patch-1, ...).
+if FETCH_ERR="$(git fetch origin "pull/<PR_NUMBER>/head" 2>&1)"; then
+  git checkout --detach FETCH_HEAD
+else
+  CONTEXT_MODE="diff_only"
+  CONTEXT_LIMITATION="PR head checkout failed: $FETCH_ERR"
+fi
 ```
 
 **Why Path C over a direct sparse clone:** for most repos (up to tens of
@@ -280,8 +276,8 @@ or as the fallback when Path C fails. It uses a blobless clone plus sparse
 checkout into a disposable directory, downloading only what the review needs.
 
 **Why not `--depth=1` or `--single-branch`:** `--single-branch` restricts the
-refspec to one branch, so a later `git fetch origin <headRefName>` for another
-branch is impossible; `--depth=1` implies `--single-branch`. `--filter=blob:none
+refspec to one branch, so a later `git fetch origin pull/<PR_NUMBER>/head` is
+impossible; `--depth=1` implies `--single-branch`. `--filter=blob:none
 --sparse` keeps all refs and history metadata at minimal cost — blobs are only
 fetched when files are checked out.
 
@@ -326,12 +322,11 @@ directories the review needs, based on the Step 2 metadata:
    git sparse-checkout add src/types src/shared
    ```
 
-Then check out the PR branch (plain `git checkout`, same reasoning as Path
-A/B/C):
+Then check out the PR head exactly as in Path B (`pull/<PR_NUMBER>/head`,
+detached — never `origin/<headRefName>`, which is wrong for fork PRs):
 
 ```bash
-git fetch origin <headRefName>
-git checkout <headRefName>
+git fetch origin "pull/<PR_NUMBER>/head" && git checkout --detach FETCH_HEAD
 ```
 
 After the review, delete the temp directory (see below).
