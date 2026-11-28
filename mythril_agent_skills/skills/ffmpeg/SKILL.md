@@ -71,8 +71,10 @@ lossy re-encode to destroy their source.
 
 - ffmpeg cannot read and write the same file. For an in-place request, write
   to a temp file in the same directory, then move it over the original.
-- Only pass `-y` (overwrite without asking) when the target may be replaced —
-  otherwise ffmpeg's prompt protects existing files.
+- Pass `-n` (never overwrite; fail if the output exists) by default. Agent
+  shells have no terminal, so ffmpeg's interactive "Overwrite? [y/N]" prompt
+  can hang or behave unpredictably — do not rely on it. Use `-y` only when the
+  user approved replacing the target.
 - Quote every path; filenames with spaces are common.
 - For batch jobs, run the command on one file first and check the result
   before looping over the rest.
