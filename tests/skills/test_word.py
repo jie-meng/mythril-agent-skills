@@ -162,3 +162,216 @@ class TestCommandDispatch:
     def test_all_values_callable(self):
         for name, handler in self.dispatch.items():
             assert callable(handler), f"{name} handler is not callable"
+
+
+def _hyperlink(paragraph, text: str, url: str | None):
+    """Append a w:hyperlink run (external when *url* is given) to a paragraph."""
+    from docx.opc.constants import RELATIONSHIP_TYPE as RT
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    link = OxmlElement("w:hyperlink")
+    if url:
+        rid = paragraph.part.relate_to(url, RT.HYPERLINK, is_external=True)
+        link.set(qn("r:id"), rid)
+    run = OxmlElement("w:r")
+    t = OxmlElement("w:t")
+    t.text = text
+    run.append(t)
+    link.append(run)
+    paragraph._p.append(link)
+
+
+def _tracked_insert(paragraph, text: str):
+    """Append a w:ins (tracked insertion) run to a paragraph."""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    ins = OxmlElement("w:ins")
+    ins.set(qn("w:id"), "1")
+    ins.set(qn("w:author"), "t")
+    run = OxmlElement("w:r")
+    t = OxmlElement("w:t")
+    t.text = text
+    t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+    run.append(t)
+    ins.append(run)
+    paragraph._p.append(ins)
+
+
+class TestHeadingLevel:
+    """Tests for word_ops.heading_level."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from word_ops import heading_level
+
+        self.func = heading_level
+
+    def test_numbered(self):
+        assert self.func("Heading 1") == 1
+        assert self.func("Heading 3") == 3
+
+    def test_clamped_to_six(self):
+        assert self.func("Heading 9") == 6
+
+    def test_custom_heading_does_not_crash(self):
+        assert self.func("Heading Custom") == 1
+        assert self.func("Heading") == 1
+
+    def test_title_and_body(self):
+        assert self.func("Title") == 1
+        assert self.func("Normal") is None
+        assert self.func(None) is None
+
+
+class TestFormatSegments:
+    """Tests for word_ops.format_segments."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from word_ops import format_segments
+
+        self.func = format_segments
+
+    def test_plain(self):
+        assert self.func([("a ", False, False, None), ("b", False, False, None)]) == "a b"
+
+    def test_adjacent_bold_runs_merge(self):
+        segs = [("Hel", True, False, None), ("lo", True, False, None)]
+        assert self.func(segs) == "**Hello**"
+
+    def test_whitespace_kept_outside_markers(self):
+        segs = [("say ", False, False, None), ("hi ", True, False, None), ("now", False, False, None)]
+        assert self.func(segs) == "say **hi** now"
+
+    def test_bold_italic(self):
+        assert self.func([("x", True, True, None)]) == "***x***"
+
+    def test_link(self):
+        segs = [("See ", False, False, None), ("docs", False, False, "https://e.com"),
+                (" now", False, False, None)]
+        assert self.func(segs) == "See [docs](https://e.com) now"
+
+    def test_link_with_mixed_formatting(self):
+        segs = [("a", True, False, "u"), ("b", False, False, "u")]
+        assert self.func(segs) == "[**a**b](u)"
+
+
+class TestUniqueHeaders:
+    """Tests for word_ops.unique_headers."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from word_ops import unique_headers
+
+        self.func = unique_headers
+
+    def test_blank_and_duplicate(self):
+        assert self.func(["Name", "", "Name"]) == ["Name", "col_2", "Name_2"]
+
+    def test_unique_passthrough(self):
+        assert self.func(["a", "b"]) == ["a", "b"]
+
+
+class TestTableConversion:
+    """Tests for word_ops._table_to_markdown / _table_to_json."""
+
+    @pytest.fixture()
+    def table(self):
+        import docx
+
+        doc = docx.Document()
+        t = doc.add_table(rows=3, cols=2)
+        data = [["Name", "Note"], ["Ann", "a|b"], ["Bob", ""]]
+        for r, row in enumerate(data):
+            for c, val in enumerate(row):
+                t.cell(r, c).text = val
+        return t
+
+    def test_markdown(self, table):
+        from word_ops import _table_to_markdown
+
+        assert _table_to_markdown(table).splitlines() == [
+            "| Name | Note |",
+            "| --- | --- |",
+            "| Ann | a\\|b |",
+            "| Bob |  |",
+        ]
+
+    def test_json(self, table):
+        from word_ops import _table_to_json
+
+        assert _table_to_json(table) == [
+            {"Name": "Ann", "Note": "a|b"},
+            {"Name": "Bob", "Note": ""},
+        ]
+
+    def test_json_header_only_is_empty(self):
+        import docx
+
+        from word_ops import _table_to_json
+
+        t = docx.Document().add_table(rows=1, cols=2)
+        assert _table_to_json(t) == []
+
+
+class TestCmdToMarkdown:
+    """Integration tests for word_ops.cmd_to_markdown on generated documents."""
+
+    def _convert(self, tmp_path, doc) -> str:
+        import argparse
+
+        from word_ops import cmd_to_markdown
+
+        src = tmp_path / "in.docx"
+        out = tmp_path / "out.md"
+        doc.save(str(src))
+        cmd_to_markdown(argparse.Namespace(file=str(src), output=str(out)))
+        return out.read_text(encoding="utf-8")
+
+    def test_hyperlink_and_tracked_insert_text_kept(self, tmp_path):
+        import docx
+
+        doc = docx.Document()
+        p = doc.add_paragraph("See ")
+        _hyperlink(p, "the docs", "https://example.com/docs")
+        _tracked_insert(p, " today")
+        p2 = doc.add_paragraph("Anchor ")
+        _hyperlink(p2, "here", None)
+        md = self._convert(tmp_path, doc)
+        assert "See [the docs](https://example.com/docs) today" in md
+        assert "Anchor here" in md
+
+    def test_custom_heading_tables_and_order(self, tmp_path):
+        import docx
+
+        doc = docx.Document()
+        doc.add_paragraph("Intro", style="Heading 1")
+        doc.styles.add_style("Heading Custom", 1)
+        doc.add_paragraph("Custom", style="Heading Custom")
+        t = doc.add_table(rows=2, cols=1)
+        t.cell(0, 0).text = "H"
+        t.cell(1, 0).text = "v"
+        doc.add_paragraph("After")
+        md = self._convert(tmp_path, doc)
+        assert md.index("# Intro") < md.index("# Custom") < md.index("| H |") < md.index("After")
+
+
+class TestCmdTextCustomHeading:
+    """`text` must not crash on non-numeric heading styles."""
+
+    def test_no_crash(self, tmp_path, capsys):
+        import argparse
+
+        import docx
+
+        from word_ops import cmd_text
+
+        doc = docx.Document()
+        doc.styles.add_style("Heading Custom", 1)
+        doc.add_paragraph("Custom", style="Heading Custom")
+        src = tmp_path / "in.docx"
+        doc.save(str(src))
+        cmd_text(argparse.Namespace(file=str(src), limit=None, skip_empty=True))
+        assert "# Custom" in capsys.readouterr().out
