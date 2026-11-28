@@ -154,3 +154,40 @@ class TestBuildParser:
     def test_no_file_exits(self):
         with pytest.raises(SystemExit):
             self.parser.parse_args([])
+
+
+class TestOutputConflict:
+    """Tests for md_to_pdf.output_conflict."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from md_to_pdf import output_conflict
+
+        self.func = output_conflict
+
+    def test_new_output_ok(self, tmp_path):
+        assert self.func(tmp_path / "a.md", tmp_path / "a.pdf", False) is None
+
+    def test_existing_output_needs_force(self, tmp_path):
+        out = tmp_path / "a.pdf"
+        out.write_bytes(b"%PDF")
+        assert "--force" in self.func(tmp_path / "a.md", out, False)
+        assert self.func(tmp_path / "a.md", out, True) is None
+
+    def test_output_equal_to_input_refused(self, tmp_path):
+        src = tmp_path / "a.md"
+        src.write_text("# x")
+        assert self.func(src, src, True) is not None
+
+
+class TestPreflightCommand:
+    """SKILL.md pre-flight must not rely on markdown_pdf.__version__ (absent)."""
+
+    def test_no_version_attribute_in_preflight(self):
+        from pathlib import Path
+
+        skill_md = (
+            Path(__file__).resolve().parents[2]
+            / "mythril_agent_skills" / "skills" / "md-to-pdf" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        assert "markdown_pdf.__version__" not in skill_md
