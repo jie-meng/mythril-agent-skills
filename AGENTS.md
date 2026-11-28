@@ -512,6 +512,7 @@ NEVER hand-edit a bundled copy directly — your changes will be lost on the nex
 | `graphify_check.py` | `shared/graphify/graphify_check.py` | `fullstack-init`, `fullstack-explore`, `fullstack-propose`, `fullstack-apply`, `fullstack-archive`, `fullstack-brief` |
 | `compute_waves.py` | `shared/waves/compute_waves.py` | `fullstack-propose`, `fullstack-apply` |
 | `secret_guard.py` | `shared/secrets/secret_guard.py` | `confluence`, `figma`, `glm-vision-fallback`, `jenkins`, `jira`, `notion` |
+| `secret_scan.py` | `shared/secrets/secret_scan.py` | `fullstack-brief`, `fullstack-issue-create` |
 | `commit-format.md` | `shared/commit/commit-format.md` | `code-review-staged`, `github-pr-create` |
 | `plan_lint.py` | `shared/plan/plan_lint.py` | `fullstack-propose`, `fullstack-apply` |
 | `repo_skills.py` | `shared/workspace/repo_skills.py` | `fullstack-init`, `fullstack-explore`, `fullstack-apply` |
