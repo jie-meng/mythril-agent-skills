@@ -12,7 +12,7 @@ license: Apache-2.0
 # When to Use This Skill
 
 - A user mentions a Jira issue key (e.g. `PROJ-123`) or pastes a Jira URL and wants details
-- Issue operations: view, search, create, edit, assign, move/transition, comment, link
+- Issue operations: view, search, create, edit, assign, move/transition, comment, link, download attachments
 - Sprint/board operations: list boards, list sprints, view sprint issues
 - Any request mentioning Jira tickets, cards, or stories
 
@@ -22,10 +22,12 @@ Requires `ATLASSIAN_API_TOKEN` and `ATLASSIAN_USER_EMAIL`. See `README.md` in th
 
 - `ATLASSIAN_API_TOKEN` (**required**) — Atlassian API token
 - `ATLASSIAN_USER_EMAIL` (**required**) — Atlassian account email, used for Basic auth
-- `JIRA_BASE_URL` (optional — takes precedence) — e.g. `https://jira.yourcompany.com`
+- `JIRA_BASE_URL` (optional — takes precedence) — e.g. `https://yoursite.atlassian.net` or a custom Cloud domain
 - `ATLASSIAN_BASE_URL` (optional — shared fallback) — e.g. `https://yoursite.atlassian.net`
 
 Base URL resolution: `JIRA_BASE_URL` > `ATLASSIAN_BASE_URL`. When neither is set, issue commands accept a full Jira URL instead of an issue key. For commands without a specific issue (search, create, boards, sprints, myself), one of these base URLs is required.
+
+**Pasted URLs are host-checked**: credentials are only sent to the configured base URL's host, or to an `*.atlassian.net` site when no base URL is configured (or the configured one is itself on atlassian.net). Plain `http://` URLs are refused. If the script refuses a URL, tell the user — do not work around it.
 
 If your Confluence and Jira share the same base URL, set only `ATLASSIAN_BASE_URL`. If they differ, set `JIRA_BASE_URL` for Jira and `CONFLUENCE_BASE_URL` for Confluence.
 
@@ -45,7 +47,7 @@ If your Confluence and Jira share the same base URL, set only `ATLASSIAN_BASE_UR
 ## Runtime requirements
 
 - Python 3.10+ for `scripts/jira_api.py`
-- Optional: `curl` for downloading linked screenshots/images when visual evidence is relevant
+- Optional: `curl` for downloading images hosted **outside** Jira (public URLs, no credentials)
 
 # Workflow
 
@@ -56,40 +58,19 @@ If your Confluence and Jira share the same base URL, set only `ATLASSIAN_BASE_UR
 
 ## Image handling
 
-When issue descriptions or comments contain screenshots or image links, proactively retrieve and analyze them:
+When issue descriptions or comments contain screenshots, proactively retrieve and analyze them.
 
-Detect image links: Markdown syntax `![alt](url)`, plain URLs ending in `.png/.jpg/.jpeg/.gif/.webp/.svg`, and `/attachments/` paths.
+- **Jira attachments** — `view` lists them under `### Attachments`, and embedded images render as `![name](attachment:name)` (or `[media: <id>]` when Jira stored no file name). They need authentication: download them with the bundled subcommand, never with `curl`:
 
-Download under the unified cache.
+  ```bash
+  python3 SKILL_PATH/scripts/jira_api.py download-attachment PROJ-123               # every image attachment
+  python3 SKILL_PATH/scripts/jira_api.py download-attachment PROJ-123 screenshot.png
+  ```
 
-**Bash (macOS / Linux):**
-```bash
-if [[ "$(uname -s)" == "Darwin" ]]; then
-  CACHE_ROOT="$HOME/Library/Caches/mythril-skills-cache"
-else
-  CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/mythril-skills-cache"
-fi
-CACHE_DIR="$CACHE_ROOT/jira"
-mkdir -p "$CACHE_DIR"
-RUN_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
-IMAGE_CACHE="$RUN_DIR/images"
-mkdir -p "$IMAGE_CACHE"
-```
-
-**PowerShell (Windows):**
-```powershell
-$CACHE_ROOT = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "mythril-skills-cache"
-$CACHE_DIR = Join-Path $CACHE_ROOT "jira"
-New-Item -ItemType Directory -Force -Path $CACHE_DIR | Out-Null
-$RUN_DIR = Join-Path $CACHE_DIR ([System.IO.Path]::GetRandomFileName())
-New-Item -ItemType Directory -Force -Path $RUN_DIR | Out-Null
-$IMAGE_CACHE = Join-Path $RUN_DIR "images"
-New-Item -ItemType Directory -Force -Path $IMAGE_CACHE | Out-Null
-```
+  It saves into a new directory under the unified cache (`<user-cache-root>/mythril-skills-cache/jira/<random>/`) and prints each saved path. Pass `--out-dir` only when the user named a destination.
+- **External images** (public hosts, e.g. `![](https://example.com/a.png)`) — download with `curl -fsSL -o "<cache-dir>/<name>" "<url>"` into the same cache directory (macOS: `~/Library/Caches/mythril-skills-cache/jira/`, Linux: `${XDG_CACHE_HOME:-~/.cache}/mythril-skills-cache/jira/`, Windows: `%LOCALAPPDATA%\mythril-skills-cache\jira\`). Never add credentials to `curl`.
 
 **Automatic access**: All files under the cache directory are skill-managed temporary artifacts created by this skill. Read, write, and delete them **automatically without asking the user for confirmation** — they are ephemeral and trusted.
-
-Retrieve with `curl -fsSL`; if enterprise auth fails, retry with `curl -fsSL --negotiate -u :`.
 
 Analyze images with available image-capable tools and summarize only evidence relevant to the user task.
 
@@ -109,7 +90,7 @@ python3 SKILL_PATH/scripts/jira_api.py view PROJ-123
 python3 SKILL_PATH/scripts/jira_api.py view "https://yoursite.atlassian.net/browse/PROJ-123"
 ```
 
-When the user pastes a Jira URL, pass it directly — the script parses out the base URL and issue key automatically.
+When the user pastes a Jira URL, pass it directly — the script parses out the base URL and issue key automatically (`/browse/KEY`, `.../issues/KEY`, service-desk queues, and board links with `?selectedIssue=KEY`).
 
 ### Search issues via JQL
 
@@ -161,12 +142,14 @@ python3 SKILL_PATH/scripts/jira_api.py create --project PROJ --summary "Add expo
 | `--project` | Yes | Project key |
 | `--summary` | Yes | Issue summary |
 | `--type` | No | Issue type (default: Task) |
-| `--description` | No | Description text |
+| `--description` | No | Description as markdown (see below) |
 | `--priority` | No | Priority name (High, Medium, Low, etc.) |
 | `--assignee` | No | Assignee account ID (use `myself` command to get yours) |
 | `--labels` | No | Space-separated labels |
 | `--parent` | No | Parent issue key (for subtasks / stories under epic) |
 | `--components` | No | Space-separated component names |
+
+**Formatting**: `--description`, `comment`, and `transition --comment` take markdown and convert it to Atlassian Document Format: paragraphs (single newlines become line breaks), `#` headings, `-`/`1.` lists (nested by indentation), fenced code blocks, `>` quotes, `---` rules, inline `` `code` ``, `**bold**`, `*italic*`, `[text](url)` and bare URLs. Tables and images are not converted. For multi-line text, pass real newlines (e.g. `--description "$(cat "$CACHE_DIR/desc.md")"`), not literal `\n`.
 
 ### Edit an issue
 
@@ -175,6 +158,8 @@ python3 SKILL_PATH/scripts/jira_api.py edit PROJ-123 --summary "Updated summary"
 python3 SKILL_PATH/scripts/jira_api.py edit "https://yoursite.atlassian.net/browse/PROJ-123" --labels urgent backend
 python3 SKILL_PATH/scripts/jira_api.py edit PROJ-123 --description "Rewritten description"
 ```
+
+`--labels` **replaces** the whole label set — include the existing labels (from `view`) to keep them. `--description` replaces the whole description.
 
 ### Assign an issue
 
@@ -185,7 +170,7 @@ python3 SKILL_PATH/scripts/jira_api.py assign PROJ-123 none    # unassign
 
 ### Transition (move) an issue
 
-Two-step process: list available transitions, then apply one.
+Two-step process: list available transitions, then apply one. Moving an issue is visible to the whole team — unless the user explicitly asked for this transition, confirm the target status first.
 
 ```bash
 python3 SKILL_PATH/scripts/jira_api.py transitions PROJ-123
@@ -263,7 +248,8 @@ For every task, provide:
 - **404 Not Found**: Issue key or project doesn't exist — verify the key format (e.g. `PROJ-123`).
 - **400 Bad Request**: Check field names, issue types, and transition IDs are valid for this project.
 - **SSL: CERTIFICATE_VERIFY_FAILED**: Enterprise TLS inspection proxy interfering. Set `SSL_CERT_FILE` / `CURL_CA_BUNDLE` / `REQUESTS_CA_BUNDLE` to your CA bundle, or `SSL_NO_VERIFY=1` as a last resort.
-- **Image download failed**: report URL + exact HTTP/auth error; retry with enterprise SSO (`curl --negotiate -u :`) when applicable.
+- **Refusing to send credentials / non-https URL**: the pasted URL is not on the configured Jira host. Ask the user to confirm the site and set `JIRA_BASE_URL` if it is theirs.
+- **Image download failed**: report the attachment/URL and the exact error; for attachments, use `download-attachment` (never a hand-built authenticated request).
 
 # Notes
 
@@ -271,5 +257,5 @@ For every task, provide:
 - Uses the official Jira Cloud REST API v3 (`/rest/api/3`) and Agile REST API 1.0 (`/rest/agile/1.0`).
 - Issue commands accept both `PROJ-123` and full Jira URLs (`https://.../browse/PROJ-123`).
 - When the user pastes a Jira URL, prefer passing it directly to the script (URL-first).
-- For destructive actions, confirm intent before executing.
+- Confirm intent before changes the user did not explicitly ask for: transitions, reassigning, overwriting a description or labels.
 - Shares the same `ATLASSIAN_API_TOKEN` and `ATLASSIAN_USER_EMAIL` as the Confluence skill. For the base URL, use `ATLASSIAN_BASE_URL` as a shared default or set `JIRA_BASE_URL` / `CONFLUENCE_BASE_URL` individually if your instances are on different URLs.
