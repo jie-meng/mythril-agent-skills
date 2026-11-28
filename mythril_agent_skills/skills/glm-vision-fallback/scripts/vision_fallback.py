@@ -23,6 +23,8 @@ from secret_guard import guard_args, install as install_secret_guard  # noqa: E4
 API_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 MODEL = "glm-4.6v-flash"
 ENV_KEYS = ("ZAI_API_KEY", "GLM_API_KEY")
+# The GLM vision API rejects images above ~5 MB; check locally for a clear error.
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
 DEFAULT_QUESTION = "请详细描述这张图片的内容，包括所有可见的文字、布局和视觉元素。"
 
 STRICT_SYSTEM_PROMPT = """\
@@ -36,7 +38,7 @@ STRICT_SYSTEM_PROMPT = """\
 def get_api_key() -> str:
     """Return the GLM API key from the environment, or exit with setup help."""
     for name in ENV_KEYS:
-        value = os.environ.get(name)
+        value = (os.environ.get(name) or "").strip()
         if value:
             install_secret_guard(ENV_KEYS)
             return value
@@ -78,8 +80,25 @@ def guess_mime_type(path: Path) -> str:
     raise ValueError(f"Unsupported image format (cannot detect MIME type): {path}")
 
 
+def check_image_size(path: Path, size: int, limit: int = MAX_IMAGE_BYTES) -> None:
+    """Raise ValueError when an image is larger than the API accepts."""
+    if size > limit:
+        raise ValueError(
+            f"Image too large for the GLM vision API: {path} is "
+            f"{size / 1024 / 1024:.1f} MB (limit {limit / 1024 / 1024:.0f} MB). "
+            "Downscale or convert it first (e.g. `magick in.png -resize 50% out.jpg` "
+            "or `sips -Z 2000 in.png --out out.png`) into the unified cache dir, "
+            "then pass the smaller file."
+        )
+
+
 def encode_image_data_url(path: Path) -> str:
     """Encode a local image file as a base64 data URL for the API."""
+    try:
+        size = path.stat().st_size
+    except OSError:
+        raise ValueError(f"Cannot read image file: {path}")
+    check_image_size(path, size)
     data = path.read_bytes()
     mime = guess_mime_type(path)
     return f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
@@ -193,7 +212,6 @@ def _post_with_retry(request: urllib.request.Request) -> str:
             raise RuntimeError(
                 f"Network error while calling GLM vision API: {error.reason}"
             ) from error
-    return parse_response(data)
 
 
 def main() -> int:
