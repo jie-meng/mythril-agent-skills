@@ -29,6 +29,7 @@ Trigger this skill when the user mentions **"gh"**, **"github"**, or **"GitHub"*
 - User asks to "review a PR" with code quality intent — use `github-code-review-pr`
 - User asks to create a PR that should follow the repo's PR template and branch-derived title — use `github-pr-create`
 - User asks for local git operations (`git log`, `git show`) — use plain `git`
+- Inside a fullstack workspace (`fullstack.json` at the root), a bare "create an issue" / "记录这个问题" with no platform named — use `fullstack-issue-create` (workspace issue in the docs repo)
 
 Scope boundary:
 
