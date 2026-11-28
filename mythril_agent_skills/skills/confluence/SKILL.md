@@ -17,21 +17,25 @@ license: Apache-2.0
 - Space operations: list spaces
 - Comment operations: list comments, add comment
 - Label operations: list labels, add labels
-- Child page listing
+- Child page listing, attachment listing and download
 - Any request mentioning Confluence pages, wiki, or spaces
 
 # Prerequisites
 
 Requires `ATLASSIAN_API_TOKEN` and `ATLASSIAN_USER_EMAIL`. See `README.md` in this skill directory for setup.
 
-- `ATLASSIAN_API_TOKEN` (**required**) — API token or Personal Access Token
-- `ATLASSIAN_USER_EMAIL` (**required for Confluence Cloud**) — Atlassian account email, used for Basic auth
-- `CONFLUENCE_BASE_URL` (optional — takes precedence) — e.g. `https://confluence.yourcompany.com`
+- `ATLASSIAN_API_TOKEN` (**required**) — Atlassian API token
+- `ATLASSIAN_USER_EMAIL` (**required**) — Atlassian account email, used for Basic auth
+- `CONFLUENCE_BASE_URL` (optional — takes precedence) — e.g. `https://yoursite.atlassian.net` or a custom Cloud domain
 - `ATLASSIAN_BASE_URL` (optional — shared fallback) — e.g. `https://yoursite.atlassian.net`
+
+The script targets **Confluence Cloud** (REST API v2, `/wiki/api/v2`); self-hosted Data Center/Server is not supported.
 
 Base URL resolution: `CONFLUENCE_BASE_URL` > `ATLASSIAN_BASE_URL`. When neither is set, page commands accept a full Confluence URL instead of a page ID. For commands without a specific page (search, spaces, pages, create), one of these base URLs is required.
 
-If your Confluence and Jira share the same base URL, set only `ATLASSIAN_BASE_URL`. If they differ (e.g. self-hosted), set `CONFLUENCE_BASE_URL` for Confluence and `JIRA_BASE_URL` for Jira.
+**Pasted URLs are host-checked**: credentials are only sent to the configured base URL's host, or to an `*.atlassian.net` site when no base URL is configured (or the configured one is itself on atlassian.net). Plain `http://` URLs are refused. If the script refuses a URL, tell the user — do not work around it.
+
+If your Confluence and Jira share the same base URL, set only `ATLASSIAN_BASE_URL`. If they differ, set `CONFLUENCE_BASE_URL` for Confluence and `JIRA_BASE_URL` for Jira.
 
 ## Security — MANDATORY rules for AI agents
 
@@ -49,7 +53,7 @@ If your Confluence and Jira share the same base URL, set only `ATLASSIAN_BASE_UR
 ## Runtime requirements
 
 - Python 3.10+ for `scripts/confluence_api.py`
-- Optional: `curl` for downloading linked screenshots/images when visual evidence is relevant
+- Optional: `curl` for downloading images hosted **outside** Confluence (public URLs, no credentials)
 
 # Workflow
 
@@ -60,40 +64,19 @@ If your Confluence and Jira share the same base URL, set only `ATLASSIAN_BASE_UR
 
 ## Image handling
 
-When a viewed page, comments, or search result contains screenshots or image links, proactively retrieve and analyze them:
+When a viewed page, comments, or search result contains screenshots or image links, proactively retrieve and analyze them.
 
-Detect image links: Markdown syntax `![alt](url)`, plain URLs ending in `.png/.jpg/.jpeg/.gif/.webp/.svg`, and Confluence attachment paths (`/attachments/`, `/download/attachments/`).
+- **Confluence attachments** — `view` renders attached images as `![name](attachment:name)`, and any URL on the Confluence host (`/download/attachments/`, `/wiki/...`) is an attachment too. These need authentication: download them with the bundled subcommand, never with `curl`:
 
-Download under the unified cache.
+  ```bash
+  python3 SKILL_PATH/scripts/confluence_api.py download-attachment 12345              # every image attachment
+  python3 SKILL_PATH/scripts/confluence_api.py download-attachment 12345 "shot 1.png"  # by title
+  ```
 
-**Bash (macOS / Linux):**
-```bash
-if [[ "$(uname -s)" == "Darwin" ]]; then
-  CACHE_ROOT="$HOME/Library/Caches/mythril-skills-cache"
-else
-  CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/mythril-skills-cache"
-fi
-CACHE_DIR="$CACHE_ROOT/confluence"
-mkdir -p "$CACHE_DIR"
-RUN_DIR=$(mktemp -d "$CACHE_DIR/XXXXXXXX")
-IMAGE_CACHE="$RUN_DIR/images"
-mkdir -p "$IMAGE_CACHE"
-```
-
-**PowerShell (Windows):**
-```powershell
-$CACHE_ROOT = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "mythril-skills-cache"
-$CACHE_DIR = Join-Path $CACHE_ROOT "confluence"
-New-Item -ItemType Directory -Force -Path $CACHE_DIR | Out-Null
-$RUN_DIR = Join-Path $CACHE_DIR ([System.IO.Path]::GetRandomFileName())
-New-Item -ItemType Directory -Force -Path $RUN_DIR | Out-Null
-$IMAGE_CACHE = Join-Path $RUN_DIR "images"
-New-Item -ItemType Directory -Force -Path $IMAGE_CACHE | Out-Null
-```
+  It saves into a new directory under the unified cache (`<user-cache-root>/mythril-skills-cache/confluence/<random>/`) and prints each saved path. Pass `--out-dir` only when the user named a destination.
+- **External images** (public hosts, e.g. `![](https://example.com/a.png)`) — download with `curl -fsSL -o "<cache-dir>/<name>" "<url>"` into the same cache directory (macOS: `~/Library/Caches/mythril-skills-cache/confluence/`, Linux: `${XDG_CACHE_HOME:-~/.cache}/mythril-skills-cache/confluence/`, Windows: `%LOCALAPPDATA%\mythril-skills-cache\confluence\`). Never add credentials to `curl`.
 
 **Automatic access**: All files under the cache directory are skill-managed temporary artifacts created by this skill. Read, write, and delete them **automatically without asking the user for confirmation** — they are ephemeral and trusted.
-
-Retrieve with `curl -fsSL`; if enterprise auth fails, retry with `curl -fsSL --negotiate -u :`.
 
 Analyze images with available image-capable tools and summarize only evidence relevant to the user task.
 
@@ -127,7 +110,10 @@ python3 SKILL_PATH/scripts/confluence_api.py search "space=TEAM AND type=page"
 python3 SKILL_PATH/scripts/confluence_api.py search "text ~ 'deployment guide'" --limit 10
 python3 SKILL_PATH/scripts/confluence_api.py search "type=page AND lastModified >= now('-7d')"
 python3 SKILL_PATH/scripts/confluence_api.py search "label = 'architecture' AND type=page"
+python3 SKILL_PATH/scripts/confluence_api.py search "space=TEAM" --cursor "<cursor>"   # next page
 ```
+
+List commands (`search`, `spaces`, `pages`, `children`, `attachments`) print `More results available. Re-run with --cursor '...'` when the result was cut at `--limit` — never treat a truncated list as complete.
 
 Common CQL patterns:
 
@@ -192,6 +178,8 @@ The script automatically handles version numbering — it fetches the current ve
 
 ### Delete a page
 
+**Confirm with the user before running** — `--purge` cannot be undone.
+
 ```bash
 python3 SKILL_PATH/scripts/confluence_api.py delete 12345
 python3 SKILL_PATH/scripts/confluence_api.py delete 12345 --purge  # permanently delete
@@ -236,6 +224,15 @@ Uses the non-deprecated `/pages/{id}/direct-children` endpoint under Confluence 
 python3 SKILL_PATH/scripts/confluence_api.py attachments 12345
 ```
 
+### Download attachments
+
+```bash
+python3 SKILL_PATH/scripts/confluence_api.py download-attachment 12345                    # all image attachments
+python3 SKILL_PATH/scripts/confluence_api.py download-attachment 12345 spec.pdf diagram.png
+```
+
+Saves under the unified cache dir (see Image handling) and prints one path per file. Exit code 1 if any named attachment is missing.
+
 ## Using the Output
 
 The script outputs structured markdown. When the user asks to "view" or "read" a page, run the `view` command and present the output. For search results, the output is a summary table — if the user wants more detail on a specific page, follow up with `view`.
@@ -264,7 +261,8 @@ For every task, provide:
 - **403 Forbidden**: User lacks permission for this operation in the target space.
 - **404 Not Found**: Page or space doesn't exist — verify the page ID or space ID.
 - **400 Bad Request**: Check field names, CQL syntax, and body format.
-- **Image download failed**: report URL + exact HTTP/auth error; retry with enterprise SSO (`curl --negotiate -u :`) when applicable.
+- **Refusing to send credentials / non-https URL**: the pasted URL is not on the configured Confluence host. Ask the user to confirm the site and set `CONFLUENCE_BASE_URL` if it is theirs.
+- **Image download failed**: report the attachment/URL and the exact error; for attachments, use `download-attachment` (never a hand-built authenticated request).
 
 # Notes
 
