@@ -85,32 +85,41 @@ fi
 
 If the user is on the default branch, **stop immediately** and tell them they need to be on a feature/topic branch.
 
-### 1b. Check for unpushed commits
+### 1b. Push the branch if needed
 
 ```bash
-git status
-git log origin/$CURRENT_BRANCH..HEAD --oneline 2>/dev/null
+git status --short
+if UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null); then
+  git log "$UPSTREAM..HEAD" --oneline   # non-empty → unpushed commits
+else
+  echo "NO_UPSTREAM"                    # branch was never pushed
+fi
 ```
 
-If there are unpushed commits, push the branch before creating the PR:
+Push when the output is `NO_UPSTREAM` or lists commits (an empty `git log` from a missing ref must not be read as "nothing to push"):
 
 ```bash
-git push -u origin "$CURRENT_BRANCH"
+git push -u origin HEAD
 ```
 
-If the remote branch does not exist yet, `git push -u origin HEAD` will create it.
+Uncommitted changes from `git status --short` are not part of the PR — mention them to the user rather than committing them.
 
 ### 1c. Determine the base branch (merge target)
 
-- If the user explicitly specifies a target branch (e.g., "create PR to develop"), use that branch.
-- Otherwise, use the detected default branch (`$DEFAULT_BRANCH`).
+```bash
+BASE_BRANCH="<branch the user named, e.g. develop>"   # otherwise:
+BASE_BRANCH="${BASE_BRANCH:-$DEFAULT_BRANCH}"
+git fetch origin "$BASE_BRANCH"   # so the comparison below is current
+```
+
+Use `$BASE_BRANCH` for every comparison in Step 2 and for `--base` in Step 5.
 
 ## Step 2: Gather PR Context
 
 ### 2a. Collect commit information
 
 ```bash
-git log origin/$DEFAULT_BRANCH..HEAD --pretty=format:"%h %s" --no-merges
+git log "origin/$BASE_BRANCH..HEAD" --pretty=format:"%h %s" --no-merges
 ```
 
 This shows all commits that will be included in the PR.
@@ -118,16 +127,16 @@ This shows all commits that will be included in the PR.
 ### 2b. Collect diff summary
 
 ```bash
-git diff origin/$DEFAULT_BRANCH..HEAD --stat
+git diff "origin/$BASE_BRANCH...HEAD" --stat
 ```
 
 ### 2c. Read full diff for PR body generation
 
 ```bash
-git diff origin/$DEFAULT_BRANCH..HEAD
+git diff "origin/$BASE_BRANCH...HEAD"
 ```
 
-Use this to understand the actual code changes for filling in the PR template.
+The three-dot form shows only what this branch changed since it diverged from the base — exactly what the PR will show. (Two dots would also include unrelated commits that landed on the base since then, as reversed changes.) Use this to understand the actual code changes for filling in the PR template.
 
 ## Step 3: Detect and Load PR Template
 
@@ -141,32 +150,14 @@ checking paths by hand:
 python3 SKILL_PATH/scripts/detect_pr_template.py
 ```
 
-If `SKILL_PATH` cannot be resolved, check these fixed install paths in order and
-use the first that exists (no recursive search of `~`):
-
-```python
-import pathlib, subprocess, sys
-
-candidates = [
-    pathlib.Path.home() / ".config/opencode/skills/github-pr-create/scripts/detect_pr_template.py",
-    pathlib.Path.home() / ".claude/skills/github-pr-create/scripts/detect_pr_template.py",
-    pathlib.Path.home() / ".copilot/skills/github-pr-create/scripts/detect_pr_template.py",
-    pathlib.Path.home() / ".cursor/skills/github-pr-create/scripts/detect_pr_template.py",
-    pathlib.Path.home() / ".gemini/skills/github-pr-create/scripts/detect_pr_template.py",
-    pathlib.Path.home() / ".codex/skills/github-pr-create/scripts/detect_pr_template.py",
-    pathlib.Path.home() / ".qwen/skills/github-pr-create/scripts/detect_pr_template.py",
-    pathlib.Path.home() / ".grok/skills/github-pr-create/scripts/detect_pr_template.py",
-]
-script = next((p for p in candidates if p.exists()), None)
-```
+If `SKILL_PATH` cannot be resolved, use the manual fallback below (don't
+search the home directory for the script).
 
 The script checks these locations (in order) for PR templates:
-1. `.github/pull_request_template.md`
-2. `.github/PULL_REQUEST_TEMPLATE.md`
-3. `pull_request_template.md`
-4. `PULL_REQUEST_TEMPLATE.md`
-5. `.github/PULL_REQUEST_TEMPLATE/` directory (multiple templates)
-6. `docs/pull_request_template.md`
+1. `.github/PULL_REQUEST_TEMPLATE/` or `.github/pull_request_template/` directory (multiple templates) — checked first
+2. `.github/pull_request_template.md`, then `.github/PULL_REQUEST_TEMPLATE.md`
+3. `pull_request_template.md`, then `PULL_REQUEST_TEMPLATE.md` (repo root)
+4. `docs/pull_request_template.md`, then `docs/PULL_REQUEST_TEMPLATE.md`
 
 Machine-readable output:
 - `TEMPLATE_FOUND=true|false`
@@ -175,12 +166,18 @@ Machine-readable output:
 - `MULTIPLE_TEMPLATES=true|false` — whether multiple templates exist
 - `TEMPLATE_NAMES=<comma-separated>` — names of available templates (when multiple)
 
+When `MULTIPLE_TEMPLATES=true`, `TEMPLATE_CONTENT` is just the alphabetically
+first one. Pick the template whose name matches the change (e.g. `bugfix` for a
+`fix/` branch) and read that file from the template directory; if none clearly
+matches, list `TEMPLATE_NAMES` and ask the user.
+
 ### Fallback: Manual template detection
 
 If the script is not found, check template paths manually:
 
 ```bash
-for f in .github/pull_request_template.md .github/PULL_REQUEST_TEMPLATE.md pull_request_template.md PULL_REQUEST_TEMPLATE.md docs/pull_request_template.md; do
+ls .github/PULL_REQUEST_TEMPLATE/ .github/pull_request_template/ 2>/dev/null   # multiple templates
+for f in .github/pull_request_template.md .github/PULL_REQUEST_TEMPLATE.md pull_request_template.md PULL_REQUEST_TEMPLATE.md docs/pull_request_template.md docs/PULL_REQUEST_TEMPLATE.md; do
   if [ -f "$f" ]; then
     echo "TEMPLATE_FOUND=true"
     echo "TEMPLATE_PATH=$f"
@@ -203,7 +200,7 @@ commit messages stay consistent. The full rules are in
 - `[scope]` auto-derived from branch name:
   - `<type>/<JIRA>/<Title>` → scope = JIRA key (e.g. `feat[XYZ-123]: add export endpoint`)
   - `<type>/<Title>` with title ≤ 30 chars → scope = lowercase-hyphenated title
-  - `<type>/<Title>` with title > 30 chars → compress: drop filler verbs/connectives (add, update, the, for, with…), keep the first 2–3 meaningful words, aim for ≤ 30 chars, keep any `-vN`
+  - `<type>/<Title>` with title > 30 chars → compress per Rule 3 of commit-format.md: drop the listed filler words, then drop trailing words until ≤ 30 chars (never below two words), keep any `-vN`
   - `-iter-N` is stripped from scope; `-vN` is kept
   - Bare branches (master/main/dev) → no scope, use `type: subject`
 - `<subject>`: imperative mood, lowercase first letter, no period, English
@@ -218,7 +215,6 @@ Examples:
 - Branch `feat/XYZ-123/Add-Export` → PR title `feat[XYZ-123]: add CSV and JSON export endpoints`
 - Branch `feat/Dark-Mode-Toggle` → PR title `feat[dark-mode-toggle]: add theme switcher in settings`
 - Branch `feat/Dark-Mode-Toggle-v2` → PR title `feat[dark-mode-toggle-v2]: add follow-system option`
-- Branch `master` → PR title `chore: bump version to 1.2.0` (no scope)
 
 ### 4b. Fill PR body
 
@@ -265,13 +261,31 @@ Match the PR body language to the template language if a template is used. If no
 
 ### Using `gh pr create`
 
+Write the body to a file and pass `--body-file`. Don't inline it with
+`--body "..."`: Markdown backticks and `$` inside double quotes are executed
+by the shell, so a body containing `` `code` `` would run that code.
+
 ```bash
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  CACHE_ROOT="$HOME/Library/Caches/mythril-skills-cache"
+else
+  CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/mythril-skills-cache"
+fi
+mkdir -p "$CACHE_ROOT/github-pr-create"
+BODY_FILE=$(mktemp "$CACHE_ROOT/github-pr-create/body-XXXXXXXX")
+# Write the filled PR body into "$BODY_FILE" with your file-writing tool
+# (or a quoted heredoc: cat > "$BODY_FILE" <<'PR_BODY_EOF' ... PR_BODY_EOF).
+
 gh pr create \
   --base "$BASE_BRANCH" \
   --head "$CURRENT_BRANCH" \
   --title "$PR_TITLE" \
-  --body "$PR_BODY"
+  --body-file "$BODY_FILE"
 ```
+
+On Windows (PowerShell), create the file under
+`$env:LOCALAPPDATA\mythril-skills-cache\github-pr-create\` instead. Files there
+are skill-managed temporary artifacts; `skills-clean-cache` removes them.
 
 **Additional options based on user request:**
 - `--draft` — if user wants a draft PR

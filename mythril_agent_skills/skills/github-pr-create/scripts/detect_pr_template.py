@@ -86,7 +86,7 @@ def run(repo_root: Path | None = None) -> dict[str, str]:
         result["TEMPLATE_NAMES"] = names
         first = multi[0]
         result["TEMPLATE_PATH"] = str(first.relative_to(repo_root))
-        content = first.read_text(encoding="utf-8")
+        content = first.read_text(encoding="utf-8", errors="replace")
         result["TEMPLATE_CONTENT"] = base64.b64encode(
             content.encode("utf-8")
         ).decode("ascii")
@@ -97,7 +97,7 @@ def run(repo_root: Path | None = None) -> dict[str, str]:
         result["TEMPLATE_FOUND"] = "true"
         result["MULTIPLE_TEMPLATES"] = "false"
         result["TEMPLATE_PATH"] = str(single.relative_to(repo_root))
-        content = single.read_text(encoding="utf-8")
+        content = single.read_text(encoding="utf-8", errors="replace")
         result["TEMPLATE_CONTENT"] = base64.b64encode(
             content.encode("utf-8")
         ).decode("ascii")
