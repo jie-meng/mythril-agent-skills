@@ -24,16 +24,16 @@ code review, closed at finalization) → plan review rounds
 ## Evidence
 
 Seeded by fullstack-propose with one row per Success Criterion from
-plan.md (all `待核验` / `Pending`); each repo's code review fills its
+plan.md, keyed by its `SC<n>` id (all `待核验` / `Pending`); each repo's code review fills its
 rows, finalization closes the rest. A
 criterion without a row here is a criterion nobody verified —
 `plan_lint.py` fails the handoff and the finalization gate on it.
 
 | Success Criterion | Result | Evidence |
 |-------------------|--------|----------|
-| Criterion 1 | ✅ Pass | <test result / PR link / screenshot> |
-| Criterion 2 | ❌ Fail | <what disproved it> |
-| Criterion 3 | ⚠️ Skipped | <tests not run — no harness or no documented run command> |
+| SC1 | ✅ Pass | <test result / PR link / screenshot> |
+| SC2 | ❌ Fail | <what disproved it> |
+| SC3 | ⚠️ Skipped | <tests not run — no harness or no documented run command> |
 ```
 
 
@@ -65,9 +65,9 @@ when a REQ cited here was never declared. Use the ids, not a paraphrase:
 
 | Requirement | Covered by criterion | Delivered by task | Status |
 |-------------|---------------------|-------------------|--------|
-| REQ1 | SC-1 | Phase 1, task 2 | OK |
+| REQ1 | SC1 | T2 | OK |
 | REQ2 | — | — | **DROPPED** |
-| REQ3 | SC-2 | Phase 1, task 3 | **NARROWED** — <what was dropped, and who is asked about it> |
+| REQ3 | SC2 | T3 | **NARROWED** — <what was dropped, and who is asked about it> |
 
 ### Findings
 
@@ -98,8 +98,7 @@ is not copied here — every later agent re-reads this file.>
 Verdict meanings: `PASS` (implementable as written), `PASS_WITH_RISKS`
 (no open P0/P1, risks listed), `NEEDS_FIXES` (P0/P1 the planner can
 resolve alone), `NEEDS_USER_DECISION` (blocking item only a human can
-choose). `FAIL` and `BLOCKED` are code-review verdicts and do not apply
-to a plan.
+choose). `FAIL` is a code-review verdict and does not apply to a plan.
 
 When the planner rejects a finding, the orchestrator records the
 rejection in the same round:

@@ -22,15 +22,15 @@
 
 ## 证据核验
 
-由 fullstack-propose 预填：plan.md 中每条成功标准一行（全部标 `待核验`），
+由 fullstack-propose 预填：plan.md 中每条成功标准一行，首列写它的 `SC<n>` 编号（全部标 `待核验`），
 各仓库代码审查时填写对应证据，收尾阶段补齐其余。这里没有行的成功标准就是没人核验的标准——
 `plan_lint.py` 会在交付门与收尾门上报错。
 
 | 成功标准 | 结果 | 证据 |
 |---------|------|------|
-| 标准 1 | ✅ 通过 | <测试结果 / PR 链接 / 截图> |
-| 标准 2 | ❌ 未通过 | <反证依据> |
-| 标准 3 | ⚠️ 跳过 | <测试未运行 — 无框架或无已记录的运行命令> |
+| SC1 | ✅ 通过 | <测试结果 / PR 链接 / 截图> |
+| SC2 | ❌ 未通过 | <反证依据> |
+| SC3 | ⚠️ 跳过 | <测试未运行 — 无框架或无已记录的运行命令> |
 ```
 
 The per-round review section format and cross-repo review format are
@@ -65,9 +65,9 @@ orchestrator appends it. Section labels follow the work item's language.
 
 | 需求 | 对应成功标准 | 对应任务 | 状态 |
 |------|------------|---------|------|
-| REQ1 | 标准 1 | 阶段一 / 任务 2 | 覆盖 |
+| REQ1 | SC1 | T2 | 覆盖 |
 | REQ2 | — | — | **遗漏** |
-| REQ3 | 标准 2 | 阶段一 / 任务 3 | **收窄** — <砍掉了什么，以及由谁裁定> |
+| REQ3 | SC2 | T3 | **收窄** — <砍掉了什么，以及由谁裁定> |
 
 ### 问题清单
 
@@ -96,8 +96,8 @@ orchestrator appends it. Section labels follow the work item's language.
 
 结论含义：`PASS`（可直接实施）、`PASS_WITH_RISKS`（无未决 P0/P1，风险
 已列明）、`NEEDS_FIXES`（planner 可自行修复的 P0/P1）、
-`NEEDS_USER_DECISION`（阻塞项只能由人决定）。`FAIL` / `BLOCKED` 属于
-代码审查结论，不适用于方案。
+`NEEDS_USER_DECISION`（阻塞项只能由人决定）。`FAIL` 属于代码审查结论，
+不适用于方案。
 
 planner 拒绝某条问题时，orchestrator 在同一轮记录：
 

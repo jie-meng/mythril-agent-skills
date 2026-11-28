@@ -1239,10 +1239,13 @@ class TestTaskRefsInPlan:
         )
         assert _errors(findings) == []
 
-    def test_plan_without_task_ids_is_silent(self, tmp_path: Path):
+    def test_plan_without_task_ids_only_warns(self, tmp_path: Path):
+        """Check 11 has nothing to resolve; check 16 asks for T<n> ids."""
         findings = lint_work_dir(_work_dir(tmp_path, PLAN_NO_TASK_IDS, REVIEW_OK))
         assert _errors(findings) == []
-        assert not any("task list" in m for m in _warnings(findings))
+        unnumbered = [m for m in _warnings(findings) if "T<n> id" in m]
+        assert len(unnumbered) == 1
+        assert "任务 1" in unnumbered[0]
 
 
 # ---------------------------------------------------------------------------
@@ -1447,3 +1450,50 @@ class TestLoopCap:
         assert any(
             "one loop" in m and "cap 3" in m for m in _warnings(findings)
         )
+
+
+# ---------------------------------------------------------------------------
+# Checks 15–16 — criteria and tasks carry ids
+# ---------------------------------------------------------------------------
+
+PLAN_UNLABELLED_CRITERIA = PLAN_OK.replace(
+    "- [ ] SC1 works\n- [ ] SC2 also works\n",
+    "- [ ] 标准 1：works\n- [ ] 标准 2：also works\n",
+)
+
+PLAN_ONE_UNLABELLED_CRITERION = PLAN_OK.replace(
+    "- [ ] SC2 also works\n",
+    "- [ ] SC2 also works\n  - sub-point without an id is fine\n"
+    "- [ ] a third criterion nobody numbered\n",
+)
+
+
+class TestCriterionIds:
+    def test_unlabelled_criteria_are_an_error(self, tmp_path: Path):
+        """Without ids, check 1 cannot see criteria and goes silent."""
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_UNLABELLED_CRITERIA, REVIEW_OK)
+        )
+        errors = [m for m in _errors(findings) if "SC<n> id" in m]
+        assert len(errors) == 1
+        assert errors[0].startswith("2 Success Criteria")
+
+    def test_one_unlabelled_criterion_among_labelled_ones(self, tmp_path: Path):
+        findings = lint_work_dir(
+            _work_dir(tmp_path, PLAN_ONE_UNLABELLED_CRITERION, REVIEW_OK)
+        )
+        errors = [m for m in _errors(findings) if "SC<n> id" in m]
+        assert len(errors) == 1
+        assert "a third criterion" in errors[0]
+        assert "sub-point" not in errors[0]
+
+    def test_labelled_criteria_are_silent(self, tmp_path: Path):
+        findings = lint_work_dir(_work_dir(tmp_path, PLAN_OK, REVIEW_OK))
+        assert not [m for m in _errors(findings) if "SC<n> id" in m]
+        assert not [m for m in _warnings(findings) if "T<n> id" in m]
+
+    def test_hyphenated_id_is_not_an_id(self, tmp_path: Path):
+        """`SC-1` is not matched by the Evidence check, so it must not pass."""
+        plan = PLAN_OK.replace("- [ ] SC1 works", "- [ ] SC-1 works")
+        findings = lint_work_dir(_work_dir(tmp_path, plan, REVIEW_OK))
+        assert [m for m in _errors(findings) if "SC<n> id" in m]

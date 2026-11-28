@@ -115,11 +115,20 @@ Checks:
     a matching instruction can be missed without anyone noticing — the
     line forces the judgement to be written down. Repos with no skills
     are silent, and so is a work directory outside a fullstack workspace.
+15. **Criterion ids** — every top-level bullet of `plan.md`'s
+    `## 成功标准` / `## Success Criteria` section carries an `SC<n>` id.
+    Check 1 matches Evidence rows to criteria by id, so a criterion
+    written as "Criterion 1" is invisible to it: the Evidence table could
+    drop that row and nothing would fail. An unlabelled criterion is
+    therefore an error, not a style issue.
+16. **Task ids** — a checkbox task in `## 实现计划` / `## Implementation
+    Plan` with no `T<n>` id is a warning: checks 4 and 11 resolve task
+    references by id, so an unnumbered task cannot be cited or checked.
 
-Checks 5, 7, 8, 10, 12, 13 and 14 are warnings: they check how a document
+Checks 5, 7, 8, 10, 12, 13, 14 and 16 are warnings: they check how a document
 is written or kept, and none of them breaks the chain — a missing
 attestation, a stale summary line, or an unrecorded skill index is worth
-fixing but must not block a commit. Checks 1-4, 6, 9 and 11 are errors:
+fixing but must not block a commit. Checks 1-4, 6, 9, 11 and 15 are errors:
 each one lets an unverifiable claim enter the definition of done, or leaves
 the work item untraceable from its own code. Item 6 stays silent for work items that
 have neither the section nor a coverage matrix, so legacy items do not
@@ -207,6 +216,11 @@ SUMMARY_STATUS_RE = re.compile(
     re.MULTILINE,
 )
 CODE_MAP_HEADINGS = ("## 代码地图", "## Code Map")
+SUCCESS_CRITERIA_HEADINGS = ("## 成功标准", "## Success Criteria")
+# A top-level list item (no indentation): a criterion or a task line.
+# Indented bullets are sub-points of the item above them.
+TOP_LEVEL_ITEM_RE = re.compile(r"^(?:[-*+]|\d+[.)])\s+(.*)$")
+CHECKBOX_ITEM_RE = re.compile(r"^\s*[-*+]\s+\[[ xX]\]\s*(.*)$")
 IMPLEMENTATION_PLAN_HEADINGS = ("## 实现计划", "## Implementation Plan")
 CODE_REVIEW_HEADINGS = ("## 代码审查", "## Code Review")
 # Items written before the prefixed convention title their code rounds
@@ -811,10 +825,12 @@ def lint_work_dir(work_dir: Path) -> list[Finding]:
     if findings:
         return findings
 
+    findings.extend(_check_criteria_ids(plan_text))
     findings.extend(_check_evidence_coverage(plan_text, review_text))
     findings.extend(_check_plan_review_rounds(review_text))
     findings.extend(_check_task_ids(plan_text, review_text))
     findings.extend(_check_task_refs_in_plan(plan_text))
+    findings.extend(_check_task_list_ids(plan_text))
     findings.extend(_check_requirements_of_record(analysis_text, review_text))
     findings.extend(_check_placeholders(plan_text, analysis_text))
     findings.extend(_check_finding_discipline(review_text))
@@ -826,6 +842,53 @@ def lint_work_dir(work_dir: Path) -> list[Finding]:
     findings.extend(_check_repo_skills(work_dir, review_text))
 
     return findings
+
+
+def _check_criteria_ids(plan_text: str) -> list[Finding]:
+    """Check 15 — every Success Criterion carries an `SC<n>` id."""
+    body = find_section_body(plan_text, SUCCESS_CRITERIA_HEADINGS)
+    if body is None:
+        return []
+    unlabelled: list[str] = []
+    for line in body.splitlines()[1:]:
+        match = TOP_LEVEL_ITEM_RE.match(line)
+        if match and not SC_ID_RE.search(match.group(1)):
+            unlabelled.append(line.strip())
+    if not unlabelled:
+        return []
+    return [
+        Finding(
+            "ERROR",
+            f"{len(unlabelled)} Success Criteria in {PLAN_FILE} carry no "
+            "SC<n> id (write `- [ ] **SC1** — <criterion>`; no hyphen) — the "
+            "Evidence table is matched to criteria by id, so an unlabelled "
+            "criterion can lose its Evidence row unnoticed: "
+            + unlabelled[0][:80],
+        )
+    ]
+
+
+def _check_task_list_ids(plan_text: str) -> list[Finding]:
+    """Check 16 — every checkbox task in the task list carries a `T<n>` id."""
+    body = find_section_body(plan_text, IMPLEMENTATION_PLAN_HEADINGS)
+    if body is None:
+        return []
+    unnumbered = [
+        line.strip()
+        for line in body.splitlines()
+        if (match := CHECKBOX_ITEM_RE.match(line))
+        and not TASK_ID_RE.search(match.group(1))
+    ]
+    if not unnumbered:
+        return []
+    return [
+        Finding(
+            "WARN",
+            f"{len(unnumbered)} task(s) in {PLAN_FILE}'s task list carry no "
+            "T<n> id (write `- [ ] **T1** (repo) — <task>`) — review rounds "
+            "and the coverage matrix cite tasks by id: " + unnumbered[0][:80],
+        )
+    ]
 
 
 def _check_evidence_coverage(plan_text: str, review_text: str) -> list[Finding]:

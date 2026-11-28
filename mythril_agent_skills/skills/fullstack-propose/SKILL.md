@@ -249,8 +249,10 @@ These bind whoever writes. The templates hold the exact shapes.
   §Follow-up as candidates unless a `REQ` asks for them; list the larger
   option in the strategy table with why it was not chosen. Every extra
   mechanism adds risks, tests, and review findings of its own.
-- **Testable Success Criteria.** "Works correctly" is not one; "returns 200
-  with JSON matching schema X for inputs A, B, C" is.
+- **Testable Success Criteria, with ids.** "Works correctly" is not one;
+  "returns 200 with JSON matching schema X for inputs A, B, C" is. Each
+  criterion carries an `SC<n>` id and each task a `T<n>` id (no hyphen) —
+  `plan_lint` matches Evidence rows and task references by id.
 - **Mechanisms verified, not just cited.** Every existing endpoint, field,
   permission path, or hook the design relies on is confirmed to behave as
   assumed (read the code that decides it). Line numbers only where a

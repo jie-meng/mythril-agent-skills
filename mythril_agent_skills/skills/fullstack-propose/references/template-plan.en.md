@@ -27,7 +27,7 @@ write a `**Status**:` field in `plan.md`.
 
 **In plain words**: <what will be different once this ships — one line a non-engineer can read, no ids; include the biggest remaining risk when there is one>
 
-**Status**: <planning | ready to implement | in progress | done> — <one-line latest verdict>
+**Status**: <planning | ready to implement | in progress | done> — <lean | full> tier — <one-line latest verdict, e.g. plan review round 2 PASS>
 
 **Decisions needed from you**: <none; or one line each: question → options → our recommendation>
 
@@ -43,10 +43,14 @@ write a `**Status**:` field in `plan.md`.
 
 <Testable, specific acceptance criteria — "Works correctly" is not a
 criterion; "returns 200 with valid JSON matching schema X for inputs A,
-B, C" is. Each criterion is checked against evidence in review.md.>
+B, C" is. Each criterion is checked against evidence in review.md.
+Every criterion carries an `SC<n>` id — no hyphen, numbered per work
+item, never reused. The Evidence table and the coverage matrix cite the
+id, and `plan_lint.py` matches Evidence rows to criteria by it.>
 
-- [ ] Criterion 1: <observable behavior + expected outcome>
-- [ ] Criterion 2: <...>
+- [ ] **SC1** — <observable behavior + expected outcome>
+- [ ] **SC2** — <...>
+- [ ] **SC3** — <...>
 
 ## Affected Repositories (in dependency order)
 
@@ -103,12 +107,15 @@ Rules:
 
 ## Implementation Plan
 
+<Every task carries a `T<n>` id, numbered across phases and never
+reused; review rounds and the coverage matrix cite it.>
+
 ### Phase 1: <name>
-- [ ] Task 1 in repo-x
-- [ ] Task 2 in repo-y
+- [ ] **T1** (repo-x) — <task>
+- [ ] **T2** (repo-y) — <task>
 
 ### Phase 2: <name>
-- [ ] Task 3 in repo-x
+- [ ] **T3** (repo-x) — <task>
 
 ## Dependencies
 

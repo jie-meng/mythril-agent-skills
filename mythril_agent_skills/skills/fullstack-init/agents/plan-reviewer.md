@@ -249,17 +249,18 @@ Return this structure. The orchestrator appends it to `review.md` verbatim
 
 One row per `REQ` id declared in `analysis.md`, by id — `plan_lint.py`
 fails the round if a declared `REQ` is missing here or a cited one was
-never declared.
+never declared. Cite criteria and tasks by their `SC<n>` / `T<n>` ids
+(no hyphen); a criterion without an id is itself a P1.
 
 | Requirement | Covered by criterion | Delivered by task | Status |
 |-------------|---------------------|-------------------|--------|
-| REQ1 | SC-1 | Phase 1, task 2 | OK |
+| REQ1 | SC1 | T2 | OK |
 | REQ2 | — | — | **DROPPED** |
-| REQ3 | SC-2 | Phase 1, task 3 | **NARROWED** — <what was cut, and that it goes to the user> |
+| REQ3 | SC2 | T3 | **NARROWED** — <what was cut, and that it goes to the user> |
 
 ### Findings
 
-- [P0] plan.md §Success Criteria — SC-3 ("works correctly under load") has no
+- [P0] plan.md §Success Criteria — SC3 ("works correctly under load") has no
   observable outcome — impact: nothing to verify in review.md — fix: state the
   request rate and the p95 latency bound.
 - [P1] analysis.md §Contracts — `POST /profile/theme` declares `theme: string`
