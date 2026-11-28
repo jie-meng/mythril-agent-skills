@@ -152,7 +152,7 @@ class TestWorkItemArchiveRoutesIssuesAway:
     def test_early_archive_override_is_recorded(self):
         assert "Informed override" in self.body
         assert "progress.md` BEFORE" in self.body
-        assert "Archived with SC-3" in self.body
+        assert "Archived with SC3" in self.body
 
 
     def test_archive_commit_stages_the_old_path_and_changelog(self):

@@ -124,7 +124,7 @@ explicitly confirm an early archive.
 **Informed override.** If the user explicitly says to archive anyway
 after hearing the failures, append a dated entry to `progress.md` BEFORE
 the move, recording the unmet checks and the user's decision (e.g.
-`Archived with SC-3 ⚠️ Skipped by user decision`). Then continue. An
+`Archived with SC3 ⚠️ Skipped by user decision`). Then continue. An
 archived item must read as unfinished when it is unfinished — the move
 must never imply completion.
 

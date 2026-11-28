@@ -6,7 +6,10 @@ The lifecycle state of a work item is expressed by its directory
 location, NOT a text field. Active work lives in
 `<docs-dir>/changes/<type>/<work-name>/`; archived work lives in
 `<docs-dir>/changes/archive/YYYY-MM-DD-<type>-<work-name>/`. Do NOT
-write a `**Status**:` field in `plan.md`.
+add a lifecycle `**Status**:` metadata field beside Type / Branch /
+Created. The Summary's `**Status**` line below is a one-line progress
+note for readers (phase, tier, latest verdict); no skill reads it to
+decide whether the work is active or archived.
 
 ### English
 
