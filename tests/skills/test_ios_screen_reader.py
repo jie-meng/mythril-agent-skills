@@ -207,3 +207,35 @@ class TestScreenshotCommand:
     def test_unknown_kind(self):
         with pytest.raises(ValueError):
             self.func("UDID", "android", Path("/x/s.png"))
+
+
+class TestProbeAll:
+    """Tests for ios_devices.probe_all."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from ios_devices import probe_all
+        self.func = probe_all
+
+    def test_states_assigned_in_order(self):
+        devices = [{"udid": "a", "state": "unknown"}, {"udid": "b", "state": "unknown"}]
+        self.func(devices, lambda udid: {"a": "ready", "b": "locked"}[udid])
+        assert [d["state"] for d in devices] == ["ready", "locked"]
+
+    def test_runs_concurrently(self):
+        import threading
+        import time
+
+        barrier = threading.Barrier(3, timeout=2)
+
+        def probe(udid: str) -> str:
+            barrier.wait()  # deadlocks (BrokenBarrierError) if run sequentially
+            time.sleep(0.01)
+            return "ready"
+
+        devices = [{"udid": str(i), "state": "unknown"} for i in range(3)]
+        self.func(devices, probe)
+        assert all(d["state"] == "ready" for d in devices)
+
+    def test_empty_is_noop(self):
+        self.func([], lambda udid: "ready")

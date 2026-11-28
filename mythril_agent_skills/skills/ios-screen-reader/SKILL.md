@@ -49,8 +49,8 @@ simulators. Never install it without the user's consent.
 python3 SKILL_PATH/scripts/ios_devices.py list
 ```
 
-The script lists paired physical devices (probing each one, ~1–15 s) followed by
-booted simulators:
+The script lists paired physical devices (probing them in parallel, ~1–20 s in
+total) followed by booted simulators:
 
 ```
 1. [physical] My iPhone — iPhone 11 (27.2.1) state=ready udid=00008030-...
