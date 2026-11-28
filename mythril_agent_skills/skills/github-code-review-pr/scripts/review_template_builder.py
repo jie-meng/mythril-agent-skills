@@ -62,8 +62,7 @@ State: {pr_state or "[fill state]"}
 
 3. Code Quality & Clean Code Evaluation
 - Strengths: [fill]
-- Confirmed findings with file/line evidence: [fill]
-- Potential risks with validation steps: [fill]
+- Style, naming, readability, design, duplication (file/line + suggested fix): [fill]
 
 4. Major Issues and Risks
 Confirmed Findings:
@@ -84,6 +83,7 @@ Pre-send consistency checks:
 - No platform speculation text before gh execution.
 - No contradictory statements (remove disproven suspicions).
 - Exactly one verdict keyword used in final output.
+- Each finding appears once: correctness bugs and risks in section 4 only.
 """
 
 
@@ -122,15 +122,14 @@ URL: {pr_url}
 
 3. 代码质量 & Clean Code 评价
 - 优点：[请补充]
-- 已确认问题（含文件/行证据）：[请补充]
-- 潜在风险（含验证步骤）：[请补充]
+- 风格、命名、可读性、设计、重复代码（文件/行 + 修改建议）：[请补充]
 
 4. 潜在的重大问题和风险
-Confirmed Findings:
-- none
+已确认问题：
+- 无
 
-Potential Risks:
-- none
+潜在风险：
+- 无
 
 5. 增量建议
 - [建议 1]
@@ -144,6 +143,7 @@ Potential Risks:
 - 不出现平台猜测表述。
 - 不保留自我矛盾描述（已排除的问题要删除）。
 - 最终仅保留一个 verdict 关键词。
+- 每个问题只出现一次：bug 与风险只写在第 4 节。
 """
 
 

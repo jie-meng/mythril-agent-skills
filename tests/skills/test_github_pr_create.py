@@ -188,3 +188,16 @@ class TestRun:
 
         result = self.func(tmp_path)
         assert result["MULTIPLE_TEMPLATES"] == "true"
+
+    def test_non_utf8_template_does_not_crash(self, tmp_path: Path):
+        """Regression: a GBK/Latin-1 template must not raise UnicodeDecodeError."""
+        import base64
+
+        template = tmp_path / ".github" / "pull_request_template.md"
+        template.parent.mkdir(parents=True)
+        template.write_bytes("## 摘要\n".encode("gbk"))
+
+        result = self.func(tmp_path)
+        assert result["TEMPLATE_FOUND"] == "true"
+        decoded = base64.b64decode(result["TEMPLATE_CONTENT"]).decode("utf-8")
+        assert decoded.startswith("## ")

@@ -36,6 +36,15 @@ class TestValidateSkill:
         assert ok is True
         assert "valid" in msg.lower()
 
+    def test_crlf_and_utf8_description(self, tmp_path):
+        """Non-ASCII description in a CRLF file validates (read as UTF-8)."""
+        skill_dir = tmp_path / "test-skill"
+        skill_dir.mkdir()
+        content = "---\r\nname: test-skill\r\ndescription: 审查暂存 review.\r\n---\r\n"
+        (skill_dir / "SKILL.md").write_bytes(content.encode("utf-8"))
+        ok, msg = self.validate(skill_dir)
+        assert ok is True, msg
+
     def test_missing_skill_md(self, tmp_path):
         skill_dir = tmp_path / "empty-skill"
         skill_dir.mkdir()
@@ -117,6 +126,19 @@ class TestParseSkillMd:
         skill_dir.mkdir(exist_ok=True)
         (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
         return skill_dir
+
+    def test_crlf_folded_description(self, tmp_path):
+        """Non-ASCII folded description in a CRLF file parses (read as UTF-8)."""
+        skill_dir = tmp_path / "test-skill"
+        skill_dir.mkdir()
+        content = (
+            "---\r\nname: my-skill\r\ndescription: >\r\n  第一行\r\n  second\r\n"
+            "---\r\n# Body\r\n"
+        )
+        (skill_dir / "SKILL.md").write_bytes(content.encode("utf-8"))
+        name, desc, _ = self.parse(skill_dir)
+        assert name == "my-skill"
+        assert desc == "第一行 second"
 
     def test_basic_parse(self, tmp_path):
         content = "---\nname: my-skill\ndescription: A description.\n---\n\n# Body\n"
@@ -263,3 +285,40 @@ class TestGenerateMarkdown:
         assert "Without Skill" in md
         assert "Pass Rate" in md
         assert "90%" in md
+
+
+class TestExplicitUtf8Reads:
+    """Regression: SKILL.md must be read as UTF-8, not the locale encoding.
+
+    On Windows the locale default (cp1252/GBK) breaks non-ASCII descriptions,
+    so the readers must pass encoding="utf-8" explicitly.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _strict_read_text(self, monkeypatch):
+        original = Path.read_text
+
+        def strict(self, encoding=None, errors=None, **kwargs):
+            if encoding is None:
+                raise AssertionError(f"read_text without encoding: {self}")
+            return original(self, encoding=encoding, errors=errors, **kwargs)
+
+        monkeypatch.setattr(Path, "read_text", strict)
+
+    def _skill(self, tmp_path: Path) -> Path:
+        skill_dir = tmp_path / "test-skill"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_bytes(
+            "---\nname: test-skill\ndescription: 审查暂存\n---\n".encode("utf-8")
+        )
+        return skill_dir
+
+    def test_quick_validate(self, tmp_path):
+        from quick_validate import validate_skill
+
+        assert validate_skill(self._skill(tmp_path))[0] is True
+
+    def test_parse_skill_md(self, tmp_path):
+        from utils import parse_skill_md
+
+        assert parse_skill_md(self._skill(tmp_path))[1] == "审查暂存"

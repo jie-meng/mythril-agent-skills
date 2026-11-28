@@ -20,7 +20,8 @@ If it is ambiguous whether the user wants inline or general, choose inline:
 reviewers find line-anchored comments far easier to act on.
 
 ```bash
-# Get the PR head commit SHA
+# PR head commit SHA: read `.headRefOid` from PR_VIEW_JSON_PATH if the
+# session is still around; otherwise:
 HEAD_SHA=$(gh pr view <URL_or_NUMBER> --json headRefOid -q .headRefOid)
 
 # For github.com repos:
@@ -43,13 +44,16 @@ gh api --hostname <host> repos/OWNER/REPO/pulls/PR_NUMBER/comments \
 ```
 
 - `path`: file path relative to the repo root (from the PR diff)
-- `line`: line number in the diff's new version of the file (RIGHT side)
+- `line`: line number in the file itself (new version for RIGHT, old for
+  LEFT) — not a position in the diff. It must fall inside a diff hunk, or
+  the API returns 422
 - `side`: `RIGHT` for new code (most common), `LEFT` for old/deleted code
 - `commit_id`: the HEAD SHA of the PR branch
 
-**Finding the line number:** use the saved PR diff (`PR_DIFF_PATH`). The
-`line` parameter is the line number on the RIGHT side of the diff (the new
-version). Match the code snippet from the review to the diff.
+**Finding the line number:** use the saved PR diff (`PR_DIFF_PATH`). Take the
+new-file start from the hunk header (`@@ -a,b +c,d @@`) and count down to the
+target line (skipping `-` lines). Match the code snippet from the review to
+the diff.
 
 ## Exception: general PR-level comment
 

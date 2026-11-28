@@ -98,7 +98,11 @@ def is_gh_pr_diff(cmd: list[str]) -> bool:
 
 
 def gate_single_fetch(command_entries: list[dict]) -> GateResult:
-    """Ensure gh pr view/diff are executed exactly once."""
+    """Ensure the runner executed gh pr view/diff exactly once.
+
+    Only commands logged by review_runner.py are visible here; a fetch the
+    agent runs by hand outside the runner cannot be detected.
+    """
     view_count = 0
     diff_count = 0
     for entry in command_entries:
@@ -160,8 +164,39 @@ def gate_cleanup_evidence(cleanup_log_text: str) -> GateResult:
     )
 
 
+_VERDICT_LINE_RE = re.compile(
+    r"^[\s>*_-]*(?:verdict|结论|总结评价)[\s*_]*[:：]\s*(.+)$", re.IGNORECASE
+)
+
+
+def _classify_verdict(pool: str) -> str:
+    """Return the single verdict keyword found in pool, or UNKNOWN/AMBIGUOUS."""
+    pool = pool.lower()
+    matches = [
+        ("REQUEST_CHANGES", bool(re.search(r"\brequest\s+changes\b", pool))),
+        ("APPROVE", bool(re.search(r"\bapprove\b", pool))),
+        ("COMMENT", bool(re.search(r"\bcomment\b", pool))),
+    ]
+    found = [name for name, ok in matches if ok]
+    if len(found) == 1:
+        return found[0]
+    return "UNKNOWN" if not found else "AMBIGUOUS"
+
+
 def detect_verdict(review_text: str) -> str:
-    """Best-effort verdict detection from review text."""
+    """Detect the review verdict.
+
+    An explicit ``Verdict: <X>`` line (the template's form) wins; incidental
+    words such as "overall" or "comment" elsewhere in the review are only
+    consulted when no such line exists.
+    """
+    for raw in reversed(review_text.splitlines()):
+        match = _VERDICT_LINE_RE.match(raw.strip())
+        if match:
+            verdict = _classify_verdict(match.group(1))
+            if verdict != "UNKNOWN":
+                return verdict
+
     lines = [line.strip().lower() for line in review_text.splitlines() if line.strip()]
     focus_lines: list[str] = []
     for i, line in enumerate(lines):
@@ -171,21 +206,7 @@ def detect_verdict(review_text: str) -> str:
                 focus_lines.append(lines[i + 1])
 
     pool = "\n".join(focus_lines) if focus_lines else review_text.lower()
-    has_request_changes = bool(re.search(r"\brequest\s+changes\b", pool))
-    has_approve = bool(re.search(r"\bapprove\b", pool))
-    has_comment = bool(re.search(r"\bcomment\b", pool))
-
-    matches = [
-        ("REQUEST_CHANGES", has_request_changes),
-        ("APPROVE", has_approve),
-        ("COMMENT", has_comment),
-    ]
-    found = [name for name, ok in matches if ok]
-    if len(found) == 1:
-        return found[0]
-    if len(found) == 0:
-        return "UNKNOWN"
-    return "AMBIGUOUS"
+    return _classify_verdict(pool)
 
 
 def gate_verdict_state(

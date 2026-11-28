@@ -74,39 +74,73 @@ def get_repos_dir() -> Path:
 # --- URL parsing and normalization ---
 
 
+_HOST_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::\d{1,5})?$")
+_SEGMENT_RE = re.compile(r"^[\w.~-]+$")
+
+# Browser-URL markers: everything from the first of these segments onward
+# is a page inside the repo (`/tree/main/src`, `/-/blob/...`), not part of
+# the repo path. Only honoured after at least owner/repo.
+_REPO_PAGE_MARKERS = frozenset({"-", "tree", "blob", "commit", "commits", "pull"})
+
+
+def _validate_host(host: str, url: str) -> str:
+    """Return host if it is a plain hostname[:port]; raise ValueError otherwise."""
+    if not _HOST_RE.match(host):
+        raise ValueError(f"Invalid host in git URL: {url}")
+    return host
+
+
+def _split_repo_path(path_part: str, url: str) -> tuple[str, str]:
+    """Split a repo path into (owner, repo), rejecting unsafe segments.
+
+    Rejects empty, ``.`` and ``..`` segments (and any character outside
+    ``[\\w.~-]``) so the result can never escape the cache directory when
+    joined onto it.
+    """
+    parts = path_part.strip("/").split("/")
+    for i, segment in enumerate(parts):
+        if i >= 2 and segment in _REPO_PAGE_MARKERS:
+            parts = parts[:i]
+            break
+    if parts and parts[-1].endswith(".git"):
+        parts[-1] = parts[-1][: -len(".git")]
+    if len(parts) < 2:
+        raise ValueError(f"Cannot parse owner/repo from URL: {url}")
+    for segment in parts:
+        if segment in ("", ".", "..") or not _SEGMENT_RE.match(segment):
+            raise ValueError(f"Unsafe path segment {segment!r} in git URL: {url}")
+    return "/".join(parts[:-1]), parts[-1]
+
+
 def parse_repo_url(url: str) -> tuple[str, str, str, str]:
     """Parse a git URL into (host, owner, repo, clone_url).
 
     Supports:
-      - https://host/owner/repo[.git]
+      - https://host[:port]/owner/repo[.git]  (browser URLs such as
+        ``.../tree/main/src`` are trimmed to the repo)
       - git@host:owner/repo[.git]
 
-    Returns the clone URL as HTTPS unless the original was SSH.
+    Credentials embedded in an HTTPS URL (``https://user:token@host/...``)
+    are dropped from every return value, so they never reach the mapping
+    file, a directory name, or log output; git's credential helper supplies
+    auth instead. Returns the clone URL as HTTPS unless the original was SSH.
     """
     url = url.strip()
 
-    ssh_match = re.match(r"^git@([^:]+):(.+?)(?:\.git)?$", url)
+    ssh_match = re.match(r"^git@([^:/]+):(.+)$", url)
     if ssh_match:
-        host = ssh_match.group(1)
-        path_part = ssh_match.group(2)
-        parts = path_part.strip("/").split("/")
-        if len(parts) < 2:
-            raise ValueError(f"Cannot parse owner/repo from SSH URL: {url}")
-        owner = "/".join(parts[:-1])
-        repo = parts[-1]
-        clone_url = url
+        host = _validate_host(ssh_match.group(1), url)
+        owner, repo = _split_repo_path(ssh_match.group(2), url)
+        clone_url = f"git@{host}:{owner}/{repo}.git"
         return host, owner, repo, clone_url
 
-    https_match = re.match(r"^https?://([^/]+)/(.+?)(?:\.git)?/?$", url)
+    https_match = re.match(r"^https?://([^/]+)/(.+)$", url)
     if https_match:
-        host = https_match.group(1)
-        path_part = https_match.group(2)
-        parts = path_part.strip("/").split("/")
-        if len(parts) < 2:
-            raise ValueError(f"Cannot parse owner/repo from HTTPS URL: {url}")
-        owner = "/".join(parts[:-1])
-        repo = parts[-1]
-        clone_url = f"https://{host}/{path_part}.git"
+        netloc = https_match.group(1).rsplit("@", 1)[-1]
+        host = _validate_host(netloc, url)
+        path_part = https_match.group(2).split("?", 1)[0].split("#", 1)[0]
+        owner, repo = _split_repo_path(path_part, url)
+        clone_url = f"https://{host}/{owner}/{repo}.git"
         return host, owner, repo, clone_url
 
     raise ValueError(f"Unrecognized git URL format: {url}")
@@ -122,10 +156,30 @@ def normalize_key(url: str) -> str:
     return f"{host}/{owner}/{repo}"
 
 
+def ensure_within_repos_root(path: Path, repos_root: Path | None = None) -> Path:
+    """Return path resolved, or raise ValueError if it is not inside repos_root.
+
+    Called before every ``shutil.rmtree`` so neither a crafted URL nor a
+    tampered ``repo_map.json`` entry can delete anything outside the cache.
+    """
+    root = (repos_root or get_repos_dir()).expanduser().resolve(strict=False)
+    candidate = path.expanduser().resolve(strict=False)
+    if candidate == root or not candidate.is_relative_to(root):
+        raise ValueError(f"Refusing to touch path outside repo cache: {path}")
+    return candidate
+
+
 def get_local_path(url: str) -> Path:
     """Return the deterministic local path for a repo URL."""
     host, owner, repo, _ = parse_repo_url(url)
-    return get_repos_dir() / host / owner / repo
+    # ':' (port separator) is not valid in Windows path components.
+    local = get_repos_dir() / host.replace(":", "_") / owner / repo
+    return ensure_within_repos_root(local)
+
+
+def remove_tree(path: Path) -> None:
+    """Delete a cached repo directory after confirming it is inside the cache."""
+    shutil.rmtree(ensure_within_repos_root(path), ignore_errors=True)
 
 
 # --- Mapping file operations ---
@@ -149,7 +203,7 @@ def save_map(mapping: dict[str, str]) -> None:
     """Save repo_map.json atomically."""
     map_path = get_map_path()
     map_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = map_path.with_suffix(".tmp")
+    tmp = map_path.with_name(f"{map_path.name}.{os.getpid()}.tmp")
     tmp.write_text(
         json.dumps(mapping, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
@@ -178,9 +232,13 @@ def lookup_entry(url: str) -> Path | None:
     mapping = load_map()
     key = normalize_key(url)
     path_str = mapping.get(key)
-    if path_str:
-        return Path(path_str)
-    return None
+    if not path_str:
+        return None
+    try:
+        return ensure_within_repos_root(Path(path_str))
+    except ValueError:
+        log(f"[map] Ignoring entry outside repo cache: {key} → {path_str}")
+        return None
 
 
 # --- Git operations ---
@@ -211,14 +269,32 @@ def git_clone(clone_url: str, target: Path, branch: str | None = None) -> None:
         raise RuntimeError(f"git clone failed:\n{result.stderr.strip()}")
 
 
-def git_pull(repo_path: Path) -> None:
-    """Pull latest changes on the current branch."""
-    result = run_git(["pull", "--ff-only"], cwd=repo_path)
-    if result.returncode != 0:
-        err = result.stderr.strip()
-        if "Not a git repository" in err:
-            raise RuntimeError(f"Not a git repository: {repo_path}")
-        raise RuntimeError(f"git pull failed:\n{err}")
+def is_valid_checkout(repo_path: Path) -> bool:
+    """Return whether repo_path is a usable git checkout with a HEAD commit."""
+    if not (repo_path / ".git").exists():
+        return False
+    result = run_git(["rev-parse", "--verify", "--quiet", "HEAD"], cwd=repo_path)
+    return result.returncode == 0
+
+
+def git_refresh(repo_path: Path) -> None:
+    """Update the current branch of a cached repo to its upstream.
+
+    Fetches origin, then hard-resets the current branch to its upstream (the
+    cache is skill-managed, so there is no local work to keep and a diverged
+    branch must not block the update). Raises RuntimeError if the fetch fails
+    — typically network or auth — so the caller can keep the stale copy.
+    """
+    git_fetch(repo_path)
+    upstream = run_git(
+        ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+        cwd=repo_path,
+    )
+    if upstream.returncode != 0:
+        return  # detached HEAD or no upstream: refs are fresh, nothing to move
+    reset = run_git(["reset", "--hard", "@{u}"], cwd=repo_path)
+    if reset.returncode != 0:
+        raise RuntimeError(f"git reset failed:\n{reset.stderr.strip()}")
 
 
 def git_fetch(repo_path: Path) -> None:
@@ -277,60 +353,72 @@ def log(msg: str) -> None:
     print(msg, file=sys.stderr)
 
 
+def _fresh_clone(url: str, clone_url: str, branch: str | None = None) -> Path:
+    """Clone a repo into its deterministic cache path and record it."""
+    local_path = get_local_path(url)
+    if local_path.exists():
+        log(f"[cleanup] Removing leftover directory: {local_path}")
+        remove_tree(local_path)
+    log(f"[clone] Cloning {clone_url} (blobless)...")
+    git_clone(clone_url, local_path, branch)
+    add_entry(url, local_path)
+    log("[clone] Done.")
+    return local_path
+
+
+def _usable_cached_repo(url: str) -> Path | None:
+    """Return the cached checkout for url, dropping stale or broken entries.
+
+    A broken checkout (no HEAD) is deleted so it can be re-cloned; a missing
+    directory just loses its mapping entry.
+    """
+    cached = lookup_entry(url)
+    if cached is None:
+        return None
+    if cached.exists() and is_valid_checkout(cached):
+        return cached
+    if cached.exists():
+        log(f"[cache broken] Not a usable git checkout, re-cloning: {cached}")
+        remove_tree(cached)
+    else:
+        log(f"[cache stale] Mapping exists but directory missing: {cached}")
+    remove_entry(url)
+    return None
+
+
 def cmd_clone(url: str, branch: str | None = None) -> None:
-    """Clone a repo or reuse from cache. Prints the local path on success."""
+    """Clone a repo or reuse from cache. Prints the local path on success.
+
+    On a cache hit the requested branch is checked out first and then
+    refreshed. If the refresh fails (offline, auth), the cached copy is kept
+    and used as-is with a warning — a network failure never deletes the cache.
+    """
     if not shutil.which("git"):
         print("ERROR: git is not installed.", file=sys.stderr)
         sys.exit(1)
 
     _, _, _, clone_url = parse_repo_url(url)
-    local_path = get_local_path(url)
     key = normalize_key(url)
 
-    cached = lookup_entry(url)
-    if cached and cached.exists() and (cached / ".git").is_dir():
-        log(f"[cache hit] Found cached repo: {key}")
-        log("[pull] Updating to latest...")
-        try:
-            git_pull(cached)
-            log("[pull] Done.")
-        except RuntimeError as e:
-            log(f"[pull] Failed: {e}")
-            log("[re-clone] Removing stale cache and cloning fresh...")
-            shutil.rmtree(cached, ignore_errors=True)
-            remove_entry(url)
-            git_clone(clone_url, local_path, branch)
-            add_entry(url, local_path)
-            log("[re-clone] Done.")
-            if branch:
-                log(f"[branch] Checking out '{branch}'...")
-                git_checkout_branch(local_path, branch)
-                log("[branch] Done.")
-            print(str(local_path))
-            return
-
+    cached = _usable_cached_repo(url)
+    if cached is None:
+        local_path = _fresh_clone(url, clone_url, branch)
         if branch:
-            log(f"[branch] Checking out '{branch}'...")
-            git_checkout_branch(cached, branch)
-            log("[branch] Done.")
-        print(str(cached))
+            log(f"[branch] On branch '{branch}'.")
+        print(str(local_path))
         return
 
-    if cached:
-        log(f"[cache stale] Mapping exists but directory missing for: {key}")
-        remove_entry(url)
-
-    if local_path.exists():
-        log(f"[cleanup] Removing leftover directory: {local_path}")
-        shutil.rmtree(local_path, ignore_errors=True)
-
-    log(f"[clone] Cloning {clone_url} ...")
-    git_clone(clone_url, local_path, branch)
-    add_entry(url, local_path)
-    log("[clone] Done.")
+    log(f"[cache hit] Found cached repo: {key}")
     if branch:
-        log(f"[branch] On branch '{branch}'.")
-    print(str(local_path))
+        log(f"[branch] Checking out '{branch}'...")
+        git_checkout_branch(cached, branch)
+    log("[refresh] Updating to latest...")
+    try:
+        git_refresh(cached)
+        log("[refresh] Done.")
+    except RuntimeError as e:
+        log(f"[refresh] Failed, using cached copy as-is (may be stale): {e}")
+    print(str(cached))
 
 
 def cmd_sync(url: str) -> None:
@@ -338,7 +426,9 @@ def cmd_sync(url: str) -> None:
 
     If the repo is not yet cached, performs a blobless clone.
     If already cached, fetches origin to refresh refs, then resets the
-    working tree to a clean state on the default branch.
+    working tree to a clean state on the default branch. A failed fetch
+    (offline, auth) keeps the cached copy and resets to the last-known
+    remote state instead of deleting the cache.
 
     The caller is responsible for fetching any additional branches it needs
     (e.g., `git fetch origin <base> <head>` for PR review). This keeps the
@@ -351,48 +441,34 @@ def cmd_sync(url: str) -> None:
         sys.exit(1)
 
     _, _, _, clone_url = parse_repo_url(url)
-    local_path = get_local_path(url)
     key = normalize_key(url)
 
-    cached = lookup_entry(url)
-    if cached and cached.exists() and (cached / ".git").is_dir():
-        log(f"[cache hit] Found cached repo: {key}")
-        log("[sync] Fetching origin...")
-        try:
-            git_fetch(cached)
-            log("[sync] Done.")
-        except RuntimeError as e:
-            log(f"[sync] Fetch failed: {e}")
-            log("[re-clone] Removing stale cache and cloning fresh...")
-            shutil.rmtree(cached, ignore_errors=True)
-            remove_entry(url)
-            git_clone(clone_url, local_path)
-            add_entry(url, local_path)
-            log("[re-clone] Done.")
-            print(str(local_path))
-            return
-
-        default_branch = git_get_default_branch(cached)
-        run_git(["checkout", default_branch], cwd=cached)
-        run_git(["reset", "--hard", f"origin/{default_branch}"], cwd=cached)
-        run_git(["clean", "-fd"], cwd=cached)
-        log(f"[sync] Repo on {default_branch}, up-to-date with remote.")
-        print(str(cached))
+    cached = _usable_cached_repo(url)
+    if cached is None:
+        print(str(_fresh_clone(url, clone_url)))
         return
 
-    if cached:
-        log(f"[cache stale] Mapping exists but directory missing for: {key}")
-        remove_entry(url)
+    log(f"[cache hit] Found cached repo: {key}")
+    log("[sync] Fetching origin...")
+    try:
+        git_fetch(cached)
+        log("[sync] Done.")
+    except RuntimeError as e:
+        log(f"[sync] Fetch failed, using cached refs (may be stale): {e}")
 
-    if local_path.exists():
-        log(f"[cleanup] Removing leftover directory: {local_path}")
-        shutil.rmtree(local_path, ignore_errors=True)
-
-    log(f"[clone] Cloning {clone_url} (blobless)...")
-    git_clone(clone_url, local_path)
-    add_entry(url, local_path)
-    log("[clone] Done.")
-    print(str(local_path))
+    default_branch = git_get_default_branch(cached)
+    for args in (
+        ["checkout", "--force", default_branch],
+        ["reset", "--hard", f"origin/{default_branch}"],
+        ["clean", "-fd"],
+    ):
+        result = run_git(args, cwd=cached)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"git {' '.join(args)} failed:\n{result.stderr.strip()}"
+            )
+    log(f"[sync] Repo on {default_branch}, matching origin/{default_branch}.")
+    print(str(cached))
 
 
 def cmd_lookup(url: str) -> None:
@@ -412,7 +488,7 @@ def cmd_remove(url: str) -> None:
     local_path = get_local_path(url)
     if local_path.exists():
         log(f"[remove] Deleting {key} at {local_path} ...")
-        shutil.rmtree(local_path, ignore_errors=True)
+        remove_tree(local_path)
         log("[remove] Deleted.")
     else:
         log(f"[remove] Directory not found (already deleted?): {local_path}")
@@ -442,7 +518,7 @@ def cmd_pull(url: str) -> None:
 
     key = normalize_key(url)
     log(f"[pull] Updating {key} ...")
-    git_pull(cached)
+    git_refresh(cached)
     log("[pull] Done.")
     print(f"Updated: {cached}")
 

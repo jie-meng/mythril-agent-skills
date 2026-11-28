@@ -342,19 +342,19 @@ Skills that need to download files, clone repos, or create temp artifacts at run
 
 ### Shared git repo cache
 
-The `git-repo-reader` skill manages a shared repo cache at `mythril-skills-cache/git-repo-cache/` via its `scripts/repo_manager.py`. Other skills (e.g., `github-code-review-pr`) can **read** this cache to reuse already-cloned repos without re-downloading.
+The shared repo cache lives at `mythril-skills-cache/git-repo-cache/` and is managed by `repo_manager.py` — a shared asset (canonical `shared/git/repo_manager.py`) bundled into both `git-repo-reader` and `github-code-review-pr`.
 
 ```bash
 # git-repo-reader: clone or reuse a cached repo
 python3 scripts/repo_manager.py clone "<repo-url>"
 
-# github-code-review-pr: check if repo is already cached (read-only lookup)
-python3 scripts/repo_cache_lookup.py "<repo-url>"
+# github-code-review-pr (via review_runner.py): clone/refresh + clean default branch
+python3 scripts/repo_manager.py sync "<repo-url>"
 ```
 
 Cached repos live under `mythril-skills-cache/git-repo-cache/repos/<host>/<owner>/<repo>/`. They are **long-lived** — do NOT delete them after use. The `skills-clean-cache` command lets users selectively clean repo cache vs ephemeral temp files.
 
-**Design principle**: Only `git-repo-reader` writes to the shared cache (clone, pull, sync). Other skills that benefit from cached repos bundle a lightweight **read-only lookup script** (`repo_cache_lookup.py`) that checks the same mapping file. This keeps each skill self-contained while enabling cross-skill cache reuse.
+**Design principle**: Only `repo_manager.py` writes the cache layout and `repo_map.json` (clone, refresh, sync, remove), so every writer shares the same URL validation and path guards. `git-repo-reader` clones and refreshes; `github-code-review-pr` runs `sync`, checks out the PR head detached for the review, and resets the repo to its default branch at cleanup. Path selection (`path_select.py`) only reads `repo_map.json`. A network failure never deletes a cached repo — the stale copy is used with a warning.
 
 ### Cross-platform cache directory creation
 
@@ -513,6 +513,7 @@ NEVER hand-edit a bundled copy directly — your changes will be lost on the nex
 | `compute_waves.py` | `shared/waves/compute_waves.py` | `fullstack-propose`, `fullstack-apply` |
 | `secret_guard.py` | `shared/secrets/secret_guard.py` | `confluence`, `figma`, `glm-vision-fallback`, `jenkins`, `jira`, `notion` |
 | `secret_scan.py` | `shared/secrets/secret_scan.py` | `fullstack-brief`, `fullstack-issue-create` |
+| `repo_manager.py` | `shared/git/repo_manager.py` | `git-repo-reader`, `github-code-review-pr` |
 | `commit-format.md` | `shared/commit/commit-format.md` | `code-review-staged`, `github-pr-create` |
 | `plan_lint.py` | `shared/plan/plan_lint.py` | `fullstack-propose`, `fullstack-apply` |
 | `repo_skills.py` | `shared/workspace/repo_skills.py` | `fullstack-init`, `fullstack-explore`, `fullstack-apply` |

@@ -55,10 +55,10 @@ Since we're already inside the repository, context gathering is cheap and fast �
 ### 2a. Project structure overview
 
 ```bash
-git ls-tree -r --name-only HEAD | head -200
+git ls-files | head -200
 ```
 
-This reveals the project's module organization, naming conventions, and architecture without reading any file content.
+This lists the index, so it also works in a repo with no commits yet and includes newly staged files. It reveals the project's module organization, naming conventions, and architecture without reading any file content.
 
 ### 2b. Coding conventions and config files
 
@@ -96,7 +96,13 @@ Read key project files (if they exist) to understand coding standards. Prioritiz
 
 ### 2c. Full content of modified files
 
-Read the **full content** of staged files to understand complete context around changes. Use a **change-volume driven** strategy instead of a fixed file count:
+Read the **full content** of staged files to understand complete context around changes. Read the **staged** version from the index, not the working tree — a partially staged file (`git add -p`) has unstaged edits that are not part of this commit:
+
+```bash
+git show :<filepath>
+```
+
+Use a **change-volume driven** strategy instead of a fixed file count:
 
 - **> 50 lines changed** (additions + deletions): Must read full file — major changes require complete context
 - **5-50 lines changed**: Read full file — surrounding code is important for correctness judgment

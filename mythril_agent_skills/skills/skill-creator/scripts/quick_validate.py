@@ -3,14 +3,16 @@
 Quick validation script for skills - minimal version
 """
 
+from __future__ import annotations
+
 import sys
 import os
 import re
 import yaml
 from pathlib import Path
 
-def validate_skill(skill_path):
-    """Basic validation of a skill"""
+def validate_skill(skill_path: str | Path) -> tuple[bool, str]:
+    """Validate a skill's SKILL.md frontmatter; return (is_valid, message)."""
     skill_path = Path(skill_path)
 
     # Check SKILL.md exists
@@ -19,7 +21,9 @@ def validate_skill(skill_path):
         return False, "SKILL.md not found"
 
     # Read and validate frontmatter
-    content = skill_md.read_text()
+    # Explicit UTF-8: the platform default is cp1252/GBK on Windows, which
+    # fails on (or mis-decodes) non-ASCII descriptions.
+    content = skill_md.read_text(encoding="utf-8")
     if not content.startswith('---'):
         return False, "No YAML frontmatter found"
 
