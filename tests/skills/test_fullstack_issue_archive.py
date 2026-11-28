@@ -68,6 +68,15 @@ class TestIssueArchiveSkillContract:
         assert "keep the issue active" in self.body
         assert "closed without a verified fix by user decision" in self.body
 
+    def test_open_investigation_blocks_only_resolved(self):
+        """A `proposed` close (propose's handoff) must not be blocked by
+        open next steps: the work item takes the investigation over."""
+        hard_stops = self.body.split("**Hard stops", 1)[1].split("When a hard stop", 1)[0]
+        bullets = [b for b in hard_stops.split("\n- ") if "still reproduces" in b]
+        assert len(bullets) == 1
+        assert bullets[0].startswith("`resolved` while")
+        assert "apply to `resolved` only" in bullets[0]
+
     def test_route_rules_distinguish_target_trees(self):
         assert "issues/" in self.body
         assert "changes/{feat,refactor,fix}/" in self.body
