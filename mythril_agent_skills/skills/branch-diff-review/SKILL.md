@@ -35,7 +35,7 @@ English:
 # Requirements
 
 - **Working directory**: Must be inside a git repository
-- **Branches**: Both branches must exist locally (or have remote tracking branches that can be checked out)
+- **Branches**: Both branches must exist locally or as remote-tracking refs (e.g. `origin/<branch>`)
 - **User responsibility**: User ensures branches are up-to-date before review (no automatic fetch/pull)
 - **Review language**: Match the user's input language (Chinese or English)
 
@@ -64,18 +64,12 @@ If the user doesn't specify both branches:
 - **No target specified**: Auto-detect the default branch — try `main`, then `master`, then the remote HEAD
 - **Neither specified**: Use current branch as source, auto-detect target, then **ask the user to confirm** before proceeding
 
-Auto-detect default branch:
+Auto-detect default branch (prints exactly one name):
 ```bash
-git rev-parse --verify main 2>/dev/null && echo main || \
-git rev-parse --verify master 2>/dev/null && echo master || \
-git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@'
-```
-
-### 1c. Record the current branch
-
-Save the current branch name so we can verify we haven't moved at the end:
-```bash
-CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if git rev-parse --verify --quiet main >/dev/null; then echo main
+elif git rev-parse --verify --quiet master >/dev/null; then echo master
+else git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@'
+fi
 ```
 
 Leave the user's current branch untouched for the whole review — they may have uncommitted work, and nothing here needs a checkout: every step uses `git diff`, `git log`, and `git show` with explicit branch references.
@@ -88,14 +82,14 @@ git rev-parse --verify <source> 2>/dev/null
 git rev-parse --verify <target> 2>/dev/null
 ```
 
-If a branch does NOT exist locally but has a remote tracking branch:
+If a branch does NOT exist locally, look for a remote-tracking ref and use it directly as the branch reference for every later command (e.g. `origin/feat/remote-feature` in place of `feat/remote-feature`) — no local branch is created:
 ```bash
-git branch --track <branch> origin/<branch>
+git for-each-ref --format='%(refname:short)' "refs/remotes/*/<branch>"
 ```
 
-If a branch doesn't exist locally AND has no remote tracking branch → report error and stop.
+If several remotes have it, prefer `origin`, otherwise ask. If no ref is found → report error and stop.
 
-Don't run `git fetch`, `git pull`, or `git checkout` — work with what is already local. The user decides how current the branches should be, and fetching could change what they meant to review.
+Don't run `git fetch`, `git pull`, `git checkout`, or `git branch` — work with what is already local and change nothing. The user decides how current the branches should be, and fetching could change what they meant to review.
 
 ## Step 3: Get Branch Diff and Commit History
 
@@ -126,10 +120,10 @@ Since we're inside the repository, context gathering is cheap and fast — just 
 ### 4a. Project structure overview
 
 ```bash
-git ls-tree -r --name-only HEAD | head -200
+git ls-tree -r --name-only <source> | head -200
 ```
 
-This reveals the project's module organization, naming conventions, and architecture without reading any file content.
+This reveals the source branch's module organization, naming conventions, and architecture without reading any file content.
 
 ### 4b. Coding conventions and config files
 
@@ -268,24 +262,12 @@ Structure the review into these sections:
 - Overall assessment: **Approve** / **Request Changes** / **Comment**
 - Brief summary of key findings and suggestion priorities
 
-## Step 7: Verify Current Branch Unchanged
-
-Always run this check after the review. Verify the user is still on the same branch they started on:
-```bash
-[ "$(git rev-parse --abbrev-ref HEAD)" = "$CURRENT_BRANCH" ] && echo "OK: still on $CURRENT_BRANCH" || echo "ERROR: branch changed!"
-```
-
-If for any reason the branch changed (it shouldn't with this workflow), restore it:
-```bash
-git checkout "$CURRENT_BRANCH"
-```
-
 ## Error Handling
 
 - **Not a git repo**: Report and suggest navigating to a git repository
 - **Branch not found**: Report which branch doesn't exist; suggest `git branch -a` to list available branches
 - **No diff between branches**: Report that branches are identical — nothing to review
-- **Detached HEAD**: If the user is on a detached HEAD, record the commit hash instead of branch name for restoration
+- **Detached HEAD with no source given**: use `HEAD` as the source and say so in the overview
 - **Large diff (>50 files)**: Warn the user; focus on the most critical files
 - **Binary files**: Skip binary files in review, note them as present
 - **Language detection failure**: Default to English review
@@ -304,7 +286,7 @@ git checkout "$CURRENT_BRANCH"
 
 ### Example 3: Only source specified
 **User input**: "review feat/payment 这个分支"
-**Action**: source=`feat/payment`, target=auto-detect (`main` or `master`) → confirm with user → review
+**Action**: source=`feat/payment`, target=auto-detect (`main` or `master`) → state the detected target in the overview → review
 **Output**: Context-aware review
 
 ### Example 4: No branches specified
@@ -314,5 +296,5 @@ git checkout "$CURRENT_BRANCH"
 
 ### Example 5: Branch not local
 **User input**: "review feat/remote-feature 合到 main"
-**Action**: `feat/remote-feature` not local → check `origin/feat/remote-feature` exists → `git branch --track feat/remote-feature origin/feat/remote-feature` → proceed with review
-**Output**: Review after creating local tracking branch
+**Action**: `feat/remote-feature` not local → `origin/feat/remote-feature` exists → `git diff main...origin/feat/remote-feature` and `git show origin/feat/remote-feature:<file>` → review
+**Output**: Review of the remote-tracking ref; no local branch created
