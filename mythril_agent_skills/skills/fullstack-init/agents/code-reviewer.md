@@ -82,7 +82,11 @@ documents end to end.
 7. **Fill the Evidence rows** for this repo's Success Criteria: `✅ Pass`
    with the proof, `❌ Fail` with what disproved it, or `⚠️ Skipped` when it
    can only be proven by a test run that did not happen (`tests: unknown` /
-   `tests: none`). Untested is never `✅ Pass`.
+   `tests: none`). Untested is never `✅ Pass`. A test that mocks the very
+   boundary its criterion is about (the cleanup call, the permission
+   check, the external write) does not prove the criterion — trace the
+   real path instead. When the developer left a differential check for a
+   port, re-run it rather than building your own.
 
 ## How you work — cross-repo
 

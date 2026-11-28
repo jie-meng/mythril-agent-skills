@@ -121,6 +121,11 @@ removed. This policy goes verbatim into every developer brief.
 4. Feedback / a log / a fix on an already-implemented item → read
    `references/follow-up.md` and follow it instead of Steps 2–7.
 
+**Start clean.** When this session already holds propose, exploration, or
+unrelated discussion, recommend running apply in a fresh session before
+starting: every orchestration step re-sends that history, and the work
+directory is the complete handoff.
+
 **Read what you need, not everything.** Read `plan.md` and `analysis.md` in
 full — they are the spec. From `review.md` read §Status Overview and the
 Evidence table; from `progress.md` the latest entries. Open older review
@@ -196,8 +201,13 @@ repo:
    layout but no documented command → `tests: unknown`; nothing → `tests:
    none`. Never invent or run a guessed test command.
 6. Set up the environment (venv, nvm, …), implement per the plan and the
-   Code Comment Policy, then lint → type-check → tests → build as the repo
-   supports.
+   Code Comment Policy. While iterating, run the tests of the touched
+   modules; before staging, run lint → type-check → tests → build once as
+   the repo supports, keeping only the summary and failures in the output.
+   A test that proves a Success Criterion exercises the boundary the
+   criterion names — never a mock of it. Porting existing logic → a
+   differential check (original vs port on the same generated inputs),
+   kept as a test or re-runnable script.
 7. No long-running dev servers or listening ports.
 8. Stage everything (`git add .`). Result: changed files (repo-relative),
    test result (`tests: passed | failed | unknown (no run command
@@ -240,6 +250,30 @@ Only you write the work-tracking documents, so parallel agents share no
 mutable state. Never put two agents in one repo at the same time — repos
 are the unit of isolation.
 
+**Context budget — keep every agent short-lived.** An agent re-sends its
+whole context on every step, so a run's cost grows with steps × context,
+not with the code it writes. One measured full-tier item: a single
+developer ran 309 steps on one repo and its context grew from 19K to 382K
+tokens — 73% of the item's tokens; resuming that same agent for a
+five-finding fix round cost 14M tokens where a fresh one would have cost
+about 2M. Therefore:
+
+- **One developer per phase**, not per repo, when `plan.md` schedules
+  phases for a repo or its slice is large (several modules, a port plus
+  a service layer). Phases of one repo run one after another — still one
+  agent in the repo at a time. Each is a fresh subagent; the next phase's
+  brief carries the previous phase's returned summary and file list,
+  never its transcript. Stage between phases; commit once per repo after
+  review unless `plan.md` says otherwise.
+- **Fix rounds go to a fresh developer**, never to the agent that wrote
+  the code (no resume / SendMessage of a finished implementation run).
+  The fix brief is: the findings verbatim, the repo path and branch, the
+  slice paths, the implementer checklist, and "fix exactly these, then
+  re-validate and re-stage". The staged diff and the work-dir documents
+  are on disk.
+- A silent agent is not evidence of a long test run; check its latest
+  activity before telling the user why it is quiet.
+
 For each wave, in order:
 
 **4a. Briefs — a slice of the plan per repo, never the four documents
@@ -251,10 +285,12 @@ checklist and the Code Comment Policy verbatim (the developer cannot see
 this file); the work-dir path; "return results — the orchestrator writes
 the documents".
 
-**4b. Delegate** every repo of the wave to its developer **in one turn**.
+**4b. Delegate** every repo of the wave to its developer **in one turn**
+(the first phase's developer, for a repo split into phases).
 
 **4c. Handle each result as it returns** — never block a healthy sibling on
-a broken one. Tests failed → back to THAT repo's developer. `tests:
+a broken one. Tests failed → a fresh developer for THAT repo on a fix
+brief (the failure output plus the brief above). `tests:
 unknown` / `tests: none` → record it explicitly in `progress.md` and flag it
 in review; untested code never passes silently. Write each completed result
 to `progress.md` (template: `template-progress.<lang>.md`), then review.
@@ -265,8 +301,8 @@ and test result, and the work-dir path; it runs `git diff --cached`
 itself. Append its output to `review.md` below the plan review rounds
 (never renumber them; format: `review-formats.<lang>.md`).
 
-- `NEEDS_FIXES` → P0/P1 back to that repo's developer → re-validate →
-  re-stage → re-review. P1-only fixes proven by tests / lint / build skip
+- `NEEDS_FIXES` → P0/P1 to a fresh developer for that repo on a fix
+  brief (see "Context budget") → re-validate → re-stage → re-review. P1-only fixes proven by tests / lint / build skip
   the re-review, as in the lean loop. Max 3 review rounds per repo. A P0/P1
   that survives one fix round, or whose cause is not evident from the
   diff, goes to the **debugger** first.

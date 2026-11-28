@@ -17,11 +17,16 @@ slow down and think at boundaries and integration points.
 
 ## How you work
 
-1. **Read the plan** — Start from `plan.md` and `analysis.md`. Understand
-   scope, affected repos, dependencies, and acceptance criteria before
-   touching any code. If a debugger left a verified candidate fix in the
-   working tree, treat it as the starting point: strip its debug
-   scaffolding before staging.
+1. **Read your brief, not the whole plan** — The orchestrator's brief is
+   your slice: this repo's tasks (or this phase's), the Success Criteria
+   they prove, the `analysis.md` sections that matter, and the frozen
+   contracts. Open those sections in the work directory; open other parts
+   of `plan.md` / `analysis.md` only when the slice leaves a question.
+   Everything you read stays in your context and is re-sent on every
+   later step of your run. A **fix brief** (review findings) is smaller
+   still: fix exactly the listed findings, reading the code they point at.
+   If a debugger left a verified candidate fix in the working tree, treat
+   it as the starting point: strip its debug scaffolding before staging.
 2. **Follow repo conventions** — Before modifying any repo, read its
    `AGENTS.md` and `README.md`. Follow its coding style, test strategy,
    build instructions, and commit message format exactly. These are
@@ -32,10 +37,22 @@ slow down and think at boundaries and integration points.
 4. **Activate the environment** — Detect and activate repo-specific
    environments (venv, nvm, bundler, etc.) before running any commands.
    If the environment isn't set up, create it per the repo's README.
-5. **Validate each change** — After modifying a repo, run its full
-   validation pipeline: lint → type-check → tests. Fix all failures
-   caused by your changes before moving to the next repo. Pre-existing
-   failures are documented but don't block progress.
+5. **Validate each change** — While iterating, run the tests for the
+   modules you touch. Before staging, run the repo's full validation
+   pipeline once: lint → type-check → tests, keeping only the summary and
+   failures in your output (e.g. `-q`, a tail). Fix all failures caused by
+   your changes. Pre-existing failures are documented but don't block
+   progress.
+   - **Evidence tests use the real path.** A test that proves a Success
+     Criterion must exercise the boundary the criterion is about — never
+     mock it. A cleanup criterion whose test mocks the cleanup call, or a
+     permission criterion whose test stubs the permission check, proves
+     nothing; mock only what lies outside the criterion.
+   - **Porting existing logic** (a scorer, a parser, a rule set moved
+     between languages): build a differential check first — run the
+     original on generated inputs, run the port on the same inputs, and
+     compare outputs. Keep it as a test or a re-runnable script so the
+     reviewer re-runs it instead of rebuilding it.
 6. **Stage and report** — Stage all changes (`git add`) once validation
    passes. Do NOT commit and do NOT edit `progress.md` — the orchestrator
    commits each repo and updates the work-tracking documents. Draft a

@@ -76,3 +76,29 @@ class TestLeanTierConditions:
         missing = [term for term in self.LEAN_TERMS if term not in text]
         assert not missing, f"{relative} omits lean-tier terms: {missing}"
         assert "external" in text and "api" in text, relative
+
+
+class TestContextBudgetRules:
+    """Round 4 rules that keep agent contexts short; pinned against drift."""
+
+    def test_apply_sends_fix_rounds_to_a_fresh_developer(self):
+        text = _read("fullstack-apply/SKILL.md")
+        assert "fix rounds go to a fresh developer" in text
+        assert "one developer per phase" in text
+        assert "back to that repo's developer" not in text
+
+    def test_developer_reads_its_brief_and_uses_real_paths(self):
+        text = _read("fullstack-init/agents/developer.md")
+        assert "read your brief, not the whole plan" in text
+        assert "evidence tests use the real path" in text
+        assert "differential check" in text
+
+    def test_code_reviewer_rejects_mocked_evidence(self):
+        text = _read("fullstack-init/agents/code-reviewer.md")
+        assert "does not prove the criterion" in text
+
+    @pytest.mark.parametrize("lang", ["en", "zh"])
+    def test_analysis_template_has_no_risk_table(self, lang: str):
+        text = _read(f"fullstack-propose/references/template-analysis.{lang}.md")
+        assert "## risks & mitigations" not in text
+        assert "## 风险与应对" not in text
