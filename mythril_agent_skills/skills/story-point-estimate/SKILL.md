@@ -159,8 +159,7 @@ Common areas to probe:
 - What third-party services / SDKs / APIs are involved?
 - What's the CI/CD and deployment environment?
 
-**UX & Platform:**
-- Which platforms need support? (Web, iOS, Android, API-only)
+**UX & Platform** (platforms were confirmed in Phase 1.5 — don't ask again):
 - Are there existing design systems or component libraries?
 - What's the accessibility requirement? (WCAG level)
 
@@ -309,27 +308,43 @@ Key rules for buffer:
 the user to sort, filter, and sum estimates — far more practical than static text.
 
 Use the bundled `generate_report.py` script to produce the workbook. It accepts JSON
-data and writes all sheets with proper formatting. `SKILL_PATH` is this skill's installed directory (the folder holding this SKILL.md); run scripts from the user's working directory, not from inside it.
+data and writes all sheets with proper formatting. `SKILL_PATH` is this skill's installed directory (the folder holding this SKILL.md); run scripts from the user's working directory, not from inside it. Requires `openpyxl` (`pip install openpyxl`; `skills-check story-point-estimate` installs it).
+
+The intermediate JSON is a temp artifact — write it into the skill cache, not the
+user's project:
 
 ```bash
+CACHE_DIR=$(python3 SKILL_PATH/scripts/generate_report.py --print-cache-dir)
+# write the JSON to "$CACHE_DIR/estimate_data_YYYYMMDD_HHMMSS.json", then:
 python3 SKILL_PATH/scripts/generate_report.py \
   --output "estimate_YYYYMMDD_HHMMSS.xlsx" \
-  --data estimate_data.json
+  --data "$CACHE_DIR/estimate_data_YYYYMMDD_HHMMSS.json"
 ```
 
+(PowerShell: `$CACHE_DIR = python3 SKILL_PATH/scripts/generate_report.py --print-cache-dir`.)
+
+The script validates the JSON first (category must be Functional/CFR, points must be
+numbers, `platform_points` keys must be in `platforms`) and lists every problem; fix
+them and rerun. It refuses to overwrite an existing `--output`; pick a new timestamp,
+or pass `--force` only after the user agrees to replace the file.
+
 Sheets: **Estimates** (one row per functional or CFR item, with a points column per
-platform), **Platform Summary** (only when platforms are given, includes buffer lines),
-**RAID**, and **Summary**.
+platform), **Platform Summary** (only when platforms are given — a per-platform
+breakdown), **RAID**, and **Summary** (category totals, buffers, and the Recommended
+Planning Estimate). Every total is a live Excel formula over the Estimates sheet, so
+editing a point value updates all totals. The planning basis is the sum of the combined
+`points` column — platform columns are a breakdown and may sum higher.
 
 > **Reference**: read `references/workbook-format.md` before writing the JSON — it
 > has the column layout, the full JSON schema, and generation rules (every estimate
 > needs `platform_points` for all platforms; `points` is the combined value, not the
-> sum; never overwrite an existing file).
+> sum).
 
-**After generating the XLSX**, present a quick summary to the user and offer Markdown:
+**After generating the XLSX**, present a quick summary to the user (the script prints
+the totals) and offer Markdown:
 
-> "Estimation report saved to `estimate_YYYYMMDD_HHMMSS.xlsx` with 3 sheets: Estimates,
-> RAID, and Summary. Would you also like a Markdown version for easy review or sharing?"
+> "Estimation report saved to `estimate_YYYYMMDD_HHMMSS.xlsx` (Estimates, Platform
+> Summary, RAID, Summary). Would you also like a Markdown version for easy review or sharing?"
 
 If the user says yes, generate a Markdown file with the same content. The Markdown is
 a secondary artifact — the XLSX is the authoritative deliverable.

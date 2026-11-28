@@ -95,6 +95,7 @@ SKILL_PDF = "pdf"
 SKILL_WORD = "word"
 SKILL_MD_TO_PDF = "md-to-pdf"
 SKILL_QRCODE = "qrcode"
+SKILL_STORY_POINT_ESTIMATE = "story-point-estimate"
 SKILL_WEB_TESTER = "web-tester"
 
 CHECKABLE_SKILLS = [
@@ -115,6 +116,7 @@ CHECKABLE_SKILLS = [
     SKILL_WORD,
     SKILL_MD_TO_PDF,
     SKILL_QRCODE,
+    SKILL_STORY_POINT_ESTIMATE,
     SKILL_IMAGEMAGICK,
     SKILL_FFMPEG,
     SKILL_WEB_TESTER,
@@ -695,9 +697,9 @@ def _install_pip_package(name: str) -> bool:
 # --- Excel (openpyxl) ---
 
 
-def check_excel(config_path: Path) -> bool:
-    """Check that openpyxl is installed for the Excel skill."""
-    print(f"\n{BOLD}Excel (openpyxl):{NC}")
+def check_excel(config_path: Path, label: str = "Excel") -> bool:
+    """Check that openpyxl is installed (excel, story-point-estimate)."""
+    print(f"\n{BOLD}{label} (openpyxl):{NC}")
 
     version = _check_python_package("openpyxl")
     if version:
@@ -1405,8 +1407,11 @@ def main() -> None:
         if not check_glean(config_path):
             all_configured = False
 
-    if SKILL_EXCEL in skills:
-        if not check_excel(config_path):
+    openpyxl_users = [
+        name for name in (SKILL_EXCEL, SKILL_STORY_POINT_ESTIMATE) if name in skills
+    ]
+    if openpyxl_users:
+        if not check_excel(config_path, label=" + ".join(openpyxl_users)):
             all_configured = False
 
     if SKILL_PDF in skills:
