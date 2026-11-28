@@ -50,7 +50,7 @@ As a last resort only: `export SSL_NO_VERIFY=1`.
 | `status NAME [--build N]` | Build status (latest by default) | no |
 | `stages NAME [--build N]` | Pipeline stage progress (Pipeline jobs) | no |
 | `console NAME [--build N] [--tail N] [--follow]` | Console log, tailable and followable | no |
-| `stop NAME [--build N]` | Abort a build | yes |
+| `stop NAME --build N` | Abort one specific build (number required) | yes |
 
 Exit codes for `build --wait` and `console --follow` follow the final result:
 0 = SUCCESS, 1 = FAILURE, 2 = UNSTABLE, 3 = ABORTED, 4 = NOT_BUILT.
