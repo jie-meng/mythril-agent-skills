@@ -82,9 +82,10 @@ Extract owner, repo, PR number, and hostname, then go straight to Step 2.
 ### Step 2: Prepare the session with the runner
 
 Use the runner instead of calling `gh pr view` / `gh pr diff` yourself. It
-fetches once, selects the repo-access path, checks out the PR branch, and wires
-cleanup in one deterministic call — and the gate in Step 7 checks that the
-fetch happened exactly once.
+fetches once, selects the repo-access path, checks out the exact PR head
+commit (fork PRs included), and wires cleanup in one deterministic call.
+Fetching again by hand wastes tokens and can see a newer PR revision than the
+checked-out code.
 
 ```bash
 python3 SKILL_PATH/scripts/review_runner.py prepare <URL_or_NUMBER>
@@ -97,7 +98,9 @@ What it does:
    - ≤ 100 MB → Path C: clone into the shared cache via `repo_manager.py sync` (reusable)
    - \> 100 MB → pauses with **exit code 10** for a user decision (below)
    - Size query fails → Path C (falls back to D if the clone fails)
-4. Checks out the PR branch, falling back to `pull/<PR>/head`.
+4. Checks out the PR head detached: `origin/<headRefName>` only for a
+   same-repo PR whose branch still points at `headRefOid`; otherwise (fork
+   PRs, moved branches) `pull/<PR>/head`.
 5. Saves all outputs to a session manifest.
 
 Repo-access paths:
@@ -165,7 +168,7 @@ python3 SKILL_PATH/scripts/review_runner.py prepare <URL_or_NUMBER> \
 #### After prepare succeeds
 
 1. Read metadata from `PR_VIEW_JSON_PATH` and the diff from `PR_DIFF_PATH` —
-   don't re-run `gh pr view` / `gh pr diff` (a second fetch fails the gate).
+   don't re-run `gh pr view` / `gh pr diff`.
 2. If `CHECKOUT_DONE=true`, the PR branch is already checked out at
    `REPO_WORKDIR`. Run no git commands to prepare the repo (`git fetch`,
    `git checkout`, `gh pr checkout`) — just `cd <REPO_WORKDIR>` and read files.
@@ -216,9 +219,9 @@ blob content on demand.
   functions, related tests).
 
 **Path D (sparse checkout).** Tree objects are complete, so 4a works the same;
-root-level config files are already checked out; modified files' directories
-are checked out. For related files in other directories, run
-`git sparse-checkout add <directory>` first, then read them.
+root-level config files are checked out, and the runner adds the modified
+files' directories to the sparse checkout. For related files in other
+directories, run `git sparse-checkout add <directory>` first, then read them.
 
 **DIFF_ONLY.** No local repo. Infer conventions from the diff itself, use only
 the hunks in `PR_DIFF_PATH`, and flag that project structure and cross-file
@@ -246,9 +249,10 @@ skill's cache (as in Path D).
   step.
 - Don't present speculative runtime/CI behavior as fact.
 
-**Finding groups.** Split findings into `Confirmed Findings` / `已确认问题` and
-`Potential Risks` / `潜在风险`. Each item belongs to exactly one group; write
-`Confirmed Findings: none` / `Potential Risks: none` when a group is empty.
+**Finding groups.** In section 4, split findings into `Confirmed Findings` /
+`已确认问题` and `Potential Risks` / `潜在风险`. Each item appears once, in
+exactly one group (section 3 covers style and design, not the same bugs
+again); write `none` / `无` when a group is empty.
 
 **Consistency check before output.**
 1. Remove items disproven later in the same run.
@@ -295,11 +299,11 @@ Without the runner, use the cleanup function in
 
 **7b. Quality gate.** Run the script rather than checking mentally:
 
-1. Write the complete 6-section review to `REVIEW_TEXT_PATH`:
+1. Fill the placeholders in `REVIEW_DRAFT_PATH` in place (edit the file,
+   delete the "Pre-send consistency checks" footer), then copy it — no need
+   to paste the review a second time:
    ```bash
-   cat > <REVIEW_TEXT_PATH> << 'REVIEW_EOF'
-   <paste your complete review content here>
-   REVIEW_EOF
+   cp "$REVIEW_DRAFT_PATH" <REVIEW_TEXT_PATH>
    ```
 2. Run the gate:
    ```bash
@@ -313,7 +317,7 @@ Without the runner, use the cleanup function in
 
 If `review_output_gate.py` is missing, check and report each item manually:
 1. `NO_SPECULATION_PASS` — no platform-guessing text before the first `gh` command.
-2. `SINGLE_FETCH_PASS` — `gh pr view` and `gh pr diff` each ran exactly once.
+2. `SINGLE_FETCH_PASS` — the runner ran `gh pr view` and `gh pr diff` once each (the gate only sees the runner's own command log).
 3. `CLEANUP_EVIDENCE_PASS` — `[PATH-CLEANUP]` marker present in cleanup output.
 4. `VERDICT_STATE_PASS` — verdict consistent with PR state (no `Request Changes` on merged/closed PRs unless the user asked).
 

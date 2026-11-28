@@ -78,7 +78,8 @@ from pathlib import Path
 
 PR_VIEW_FIELDS = (
     "number,title,body,state,author,baseRefName,headRefName,labels,reviewDecision,"
-    "additions,deletions,changedFiles,commits,files,comments,reviews,url"
+    "additions,deletions,changedFiles,commits,files,comments,reviews,url,"
+    "headRefOid,isCrossRepository"
 )
 
 REPO_SIZE_THRESHOLD_KB = 100 * 1024
@@ -121,6 +122,8 @@ class SessionManifest:
     review_text_path: str
     review_dir: str
     created_at_utc: str
+    head_ref_oid: str = ""
+    is_cross_repository: bool = False
 
 
 def get_skill_cache_dir() -> Path:
@@ -224,6 +227,69 @@ def parse_key_value_output(stdout_text: str) -> dict[str, str]:
     return result
 
 
+_OWNER_REPO_REF_RE = re.compile(r"^([\w.-]+/[\w.-]+)#(\d+)$")
+
+
+def split_pr_ref(pr_ref: str) -> tuple[str, str]:
+    """Split a PR reference into (ref_for_gh, repo_flag_value).
+
+    ``owner/repo#123`` is not accepted by ``gh pr view`` directly, so it
+    becomes ``("123", "owner/repo")`` for ``gh pr view 123 --repo owner/repo``.
+    URLs, bare numbers and ``#123`` pass through with an empty repo.
+    """
+    ref = pr_ref.strip()
+    match = _OWNER_REPO_REF_RE.match(ref)
+    if match:
+        return match.group(2), match.group(1)
+    return ref.lstrip("#") if ref.startswith("#") else ref, ""
+
+
+def gh_pr_cmd(subcommand: str, pr_ref: str, *extra: str) -> list[str]:
+    """Build a ``gh pr <subcommand>`` command for any accepted PR reference."""
+    ref, repo = split_pr_ref(pr_ref)
+    cmd = ["gh", "pr", subcommand, ref]
+    if repo:
+        cmd += ["--repo", repo]
+    return cmd + list(extra)
+
+
+def can_use_origin_head(
+    is_cross_repository: bool,
+    head_ref_oid: str,
+    origin_head_sha: str,
+) -> bool:
+    """Return whether ``origin/<headRefName>`` is really the PR head.
+
+    For a fork PR the head branch lives in the fork, so a same-named branch
+    on origin (``main``, ``patch-1``...) is unrelated code. For a same-repo
+    PR the remote branch must still point at the PR's ``headRefOid`` when
+    that is known; otherwise the caller fetches ``pull/<N>/head``.
+    """
+    if is_cross_repository or not origin_head_sha:
+        return False
+    return not head_ref_oid or origin_head_sha == head_ref_oid
+
+
+def sparse_dirs_for_files(file_paths: list[str]) -> list[str]:
+    """Return the unique parent directories of changed files, sorted.
+
+    Root-level files are skipped: a cone-mode sparse checkout always
+    includes the repository root.
+    """
+    dirs = {
+        path.strip("/").rsplit("/", 1)[0]
+        for path in file_paths
+        if path and "/" in path.strip("/")
+    }
+    return sorted(dirs)
+
+
+def changed_file_paths(metadata: dict) -> list[str]:
+    """Extract changed file paths from ``gh pr view --json files`` metadata."""
+    files = metadata.get("files") or []
+    return [str(f.get("path", "")) for f in files if isinstance(f, dict)]
+
+
 def locate_sibling_script(name: str) -> Path:
     """Locate a sibling script in the same directory as this file."""
     script = Path(__file__).resolve().parent / name
@@ -285,30 +351,36 @@ def resolve_checkout_target(
     base_ref_name: str,
     head_ref_name: str,
     pr_number: int,
+    head_ref_oid: str = "",
+    is_cross_repository: bool = False,
 ) -> tuple[str, str]:
     """Resolve a deterministic checkout target after fetching PR refs.
 
     Returns:
         (target_ref, limitation)
-        target_ref is `origin/<headRefName>` or a fetched commit SHA.
+        target_ref is `origin/<headRefName>` (same-repo PR whose branch
+        matches headRefOid) or a fetched commit SHA from `pull/<N>/head`.
         Empty target_ref means checkout should fall back to diff-only mode.
     """
     errors: list[str] = []
 
-    fetch_cp = run_cmd(
-        ["git", "fetch", "origin", base_ref_name, head_ref_name],
-        cwd=repo_dir,
-    )
-    if fetch_cp.returncode != 0:
-        errors.append(
-            fetch_cp.stderr.strip() or fetch_cp.stdout.strip() or "git fetch failed"
-        )
+    refs = [base_ref_name] if is_cross_repository else [base_ref_name, head_ref_name]
+    for ref in refs:
+        fetch_cp = run_cmd(["git", "fetch", "origin", ref], cwd=repo_dir)
+        if fetch_cp.returncode != 0 and ref == base_ref_name:
+            errors.append(
+                fetch_cp.stderr.strip() or fetch_cp.stdout.strip() or "git fetch failed"
+            )
 
-    head_ref_check = run_cmd(
-        ["git", "rev-parse", "--verify", "--quiet", f"origin/{head_ref_name}"],
-        cwd=repo_dir,
-    )
-    if head_ref_check.returncode == 0:
+    origin_head_sha = ""
+    if not is_cross_repository:
+        head_ref_check = run_cmd(
+            ["git", "rev-parse", "--verify", "--quiet", f"origin/{head_ref_name}"],
+            cwd=repo_dir,
+        )
+        if head_ref_check.returncode == 0:
+            origin_head_sha = head_ref_check.stdout.strip()
+    if can_use_origin_head(is_cross_repository, head_ref_oid, origin_head_sha):
         return f"origin/{head_ref_name}", ""
 
     fallback_fetch_cp = run_cmd(
@@ -341,6 +413,8 @@ def ensure_checkout(
     base_ref_name: str,
     head_ref_name: str,
     pr_number: int,
+    head_ref_oid: str = "",
+    is_cross_repository: bool = False,
 ) -> tuple[str, str]:
     """Try branch fetch/checkout; fallback to pull/<PR>/head when needed.
 
@@ -354,6 +428,8 @@ def ensure_checkout(
         base_ref_name,
         head_ref_name,
         pr_number,
+        head_ref_oid,
+        is_cross_repository,
     )
     if not target_ref:
         return "", limitation
@@ -403,6 +479,8 @@ def _execute_path_c(
     base_ref_name: str,
     head_ref_name: str,
     pr_number: int,
+    head_ref_oid: str = "",
+    is_cross_repository: bool = False,
 ) -> tuple[str, str, str, str, str]:
     """Execute Path C: clone into shared cache via repo_manager.py.
 
@@ -430,6 +508,8 @@ def _execute_path_c(
         base_ref_name,
         head_ref_name,
         pr_number,
+        head_ref_oid,
+        is_cross_repository,
     )
     return "C", synced_path, synced_path, checkout_ref, limitation
 
@@ -440,8 +520,14 @@ def _execute_path_d(
     base_ref_name: str,
     head_ref_name: str,
     pr_number: int,
+    head_ref_oid: str = "",
+    is_cross_repository: bool = False,
+    changed_files: list[str] | None = None,
 ) -> tuple[str, str, str, str]:
     """Execute Path D: blobless sparse clone into a temp directory.
+
+    After checkout, the directories of the PR's changed files are added to
+    the sparse checkout so they can be read directly.
 
     Returns:
         (review_dir, repo_workdir, checkout_ref, context_limitation)
@@ -472,7 +558,19 @@ def _execute_path_d(
         base_ref_name,
         head_ref_name,
         pr_number,
+        head_ref_oid,
+        is_cross_repository,
     )
+    sparse_dirs = sparse_dirs_for_files(changed_files or [])
+    if checkout_ref and sparse_dirs:
+        sparse_cp = run_cmd(
+            ["git", "sparse-checkout", "add", *sparse_dirs], cwd=review_dir_path
+        )
+        if sparse_cp.returncode != 0:
+            print(
+                "[PATH-SPARSE] WARN - could not add changed-file directories: "
+                f"{sparse_cp.stderr.strip() or sparse_cp.stdout.strip()}"
+            )
     return review_dir, str(review_dir_path), checkout_ref, limitation
 
 
@@ -511,13 +609,13 @@ def prepare_session(
     manifest_path = run_dir / "manifest.json"
 
     # Step 2: fetch metadata and diff exactly once.
-    pr_view_cp = run_cmd(["gh", "pr", "view", pr_ref, "--json", PR_VIEW_FIELDS])
+    pr_view_cp = run_cmd(gh_pr_cmd("view", pr_ref, "--json", PR_VIEW_FIELDS))
     if pr_view_cp.returncode != 0:
         print(pr_view_cp.stderr.strip() or pr_view_cp.stdout.strip())
         return 2
     pr_view_path.write_text(pr_view_cp.stdout, encoding="utf-8")
 
-    pr_diff_cp = run_cmd(["gh", "pr", "diff", pr_ref])
+    pr_diff_cp = run_cmd(gh_pr_cmd("diff", pr_ref))
     if pr_diff_cp.returncode != 0:
         print(pr_diff_cp.stderr.strip() or pr_diff_cp.stdout.strip())
         return 2
@@ -566,6 +664,11 @@ def prepare_session(
     base_ref_name = str(metadata.get("baseRefName", "")).strip()
     head_ref_name = str(metadata.get("headRefName", "")).strip()
     pr_state = str(metadata.get("state", "")).strip()
+    head = {
+        "head_ref_oid": str(metadata.get("headRefOid", "") or "").strip(),
+        "is_cross_repository": bool(metadata.get("isCrossRepository", False)),
+    }
+    changed_files = changed_file_paths(metadata)
 
     repo_workdir = ""
     original_branch = ""
@@ -586,6 +689,7 @@ def prepare_session(
                 base_ref_name,
                 head_ref_name,
                 pr_number,
+                **head,
             )
             if target_ref:
                 worktree_dir = Path(
@@ -624,6 +728,7 @@ def prepare_session(
                 base_ref_name,
                 head_ref_name,
                 pr_number,
+                **head,
             )
         else:
             context_limitation = "Path B selected but REPO_PATH missing"
@@ -661,6 +766,8 @@ def prepare_session(
                 "pr_number": pr_number,
                 "base_ref_name": base_ref_name,
                 "head_ref_name": head_ref_name,
+                "head_ref_oid": head["head_ref_oid"],
+                "is_cross_repository": head["is_cross_repository"],
                 "pr_state": pr_state,
                 "repo_size_kb": repo_size_kb,
                 "repo_size_mb": round(size_mb, 1),
@@ -709,6 +816,7 @@ def prepare_session(
                 base_ref_name,
                 head_ref_name,
                 pr_number,
+                **head,
             )
             selected_path = result[0]
             if selected_path == "C":
@@ -725,6 +833,8 @@ def prepare_session(
             base_ref_name,
             head_ref_name,
             pr_number,
+            **head,
+            changed_files=changed_files,
         )
 
     if not checkout_ref:
@@ -767,6 +877,8 @@ def prepare_session(
         review_text_path=str(review_text_path),
         review_dir=review_dir,
         created_at_utc=datetime.now(timezone.utc).isoformat(),
+        head_ref_oid=head["head_ref_oid"],
+        is_cross_repository=head["is_cross_repository"],
     )
     manifest_path.write_text(
         json.dumps(asdict(manifest), ensure_ascii=True, indent=2),
@@ -820,6 +932,16 @@ def _resume_session(
     base_ref_name = str(pending["base_ref_name"])
     head_ref_name = str(pending["head_ref_name"])
     pr_state = str(pending["pr_state"])
+    head = {
+        "head_ref_oid": str(pending.get("head_ref_oid", "") or ""),
+        "is_cross_repository": bool(pending.get("is_cross_repository", False)),
+    }
+    try:
+        changed_files = changed_file_paths(
+            json.loads(pr_view_path.read_text(encoding="utf-8"))
+        )
+    except json.JSONDecodeError:
+        changed_files = []
 
     repo_path = ""
     repo_workdir = ""
@@ -847,6 +969,7 @@ def _resume_session(
             base_ref_name,
             head_ref_name,
             pr_number,
+            **head,
         )
         selected_path = result[0]
         if selected_path == "C":
@@ -863,6 +986,8 @@ def _resume_session(
                     base_ref_name,
                     head_ref_name,
                     pr_number,
+                    **head,
+                    changed_files=changed_files,
                 )
             )
 
@@ -876,6 +1001,8 @@ def _resume_session(
             base_ref_name,
             head_ref_name,
             pr_number,
+            **head,
+            changed_files=changed_files,
         )
 
     else:
@@ -925,6 +1052,8 @@ def _resume_session(
         review_text_path=str(review_text_path),
         review_dir=review_dir,
         created_at_utc=datetime.now(timezone.utc).isoformat(),
+        head_ref_oid=head["head_ref_oid"],
+        is_cross_repository=head["is_cross_repository"],
     )
     manifest_path.write_text(
         json.dumps(asdict(manifest), ensure_ascii=True, indent=2),
@@ -983,7 +1112,7 @@ def cleanup_session(manifest_path: Path) -> int:
         print(f"[PATH-CLEANUP] {message}")
 
     if selected_path == "A":
-        if review_dir and repo_path and (Path(repo_path) / ".git").is_dir():
+        if review_dir and repo_path and (Path(repo_path) / ".git").exists():
             if not resolve_managed_path(str(review_dir), skill_cache_dir):
                 mark_fail("Path A - FAIL - temp worktree path is outside skill cache")
                 return 1

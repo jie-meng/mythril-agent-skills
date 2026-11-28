@@ -262,6 +262,23 @@ class TestDetectVerdict:
         assert self.detect(text) == "UNKNOWN"
 
 
+    def test_explicit_verdict_line_beats_incidental_words(self):
+        text = (
+            "2. Context\nOverall I approve of the layering.\n"
+            "6. Summary Verdict\n- Verdict: Request Changes\n"
+            "- Rationale: please comment the retry logic"
+        )
+        assert self.detect(text) == "REQUEST_CHANGES"
+
+    def test_chinese_verdict_line(self):
+        text = "6. 总结评价\n- Verdict: Approve\n- 结论依据：整体评价良好"
+        assert self.detect(text) == "APPROVE"
+
+    def test_verdict_line_listing_all_options_is_ambiguous(self):
+        text = "- Verdict: Approve / Request Changes / Comment"
+        assert self.detect(text) == "AMBIGUOUS"
+
+
 class TestGateVerdictState:
     """Tests for review_output_gate.gate_verdict_state."""
 
@@ -394,6 +411,15 @@ class TestReviewTemplateBuilder:
         assert "5. 增量建议" in text
         assert "6. 总结评价" in text
 
+    def test_finding_groups_only_in_section_4(self):
+        en = self.render_en(self._manifest())
+        sec3 = en.split("3. Code Quality")[1].split("4. Major Issues")[0]
+        assert "Confirmed" not in sec3 and "Potential risks" not in sec3
+        zh = self.render_zh(self._manifest())
+        sec4 = zh.split("4. 潜在的重大问题和风险")[1].split("5. 增量建议")[0]
+        assert "已确认问题" in sec4 and "潜在风险" in sec4
+        assert "已确认问题" not in zh.split("4. 潜在的重大问题和风险")[0]
+
     def test_chinese_includes_pr_number(self):
         text = self.render_zh(self._manifest(pr_number=99))
         assert "#99" in text
@@ -447,3 +473,139 @@ class TestPathSelectParseRepoUrl:
         a = self.normalize("GitHub.COM", "Owner", "Repo")
         b = self.normalize("github.com", "owner", "repo")
         assert a == b
+
+
+# ── review_runner: fork-safe checkout, PR refs, sparse dirs, cleanup ───────────
+
+
+class TestCanUseOriginHead:
+    """Regression: fork PRs must not check out a same-named origin branch."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from review_runner import can_use_origin_head
+
+        self.func = can_use_origin_head
+
+    def test_fork_pr_never_uses_origin_branch(self):
+        assert self.func(True, "abc123", "abc123") is False
+
+    def test_same_repo_matching_oid(self):
+        assert self.func(False, "abc123", "abc123") is True
+
+    def test_same_repo_branch_moved(self):
+        assert self.func(False, "abc123", "def456") is False
+
+    def test_missing_origin_branch(self):
+        assert self.func(False, "abc123", "") is False
+
+    def test_unknown_oid_trusts_same_repo_branch(self):
+        assert self.func(False, "", "def456") is True
+
+
+class TestPrViewFields:
+    """The metadata fetch must include what the fork check needs."""
+
+    def test_fields_include_head_oid_and_cross_repo(self):
+        from review_runner import PR_VIEW_FIELDS
+
+        fields = PR_VIEW_FIELDS.split(",")
+        assert "headRefOid" in fields
+        assert "isCrossRepository" in fields
+
+
+class TestSplitPrRef:
+    """Tests for review_runner.split_pr_ref / gh_pr_cmd."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from review_runner import gh_pr_cmd, split_pr_ref
+
+        self.split = split_pr_ref
+        self.cmd = gh_pr_cmd
+
+    def test_owner_repo_hash_number(self):
+        assert self.split("owner/repo#123") == ("123", "owner/repo")
+
+    def test_url_passes_through(self):
+        url = "https://github.com/o/r/pull/5"
+        assert self.split(url) == (url, "")
+
+    def test_hash_number(self):
+        assert self.split("#15") == ("15", "")
+
+    def test_gh_cmd_adds_repo_flag(self):
+        assert self.cmd("view", "o/r#7", "--json", "url") == [
+            "gh", "pr", "view", "7", "--repo", "o/r", "--json", "url",
+        ]
+
+    def test_gh_cmd_still_counted_by_gate(self):
+        from review_output_gate import is_gh_pr_diff
+
+        assert is_gh_pr_diff(self.cmd("diff", "o/r#7"))
+
+
+class TestSparseDirsForFiles:
+    """Regression: Path D must add changed files' directories."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from review_runner import changed_file_paths, sparse_dirs_for_files
+
+        self.dirs = sparse_dirs_for_files
+        self.paths = changed_file_paths
+
+    def test_unique_sorted_parent_dirs(self):
+        files = ["src/a/x.py", "src/a/y.py", "tests/t.py", "README.md"]
+        assert self.dirs(files) == ["src/a", "tests"]
+
+    def test_empty(self):
+        assert self.dirs([]) == []
+
+    def test_changed_file_paths_from_metadata(self):
+        meta = {"files": [{"path": "a/b.py", "additions": 1}, {"path": "c.md"}]}
+        assert self.paths(meta) == ["a/b.py", "c.md"]
+
+    def test_changed_file_paths_missing(self):
+        assert self.paths({}) == []
+
+
+class TestCleanupPathAWorktreeGitFile:
+    """Regression: Path A cleanup when the user's repo has a .git *file*."""
+
+    def test_removes_worktree_when_git_is_a_file(self, tmp_path, monkeypatch):
+        import subprocess
+
+        import review_runner
+
+        cache = tmp_path / "cache" / "github-code-review-pr"
+        cache.mkdir(parents=True)
+        worktree = cache / "worktree-x"
+        worktree.mkdir()
+        repo = tmp_path / "user-repo"
+        repo.mkdir()
+        (repo / ".git").write_text("gitdir: /elsewhere/.git/worktrees/x\n")
+        manifest = tmp_path / "manifest.json"
+        manifest.write_text(
+            json.dumps(
+                {
+                    "selected_path": "A",
+                    "repo_path": str(repo),
+                    "repo_workdir": str(worktree),
+                    "original_branch": "feature",
+                    "review_dir": str(worktree),
+                }
+            ),
+            encoding="utf-8",
+        )
+        calls: list[list[str]] = []
+
+        def fake_run(cmd, cwd=None, extra_env=None):
+            calls.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+
+        monkeypatch.setattr(review_runner, "get_skill_cache_dir", lambda: cache)
+        monkeypatch.setattr(review_runner, "run_cmd", fake_run)
+        assert review_runner.cleanup_session(manifest) == 0
+        assert calls == [["git", "worktree", "remove", "--force", str(worktree)]]
+

@@ -6,7 +6,7 @@ this file describes what goes into each section. Don't substitute an ad-hoc
 structure such as "Strengths / Issues / What's Working Well" — the gate and
 the user both expect these sections.
 
-Within sections 3–4, keep the finding groups required by SKILL.md Step 6:
+In section 4, keep the finding groups required by SKILL.md Step 6:
 `Confirmed Findings` / `已确认问题` and `Potential Risks` / `潜在风险`.
 
 ## Chinese review
@@ -41,7 +41,7 @@ Within sections 3–4, keep the finding groups required by SKILL.md Step 6:
 - 如果 PR 描述缺失或不清晰，建议改进 PR 描述
 
 ### 6. 总结评价
-- 给出整体评价：**Approve** / **Request Changes** / **Comment**
+- 一行 `Verdict: <X>`，X 只能是 Approve、Request Changes、Comment 之一（门禁脚本读取这一行）
 - 简要总结关键发现和建议优先级
 
 ## English review
@@ -76,5 +76,5 @@ Within sections 3–4, keep the finding groups required by SKILL.md Step 6:
 - If PR description is missing or unclear, suggest improvements
 
 ### 6. Summary Verdict
-- Overall assessment: **Approve** / **Request Changes** / **Comment**
+- One line `Verdict: <X>`, where X is exactly one of Approve, Request Changes, Comment (the gate reads this line)
 - Brief summary of key findings and suggestion priorities
