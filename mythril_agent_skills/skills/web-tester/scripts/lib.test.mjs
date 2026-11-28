@@ -5,11 +5,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
+import { isAbsolute, join } from "node:path";
+
 import {
   DEVICES,
   lookupDevice,
   evidenceDirName,
   sanitizeShotName,
+  cacheRoot,
+  runtimeDir,
+  playwrightSearchDirs,
+  defaultEvidenceDir,
 } from "./lib.mjs";
 
 test("lookupDevice returns the requested preset", () => {
@@ -72,4 +78,38 @@ test("sanitizeShotName never returns empty", () => {
   assert.equal(sanitizeShotName(""), "shot");
   assert.equal(sanitizeShotName("///"), "shot");
   assert.equal(sanitizeShotName(undefined), "shot");
+});
+
+test("cacheRoot follows the per-platform cache convention", () => {
+  assert.equal(
+    cacheRoot({ platform: "darwin", env: {}, home: "/h" }),
+    join("/h", "Library", "Caches", "mythril-skills-cache"),
+  );
+  assert.equal(
+    cacheRoot({ platform: "linux", env: {}, home: "/h" }),
+    join("/h", ".cache", "mythril-skills-cache"),
+  );
+  assert.equal(
+    cacheRoot({ platform: "linux", env: { XDG_CACHE_HOME: "/x" }, home: "/h" }),
+    join("/x", "mythril-skills-cache"),
+  );
+  assert.equal(
+    cacheRoot({ platform: "win32", env: { LOCALAPPDATA: "/L" }, home: "/h" }),
+    join("/L", "mythril-skills-cache"),
+  );
+});
+
+test("playwright resolves from the skill runtime dir before the project", () => {
+  const opts = { platform: "linux", env: {}, home: "/h", cwd: "/proj" };
+  const dirs = playwrightSearchDirs(opts);
+  assert.equal(dirs[0], runtimeDir(opts));
+  assert.equal(dirs[0], join("/h", ".cache", "mythril-skills-cache", "web-tester", "runtime"));
+  assert.equal(dirs[1], "/proj");
+});
+
+test("defaultEvidenceDir is absolute and under web-tester-evidence/", () => {
+  const d = new Date(2026, 10, 7, 15, 3, 9);
+  const dir = defaultEvidenceDir("/proj", d);
+  assert.ok(isAbsolute(dir));
+  assert.equal(dir, join("/proj", "web-tester-evidence", "web-tester-20261107-150309"));
 });

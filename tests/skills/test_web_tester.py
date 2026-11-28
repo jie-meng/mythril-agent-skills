@@ -7,6 +7,8 @@ therefore asserts the skill's structure and registration invariants.
 """
 
 import json
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -90,6 +92,29 @@ class TestSkillScripts:
 
     def test_lib_test_mjs_exists(self):
         assert (SKILL_DIR / "scripts" / "lib.test.mjs").is_file()
+
+    @pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
+    def test_lib_test_mjs_passes(self):
+        proc = subprocess.run(
+            ["node", "--test", "lib.test.mjs"],
+            cwd=SKILL_DIR / "scripts",
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+
+    def test_setup_sh_installs_into_cache_not_project(self):
+        text = (SKILL_DIR / "scripts" / "setup.sh").read_text(encoding="utf-8")
+        assert "mythril-skills-cache/web-tester/runtime" in text
+        assert "--save-dev" not in text
+        assert 'TARGET_DIR="${1' not in text
+
+    def test_lib_resolves_playwright_from_runtime_dir(self):
+        text = (SKILL_DIR / "scripts" / "lib.mjs").read_text(encoding="utf-8")
+        assert "playwrightSearchDirs()" in text
+        assert '"web-tester-evidence"' in text
 
     def test_examples_exist(self):
         examples = SKILL_DIR / "examples"
