@@ -799,9 +799,24 @@ class TestMatchCodeMapRow:
         assert match_code_map_row("src/preferences/dark_mode.py", self.row) == 3
         assert match_code_map_row("api/src/preferences/dark_mode.py", self.row) == 3
 
-    def test_trailing_segment_and_basename_score_2(self):
+    def test_trailing_segment_scores_2(self):
         assert match_code_map_row("preferences/dark_mode.py", self.row) == 2
-        assert match_code_map_row("dark_mode.py", self.row) == 2
+
+    def test_bare_file_name_is_only_a_candidate(self):
+        """`index.ts` exists in every repo; naming it does not say which."""
+        assert match_code_map_row("dark_mode.py", self.row) == 1
+
+    def test_path_containing_a_symbol_token_is_not_an_owner(self):
+        row = {
+            "repository": "api",
+            "path": "src/index.ts",
+            "symbols": "config",
+            "change": "x",
+        }
+        assert match_code_map_row("web/lib/config.js", row) == 0
+
+    def test_path_shaped_symbol_matches_when_spelled_whole(self):
+        assert match_code_map_row("GET /pref", self.row) == 2
 
     def test_symbol_scores_2(self):
         assert match_code_map_row("ThemePreference", self.row) == 2
@@ -1675,3 +1690,38 @@ class TestFollowUpRequirementCoverage:
         review = REVIEW_COV + CODE_ROUND_FOLLOW_UP
         assert "REQ3" in review
         assert parse_coverage_rows(review) == {"REQ1", "REQ2"}
+
+
+class TestFindFalseOwners:
+    """`--find` must not report ownership from a bare name or a symbol token."""
+
+    CODE_MAP_INDEX = """## 代码地图（Code Map）
+
+| 仓库 | 路径 | 符号 | 改了什么 |
+|---|---|---|---|
+| api | `src/index.ts` | `config` | 入口 |
+"""
+
+    def test_common_file_name_claims_no_owner(self, tmp_path: Path):
+        docs = _docs_dir_with(
+            tmp_path,
+            {
+                "feat/a": _plan_with(self.CODE_MAP_INDEX),
+                "feat/b": _plan_with(self.CODE_MAP_INDEX),
+            },
+        )
+        hits, weak, _ = find_in_docs_dir(docs, "index.ts")
+        assert hits == []
+        assert len(weak) == 2
+
+    def test_other_repo_file_with_symbol_token_claims_no_owner(
+        self, tmp_path: Path
+    ):
+        docs = _docs_dir_with(tmp_path, {"feat/a": _plan_with(self.CODE_MAP_INDEX)})
+        hits, weak, _ = find_in_docs_dir(docs, "web/lib/config.js")
+        assert hits == [] and weak == []
+
+    def test_full_path_still_finds_the_owner(self, tmp_path: Path):
+        docs = _docs_dir_with(tmp_path, {"feat/a": _plan_with(self.CODE_MAP_INDEX)})
+        hits, _, _ = find_in_docs_dir(docs, "api/src/index.ts")
+        assert len(hits) == 1

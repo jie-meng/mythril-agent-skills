@@ -29,8 +29,10 @@ summarize them and point here; change them here first.
    do not count.
 5. **No owner** — the code is not owned by an active work item. Check with
    `python3 SKILL_PATH/scripts/plan_lint.py --find <path-or-symbol>
-   <docs-dir>` for each file you expect to touch; only a `CODEMAP:` line
-   under an active `changes/<type>/` directory is an owner. An active owner
+   <docs-dir>` for each file you expect to touch, spelled
+   `<repo>/<repo-relative path>` (a bare file name only yields
+   candidates); only a `CODEMAP:` line under an active `changes/<type>/`
+   directory is an owner. An active owner
    → run that item's follow-up loop (`references/follow-up.md`) instead. An
    archived owner (`changes/archive/…`) does not block a quick fix.
 

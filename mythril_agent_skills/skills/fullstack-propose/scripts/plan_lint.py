@@ -663,28 +663,40 @@ def _contains_whole_identifier(haystack: str, needle: str) -> bool:
 def match_code_map_row(needle: str, row: dict[str, str]) -> int:
     """Score one Code Map row against a lookup needle.
 
-    3 = whole path, 2 = trailing path segment or symbol, 1 = substring,
-    0 = no match. The score exists so a lookup for `src/x.py` does not
-    rank a `docs/x.py` row beside the real owner.
+    3 = whole path, 2 = trailing path segment or symbol, 1 = substring
+    or bare file name, 0 = no match. The score exists so a lookup for
+    `src/x.py` does not rank a `docs/x.py` row beside the real owner.
+
+    Two spellings are deliberately weak (1, never ownership): a bare file
+    name (`index.ts` exists in every repo, so naming it does not say
+    which one), and a path whose only link to the row is a symbol token
+    it happens to contain (`web/lib/config.js` is not owned by a row whose
+    symbol is `config`). A needle with a `/` matches a symbol only when it
+    spells the whole symbol (`Class/method`, `GET /pref`).
     """
     target = normalize_path(needle)
     if not target:
         return 0
+    is_path = "/" in target
     candidates = code_map_row_candidates(row)
     if target in candidates:
         return 3
-    for candidate in candidates:
-        base = candidate.rsplit("/", 1)[-1]
-        if target == base or candidate.endswith("/" + target):
-            return 2
-    for symbol in re.split(r"[,，、;；/]+", row.get("symbols", "")):
-        cleaned = normalize_path(symbol)
-        if cleaned and (
-            cleaned == target
-            or _contains_whole_identifier(cleaned, target)
-            or _contains_whole_identifier(target, cleaned)
-        ):
-            return 2
+    if is_path and any(c.endswith("/" + target) for c in candidates):
+        return 2
+    symbols = row.get("symbols", "")
+    if is_path:
+        for symbol in re.split(r"[,，、;；]+", symbols):
+            if normalize_path(symbol) == target:
+                return 2
+    else:
+        for symbol in re.split(r"[,，、;；/]+", symbols):
+            cleaned = normalize_path(symbol)
+            if cleaned and (
+                cleaned == target
+                or _contains_whole_identifier(cleaned, target)
+                or _contains_whole_identifier(target, cleaned)
+            ):
+                return 2
     for candidate in candidates:
         if target in candidate or candidate in target:
             return 1
