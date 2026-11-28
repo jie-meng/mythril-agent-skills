@@ -13,14 +13,15 @@ license: Apache-2.0
 # Image Reference
 
 Insert references to a specific image into a document so the media file lives
-*beside* the document and is cited with a stable local relative link. This is the
-AI-equivalent of the nvim Markdown `<Leader>mi` "paste media" keybinding: same
-assets-directory layout, same filename and collision rules.
+*beside* the document and is cited with a stable local relative link. The layout
+(`<doc>.assets/`, basename kept, `-1`/`-2` on collision) matches the common
+"paste image" convention of Markdown editor plugins (nvim, Typora-style
+`${filename}.assets`), so files placed by the AI and by the editor coexist.
 
 ## Goals
 
 - Put every referenced image in a per-document assets directory next to the doc.
-- Reuse the exact nvim naming convention (`<basename>.assets/`, basename kept,
+- Reuse the same naming convention (`<basename>.assets/`, basename kept,
   `-1`/`-2` on collision) so the layout is consistent with the user's editor.
 - When a source name is missing or meaningless (chat attachment, `pasted-image.png`,
   `Screen Shot 2024-01-01 at 3.42.12 PM.png`, `IMG_9527.heic`, a temp path with
@@ -28,7 +29,7 @@ assets-directory layout, same filename and collision rules.
   subject**, not its filename.
 - Insert the correct Markdown image reference at the requested location.
 
-## The nvim convention (mirror these rules exactly)
+## The assets convention (mirror these rules exactly)
 
 For a document at `docs/implementation.md`:
 
@@ -40,7 +41,9 @@ For a document at `docs/implementation.md`:
    `MyDiagram.v2.png` stays as-is if it reads fine).
 3. **Extension**: preserve the original extension (case-insensitive). Normalize the
    saved filename so spaces/punctuation/weird characters are not carried over when
-   you pick a content-based name.
+   you pick a content-based name. Exception: `.heic`/`.heif` do not render on
+   GitHub or in most browsers — offer to convert to `.jpg`/`.png` (e.g. with the
+   `imagemagick` skill) and reference the converted file.
 4. **Collision**: if the target name already exists in the assets dir but holds
    *different* bytes, rename to `<stem>-1`, `<stem>-2`, ... until free
    (e.g. `mobile-arch.png` → `mobile-arch-1.png`). If the existing file is
@@ -127,7 +130,7 @@ python3 SKILL_PATH/scripts/image_assets.py rel-link docs/implementation.md my-mo
 python3 SKILL_PATH/scripts/image_assets.py md-link  implementation.assets/my-mobile-arch.png "Mobile app architecture"
 ```
 
-Steps (mirror the nvim logic exactly):
+Steps (mirror the convention exactly):
 
 1. `assets_dir = assets-dir <md_path>` and `mkdir -p` it.
 2. Decide the desired filename (see "Naming the file").
@@ -136,8 +139,10 @@ Steps (mirror the nvim logic exactly):
 4. If `dst` already exists and holds identical bytes, skip the copy. Otherwise copy
    the source bytes to `dst`.
 5. `rel = rel-link <md_path> <dst.name>`.
-6. Insert `md-link <rel> <alt>` at the requested spot (start of a new line, or right
-   after the sentence/paragraph the user wants the image to accompany). Use a
+6. Insert the output of `md-link <rel> <alt>` verbatim at the requested spot
+   (start of a new line, or right after the sentence/paragraph the user wants the
+   image to accompany). It percent-encodes spaces and parentheses in the path
+   (e.g. for `My Notes.md`), so do not hand-write the link. Use a
    descriptive, image-content-based alt text. For GIFs that animate meaningfully,
    you may keep the `![alt](path)` form; no special syntax is required.
 
@@ -152,7 +157,7 @@ Tell the user concisely:
 - the exact Markdown reference you inserted,
 - the relative path used, and
 - if you renamed the file (generic/messy → content-based), say so and note they can
-  rename it later — the link updates automatically since you reuse the same stem.
+  rename it later — the Markdown link must then be updated to match.
 
 ## Rules & edge cases
 

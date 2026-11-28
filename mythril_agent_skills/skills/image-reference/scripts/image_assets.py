@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Pure helpers for referencing images in Markdown documents.
 
-Mirrors the nvim markdown paste-image convention so that asset locations and
+Mirrors the common Markdown-editor paste-image convention so that asset locations and
 filenames stay consistent between this skill and the user's editor:
 
   * assets live in a ``<doc-stem>.assets/`` directory co-located with the doc
@@ -44,7 +44,7 @@ IMAGE_EXTS = {
 def assets_dir_for(md_path: Path) -> Path:
     """Return the assets directory co-located with a Markdown file.
 
-    ``dir/foo.md`` -> ``dir/foo.assets`` (same convention as nvim).
+    ``dir/foo.md`` -> ``dir/foo.assets`` (same convention as editor paste-image plugins).
     """
     return md_path.parent / (md_path.stem + ".assets")
 
@@ -111,11 +111,29 @@ def rel_asset_path(md_path: Path, filename: str) -> str:
     return f"{assets_dir_for(md_path).name}/{filename}"
 
 
+# Characters that end or break a CommonMark link destination. Everything else
+# (including CJK) is left readable.
+_LINK_ESCAPES = {" ": "%20", "(": "%28", ")": "%29", "<": "%3C", ">": "%3E"}
+
+
+def encode_link_target(rel_path: str) -> str:
+    """Percent-encode the characters that break a Markdown link destination.
+
+    ``My Notes.assets/a (1).png`` -> ``My%20Notes.assets/a%20%281%29.png``.
+    """
+    return "".join(_LINK_ESCAPES.get(ch, ch) for ch in rel_path)
+
+
 def markdown_link(rel_path: str, alt: str | None = None) -> str:
-    """Build a Markdown image reference; *alt* defaults to the filename stem."""
+    """Build a Markdown image reference; *alt* defaults to the filename stem.
+
+    The target is link-encoded (spaces, parentheses) and square brackets in
+    the alt text are escaped, so the reference renders for any doc name.
+    """
     if not alt or not alt.strip():
         alt = Path(rel_path).stem
-    return f"![{alt}]({rel_path})"
+    alt = alt.replace("[", "\\[").replace("]", "\\]")
+    return f"![{alt}]({encode_link_target(rel_path)})"
 
 
 def main() -> None:
