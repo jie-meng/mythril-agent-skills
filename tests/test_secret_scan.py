@@ -159,3 +159,11 @@ class TestCli:
 
     def test_no_args_is_usage_error(self, script: Path):
         assert self._run(script).returncode == 2
+
+
+@pytest.mark.parametrize("skill", CONSUMERS)
+def test_consumer_skill_runs_the_gate(skill: str):
+    """Each consumer's SKILL.md must invoke its bundled scanner as a gate."""
+    text = (SKILLS_DIR / skill / "SKILL.md").read_text(encoding="utf-8")
+    assert "SKILL_PATH/scripts/secret_scan.py" in text
+    assert "STATUS=FAIL" in text
