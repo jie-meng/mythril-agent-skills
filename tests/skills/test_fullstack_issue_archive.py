@@ -154,3 +154,15 @@ class TestWorkItemArchiveRoutesIssuesAway:
         assert "progress.md` BEFORE" in self.body
         assert "Archived with SC-3" in self.body
 
+
+    def test_archive_commit_stages_the_old_path_and_changelog(self):
+        """`git add <new-path>` alone left the old path's deletion unstaged."""
+        step5 = self.body.split("## Step 5 — Archive", 1)[1].split("## Step 6", 1)[0]
+        assert 'git mv "$SRC" "$DST"' in step5
+        assert 'git add -A -- "$DST" <changelog-file-if-written>' in step5
+        assert "git add changes/archive/" not in step5
+
+    def test_no_unused_graphify_bundle(self):
+        skill_dir = REPO_ROOT / "mythril_agent_skills" / "skills" / "fullstack-archive"
+        assert "graphify_check" not in self.body
+        assert not (skill_dir / "scripts" / "graphify_check.py").exists()

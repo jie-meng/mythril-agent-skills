@@ -171,7 +171,6 @@ def specs() -> list[SyncSpec]:
         "fullstack-apply",
         "fullstack-explore",
         "fullstack-propose",
-        "fullstack-archive",
         "fullstack-brief",
     )
     graphify_source = SHARED_ROOT / "graphify" / "graphify_check.py"

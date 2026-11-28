@@ -458,7 +458,7 @@ This rules out the "import from a sibling skill" or "import from a top-level pac
 
 ### Design rule: single source, bundled copies
 
-Some assets are inherently shared across multiple skills (e.g. mermaid rules + linter are needed by `user-journey`, `fullstack-apply`, and `fullstack-propose`; the graphify check is needed by all fullstack lifecycle skills). For those, the repo uses one canonical source plus byte-identical bundled copies inside each consumer skill:
+Some assets are inherently shared across multiple skills (e.g. mermaid rules + linter are needed by `user-journey`, `fullstack-apply`, and `fullstack-propose`; the graphify check is needed by the fullstack skills that read code). For those, the repo uses one canonical source plus byte-identical bundled copies inside each consumer skill:
 
 | Layer | Path | Edited by | Travels with install? |
 |---|---|---|---|
@@ -509,7 +509,7 @@ NEVER hand-edit a bundled copy directly — your changes will be lost on the nex
 |---|---|---|
 | `mermaid_lint.py` | `shared/mermaid/mermaid_lint.py` | `fullstack-apply`, `fullstack-propose`, `fullstack-brief`, `user-journey` |
 | `MERMAID-RULES.md` | `shared/mermaid/MERMAID-RULES.md` | `fullstack-apply`, `fullstack-propose`, `fullstack-brief`, `user-journey` |
-| `graphify_check.py` | `shared/graphify/graphify_check.py` | `fullstack-init`, `fullstack-explore`, `fullstack-propose`, `fullstack-apply`, `fullstack-archive`, `fullstack-brief` |
+| `graphify_check.py` | `shared/graphify/graphify_check.py` | `fullstack-init`, `fullstack-explore`, `fullstack-propose`, `fullstack-apply`, `fullstack-brief` |
 | `compute_waves.py` | `shared/waves/compute_waves.py` | `fullstack-propose`, `fullstack-apply` |
 | `secret_guard.py` | `shared/secrets/secret_guard.py` | `confluence`, `figma`, `glm-vision-fallback`, `jenkins`, `jira`, `notion` |
 | `secret_scan.py` | `shared/secrets/secret_scan.py` | `fullstack-brief`, `fullstack-issue-create` |
